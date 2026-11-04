@@ -46,6 +46,13 @@ class VoteService {
 
     public function castVote(string $email, string $otp, int $nomineeId, int $awardId, string $ip = '', ?string $deviceHash = null, ?string $idempotencyKey = null, ?string $voterName = null, ?string $voterPhone = null): array {
         $eh = self::voterHash($email);
+        // The inbox this address reaches (`ada+votes@` and `a.da@gmail.com` are one), for
+        // COUNTING people on the duplicates screen. Never read by the one-vote rule, which
+        // stays on $eh: changing that would change who may vote in the middle of a cycle.
+        // Optional, because an insert naming a missing column throws, and the catch below
+        // would tell a real voter they had already voted.
+        $canon = \AfricaGates\Support\SchemaHas::column('gates_votes', 'voter_canon_hash')
+            ? ['voter_canon_hash' => \AfricaGates\Support\EmailCanon::hash($email)] : [];
         $th = hash('sha256', trim($otp));
         $ipHash = $ip !== '' ? hash('sha256', $ip) : null;
         // Voter identity captured alongside the (hashed) email — stored as-is for
@@ -75,7 +82,7 @@ class VoteService {
             }
         }
 
-        $result = DB::transaction(function () use ($eh, $th, $nomineeId, $awardId, $ipHash, $deviceHash, $idempotencyKey, $voterName, $voterPhone) {
+        $result = DB::transaction(function () use ($eh, $canon, $th, $nomineeId, $awardId, $ipHash, $deviceHash, $idempotencyKey, $voterName, $voterPhone) {
             // Latest live token for this email; lock it for the duration.
             $token = DB::table('gates_otp_tokens')
                 ->where('email_hash', $eh)->where('purpose', 'vote')->where('is_used', 0)
@@ -140,7 +147,7 @@ class VoteService {
                     'voter_name'       => $voterName,
                     'voter_phone'      => $voterPhone,
                     'voted_at'         => Carbon::now()->toDateTimeString(),
-                ]);
+                ] + $canon);
             } catch (\Throwable $e) {
                 return ['success' => false, 'code' => 'ALREADY_VOTED', 'message' => 'You have already voted in this category.'];
             }

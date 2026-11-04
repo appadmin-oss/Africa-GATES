@@ -31,7 +31,7 @@ class ProfilesController
         if ($status) $base->where('status', $status);
         if ($tier)   $base->where('cpi_tier', $tier);
         if ($q !== '') $base->where(function ($x) use ($q) {
-            $x->where('display_name','like',"%$q%")->orWhere('email','like',"%$q%")->orWhere('category','like',"%$q%");
+            $x->whereRaw(\AfricaGates\Support\Like::clause('display_name'), [\AfricaGates\Support\Like::contains($q)])->orWhereRaw(\AfricaGates\Support\Like::clause('email'), [\AfricaGates\Support\Like::contains($q)])->orWhereRaw(\AfricaGates\Support\Like::clause('category'), [\AfricaGates\Support\Like::contains($q)]);
         });
         $total = (clone $base)->count();
         $rows = $base->orderByDesc('id')->offset(($page-1)*$per)->limit($per)

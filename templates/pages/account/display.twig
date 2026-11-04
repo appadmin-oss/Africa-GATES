@@ -1,0 +1,16 @@
+{% extends 'pages/account/_frame.twig' %}
+{#
+  DISPLAY & READING — /account/display · Phase 8 (REFERENCE §7.5, design/DisplayReading.dc.html)
+
+  The same block the header's Aa popover and the Menu draw (`partials/display-reading.twig`),
+  as a page of the account: one store (`ag-a11y`, AGA11y), saved to the member through
+  POST /account/display, so the setting follows them between devices. A third copy of the
+  controls would be a third thing to keep in step, so this page includes the one there is.
+#}
+{% set acc_tab = 'settings' %}
+{% set colour_tier = '0' %}
+{% block acc_body %}
+  <h2 class="acc__h2">{{ 'Display & reading'|trans }}</h2>
+  <p class="acc__p">{{ 'These follow you to any device you sign in on.'|trans }}</p>
+  <div class="ag-card acc__card acc__dr">{% include 'partials/display-reading.twig' with {uid: 'acc-dr'} %}</div>
+{% endblock %}

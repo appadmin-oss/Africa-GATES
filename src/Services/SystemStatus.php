@@ -96,13 +96,16 @@ final class SystemStatus
      */
     public static function report(): array
     {
+        // Each check with the heading it is drawn under on /status (StatusPageV2 groups its
+        // rows by what a visitor was doing). Assigned HERE, beside the check, so a renamed
+        // component keeps its group and the page never matches a group by the row's words.
         $components = [
-            self::database(),
-            self::scheduledWork(),
-            self::queue(),
-            self::payments(),
-            self::mail(),
-            self::ai(),
+            ['group' => 'Taking part']          + self::database(),
+            ['group' => 'Giving']               + self::payments(),
+            ['group' => 'Keeping you informed'] + self::mail(),
+            ['group' => 'Keeping you informed'] + self::queue(),
+            ['group' => 'Behind the scenes']    + self::scheduledWork(),
+            ['group' => 'Behind the scenes']    + self::ai(),
         ];
 
         return [
@@ -230,8 +233,90 @@ final class SystemStatus
             }, $report['components']),
             'uptime'      => $timeline['uptime'],
             'incidents'   => $timeline['incidents'],
+            // The planned-work notice the page shows, from its one reader (Phase 9). The
+            // page announces it, so the board does too — and nothing more than the page.
+            'planned'     => PlannedWork::current(),
             'window_days' => self::HISTORY_DAYS,
         ];
+    }
+
+    /** A recorded snapshot older than this is not "now" any more. */
+    public const LIGHT_FRESH_MIN = 45;
+
+    /**
+     * The overall state the last scheduled check RECORDED, for the one-word light on the
+     * phone Menu's Status row (MobileMenu.dc.html: a live dot and "Working").
+     *
+     * ── WHY THE LOG AND NOT {@see report()} ─────────────────────────────────────
+     *
+     * The Menu is in the document of every phone page, so whatever this costs, every page
+     * view pays. `report()` runs six probes — a database timing, the queue, mail, payments —
+     * which is right for the status page somebody opened on purpose and wrong as a tax on
+     * every arrival. The scheduled tick already records exactly this answer every fifteen
+     * minutes ({@see record()}), so the row reads one indexed row.
+     *
+     * ── AND WHY A STALE ROW IS NULL, NOT ITS STATE ──────────────────────────────
+     *
+     * "Working" from a snapshot three days old is the cached all-clear that outlives the
+     * outage it missed — the fault the status page's own timestamp exists to prevent. Past
+     * {@see LIGHT_FRESH_MIN} minutes, or with no row at all, the answer is null and the Menu
+     * draws the row with no state rather than a confident one. A gap in the log is itself
+     * the evidence the scheduler stopped, and the status page says so; a word on a menu row
+     * cannot, so it says nothing.
+     *
+     * @return array{status:string,label:string}|null
+     */
+    public static function light(): ?array
+    {
+        try {
+            $r = DB::table('gates_status_log')->orderByDesc('taken_at')->first(['taken_at', 'overall']);
+        } catch (\Throwable) {
+            return null;
+        }
+        if (!$r || !isset(self::LABELS[(string) $r->overall])) return null;
+        if ((string) $r->overall === self::UNKNOWN) return null;
+
+        try {
+            $age = Carbon::parse((string) $r->taken_at)->diffInMinutes(Carbon::now(), false);
+        } catch (\Throwable) {
+            return null;
+        }
+        if ($age > self::LIGHT_FRESH_MIN) return null;
+
+        return ['status' => (string) $r->overall, 'label' => self::LABELS[(string) $r->overall]];
+    }
+
+    /**
+     * The last recorded snapshot, component by component, for the console's System card.
+     *
+     * Read from the log rather than by running {@see report()}: Home is opened all day by
+     * every operator, and a live report on each view would be six probes per page load.
+     * The same freshness rule as {@see light()} — past {@see LIGHT_FRESH_MIN} minutes, or
+     * with no row, the answer is null and the card says the check has not run, rather than
+     * showing an old all-clear as the present.
+     *
+     * @return array{taken_at:string, components:list<array{name:string,status:string,label:string}>}|null
+     */
+    public static function snapshot(): ?array
+    {
+        try {
+            $r = DB::table('gates_status_log')->orderByDesc('taken_at')->first(['taken_at', 'components_json']);
+            if (!$r) return null;
+            $age = Carbon::parse((string) $r->taken_at)->diffInMinutes(Carbon::now(), false);
+        } catch (\Throwable) {
+            return null;
+        }
+        if ($age > self::LIGHT_FRESH_MIN) return null;
+
+        $rows = json_decode((string) $r->components_json, true);
+        if (!is_array($rows)) return null;
+        $out = [];
+        foreach ($rows as $c) {
+            $st = (string) ($c['status'] ?? self::UNKNOWN);
+            if (!isset(self::LABELS[$st])) $st = self::UNKNOWN;
+            $out[] = ['name' => (string) ($c['name'] ?? ''), 'status' => $st, 'label' => self::LABELS[$st]];
+        }
+        return ['taken_at' => (string) $r->taken_at, 'components' => $out];
     }
 
     /** Drop snapshots past {@see KEEP_DAYS}. */
@@ -314,6 +399,63 @@ final class SystemStatus
         }
 
         return $out;
+    }
+
+    /**
+     * The overall state of every snapshot between two stored timestamps, oldest first, for
+     * the console's alert timeline. Only states this class recognises are returned, for the
+     * reason {@see snapshots()} gives; a window with no rows at all is the evidence that
+     * scheduled work stopped, and the caller draws it as a gap rather than as green.
+     *
+     * @return list<array{0:string,1:string}> [taken_at, overall]
+     */
+    public static function overallBetween(string $from, string $to): array
+    {
+        try {
+            $rows = DB::table('gates_status_log')->whereBetween('taken_at', [$from, $to])
+                ->orderBy('taken_at')->limit(20000)->get(['taken_at', 'overall']);
+        } catch (\Throwable) {
+            return [];
+        }
+        $out = [];
+        foreach ($rows as $r) {
+            if (isset(self::RANK[(string) $r->overall])) $out[] = [(string) $r->taken_at, (string) $r->overall];
+        }
+        return $out;
+    }
+
+    /**
+     * Each component's recorded states between two timestamps, oldest first — for the
+     * console's service strip, where every service gets its own row of blocks. A component
+     * missing from a snapshot simply has no sample there, which the strip draws as a gap.
+     *
+     * @return array<string, list<array{0:string,1:string}>> name => [taken_at, state]
+     */
+    public static function componentsBetween(string $from, string $to): array
+    {
+        try {
+            $rows = DB::table('gates_status_log')->whereBetween('taken_at', [$from, $to])
+                ->orderBy('taken_at')->limit(20000)->get(['taken_at', 'components_json']);
+        } catch (\Throwable) {
+            return [];
+        }
+        $out = [];
+        foreach ($rows as $r) {
+            $cs = json_decode((string) $r->components_json, true);
+            if (!is_array($cs)) continue;
+            foreach ($cs as $c) {
+                $st = (string) ($c['status'] ?? '');
+                if (!isset(self::RANK[$st])) continue;
+                $out[(string) ($c['name'] ?? '')][] = [(string) $r->taken_at, $st];
+            }
+        }
+        return $out;
+    }
+
+    /** Worst-wins rank of a state, for a caller folding snapshots into buckets. */
+    public static function rank(string $state): ?int
+    {
+        return self::RANK[$state] ?? null;
     }
 
     /**
@@ -509,6 +651,32 @@ final class SystemStatus
 
         // Newest first: the thing somebody is on this page about happened recently.
         usort($out, static fn (array $a, array $b): int => strcmp($b['from'], $a['from']));
+
+        // ── THE LIVE TIMELINE OF A PROBLEM STILL HAPPENING (Phase 9, StatusPageV2) ──
+        //
+        // What the page can honestly put under "Happening now" is what the record SAW: the
+        // check that first found the fault, each check where its state changed, and the
+        // latest check — measured transitions, never a narrative somebody typed. A run's
+        // steps are walked from the same snapshots as the run itself, so the timeline and
+        // the incident line above it cannot disagree about when it began.
+        foreach ($out as $k => $i) {
+            if (!$i['ongoing']) continue;
+            $steps = [];
+            $prev  = null;
+            foreach ($snaps as $snap) {
+                if (strcmp($snap['at'], $i['from']) < 0) continue;
+                $st = $snap['parts'][$i['name']] ?? null;
+                if ($st === null || $st === $prev) continue;
+                $steps[] = ['at' => $snap['at'], 'status' => $st, 'label' => self::LABELS[$st]];
+                $prev = $st;
+            }
+            $last = $snaps === [] ? null : $snaps[count($snaps) - 1];
+            if ($last !== null && ($steps === [] || end($steps)['at'] !== $last['at'])) {
+                $st = $last['parts'][$i['name']] ?? $i['status'];
+                $steps[] = ['at' => $last['at'], 'status' => $st, 'label' => self::LABELS[$st], 'latest' => true];
+            }
+            $out[$k]['steps'] = array_reverse($steps);   // newest first, as the DC lists updates
+        }
 
         return array_slice($out, 0, max(1, $limit));
     }
@@ -915,6 +1083,9 @@ final class SystemStatus
         try {
             $rows = DB::table('gates_mail_log')
                 ->where('created_at', '>=', $since)
+                // A message the send rules held never reached a transport, so it is not
+                // part of the rate a visitor is being told about.
+                ->whereNotIn('status', \AfricaGates\Services\Mail\MailLog::HELD)
                 ->selectRaw("COUNT(*) n, SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) bad")
                 ->first();
         } catch (\Throwable) {
@@ -1008,6 +1179,10 @@ final class SystemStatus
             $outcome = strtoupper(trim((string) $r->outcome));
             $n       = (int) $r->n;
 
+            if ($outcome === AiGateway::CACHED) {
+                // Answered from cache: no provider was asked, so it says nothing about one.
+                continue;
+            }
             if ($outcome === 'OK') {
                 $ok  += $n;
                 $okMs = (float) $r->ms;

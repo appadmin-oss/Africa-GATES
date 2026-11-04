@@ -1,0 +1,23 @@
+{#- Vote receipt (a confirmed contribution) · Voting. Sender: CheckoutMailer::receipt (minted).
+    Variables: first_name, nominee, category, votes (int), votes_label, amount, reference, page_url, nominee_first_name.
+    Design: Email Templates.dc.html → "Vote receipt", corrected to the live site (owner, 19 Oct
+    2026): this receipt is for a CONTRIBUTION — a paid order is N votes for one nominee, and a
+    free vote is cast separately, so the design's "Free daily vote" line and "your free vote
+    comes back at midnight" describe neither (one free vote per category; none on an edition
+    that votes only by contribution). What the votes do is the methodology the receipt has
+    always had to state, because a receipt is the document a dispute is argued from. -#}
+{% extends 'emails/_layout.html.twig' %}
+{% block category %}Voting{% endblock %}
+{% block hero %}illo-ballot-countdown{% endblock %}
+{% block why %}You contributed votes on Africa GATES.{% endblock %}
+{% block subject %}{{ votes == 1 ? 'Your vote' : 'Your ' ~ votes_label ~ ' votes' }}{{ nominee ? ' for ' ~ nominee : '' }} {{ votes == 1 ? 'is' : 'are' }} in{% endblock %}
+{% block preheader %}{{ votes_label }} {{ votes == 1 ? 'vote' : 'votes' }} added · {{ amount }} · ref {{ reference }}{% endblock %}
+{% block body %}
+{%- import 'emails/_blocks.html.twig' as b -%}
+{{ b.h1(votes == 1 ? 'Your vote is in' : 'Your votes are in') }}
+{{ b.p("Thank you, #{first_name}, for backing #{nominee ?: 'your nominee'}" ~ (category ? " for #{category}" : '') ~ '. They are already counted in the public tally.') }}
+{{ b.receipt([["Contribution · #{votes_label} #{votes == 1 ? 'vote' : 'votes'}", amount]], amount) }}
+{{ b.ref('Your reference', reference) }}
+{{ b.button(nominee_first_name ? "Share #{nominee_first_name}’s page" : 'Share the page', page_url) }}
+{{ b.note("These votes count toward #{nominee ?: 'the nominee'}’s public tally and the community half of the Cultural Power Index, exactly as a free vote does. Judges never see a nominee’s vote count, and every published result shows how much of a tally was contributed. Keep this receipt.") }}
+{% endblock %}

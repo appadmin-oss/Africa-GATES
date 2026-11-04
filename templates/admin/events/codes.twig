@@ -231,7 +231,7 @@
 {% endblock %}
 
 {% block foot_scripts %}
-<script nonce="{{ csp_nonce }}">
+<script nonce="{{ csp_nonce }}" data-nav="rerun">
 function dcForm(){
   var blank = { id: 0, code: '', label: '', kind: 'percent', amount: 10, max_uses: '',
                 max_per_email: 1, starts_at: '', ends_at: '', is_active: true, tier_ids: [] };

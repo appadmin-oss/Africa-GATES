@@ -451,12 +451,16 @@ final class PaymentController
 
             // applyStatus() refuses to move a payout that is already terminal, so a duplicate
             // delivery and an out-of-order one are both no-ops rather than a payout that
-            // reopens itself after settling.
-            $moved = $status !== '' && \AfricaGates\Services\OrgPayout::applyStatus(
-                $ref, $status, (string) ($payload['data']['message'] ?? '')
-            );
+            // reopens itself after settling. A member's wallet withdrawal carries its own
+            // prefix (WalletAutoPay::PREFIX) and is settled by its own engine.
+            $wallet = \AfricaGates\Services\WalletAutoPay::isOurs($ref);
+            $msg = (string) ($payload['data']['message'] ?? $payload['data']['reason'] ?? '');
+            $moved = $status !== '' && ($wallet
+                ? \AfricaGates\Services\WalletAutoPay::applyStatus($ref, $status, $msg,
+                      ['transfer_code' => (string) ($payload['data']['transfer_code'] ?? '')])
+                : \AfricaGates\Services\OrgPayout::applyStatus($ref, $status, (string) ($payload['data']['message'] ?? '')));
 
-            Log::record($provider, $event, $ref, 'payout',
+            Log::record($provider, $event, $ref, $wallet ? 'wallet-payout' : 'payout',
                         $moved ? $status : 'ignored',
                         $moved ? '' : 'already terminal, unknown reference, or no status', $domain);
             return $ack();
@@ -514,7 +518,9 @@ final class PaymentController
                 // Each stream owns what a reversal means for it. Votes lose the display votes
                 // the donation bought; a shop order goes back to stock and gives up its
                 // points; a ticket has its code cleared so it stops opening a door.
-                if ($stream === 'shop') {
+                if ($stream === 'ads') {
+                    $did = \AfricaGates\Services\Ads\AdCheckout::reverse($ref, $reversal) ? 'reversed' : 'unmatched';
+                } elseif ($stream === 'shop') {
                     $o = DB::table('gates_orders')->where('reference', $ref)->first();
                     $amount = isset($o->subtotal_naira) ? (int) $o->subtotal_naira : null;
                     $did = \AfricaGates\Services\ShopOrderService::reverse($ref, $reversal, $this->log)
@@ -569,6 +575,12 @@ final class PaymentController
         }
 
         $stream = PaymentDestination::streamForReference($reference);
+
+        if ($stream === 'ads') {
+            $r = \AfricaGates\Services\Ads\AdCheckout::confirm($reference, $this->payments);
+            Log::record($provider, $event, $reference, $stream, (string) $r['state'], (string) $r['message'], $domain);
+            return $ack();
+        }
 
         if ($stream === 'shop') {
             $r = \AfricaGates\Services\ShopOrderService::confirm(
@@ -648,6 +660,12 @@ final class PaymentController
     /**
      * The single confirmation path shared by callback + webhook.
      *
+     * PUBLIC because `DonationController::callback()` confirms through it too. That
+     * controller kept its own copy, and the copy had drifted on every point this one was
+     * corrected on: strict `!==` on the amount (so "customer bears the fee" refused every
+     * gift), no currency check, no `confirmed_at`, no gateway ids remembered. Two
+     * confirmations of one reference must not be able to disagree about whether it paid.
+     *
      * Verifies with the gateway, checks amount parity, then performs an IDEMPOTENT
      * pending→confirmed transition. Returns one of:
      *   'confirmed' — we flipped it this call
@@ -656,7 +674,7 @@ final class PaymentController
      *
      * @param object $donation row from gates_donations (has id, amount_naira, status)
      */
-    private function confirmByReference(string $provider, string $reference, object $donation, string $source): string
+    public function confirmByReference(string $provider, string $reference, object $donation, string $source): string
     {
         if (($donation->status ?? '') === 'confirmed') {
             // Idempotent fast-path: the money is settled and is never re-verified
@@ -781,8 +799,17 @@ final class PaymentController
     private function deliver(string $reference): void
     {
         try {
-            $row = DB::table('gates_donations')->where('payment_ref', $reference)->first(['id', 'tier', 'intent_nominee_id']);
-            if ($row && ($row->tier ?? '') === 'paid-vote' && !empty($row->intent_nominee_id)) {
+            $row = DB::table('gates_donations')->where('payment_ref', $reference)->first();
+            if ($row && \AfricaGates\Services\CheckoutMailer::isGift($row)) {
+                // A GIFT owes its donor a receipt too, and for a monthly one that receipt is
+                // the only thing that carries the link to stop it. This branch did not
+                // exist: only the browser callback sent a gift receipt, and only when it was
+                // the call that flipped the row — so a donor whose webhook landed first (or
+                // who never came back from their banking app) heard nothing, ever. Queued
+                // and claimed exactly like the paid-vote receipt below, so callback, webhook
+                // and reconcile between them send one.
+                \AfricaGates\Services\CheckoutMailer::queueReceipt((int) $row->id);
+            } elseif ($row && ($row->tier ?? '') === 'paid-vote' && !empty($row->intent_nominee_id)) {
                 // MINTING STAYS INLINE, deliberately. It is a handful of indexed
                 // writes, and it is the thing the supporter is actually watching — a
                 // tally that updates on the next cron tick instead of now is the
@@ -800,7 +827,7 @@ final class PaymentController
                 \AfricaGates\Services\CheckoutMailer::queueReceipt((int) $row->id);
             }
         } catch (\Throwable $e) {
-            $this->log?->error('[payment] paid-vote delivery failed', ['ref' => $reference, 'err' => $e->getMessage()]);
+            $this->log?->error('[payment] delivery failed', ['ref' => $reference, 'err' => $e->getMessage()]);
         }
     }
 

@@ -172,30 +172,39 @@ final class EmailVerificationTest extends TestCase
         $this->assertGreaterThan(0, $delivered,
             'the limit refuses everybody, which is not a limit but an outage');
     }
-
     /**
-     * THE PAGE STATES THE WINDOW, AND READS IT FROM THE CODE.
-     *
-     * The life of the link was in the EMAIL and nowhere else, so the one person who could
-     * not read it was the one whose link had already expired — they met the rule as
-     * "invalid or expired", with no sign there had ever been a clock.
-     *
-     * Asserted against the CONSTANT the token is minted with rather than against "24", so
-     * a number typed into the template fails the moment the two disagree. That is this
-     * repo's own rule about looping a figure from the code, and this page is the cheapest
-     * possible place to break it.
+     * Run $fn with another request's spend of every live token landing immediately before
+     * the first UPDATE of `gates_otp_tokens` — after the consumer's own read said the
+     * token was live. That is the interleaving two simultaneous presentations produce.
      */
-    public function test_the_notice_states_the_window_and_gets_it_from_the_constant(): void
+    private function withRivalSpend(callable $fn): mixed
     {
-        $html = (string) $this->app()->handle(
-            (new ServerRequestFactory())->createServerRequest('GET', '/account/verify'))->getBody();
+        $armed = true;
+        DB::connection()->beforeExecuting(function (string $sql) use (&$armed): void {
+            if (!$armed) return;
+            if (stripos(ltrim($sql), 'update') === 0 && str_contains($sql, 'gates_otp_tokens')) {
+                $armed = false;
+                DB::table('gates_otp_tokens')->update(['is_used' => 1]);
+            }
+        });
+        try {
+            $r = $fn();
+            $this->assertFalse($armed, 'the interleaving never happened, so this test proves nothing');
+            return $r;
+        } finally {
+            $armed = false;   // the callback outlives this test on the shared connection
+        }
+    }
 
-        $this->assertStringContainsString(
-            'lasts ' . UserAccountService::VERIFY_TTL_HOURS . ' hours', $html,
-            'the page does not state how long the link lives, or has its own copy of the number');
+    /** One verification link, presented twice at once, signs in once. */
+    public function test_a_verification_link_spent_by_a_simultaneous_request_signs_nobody_in(): void
+    {
+        $svc = $this->accounts();
+        [$id, $email] = $this->member();
+        $raw = (string) $svc->issueEmailVerification($id, $email);
 
-        // The commonest reason a verification message "has not arrived".
-        $this->assertStringContainsString('junk folder', $html,
-            'the page offers a resend without first suggesting the free thing');
+        $r = $this->withRivalSpend(fn () => $svc->verifyEmailToken($raw));
+
+        $this->assertNull($r, 'one verification link signed two requests in');
     }
 }

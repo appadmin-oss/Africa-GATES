@@ -5,6 +5,8 @@ namespace Tests\Unit;
 
 use AfricaGates\Admin\Services\AuditService;
 use AfricaGates\Admin\Support\AuditTargets;
+use AfricaGates\Admin\Support\TimeRange;
+use AfricaGates\Admin\Support\TimeSeries;
 use AfricaGates\Support\DisplayTime;
 use Tests\TestCase;
 use Twig\Environment;
@@ -67,8 +69,10 @@ final class AuditScreenRenderTest extends TestCase
                          'span' => ['first' => null, 'last' => null]],
             'f' => ['admin' => null, 'area' => '', 'action' => '', 'target_type' => '',
                     'target_id' => null, 'q' => '', 'from' => '', 'to' => '', 'page' => 1],
-            'active' => 0, 'qs' => '', 'qs_no_action' => '', 'window' => [1],
+            'active' => 0, 'qs' => '', 'window' => [1],
             'subject' => null, 'form_action' => '/admin/audit', 'areaActions' => [],
+            'range' => $r = TimeRange::fromQuery([], '30d'), 'all_time' => false,
+            'series' => TimeSeries::bars([], $r), 'params' => [],
         ];
     }
 
@@ -250,11 +254,13 @@ final class AuditScreenRenderTest extends TestCase
             'span'   => ['first' => '2026-01-02 08:00:00', 'last' => '2026-06-01 09:00:00'],
         ]]);
 
-        $this->assertStringContainsString('stand_call (12)', $out);
-        $this->assertStringContainsString('Adaeze Umeh (240)', $out);
-        $this->assertStringContainsString('Unattributed (6)', $out,
-            'rows with no admin had no way to be selected');
-        $this->assertStringContainsString('Event (30)', $out);
+        // Each option is a link to the narrowed view, with its count from the log.
+        $opt = fn (string $q, string $l, string $n) => $this->assertMatchesRegularExpression(
+            '/href="\/admin\/audit\?' . preg_quote($q, '/') . '">' . preg_quote($l, '/') . '<span class="cn-pop__n">' . $n . '<\/span>/', $out, "no option for {$l}");
+        $opt('area=stand_call', 'stand_call', '12');
+        $opt('admin=4', 'Adaeze Umeh', '240');
+        $opt('admin=0', 'Unattributed', '6'); // rows with no admin had no way to be selected
+        $opt('type=site_event', 'Event', '30');
     }
 
     /**
@@ -265,12 +271,14 @@ final class AuditScreenRenderTest extends TestCase
     {
         $out = $this->render([]);
 
-        preg_match_all('/<(?:input|select)\b[^>]*\bid="(aud-[a-z]+)"/', $out, $m);
-        $this->assertNotEmpty($m[1], 'no filter controls rendered at all');
-
-        foreach ($m[1] as $id) {
-            $this->assertMatchesRegularExpression('/<label\s+for="' . preg_quote($id, '/') . '"/', $out,
-                "the filter control #{$id} has no associated label");
+        // Every visible control sits inside a <label> (the search bar, the range's From
+        // and To); the filters themselves are links, named by their own text.
+        preg_match_all('/<(input|select)\b(?![^>]*type="hidden")[^>]*>/', $out, $m, PREG_OFFSET_CAPTURE);
+        $this->assertNotEmpty($m[0], 'no filter controls rendered at all');
+        foreach ($m[0] as [$tag, $at]) {
+            $before = substr($out, 0, $at);
+            $this->assertGreaterThan((int) strrpos($before, '</label>'), (int) strrpos($before, '<label'),
+                "a filter control has no label: {$tag}");
         }
     }
 
@@ -283,14 +291,14 @@ final class AuditScreenRenderTest extends TestCase
     {
         $out = $this->render([
             'f' => $this->filters(['action' => 'settings.update']),
-            'active' => 1, 'qs' => '&action=settings.update', 'qs_no_action' => '',
+            'active' => 1, 'qs' => '&action=settings.update', 'params' => ['action' => 'settings.update'],
         ]);
 
         $this->assertMatchesRegularExpression(
             '/<input type="hidden" name="action" value="settings\.update">/', $out,
             'the action filter is not carried by the form, so re-filtering drops it');
         // And it must be visible: a filter nobody can see is a filter nobody can argue with.
-        $this->assertStringContainsString('remove this filter', $out);
+        $this->assertStringContainsString('Remove filter: Action settings.update', $out);
     }
 
     /**
@@ -306,8 +314,8 @@ final class AuditScreenRenderTest extends TestCase
                               ['action' => 'settings.smtp_test', 'n' => 3]],
         ]);
 
-        $this->assertStringContainsString('settings covers', $out);
-        $this->assertStringContainsString('settings.smtp_test · 3', $out);
+        $this->assertStringContainsString('+</span> Action', $out, 'no Action filter once an area is chosen');
+        $this->assertStringContainsString('settings.smtp_test<span class="cn-pop__n">3</span>', $out);
         $this->assertStringContainsString('action=settings.update', $out);
     }
 
@@ -315,7 +323,7 @@ final class AuditScreenRenderTest extends TestCase
     public function test_with_no_area_chosen_no_actions_are_listed(): void
     {
         $out = $this->render([]);
-        $this->assertStringNotContainsString('covers', $out);
+        $this->assertStringNotContainsString('+</span> Action', $out);
     }
 
     /**
@@ -335,13 +343,13 @@ final class AuditScreenRenderTest extends TestCase
         ];
 
         $out = $this->render($vars);
-        $this->assertStringNotContainsString('id="aud-admin"', $out,
-            'the per-admin view renders an admin select the form cannot act on');
+        $this->assertStringNotContainsString('+</span> Who', $out,
+            'the per-admin view offers an admin filter the path overrides');
         $this->assertStringContainsString('href="/admin/audit"', $out,
             'there is no way back to the whole log from one admin\'s view');
 
         // And it is present on the general view, or the filter lost a dimension.
-        $this->assertStringContainsString('id="aud-admin"', $this->render([]));
+        $this->assertStringContainsString('+</span> Who', $this->render(['facets' => $vars['facets']]));
     }
 
     /** The form posts back to wherever it is, or the per-admin view loses its place. */

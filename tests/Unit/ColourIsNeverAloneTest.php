@@ -20,8 +20,9 @@ use Tests\TestCase;
  *
  * So: anything painted with a role token either NAMES ITSELF, or is marked decorative
  * and has something beside it that names it. There is no third option, and the second
- * is the tile's shape — `partials/tile.twig` puts `aria-hidden` on the mark and leaves
- * the word alone.
+ * is the tile's shape — `partials/tile.twig` put `aria-hidden` on the mark and left
+ * the word alone (that partial was destroyed on 3 Oct 2026; the shape is in
+ * docs/handoff/inventory/_partials.md for its rebuild).
  *
  * ══════════════════════════════════════════════════════════════════════════════
  * WHY THIS SWEEP READS CSS BEFORE IT READS MARKUP
@@ -29,7 +30,7 @@ use Tests\TestCase;
  *
  * Almost no coloured element on this platform says so in its own tag. The colour arrives
  * through a class — `.hf-chip`, `.hf-pg i` — declared in a style block somewhere else in
- * the file, so a sweep that greps markup for `var(--ag-honour-fill)` finds the two inline
+ * the file, so a sweep that greps markup for `var(--ag-gold)` finds the two inline
  * cases and reports a clean pass over everything that actually carries colour. It has to
  * resolve which SELECTORS paint, then find the elements those selectors reach.
  *
@@ -51,8 +52,23 @@ use Tests\TestCase;
  */
 final class ColourIsNeverAloneTest extends TestCase
 {
-    /** Painted by a role, by the tile's own slots, or by a programme's identity hue. */
-    private const PAINTS = '/background(?:-color)?\s*:[^;{}]*var\(\s*--(?:ag-(?:honour|action|live|caution|fault)-(?:fill|wash)|tile-(?:fill|wash)|pg-fill)/i';
+    /**
+     * Painted by a colour family's field, by the tile's own slots, or by a programme's
+     * identity. Built from `Accent::fields()` rather than spelled: the previous version
+     * spelled the retired role slots (`--ag-honour-wash`), and once the palette became the
+     * handoff's a bar painted `var(--ag-gold)` was invisible to it — the rule pinned to
+     * the wrong token.
+     */
+    private static function paints(): string
+    {
+        $tokens = [];
+        foreach (\AfricaGates\Support\Accent::fields() as $list) {
+            foreach ($list as $t) $tokens[] = preg_quote($t, '/');
+        }
+
+        return '/background(?:-color)?\s*:[^;{}]*var\(\s*--(?:ag-(?:' . implode('|', $tokens)
+             . ')(?![a-z0-9-])|tile-(?:fill|wash)|pg-fill)/i';
+    }
 
     /** Never pushed on the stack: they cannot contain anything. */
     private const VOID = ['img', 'br', 'hr', 'input', 'meta', 'link', 'source', 'track',
@@ -126,7 +142,7 @@ final class ColourIsNeverAloneTest extends TestCase
             $selectors = substr($chunk, 0, $at);
             $body      = substr($chunk, $at + 1);
 
-            if (!preg_match(self::PAINTS, $body)) continue;
+            if (!preg_match(self::paints(), $body)) continue;
 
             foreach (explode(',', $selectors) as $sel) {
                 // Pseudo-classes and pseudo-elements are dropped: a `::before` swatch is
@@ -206,6 +222,9 @@ final class ColourIsNeverAloneTest extends TestCase
                         'attrs'   => $el['attrs'],
                         'inner'   => substr($body, $el['end'], $at - $el['end']),
                         'sibling' => '',
+                        // What a screen reader hears ABOVE this element: the attributes of
+                        // every open ancestor, nearest last (see named()).
+                        'above'   => array_column($stack, 'attrs'),
                     ];
 
                     // A word usually sits AFTER the mark it explains, so the sibling text
@@ -246,7 +265,7 @@ final class ColourIsNeverAloneTest extends TestCase
                    'id' => $next++, 'start' => $at, 'end' => $at + strlen($whole)];
 
             // Inline `style` beats every selector: if the tag paints itself, it paints.
-            $painted = preg_match(self::PAINTS, $attrs) === 1
+            $painted = preg_match(self::paints(), $attrs) === 1
                     || str_contains($attrs, 'tile_style')
                     || $this->reached($el, $stack, $selectors);
 
@@ -302,9 +321,36 @@ final class ColourIsNeverAloneTest extends TestCase
 
     private function named(array $el): bool
     {
-        return preg_match('/\baria-label(?:ledby)?\s*=\s*"(?!\s*")/i', $el['attrs']) === 1
+        if (preg_match('/\baria-label(?:ledby)?\s*=\s*"(?!\s*")/i', $el['attrs']) === 1
             || preg_match('/\btitle\s*=\s*"(?!\s*")/i', $el['attrs']) === 1
-            || $this->saysSomething($el['inner']);
+            || $this->saysSomething($el['inner'])) {
+            return true;
+        }
+
+        // A LIVE REGION'S WORDS ARE WRITTEN WHEN IT APPEARS. `role="alert"` and its kin exist
+        // to carry a sentence the script puts in them at the moment they are shown (an
+        // error, a total), so in the template they are empty by construction — and a sweep
+        // that reads that as "says nothing" condemns exactly the elements that say the most.
+        if (preg_match('/\brole\s*=\s*"(?:alert|status)"|\baria-live\s*=\s*"(?:polite|assertive)"/i', $el['attrs']) === 1) {
+            return true;
+        }
+
+        // NAMED BY WHAT CONTAINS IT, the way assistive technology actually reads it. Inside a
+        // named `role="img"`, `progressbar` or `meter` every child is presentational (ARIA:
+        // "children presentational") and the container's name IS the reading — the shared
+        // meter bar and Pulse's giving bar. And a mark the author hid (`aria-hidden`) inside
+        // a container that is named — the cart badge in a button whose name the script keeps
+        // as "Cart, 3 items" — is named by that container. Only the NEAREST named ancestor
+        // counts, and only those two shapes: an aria-label three levels up on a landmark
+        // does not explain a coloured dot.
+        $hidden = $this->hidden($el);
+        foreach (array_reverse($el['above'] ?? []) as $up) {
+            if (preg_match('/\baria-label(?:ledby)?\s*=\s*"(?!\s*")/i', $up) !== 1) continue;
+            if ($hidden) return true;
+            return preg_match('/\brole\s*=\s*"(?:img|progressbar|meter)"/i', $up) === 1;
+        }
+
+        return false;
     }
 
     private function hidden(array $el): bool
@@ -356,38 +402,52 @@ final class ColourIsNeverAloneTest extends TestCase
                 $local .= "\n" . implode("\n", $sm[1]);
             }
 
-            foreach ($this->violations($rel, $body, $this->paintingSelectors($local)) as $v) {
-                $bad[] = $v;
+            $found = $this->violations($rel, $body, $this->paintingSelectors($local));
+            $known = self::BACKLOG[$rel] ?? 0;
+            if (count($found) > $known) {
+                foreach ($found as $v) $bad[] = $v;
+            } elseif (count($found) < $known) {
+                $bad[] = sprintf('%s: down to %d, the backlog still says %d — lower it', $rel, count($found), $known);
             }
+        }
+
+        // An entry for a file the sweep no longer reads is an exemption nothing can
+        // check, and it would wait silently for the next file at that path.
+        foreach (array_keys(self::BACKLOG) as $rel) {
+            if (!is_file($root . '/' . $rel)) $bad[] = $rel . ': gone — delete its line';
         }
 
         $this->assertSame([], $bad,
             "colour is carrying meaning on its own:\n  " . implode("\n  ", $bad));
     }
 
-    public function test_the_tile_hides_its_mark_and_leaves_its_word_alone(): void
-    {
-        // The device that carries colour on this platform, and the shape every other
-        // coloured element is measured against: the saturated square is decoration and is
-        // hidden, the word beside it is the fact and is not.
-        $tile = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/partials/tile.twig');
-
-        $this->assertMatchesRegularExpression(
-            '/<span class="ag-tile__mark" aria-hidden="true">\s*<\/span>/', $tile,
-            'the tile mark must be hidden — a screen reader gets the sentence, and the '
-          . 'colour adds nothing it needs');
-
-        $this->assertStringContainsString('<span>{{ label }}</span>', $tile,
-            'the word must not be hidden with the mark, or the tile becomes colour alone');
-
-        $this->assertStringNotContainsString('aria-hidden="true"><span>{{ label }}', $tile);
-    }
+    /**
+     * WHAT THE SWEEP FOUND THE DAY IT COULD SEE THE HANDOFF'S NAMES — A LIST THAT ONLY SHRINKS.
+     *
+     * Its painting rule spelled the retired role slots, so an element painted with the
+     * handoff's `--ag-gold`, `--ag-green` or `--ag-live` was invisible to it. Rebuilt
+     * against `Accent::fields()` (Phase 1, 2 Oct 2026), it found these on pages the
+     * redesign destroys and rebuilds in later phases; each rebuild owes its page's
+     * word-or-`aria-hidden` and deletes the line. A count per file, never a file
+     * exemption: a page that gains one more fails, and a page that loses one has to lower
+     * its number.
+     *
+     * @var array<string,int>
+     */
+    private const BACKLOG = [
+        // Seven pages left this list on 3 Oct 2026 when they were destroyed with the old
+        // pages (challenges/show 3, events/detail 2, home 6, pulse 1, results/show 1,
+        // vote-program 1, vote 1 — docs/handoff/DESTROYED.md, and each one's inventory),
+        // and site-header.twig fell to 0 when the chrome.css rules that painted its
+        // dot were destroyed with them. The last entry, partials/promo-carousel.twig (2),
+        // left the same day when it was destroyed as an orphan of those pages.
+    ];
 
     public function test_a_coloured_element_with_no_word_is_reported(): void
     {
         // Proven against the sweep rather than assumed of it: a bar painted by a class,
         // holding nothing, unmarked.
-        $css  = '.bar{ background:var(--ag-honour-fill); }';
+        $css  = '.bar{ background:var(--ag-gold); }';
         $bad  = $this->violations('x.twig',
             '<style>' . $css . '</style><div><span class="bar"></span></div>',
             $this->paintingSelectors($css));
@@ -398,7 +458,7 @@ final class ColourIsNeverAloneTest extends TestCase
 
     public function test_a_decorative_mark_beside_a_word_is_accepted_and_alone_is_not(): void
     {
-        $css = '.dot{ background:var(--ag-live-fill); }';
+        $css = '.dot{ background:var(--ag-live); }';
         $sel = $this->paintingSelectors($css);
 
         // The tile's shape: hidden mark, word beside it.
@@ -411,6 +471,41 @@ final class ColourIsNeverAloneTest extends TestCase
 
         $this->assertCount(1, $bad);
         $this->assertStringContainsString('nothing beside it names it', $bad[0]);
+    }
+
+    public function test_a_named_container_names_its_marks_and_an_unnamed_one_does_not(): void
+    {
+        $sel = $this->paintingSelectors('.fill{ background:var(--ag-green); } .badge{ background:var(--ag-green); }');
+
+        // role=img / progressbar with a name: the fill inside is presentational.
+        $this->assertSame([], $this->violations('x.twig',
+            '<span role="img" aria-label="{{ pct }}% of the goal"><span class="fill"></span></span>', $sel));
+        $this->assertSame([], $this->violations('x.twig',
+            '<span role="progressbar" aria-label="Towards free delivery"><span class="fill"></span></span>', $sel));
+        // A hidden badge in a named button.
+        $this->assertSame([], $this->violations('x.twig',
+            '<button aria-label="Cart"><svg aria-hidden="true"></svg><span class="badge" aria-hidden="true"></span></button>', $sel));
+
+        // The faults the rule must still see: the same fill in an UNNAMED img, a visible
+        // fill inside a named button (it is not presentational there), a hidden badge in
+        // an unnamed button.
+        $this->assertCount(1, $this->violations('x.twig',
+            '<span role="img"><span class="fill"></span></span>', $sel));
+        $this->assertCount(1, $this->violations('x.twig',
+            '<button aria-label="Cart"><span class="badge"></span></button>', $sel));
+        $this->assertCount(1, $this->violations('x.twig',
+            '<button><span class="badge" aria-hidden="true"></span></button>', $sel));
+    }
+
+    public function test_a_live_region_is_not_condemned_for_being_empty_until_it_speaks(): void
+    {
+        $sel = $this->paintingSelectors('.err{ background:var(--ag-live-wash); }');
+
+        $this->assertSame([], $this->violations('x.twig',
+            '<div><p class="err" role="alert" hidden></p></div>', $sel));
+        $this->assertCount(1, $this->violations('x.twig',
+            '<div><p class="err" hidden></p></div>', $sel),
+            'the same empty paragraph with no live role is a colour-only signal');
     }
 
     public function test_a_bare_tag_in_a_descendant_selector_does_not_condemn_the_site(): void
@@ -436,7 +531,7 @@ final class ColourIsNeverAloneTest extends TestCase
         // exactly the files somebody troubled to explain.
         $sel = $this->paintingSelectors(
             "/* the medal, and why it is a fill rather than an edge */\n"
-          . '.medal{ background:var(--ag-honour-fill); }');
+          . '.medal{ background:var(--ag-gold); }');
 
         $this->assertCount(1, $this->violations('x.twig', '<div><span class="medal"></span></div>', $sel));
     }

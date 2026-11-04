@@ -1,0 +1,44 @@
+{% extends 'layout/auth.twig' %}
+{% import 'layout/auth.twig' as auth %}
+{#
+  WHAT DO YOU CARE ABOUT? — /account/interests · Phase 8, SignIn.dc.html view=interests
+
+  Step 4 of joining with `?first=1` (the four bars, "Skip for now"); the same choice reopened
+  from the account page otherwise. Real checkboxes inside the chips, so the choice posts with
+  no script; signin.js only keeps "Continue with N areas" counting. A chosen chip is the house
+  selection — a 2px ink outline, 700 — and not the DC's dark fill (REFERENCE §6.1, §18.2).
+
+  The promise in the lede is kept by MemberInterests::rank() on /nominate, which puts
+  awards in these areas first — the reader shipped with the writer.
+#}
+{% set _error = flash_error|default(null) %}
+{% block auth_top %}{{ auth.back(first ? '/account' : '/account', 'Back'|trans) }}{% endblock %}
+{% block auth_bars %}{% if first %}{{ auth.bars(3) }}{% endif %}{% endblock %}
+{% block auth_body %}
+  <div class="si__head">
+    <h1 class="si__h1">{{ 'What do you care about?'|trans }}</h1>
+    <p class="si__lede">{{ 'We’ll show you awards and people in these areas first.'|trans }}</p>
+  </div>
+  {{ auth.say(_error, null) }}
+  <form class="si__form-step" method="post" action="/account/interests" data-si-interests>
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    {% if first %}<input type="hidden" name="first" value="1">{% endif %}
+    <fieldset class="si__chips">
+      <legend class="ag-sr">{{ 'Areas you care about'|trans }}</legend>
+      {% for o in options %}
+        <label class="ag-chip si__chip">
+          <input type="checkbox" name="interests[]" value="{{ o.key }}"{% if o.key in chosen %} checked{% endif %}>
+          {{ o.label|trans }}
+        </label>
+      {% endfor %}
+    </fieldset>
+    {% set _n = chosen|length %}
+    <button class="si__go" type="submit" data-si-finish
+            data-none="{{ (first ? 'Continue' : 'Save')|trans }}"
+            data-one="{{ (first ? 'Continue with 1 area' : 'Save 1 area')|trans }}"
+            data-many="{{ (first ? 'Continue with %n% areas' : 'Save %n% areas')|trans }}">
+      {%- if _n == 0 %}{{ (first ? 'Continue' : 'Save')|trans }}{% elseif _n == 1 %}{{ (first ? 'Continue with 1 area' : 'Save 1 area')|trans }}{% else %}{{ (first ? 'Continue with %n% areas' : 'Save %n% areas')|trans({'%n%': _n}) }}{% endif -%}
+    </button>
+  </form>
+  {% if first %}<a class="si__link si__skip" href="/account">{{ 'Skip for now'|trans }}</a>{% endif %}
+{% endblock %}

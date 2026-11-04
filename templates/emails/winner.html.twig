@@ -1,0 +1,27 @@
+{#- Result · Results. Sender: CycleAnnouncer::email — at the release, to the winner and the
+    runner-up, behind the announcement gate (CycleMaterialiser::ANNOUNCE_GRACE_DAYS; never the
+    sandbox).
+    Variables: first_name, kind ('winner' | 'runner_up'), award, category, edition, result_url.
+    Design: Email Templates.dc.html → "Winner, before release", corrected to the live site
+    (owner, 19 Oct 2026). This platform sends no message BEFORE a release: the mail goes in
+    the same pass that publishes the result, so the design's embargo ("please keep this to
+    yourself until …") would ask somebody to keep secret a page anybody can already open.
+    There is no gala RSVP either. So: the same masthead, hero, eyebrow, headline and
+    sign-off, saying that it is public now and linking to the award's own result page. It
+    is the CATEGORY's result (the design said "overall"), and "thousands of voters" is a
+    figure nobody counted — the sentence names the two halves instead. -#}
+{% extends 'emails/_layout.html.twig' %}
+{% block category %}Results{% endblock %}
+{% block hero %}illo-trophy{% endblock %}
+{% block why %}You are a nominee for an Africa GATES award.{% endblock %}
+{% block subject %}{{ kind == 'winner' ? 'You won' : 'You are the runner-up' }} — {{ category }}, {{ edition }}{% endblock %}
+{% block preheader %}The result is public now. Congratulations, from all of us.{% endblock %}
+{% block body %}
+{%- import 'emails/_blocks.html.twig' as b -%}
+{{ b.eyebrow(award ? "#{award} · #{edition}" : edition) }}
+{{ b.h1(kind == 'winner' ? "#{first_name}, you won #{category}" : "#{first_name}, you are the runner-up in #{category}") }}
+{{ b.p('The judges’ marks and the public’s support, added together, put you ' ~ (kind == 'winner' ? 'first' : 'second') ~ '. Congratulations, from all of us.') }}
+{{ b.p('The result is public now. Its page shows every nominee who scored and both halves of every index.') }}
+{{ b.button('See the result', result_url) }}
+{{ b.sign('With pride,', 'The Africa GATES team') }}
+{% endblock %}

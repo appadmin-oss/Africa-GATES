@@ -22,6 +22,9 @@ class ModerationController
     public function __construct(
         private readonly Twig $view,
         private readonly AuditService $audit,
+        // Tells an advertiser what was decided about their ad (Ads\AdNotice). Optional, so a
+        // test or a host with no mail still moderates; the decision never waits on a send.
+        private readonly ?\AfricaGates\Services\OtpService $mailer = null,
     ) {}
 
     public function index(Request $req, Response $res): Response
@@ -50,6 +53,11 @@ class ModerationController
         // was unavailable is not borderline, it is UNJUDGED, and it must not sit
         // invisible waiting for a decision nobody knows is owed.
         $voteMessages = \AfricaGates\Services\VoteMessageService::queue(100);
+        // Ads: every one is checked by a person before it runs (Services\Ads\AdReview), with
+        // the automatic flags beside it. They never decide on their own.
+        $ads = \AfricaGates\Services\Ads\AdReview::queue();
+        // Running ads readers reported. A report never takes an ad down by itself.
+        $adsReported = \AfricaGates\Services\Ads\AdReview::reported();
 
         return $this->view->render($res, 'admin/moderation/index.twig', [
             'page_title'  => 'Moderation Queue — Admin',
@@ -57,8 +65,10 @@ class ModerationController
             'comments'    => $comments,
             'threads'     => $threads,
             'vote_messages' => $voteMessages,
+            'ads'         => $ads,
+            'ads_reported' => $adsReported,
             'recent_log'  => $recentLog,
-            'pending'     => count($comments) + count($threads) + count($voteMessages),
+            'pending'     => count($comments) + count($threads) + count($voteMessages) + count($ads) + count($adsReported),
             // Flash banners render from the Twig globals via the layout — passing
             // them here would shadow the (already-consumed) global with null.
         ]);
@@ -69,8 +79,35 @@ class ModerationController
         $type     = (string)($args['type'] ?? '');
         $id       = (int)($args['id'] ?? 0);
         $decision = (string)($args['decision'] ?? '');
-        if (!in_array($type, ['comment', 'thread', 'vote_message'], true) || !in_array($decision, ['approve', 'remove', 'recheck'], true) || $id < 1) {
+        if (!in_array($type, ['comment', 'thread', 'vote_message', 'ad'], true) || !in_array($decision, ['approve', 'remove', 'recheck'], true) || $id < 1) {
             $_SESSION['flash_error'] = 'Invalid moderation action.';
+            return $res->withHeader('Location', '/admin/moderation')->withStatus(302);
+        }
+
+        // ── ADS: DECIDED THROUGH THEIR OWN SERVICE ───────────────────────────
+        //
+        // Approve lets it run (and starts a trial's days); remove refuses it with the reason
+        // the confirm dialog required (agConfirm posts it as `_reason`), which the advertiser
+        // sees beside the ad with a form to fix it and send it again.
+        if ($type === 'ad') {
+            $adminId = (int)($_SESSION['admin_id'] ?? 0);
+            if ($decision === 'recheck') {
+                $_SESSION['flash_error'] = 'Ads are decided by a person.';
+                return $res->withHeader('Location', '/admin/moderation')->withStatus(302);
+            }
+            $reason = trim((string)(((array)$req->getParsedBody())['_reason'] ?? ''));
+            $r = \AfricaGates\Services\Ads\AdReview::decide($id, $adminId, $decision === 'approve', $reason);
+            $told = $decision === 'approve' ? 'approved' : 'refused';
+            // A running ad that was reported is taken down through the same Refuse button.
+            if (!$r['ok'] && $decision === 'remove' && $reason !== '') {
+                $r = \AfricaGates\Services\Ads\AdReview::takeDown($id, $adminId, $reason);
+                $told = 'taken_down';
+            }
+            if ($r['ok']) \AfricaGates\Services\Ads\AdNotice::decided($id, $told, $this->mailer);
+            $this->audit->record($adminId, 'moderation.' . $decision, 'ad', $id);
+            $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = $r['ok']
+                ? ($decision === 'approve' ? 'Ad approved. It can run now.' : 'Ad refused. The advertiser can see why.')
+                : ($r['message'] ?? 'Could not update that ad.');
             return $res->withHeader('Location', '/admin/moderation')->withStatus(302);
         }
 

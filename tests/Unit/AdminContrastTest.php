@@ -82,22 +82,19 @@ class AdminContrastTest extends TestCase
     }
 
     /**
-     * Every admin token used as body text must clear 4.5:1 on BOTH admin grounds.
-     *
-     * Both, not either: these strings sit on cards (white) and directly on the page
-     * (#f4f6fa) interchangeably, and a value tuned only against white fails the moment
-     * the same class is used one level up.
+     * REBUILT 4 Oct 2026 with the console. The `--ad-*` palette and admin.css this test
+     * measured were destroyed; the console's colours are Support\Accent's console set, and
+     * every word the console draws is measured on every ground in ConsolePaletteTest. This
+     * keeps the original claim — body, secondary and muted text clear 4.5:1 on BOTH grounds
+     * a console string sits on, the white card and the panel grey — by name.
      */
     public function test_admin_text_tokens_clear_aa_on_both_grounds(): void
     {
-        foreach (['--ad-text', '--ad-text-soft', '--ad-text-mute'] as $name) {
-            $hex = self::token($name);
-            foreach ([self::ADMIN_SURFACE, self::ADMIN_GROUND] as $ground) {
-                $r = self::ratio($hex, $ground);
-                $this->assertGreaterThanOrEqual(4.5, $r, sprintf(
-                    '%s (%s) is %.2f:1 on %s — WCAG 1.4.3 requires 4.5:1 for text under 18px.',
-                    $name, $hex, $r, $ground
-                ));
+        foreach (['ink', 'ink-2', 'ink-3', 'soft'] as $name) {
+            $hex = \AfricaGates\Support\Accent::consoleHex($name);
+            foreach (['surface', 'panel'] as $g) {
+                $r = self::ratio($hex, \AfricaGates\Support\Accent::consoleHex($g));
+                $this->assertGreaterThanOrEqual(4.5, round($r, 2), sprintf('%s is %.2f:1 on %s', $name, $r, $g));
             }
         }
     }
@@ -134,24 +131,30 @@ class AdminContrastTest extends TestCase
      */
     public function test_smallest_admin_button_meets_target_size_minimum(): void
     {
-        $css = self::css('public/assets/css/admin.css');
+        $css = self::css('public/assets/css/console/console.css');
         $this->assertSame(1, preg_match('/\.ad-btn--xs\s*\{[^}]*min-height:\s*(\d+)px/', $css, $m),
             '.ad-btn--xs must declare a min-height so the floor is explicit.');
         $this->assertGreaterThanOrEqual(24, (int) $m[1],
             'WCAG 2.5.8 sets 24×24 CSS px as the minimum target, for any pointer type.');
     }
 
-    /** The sidebar rail is a dark ground; its own text must clear AA against it. */
+    /**
+     * The sidebar's group labels. The old rail was dark and its headings were measured
+     * white-on-ink; the v2 rail is `ground` and the design draws its labels in `faint` —
+     * 2.85:1, under the floor. The owner's rule is REPORT, never re-value, so
+     * this holds that the failure is on the reported list rather than silently shipped.
+     */
     public function test_sidebar_section_headings_clear_aa_on_the_rail(): void
     {
-        $css = self::css('public/assets/css/admin.css');
-        $this->assertSame(1, preg_match(
-            '/\.ad-side__group h6[^{]*\{[^}]*color:\s*rgba\(255,\s*255,\s*255,\s*([0-9.]+)\)/', $css, $m
-        ), 'Expected an rgba white on .ad-side__group h6');
-        $r = self::ratio(self::over('#ffffff', (float) $m[1], self::SIDEBAR), self::SIDEBAR);
-        $this->assertGreaterThanOrEqual(4.5, $r, sprintf(
-            'Sidebar section headings are %.2f:1 on the rail — they name the part of the admin you are in.', $r
-        ));
+        $r = self::ratio(\AfricaGates\Support\Accent::consoleHex('faint'), \AfricaGates\Support\Accent::consoleHex('ground'));
+        if (round($r, 2) < 4.5) {
+            $this->assertArrayHasKey('faint@ground', \AfricaGates\Support\Accent::consoleReported(),
+                sprintf('the rail labels are %.2f:1 and nobody has been told', $r));
+        } else {
+            $this->addToAssertionCount(1);
+        }
+        $css = self::css('public/assets/css/console/console.css');
+        $this->assertMatchesRegularExpression('/\.cn-nav__label\s*\{[^}]*color:\s*var\(--cn-faint\)/', $css);
     }
 
     /**
@@ -160,17 +163,24 @@ class AdminContrastTest extends TestCase
      * a11y.css carries the touch-target minimums, the forced-colors (Windows High
      * Contrast) handling, the prefers-contrast strengthening, the aria-invalid field
      * styling and the canonical `.sr-only`. Shipping it on one layout of three meant
-     * staff-facing surfaces silently opted out of all of it.
+     * staff-facing surfaces silently opted out of all of it. (The public layout,
+     * `layout/gates.twig`, left this list when it was destroyed; `layout/shell.twig`
+     * does not load a11y.css yet — see docs/handoff/DESTROYED.md.)
      */
     public function test_every_layout_loads_the_accessibility_layer(): void
     {
-        foreach ([
-            'templates/layout/gates.twig',
-            'templates/admin/layout.twig',
-            'templates/judge/layout.twig',
-        ] as $layout) {
-            $this->assertStringContainsString('a11y.css', self::css($layout),
-                "$layout must load a11y.css — it is the WCAG correction layer.");
+        // The judge console still loads the shared layer.
+        $this->assertStringContainsString('a11y.css', self::css('templates/judge/layout.twig'),
+            'templates/judge/layout.twig must load a11y.css — it is the WCAG correction layer.');
+
+        // The admin console carries the same corrections in its own sheet since the 4 Oct
+        // 2026 rebuild (a11y.css is written against the public palette): targets under a
+        // coarse pointer, forced colours, prefers-contrast, aria-invalid, and .sr-only.
+        $this->assertStringContainsString("/assets/css/console/console.css", self::css('templates/admin/layout.twig'));
+        $console = self::css('public/assets/css/console/console.css');
+        foreach (['@media (pointer: coarse)', '@media (forced-colors: active)', '@media (prefers-contrast: more)',
+                  '[aria-invalid="true"]', '.sr-only {', 'min-height: 44px'] as $rule) {
+            $this->assertStringContainsString($rule, $console, "the console lost the accessibility rule: $rule");
         }
     }
 
@@ -179,7 +189,7 @@ class AdminContrastTest extends TestCase
     {
         // Where the class is defined at all.
         $defined = [];
-        foreach (['public/assets/css/a11y.css', 'public/assets/css/admin.css'] as $sheet) {
+        foreach (['public/assets/css/a11y.css', 'public/assets/css/console/console.css'] as $sheet) {
             if (str_contains(self::css($sheet), '.sr-only')) {
                 $defined[] = $sheet;
             }
@@ -195,7 +205,7 @@ class AdminContrastTest extends TestCase
      * Six literal greys were carrying metadata and hint text on white cards at between
      * 2.3:1 and 4.4:1 — shop delivery notes, the account dashboard's "your email is fixed
      * here", event schedule bodies, message timestamps. They were replaced with
-     * `--ag-ink-soft`, which the token file already documents as the AA-safe secondary
+     * `--ag-soft`, which the token file already documents as the AA-safe secondary
      * ink, rather than with six new near-identical greys.
      *
      * a11y.css had already diagnosed two of them by name and corrected exactly two
@@ -227,7 +237,7 @@ class AdminContrastTest extends TestCase
 
         $this->assertSame([], $offenders, sprintf(
             "These greys fail 4.5:1 on the light grounds they are used on. Use "
-            . "var(--ag-ink-soft,#626a6e) (5.14:1 at worst) instead:\n%s",
+            . "var(--ag-soft,#626a6e) (5.14:1 at worst) instead:\n%s",
             implode("\n", $offenders)
         ));
     }
@@ -235,18 +245,14 @@ class AdminContrastTest extends TestCase
     /** The token those greys were replaced with must itself stay AA on every light ground. */
     public function test_ink_soft_token_is_aa_on_light_grounds(): void
     {
-        // READ FROM Support\Accent, NOT FROM A STYLESHEET. Colour moved out of
-        // base/tokens.css when the neutral ramp arrived, because a value with two sources
-        // is decided by load order and load order is invisible in a diff. This used to
-        // parse the sheet, and it also asserted against `#fbfbfa` and `#f6f7f6` — two
-        // grounds the platform no longer has.
-        $ink = \AfricaGates\Support\Accent::neutral('ink-soft');
+        // READ FROM Support\Accent, NOT FROM A STYLESHEET: it is the one place a colour
+        // lives, so the value measured here is the value the page receives.
+        $ink = \AfricaGates\Support\Accent::hex('soft');
 
-        // Only the grounds it is LEGAL on. It measures 4.38 on `surface-2` and 3.88 on
-        // `desk` and is refused there by name — `SlotFloorTest` holds those, both that
-        // they fail and that the failure is deliberate.
-        foreach (['ground', 'card'] as $name) {
-            $ground = \AfricaGates\Support\Accent::grounds()[$name];
+        // Only the grounds it is LEGAL on, from Accent's own table. It measures 4.38 on
+        // `tint` and is refused there — `SlotFloorTest` holds that the refusal is real.
+        foreach (\AfricaGates\Support\Accent::words()['soft'] as $name) {
+            $ground = \AfricaGates\Support\Accent::hex($name);
             $r = self::ratio(strtolower($ink), $ground);
             $this->assertGreaterThanOrEqual(4.5, $r, sprintf(
                 'ink-soft (%s) is %.2f:1 on %s — it is the site-wide secondary ink and '

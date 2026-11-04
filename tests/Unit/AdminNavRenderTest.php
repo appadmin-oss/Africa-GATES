@@ -3,103 +3,115 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
+use AfricaGates\Admin\Services\ConsoleAlerts;
+use AfricaGates\Admin\Services\HomeBoard;
 use DI\ContainerBuilder;
 use Slim\Psr7\Factory\ResponseFactory;
 use Slim\Psr7\Factory\ServerRequestFactory;
 use Tests\TestCase;
 
 /**
- * The restructured sidebar and sub-nav, rendered through the real container.
+ * The rebuilt console shell, rendered through the real container (4 Oct 2026).
  *
- * The tree itself is held by {@see AdminNavTest}. What can only be seen by rendering is
- * whether the layout actually loops it, whether the icon sprite resolves, and whether the
- * section containing the current page opens — the three things that would leave an
- * operator staring at an empty rail while every unit test stayed green.
+ * The tree is held by AdminNavTest. What only a render can show: that the layout loops
+ * it, that the current page is marked, that a group opens for the page you are on or for
+ * work waiting and is idle otherwise (AdminConsole v2), that the sprite resolves, that the "also
+ * here" strip is drawn — and that a role is shown no door it cannot open.
  */
 final class AdminNavRenderTest extends TestCase
 {
-    private function render(string $class, string $method): string
+    protected function setUp(): void
+    {
+        parent::setUp();
+        ConsoleAlerts::reset();
+        HomeBoard::resetAll();
+    }
+
+    private function render(string $class, string $method, string $role, string $path): string
     {
         $_SESSION['admin_id']   = 1;
-        $_SESSION['admin_role'] = 'superadmin';
+        $_SESSION['admin_role'] = $role;
+        $_SESSION['admin_name'] = 'Chioma Obi';
+        $_SERVER['REQUEST_URI'] = $path;
 
         $b = new ContainerBuilder();
         $b->addDefinitions(require dirname(__DIR__, 2) . '/config/container.php');
         $res = $b->build()->get($class)->{$method}(
-            (new ServerRequestFactory())->createServerRequest('GET', '/admin/x'),
+            (new ServerRequestFactory())->createServerRequest('GET', $path),
             (new ResponseFactory())->createResponse()
         );
-
         $this->assertSame(200, $res->getStatusCode(), "{$method} did not render");
         return (string) $res->getBody();
     }
 
-    public function test_the_sidebar_renders_collapsible_sections(): void
+    public function test_the_rail_renders_the_v2_groups_for_a_superadmin(): void
     {
-        $html = $this->render(\AfricaGates\Admin\Controllers\PayoutsController::class, 'index');
+        $html = $this->render(\AfricaGates\Admin\Controllers\PayoutsController::class, 'index', 'superadmin', '/admin/payouts');
 
-        $this->assertStringContainsString('ad-side__sec', $html, 'the sidebar did not render the tree');
-        $this->assertStringContainsString('<summary class="ad-side__sectitle"', $html);
-        // Every section heading should be present, collapsed or not.
-        foreach (['Overview', 'Entries &amp; panel', 'Programmes', 'Content', 'Money', 'Data', 'System'] as $label) {
-            $this->assertStringContainsString('>' . $label . '<', $html, "missing the {$label} section");
+        foreach (['Awards', 'Engage', 'Audience', 'Money', 'Content', 'Organisation'] as $g) {
+            $this->assertStringContainsString('<span class="cn-nav__fold-l">' . $g . '</span>', $html, "missing the {$g} group");
         }
+        $this->assertMatchesRegularExpression('~href="/admin/payouts" title="Payouts" aria-current="page"~', $html, 'the current page is not marked');
+        $this->assertSame(1, substr_count($html, 'class="cn-nav__i" href="/admin/payouts"'));
+        $this->assertStringContainsString('id="ic-send"', $html, 'the sprite was not included');
+        $this->assertStringContainsString('href="#ic-send"', $html);
+        // The crumb names the group, then the page.
+        $this->assertMatchesRegularExpression('~<span class="cn-crumb__a">Money</span>~', $html);
     }
 
-    /** Arriving anywhere must show where you are without a click. */
-    public function test_the_section_holding_the_current_page_is_open(): void
+    public function test_the_rail_opens_in_full_and_a_closed_group_still_carries_its_count(): void
     {
-        $html = $this->render(\AfricaGates\Admin\Controllers\PayoutsController::class, 'index');
+        // Every group starts open (owner, 20 Oct 2026): the nav opens in full.
+        $html = $this->render(\AfricaGates\Admin\Controllers\PayoutsController::class, 'index', 'superadmin', '/admin/payouts');
+        $this->assertMatchesRegularExpression('~data-group="money" data-open data-here>~', $html);
+        $this->assertMatchesRegularExpression('~data-group="content" data-open>~', $html);
+        $this->assertDoesNotMatchRegularExpression('~data-group="[a-z]+">~', $html, 'a group was drawn closed');
 
-        // The Money section holds `payouts`, so it — and only a section holding the
-        // current page — carries `open`.
-        $this->assertMatchesRegularExpression(
-            '~<details class="ad-side__sec" open>\s*<summary[^>]*>\s*<span>Money</span>~',
-            $html,
-            "the current page's section did not open"
-        );
-        $this->assertSame(1, substr_count($html, 'class="ad-side__sec" open'),
-            'more than one section opened, or none did');
+        // One held comment is work for Moderation: its count is drawn on the page and summed
+        // on the group, ready for when somebody closes it.
+        \Illuminate\Database\Capsule\Manager::table('gates_comments')->insert([
+            'target_type' => 'profile', 'target_id' => 1, 'author_name' => 'A reader', 'body' => 'Held for a person.',
+            'status' => \AfricaGates\Services\CommunityService::HELD,
+        ]);
+        HomeBoard::resetAll();
+        $html = $this->render(\AfricaGates\Admin\Controllers\PayoutsController::class, 'index', 'superadmin', '/admin/payouts');
+        $this->assertMatchesRegularExpression('~<span class="cn-nav__num" aria-label="1 waiting">1</span>~', $html);
+        $this->assertMatchesRegularExpression('~href="/admin/moderation"[^>]*>.*?<span class="cn-nav__n">1~s', $html);
     }
 
-    public function test_the_icon_sprite_is_present_and_referenced(): void
+    public function test_the_also_here_strip_links_a_pages_sub_pages(): void
     {
-        $html = $this->render(\AfricaGates\Admin\Controllers\PayoutsController::class, 'index');
-
-        $this->assertStringContainsString('id="ic-payouts"', $html, 'the sprite was not included');
-        $this->assertStringContainsString('href="#ic-payouts"', $html, 'nothing referenced the sprite');
+        $html = $this->render(\AfricaGates\Admin\Controllers\RefundsController::class, 'index', 'superadmin', '/admin/refunds');
+        $this->assertStringContainsString('class="cn-related"', $html, 'no "also here" strip');
+        $this->assertStringContainsString('class="cn-related__i" href="/admin/payments/disputes"', $html);
     }
 
-    /** The second level: this page's siblings, under the title. */
-    public function test_the_sub_nav_shows_the_pages_siblings(): void
+    public function test_a_moderator_is_shown_neither_money_nor_settings(): void
     {
-        $html = $this->render(\AfricaGates\Admin\Controllers\PayoutsController::class, 'index');
-
-        $this->assertStringContainsString('ad-subnav', $html, 'no in-page sub-nav');
-        $this->assertStringContainsString('/admin/finance', $html, 'a sibling is missing from the strip');
-        $this->assertStringContainsString('/admin/partner-orgs', $html);
-        $this->assertStringContainsString('aria-current="page"', $html, 'the current page is not marked');
+        $html = $this->render(\AfricaGates\Admin\Controllers\InterviewsController::class, 'index', 'moderator', '/admin/interviews');
+        $this->assertStringContainsString('<span class="cn-nav__fold-l">Awards</span>', $html, 'the moderator lost their own group');
+        $this->assertStringNotContainsString('href="/admin/settings"', $html, 'a moderator was offered configuration');
+        $this->assertStringNotContainsString('href="/admin/payouts"', $html, 'a moderator was offered payouts');
+        $this->assertStringNotContainsString('cn-alertpill', $html, 'a moderator was shown the health pill');
     }
 
-    /**
-     * A role must not be shown a rail it cannot use — the sidebar mirrors
-     * SectionGuardMiddleware so the UI never offers a 403.
-     */
-    public function test_a_moderator_is_not_shown_the_finance_rail(): void
+    public function test_a_viewer_reads_only_and_is_told_so(): void
     {
-        $_SESSION['admin_id']   = 2;
-        $_SESSION['admin_role'] = 'moderator';
+        $html = $this->render(\AfricaGates\Admin\Controllers\PayoutsController::class, 'index', 'viewer', '/admin/data');
+        $this->assertMatchesRegularExpression('~<body[^>]*data-readonly~', $html);
+        $this->assertStringContainsString('Read-only for Viewer', $html);
+        $this->assertStringContainsString('cn-alertpill', $html, 'health is the viewer\'s too');
+    }
 
-        $b = new ContainerBuilder();
-        $b->addDefinitions(require dirname(__DIR__, 2) . '/config/container.php');
-        $res = $b->build()->get(\AfricaGates\Admin\Controllers\InterviewsController::class)->index(
-            (new ServerRequestFactory())->createServerRequest('GET', '/admin/interviews'),
-            (new ResponseFactory())->createResponse()
-        );
-
-        $html = (string) $res->getBody();
-        $this->assertStringContainsString('>Entries &amp; panel<', $html, 'the moderator lost their own section');
-        $this->assertStringNotContainsString('>System<', $html, 'a moderator was offered the superadmin rail');
-        $this->assertStringNotContainsString('/admin/payouts', $html, 'a moderator was offered payouts');
+    public function test_the_shell_draws_the_four_overlays_and_the_page_header(): void
+    {
+        $html = $this->render(\AfricaGates\Admin\Controllers\DashboardController::class, 'index', 'admin', '/admin/dashboard');
+        foreach (['id="cnConfirm"', 'id="cnAssist"', 'id="cnPal"', 'id="cnToasts"', 'class="cn-h1"',
+                  'Reason, for the audit log', 'Needs attention', 'Editions', 'Performance', 'This week',
+                  'class="cn-side__search"', 'class="cn-tabbar"'] as $needle) {
+            $this->assertStringContainsString($needle, $html, "missing $needle");
+        }
+        // Home's line under the greeting is the state of the day, not a purpose line.
+        $this->assertMatchesRegularExpression('~(\d+ things? needs? you|Nothing needs you right now)~', $html);
     }
 }

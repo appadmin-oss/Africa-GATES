@@ -74,6 +74,8 @@ CREATE TABLE IF NOT EXISTS gates_award_cycles (
   -- announced) so the site admits it with or without this; the note is the part only a
   -- person can write, and it stops being shown the moment the cycle is announced.
   results_delay_note TEXT,
+  -- Which edition this is ("11th Edition"); migrations/2027_03_05_edition_number.php.
+  edition_number INTEGER NULL,
   -- The next declared boundary this cycle is waiting on. A computed phase
   -- cannot be indexed (NOW() is non-deterministic and rejected in generated
   -- columns), so this materialises the one question an operator needs indexed:
@@ -234,9 +236,16 @@ CREATE TABLE IF NOT EXISTS gates_nominations (
   nominator_state TEXT,
   nominator_lga TEXT,
   nominator_age_range TEXT,
+  -- "How do you know them?" — a NominationRules::RELATIONS key (Phase 8).
+  nominator_relation TEXT,
+  -- "Keep my name private from the nominee" (Phase 8).
+  nominator_private INTEGER NOT NULL DEFAULT 0,
   decision_reason TEXT,
   nominator_ack_at TEXT,
-  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+  -- The union of the live vocabulary and the challenge handoff's. SQLite enforces
+  -- CHECK, and PRAGMA foreign_keys = OFF does not touch it, so a word missing here
+  -- is a word no developer and no test can ever write while production accepts it.
+  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected','draft','submitted','checking','verified','needs_details')),
   ip_hash TEXT,
   device_fp TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -263,6 +272,8 @@ CREATE TABLE IF NOT EXISTS gates_legacy_events (
   highlight_reel TEXT,
   icon TEXT DEFAULT '🏆',
   is_published INTEGER NOT NULL DEFAULT 0,
+  cycle_id INTEGER NULL,
+  country_code TEXT NULL,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_legacy_published ON gates_legacy_events(is_published);
@@ -339,9 +350,13 @@ CREATE TABLE IF NOT EXISTS gates_mail_log (
   to_masked TEXT NOT NULL,
   subject TEXT NOT NULL,
   category TEXT,
-  status TEXT NOT NULL CHECK(status IN ('sent','failed','logged_dev')),
+  -- sent | failed | logged_dev | refused | deferred — Mail\MailLog. No CHECK: see
+  -- 2027_02_20_mail_send_rules.php, which repairs databases built with one.
+  status TEXT NOT NULL,
   error TEXT,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  to_hash TEXT NULL,
+  bulk INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_mail_created ON gates_mail_log(created_at);
 CREATE INDEX IF NOT EXISTS idx_mail_status ON gates_mail_log(status);
@@ -517,6 +532,11 @@ CREATE TABLE IF NOT EXISTS gates_site_events (
   early_bird_text TEXT,
   early_bird_deadline TEXT,
   early_bird_url TEXT,
+  livestream_url TEXT NULL DEFAULT NULL,
+  recording_url TEXT NULL DEFAULT NULL,
+  cover_kind TEXT NULL DEFAULT NULL,
+  spotlight_rank INTEGER NULL DEFAULT NULL,
+  access_notes TEXT NULL,
   created_at TEXT
 );
 
@@ -536,6 +556,66 @@ CREATE TABLE IF NOT EXISTS gates_event_registrations (
   UNIQUE(event_id, email)
 );
 CREATE INDEX IF NOT EXISTS idx_evreg_event ON gates_event_registrations(event_id);
+
+-- ─── Award terms, versioned, and who accepted which version (migrations/2027_03_05_award_terms.php) ───
+CREATE TABLE IF NOT EXISTS gates_award_terms (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  programme_id INTEGER NOT NULL,
+  version INTEGER NOT NULL,
+  body TEXT NOT NULL,
+  changelog TEXT NULL,
+  effective_at TEXT NOT NULL,
+  created_at TEXT NULL,
+  created_by INTEGER NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_terms_version ON gates_award_terms(programme_id, version);
+CREATE INDEX IF NOT EXISTS idx_terms_effective ON gates_award_terms(programme_id, effective_at);
+CREATE TABLE IF NOT EXISTS gates_award_terms_acceptance (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  terms_id INTEGER NOT NULL,
+  programme_id INTEGER NOT NULL,
+  kind TEXT NOT NULL,
+  email_hash TEXT NOT NULL,
+  subject_id INTEGER NULL,
+  accepted_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_terms_accept ON gates_award_terms_acceptance(terms_id, email_hash, kind, subject_id);
+
+-- ─── "Notify me" on a coming-soon award (double opt-in; migrations/2027_03_05_award_alerts.php) ───
+CREATE TABLE IF NOT EXISTS gates_award_alerts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  programme_id INTEGER NOT NULL,
+  email TEXT NOT NULL,
+  email_hash TEXT NOT NULL,
+  token TEXT NOT NULL,
+  ip_hash TEXT NULL,
+  created_at TEXT NULL,
+  confirm_sent_at TEXT NULL,
+  confirmed_at TEXT NULL,
+  notified_at TEXT NULL,
+  cancelled_at TEXT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_awa_who ON gates_award_alerts(programme_id, email_hash);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_awa_token ON gates_award_alerts(token);
+CREATE INDEX IF NOT EXISTS idx_awa_due ON gates_award_alerts(programme_id, confirmed_at, notified_at);
+
+-- ─── "Email me when tickets go on sale" (double opt-in; migrations/2027_03_04_event_sale_alerts.php) ───
+CREATE TABLE IF NOT EXISTS gates_event_sale_alerts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_id INTEGER NOT NULL,
+  email TEXT NOT NULL,
+  email_hash TEXT NOT NULL,
+  token TEXT NOT NULL,
+  ip_hash TEXT NULL,
+  created_at TEXT NULL,
+  confirm_sent_at TEXT NULL,
+  confirmed_at TEXT NULL,
+  notified_at TEXT NULL,
+  cancelled_at TEXT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_esa_who ON gates_event_sale_alerts(event_id, email_hash);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_esa_token ON gates_event_sale_alerts(token);
+CREATE INDEX IF NOT EXISTS idx_esa_due ON gates_event_sale_alerts(event_id, confirmed_at, notified_at);
 
 -- ─── Gated single-use form links (verified nominees + judge invites) ───
 CREATE TABLE IF NOT EXISTS gates_form_tokens (
@@ -590,7 +670,19 @@ CREATE TABLE IF NOT EXISTS gates_users (
   last_login_ip TEXT,
   -- How far this member has read their alerts. The ONLY state the alerts
   -- feature stores — see AfricaGates\Services\AlertService.
-  alerts_read_at TEXT NULL DEFAULT NULL
+  alerts_read_at TEXT NULL DEFAULT NULL,
+  -- Display & reading, saved to the member (REFERENCE §7.5). NULL = never saved.
+  display_json TEXT NULL DEFAULT NULL,
+  -- The Menu's most-used tiles (MenuShortcuts). NULL = no history.
+  menu_use_json TEXT NULL DEFAULT NULL,
+  -- Passwordless sign-in by phone (Phase 8), E.164 via Support\Phone. Not unique.
+  phone_e164 TEXT NULL DEFAULT NULL,
+  -- Joining, steps 3 and 4: what you do, where you are based, interests (JSON keys).
+  headline TEXT NULL DEFAULT NULL,
+  based_in TEXT NULL DEFAULT NULL,
+  interests_json TEXT NULL DEFAULT NULL,
+  -- Seasonal greetings on member pages (HolidayTheme). On unless the member turns it off.
+  seasonal_greetings INTEGER NOT NULL DEFAULT 1
 );
 CREATE TABLE IF NOT EXISTS gates_points_ledger (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -787,6 +879,7 @@ CREATE INDEX IF NOT EXISTS idx_nominations_device ON gates_nominations(device_fp
 CREATE INDEX IF NOT EXISTS idx_votes_nominee ON gates_votes(nominee_id);
 CREATE INDEX IF NOT EXISTS idx_votes_voted_at ON gates_votes(voted_at);
 CREATE INDEX IF NOT EXISTS idx_points_user ON gates_points_ledger(user_id);
+CREATE INDEX IF NOT EXISTS idx_users_phone_e164 ON gates_users(phone_e164);
 CREATE INDEX IF NOT EXISTS idx_donations_created ON gates_donations(created_at);
 CREATE INDEX IF NOT EXISTS idx_users_created ON gates_users(created_at);
 CREATE INDEX IF NOT EXISTS idx_formsub_formid ON gates_form_submissions(form_id);
@@ -1025,3 +1118,137 @@ CREATE INDEX IF NOT EXISTS idx_vmsg_queue ON gates_vote_messages(status, created
 -- exec() of the entire file, so one unrunnable statement aborted the run two steps
 -- before the migration that would have fixed it. See MigrationRunner::applySchemaFile.
 CREATE INDEX IF NOT EXISTS idx_vmsg_reported ON gates_vote_messages(reports, reported_at);
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- CHALLENGES (SQLite)
+-- The same five tables as `schema.sql`. SQLite has no ENUM and ignores integer
+-- widths, so every column that is an ENUM there is TEXT here — which is exactly why
+-- `ChallengeSchemaWordsTest` reads the words out of `Support\ChallengeEnum` and the
+-- MySQL schema rather than trusting this file: a sixth action added in PHP and not
+-- in the column passes every test on this harness and lands as an empty string on
+-- the only database that matters.
+-- ══════════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS gates_challenges (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  slug TEXT NOT NULL, title TEXT NOT NULL, kicker TEXT NOT NULL, summary TEXT NULL,
+  action TEXT NOT NULL DEFAULT 'nominate',
+  target INTEGER NOT NULL DEFAULT 1,
+  mode TEXT NOT NULL DEFAULT 'first',
+  cap INTEGER NULL, draw_count INTEGER NULL, draw_at TEXT NULL, draw_seed TEXT NULL,
+  prize_type TEXT NOT NULL DEFAULT 'cash_each',
+  prize_amount INTEGER NOT NULL DEFAULT 0,
+  prize_currency TEXT NULL, prize_label TEXT NULL,
+  theme TEXT NOT NULL DEFAULT 'green',
+  art_url TEXT NULL, art_alt TEXT NULL, icon TEXT NULL, flag INTEGER NOT NULL DEFAULT 0,
+  eligibility TEXT NULL, extra_rules TEXT NULL,
+  starts_at TEXT NULL, ends_at TEXT NULL,
+  timezone TEXT NOT NULL DEFAULT 'Africa/Lagos',
+  terms_version TEXT NOT NULL DEFAULT '1.0',
+  status TEXT NOT NULL DEFAULT 'draft', cancel_reason TEXT NULL,
+  created_by INTEGER NULL, published_at TEXT NULL,
+  created_at TEXT NULL, updated_at TEXT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_challenge_slug ON gates_challenges(slug);
+CREATE INDEX IF NOT EXISTS idx_challenge_status ON gates_challenges(status);
+
+CREATE TABLE IF NOT EXISTS gates_challenge_scopes (
+  challenge_id INTEGER NOT NULL,
+  scope_type TEXT NOT NULL,
+  scope_id INTEGER NOT NULL,
+  PRIMARY KEY (challenge_id, scope_type, scope_id)
+);
+CREATE INDEX IF NOT EXISTS idx_scope_lookup ON gates_challenge_scopes(scope_type, scope_id);
+
+CREATE TABLE IF NOT EXISTS gates_challenge_entries (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  challenge_id INTEGER NOT NULL, user_id INTEGER NOT NULL,
+  phone_hash TEXT NULL, joined_at TEXT NULL,
+  progress INTEGER NOT NULL DEFAULT 0, verified INTEGER NOT NULL DEFAULT 0,
+  checking INTEGER NOT NULL DEFAULT 0, needs_details INTEGER NOT NULL DEFAULT 0,
+  qualified_at TEXT NULL, standing INTEGER NULL,
+  status TEXT NOT NULL DEFAULT 'active', disqualify_reason TEXT NULL,
+  payout_status TEXT NOT NULL DEFAULT 'none',
+  payout_ref TEXT NULL, payout_at TEXT NULL,
+  created_at TEXT NULL, updated_at TEXT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_entry_user ON gates_challenge_entries(challenge_id, user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_entry_phone ON gates_challenge_entries(challenge_id, phone_hash);
+CREATE INDEX IF NOT EXISTS idx_entry_rank ON gates_challenge_entries(challenge_id, status, qualified_at);
+
+CREATE TABLE IF NOT EXISTS gates_challenge_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  challenge_id INTEGER NULL, entry_id INTEGER NULL,
+  kind TEXT NOT NULL, ref_type TEXT NULL, ref_id INTEGER NULL,
+  actor_id INTEGER NULL, meta TEXT NULL, created_at TEXT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_chev_entry ON gates_challenge_events(entry_id, id);
+CREATE INDEX IF NOT EXISTS idx_chev_challenge ON gates_challenge_events(challenge_id, kind);
+
+CREATE TABLE IF NOT EXISTS gates_promos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  placement TEXT NOT NULL, kicker TEXT NULL, title TEXT NOT NULL,
+  sub TEXT NULL, cta TEXT NULL, href TEXT NULL,
+  theme TEXT NOT NULL DEFAULT 'green', art_url TEXT NULL,
+  challenge_id INTEGER NULL, priority INTEGER NOT NULL DEFAULT 0,
+  audience TEXT NOT NULL DEFAULT 'all',
+  starts_at TEXT NULL, ends_at TEXT NULL,
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NULL, updated_at TEXT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_promo_slot ON gates_promos(placement, active, priority);
+
+-- ─── Recognitions from verified issuers (REFERENCE §11; 2027_03_06_recognitions.php) ───
+CREATE TABLE IF NOT EXISTS gates_recognition_issuers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  issuer_type TEXT NOT NULL DEFAULT 'organisation',
+  name TEXT NOT NULL,
+  programme_id INTEGER NULL, partner_org_id INTEGER NULL,
+  url TEXT NULL,
+  verified_at TEXT NULL, verified_basis TEXT NULL,
+  created_at TEXT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_rci_programme ON gates_recognition_issuers(programme_id);
+CREATE TABLE IF NOT EXISTS gates_recognitions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  issuer_id INTEGER NOT NULL,
+  recipient_profile_id INTEGER NULL, recipient_nominee_id INTEGER NULL,
+  recipient_name TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'award', standing TEXT NULL,
+  title TEXT NOT NULL, citation TEXT NULL,
+  issued_at TEXT NULL,
+  reference TEXT NOT NULL,
+  visibility TEXT NOT NULL DEFAULT 'public',
+  evidence_ids TEXT NULL,
+  cycle_id INTEGER NULL, category_id INTEGER NULL,
+  withdrawn_at TEXT NULL, withdrawn_reason TEXT NULL,
+  created_at TEXT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_rec_reference ON gates_recognitions(reference);
+CREATE INDEX IF NOT EXISTS idx_rec_profile ON gates_recognitions(recipient_profile_id);
+CREATE INDEX IF NOT EXISTS idx_rec_nominee ON gates_recognitions(recipient_nominee_id);
+CREATE INDEX IF NOT EXISTS idx_rec_issued ON gates_recognitions(issued_at);
+CREATE TABLE IF NOT EXISTS gates_recognition_withdrawals (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  recognition_id INTEGER NOT NULL,
+  reason TEXT NOT NULL,
+  withdrawn_at TEXT NOT NULL,
+  actor_admin_id INTEGER NULL
+);
+CREATE INDEX IF NOT EXISTS idx_rcw_rec ON gates_recognition_withdrawals(recognition_id);
+
+-- ─── "Get status updates" on /status (double opt-in; migrations/2027_03_07_status_alerts.php) ───
+CREATE TABLE IF NOT EXISTS gates_status_alerts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  email TEXT NOT NULL,
+  email_hash TEXT NOT NULL,
+  token TEXT NOT NULL,
+  ip_hash TEXT NULL,
+  created_at TEXT NULL,
+  confirm_sent_at TEXT NULL,
+  confirmed_at TEXT NULL,
+  cancelled_at TEXT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_sta_who ON gates_status_alerts(email_hash);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_sta_token ON gates_status_alerts(token);
+CREATE INDEX IF NOT EXISTS idx_sta_live ON gates_status_alerts(confirmed_at, cancelled_at);

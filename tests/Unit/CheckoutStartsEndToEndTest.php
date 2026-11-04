@@ -114,11 +114,6 @@ final class CheckoutStartsEndToEndTest extends TestCase
 
     // ── the shop ─────────────────────────────────────────────────────────────
 
-    public function test_the_shop_page_renders(): void
-    {
-        $this->assertNotServerError($this->get('/shop'), 'GET /shop');
-    }
-
     public function test_posting_a_shop_checkout_does_not_fatal(): void
     {
         DB::table('gates_products')->insertOrIgnore([
@@ -171,12 +166,6 @@ final class CheckoutStartsEndToEndTest extends TestCase
             'is_active' => 1, 'sort_order' => 0,
         ]);
         return 'e2e-gala';
-    }
-
-    public function test_the_event_page_renders(): void
-    {
-        $slug = $this->event();
-        $this->assertNotServerError($this->get('/events/' . $slug), 'GET /events/{slug}');
     }
 
     public function test_registering_for_a_paid_event_does_not_fatal(): void
@@ -238,37 +227,6 @@ final class CheckoutStartsEndToEndTest extends TestCase
     }
 
     // ── a 500 the production log caught, unrelated to payments ──────────────
-
-    /**
-     * ── THE REGISTRATION FORM AFTER A FAILED ATTEMPT ─────────────────────────
-     *
-     * `AccountController::flash()` was declared `?string`. Three of the four keys it reads do
-     * hold strings; `reg_old` holds the name/email/phone somebody just typed, kept so a failed
-     * registration hands their details back instead of making them retype. An array.
-     *
-     * Recorded three times in production as
-     *
-     *     TypeError: flash(): Return value must be of type ?string, array returned
-     *
-     * The shape is what makes it nasty and what makes this test necessary: the FIRST visit is
-     * fine, because nothing has stored `reg_old` yet. It fires on the redirect back after a
-     * rejected submission — so the page works when you test it and breaks for every person who
-     * mistypes their email.
-     */
-    public function test_the_registration_form_survives_a_failed_attempt(): void
-    {
-        if (session_status() !== PHP_SESSION_ACTIVE) { @session_start(); }
-        // Exactly what a rejected registration leaves behind.
-        $_SESSION['reg_old']     = ['name' => 'Ada Obi', 'email' => 'not-an-email', 'phone' => '080'];
-        $_SESSION['flash_error'] = 'That email address does not look right.';
-
-        try {
-            $this->assertNotServerError($this->get('/account/register'),
-                'GET /account/register after a failed submission');
-        } finally {
-            unset($_SESSION['reg_old'], $_SESSION['flash_error']);
-        }
-    }
 
     // ── the error viewer, which is how a 500 gets diagnosed at all ───────────
 

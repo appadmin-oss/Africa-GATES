@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+</helmet>
+<sc-if value="{{ shown }}" hint-placeholder-val="{{ true }}">
+<section role="region" aria-label="{{ aria }}" style="position:relative;overflow:hidden;display:grid;grid-template-columns:{{ cols }};column-gap:{{ gap }};row-gap:12px;align-items:center;padding:{{ pad }};border-radius:20px;background:{{ wash }};box-shadow:inset 0 0 0 1px {{ edge }};font-family:'DM Sans',system-ui,sans-serif;color:#10292c">
+  <span aria-hidden="true" style="position:absolute;inset:0;background:{{ pattern }};-webkit-mask-image:{{ mask }};mask-image:{{ mask }};pointer-events:none"></span>
+  <span aria-hidden="true" style="position:relative;width:{{ tile }};height:{{ tile }};border-radius:14px;background:#fff;color:{{ ink }};display:flex;align-items:center;justify-content:center;box-shadow:0 6px 16px -10px rgba(16,41,44,.35)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:52%;height:52%"><path d="{{ glyph }}"></path></svg></span>
+  <div style="position:relative;min-width:0;display:flex;flex-direction:column;gap:3px">
+    <span style="font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:{{ titleSize }};line-height:1.2;color:#0d1f21;text-wrap:balance">{{ greeting }}</span>
+    <span style="font-size:{{ subSize }};line-height:1.5;color:#3a4a4c;text-wrap:pretty">{{ line }}</span>
+  </div>
+  <sc-if value="{{ hasCta }}" hint-placeholder-val="{{ true }}"><a href="{{ href }}" style="position:relative;grid-column:{{ ctaCol }};justify-self:start;display:flex;align-items:center;justify-content:center;height:44px;padding:0 18px;border-radius:999px;background:#fff;box-shadow:inset 0 0 0 1px {{ ctaEdge }};color:#10292c;font-weight:600;font-size:14.5px;white-space:nowrap;text-decoration:none">{{ cta }}</a></sc-if>
+  <button onClick="{{ dismiss }}" aria-label="Dismiss the {{ name }} greeting" style="position:absolute;top:6px;inset-inline-end:6px;width:44px;height:44px;border:0;border-radius:50%;background:transparent;color:#3a4a4c;display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg></button>
+</section>
+</sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:820,&quot;height&quot;:120},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;independence-ng&quot;,&quot;teachers&quot;,&quot;christmas&quot;,&quot;new-year&quot;,&quot;eid&quot;,&quot;easter&quot;,&quot;africa-day&quot;,&quot;democracy-ng&quot;,&quot;womens-day&quot;,&quot;childrens-day-ng&quot;],&quot;default&quot;:&quot;teachers&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;layout&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;desktop&quot;,&quot;phone&quot;],&quot;default&quot;:&quot;desktop&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;name&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Chioma&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;showCta&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+// tone: [wash, edge, ink, line]
+const TONE={green:['#eef7ee','#d4e8d3','#1a6118','#237b22'],gold:['#fcf6e4','#efe0b4','#7a5600','#c99a06'],live:['#fdf0f3','#f3d3dc','#b0224f','#e0245e'],info:['#ecf3f7','#cfe0ea','#1f5f8b','#1f6fa3'],stone:['#f4f2ec','#e2ddd2','#10292c','#3a4a4c']};
+const enc=s=>`url("data:image/svg+xml,${encodeURIComponent(s)}")`;
+const PAT={
+  stripes:c=>`linear-gradient(90deg, transparent 0 62%, ${c}24 62% 70%, transparent 70% 78%, ${c}24 78% 86%, transparent 86%)`,
+  ruled:c=>`linear-gradient(${c}2a 0 1px, transparent 1px) 0 14px / 100% 22px, linear-gradient(90deg, transparent 0 calc(100% - 132px), ${c}40 calc(100% - 132px) calc(100% - 131px), transparent calc(100% - 131px))`,
+  snow:c=>`radial-gradient(circle, ${c}40 0 1.6px, transparent 2px) 0 0 / 26px 26px, radial-gradient(circle, ${c}2a 0 1.2px, transparent 1.6px) 13px 13px / 26px 26px`,
+  confetti:c=>enc(`<svg xmlns='http://www.w3.org/2000/svg' width='72' height='72' fill='${c}' fill-opacity='.32'><rect x='8' y='10' width='6' height='2.4' rx='1.2' transform='rotate(-24 11 11)'/><circle cx='46' cy='14' r='1.8'/><rect x='54' y='44' width='6' height='2.4' rx='1.2' transform='rotate(38 57 45)'/><circle cx='22' cy='52' r='1.5'/><rect x='32' y='30' width='5' height='2' rx='1' transform='rotate(70 34 31)'/></svg>`),
+  lattice:c=>enc(`<svg xmlns='http://www.w3.org/2000/svg' width='44' height='44' fill='none' stroke='${c}' stroke-opacity='.3' stroke-width='1'><path d='M22 6l4.6 11.4L38 22l-11.4 4.6L22 38l-4.6-11.4L6 22l11.4-4.6z'/></svg>`),
+  sun:c=>`repeating-radial-gradient(circle at 100% 110%, transparent 0 22px, ${c}26 22px 23px)`,
+  africa:c=>`url("assets/africa-silhouette.svg") right -10px center / auto 150% no-repeat`,
+  petals:c=>enc(`<svg xmlns='http://www.w3.org/2000/svg' width='56' height='56' fill='none' stroke='${c}' stroke-opacity='.3' stroke-width='1.1'><circle cx='28' cy='28' r='2.4'/><path d='M28 25.6c-2-4-1-8 0-9.6 1 1.6 2 5.6 0 9.6ZM28 30.4c2 4 1 8 0 9.6-1-1.6-2-5.6 0-9.6ZM25.6 28c-4 2-8 1-9.6 0 1.6-1 5.6-2 9.6 0ZM30.4 28c4-2 8-1 9.6 0-1.6 1-5.6 2-9.6 0Z'/></svg>`),
+  balloons:c=>enc(`<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64' fill='none' stroke='${c}' stroke-opacity='.3' stroke-width='1.1'><ellipse cx='18' cy='18' rx='6' ry='7.5'/><path d='M18 25.5c0 4 3 6 2 12'/><ellipse cx='46' cy='38' rx='5' ry='6.4'/><path d='M46 44.4c0 3.4-2.4 5-1.6 10'/></svg>`)
+};
+const G={flag:'M5 21V4M5 4h11l-2 4 2 4H5',book:'M3 5.5C5.5 4.5 8.5 4.5 12 6.5c3.5-2 6.5-2 9-1V19c-2.5-1-5.5-1-9 1-3.5-2-6.5-2-9-1V5.5Z M12 6.5V20',tree:'M12 3 6.5 10H9l-4 6h14l-4-6h2.5L12 3Z M12 16v5',spark:'M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18',moon:'M15.5 4.5a8 8 0 1 0 4 12.6A6.5 6.5 0 0 1 15.5 4.5Z M18 7.5l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6z',sunrise:'M4 18h16M7 18a5 5 0 0 1 10 0M12 6v3M5.6 10.6l1.8 1.4M18.4 10.6l-1.8 1.4M3 21h18',globe:'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM3.5 9h17M3.5 15h17M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3Z',flower:'M12 13.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM12 10.5c-2-3.5-1-6.5 0-7.5 1 1 2 4 0 7.5ZM12 13.5c2 3.5 1 6.5 0 7.5-1-1-2-4 0-7.5ZM10.5 12c-3.5 2-6.5 1-7.5 0 1-1 4-2 7.5 0ZM13.5 12c3.5-2 6.5-1 7.5 0-1 1-4 2-7.5 0Z',balloon:'M12 3a5 5 0 0 0-5 5.3c0 3.3 2.6 6.2 5 6.7 2.4-.5 5-3.4 5-6.7A5 5 0 0 0 12 3ZM12 15l-1 2h2l-1-2Zm0 2c0 2-2 2.5-1 4'};
+// key: [name, tone, pattern, glyph, greeting, line, cta, href, scope]
+const TH={
+ 'independence-ng':['Independence Day','green','stripes','flag','Happy Independence Day, {name}','Celebrating 66 years of Nigeria, and the people who keep it moving.','Nominate someone','NominateHub.dc.html','NG'],
+ 'teachers':['World Teachers’ Day','gold','ruled','book','Happy Teachers’ Day, {name}','Someone taught you to aim higher. The Alimosho Impactful Leadership Awards are open.','Nominate a teacher','NominationFlow.dc.html','ALL'],
+ 'christmas':['Christmas','green','snow','tree','Merry Christmas, {name}','Wishing you rest, good food and the people you love.','','','ALL'],
+ 'new-year':['New Year','gold','confetti','spark','Happy New Year, {name}','Here’s to the people you’ll recognise this year.','See what’s open','AwardsPage.dc.html','ALL'],
+ 'eid':['Eid','info','lattice','moon','Eid Mubarak, {name}','Wishing you and your family peace and joy.','','','ALL'],
+ 'easter':['Easter','gold','sun','sunrise','Happy Easter, {name}','Wishing you a peaceful, joyful weekend.','','','ALL'],
+ 'africa-day':['Africa Day','gold','africa','globe','Happy Africa Day, {name}','54 countries, one record of who’s making a difference.','Explore the awards','AwardsPage.dc.html','ALL'],
+ 'democracy-ng':['Democracy Day','green','stripes','flag','Happy Democracy Day, {name}','Every vote counts here too.','See open votes','VoteHub.dc.html','NG'],
+ 'womens-day':['International Women’s Day','live','petals','flower','Happy Women’s Day, {name}','Know a woman who leads? Put her name forward.','Nominate her','NominationFlow.dc.html','ALL'],
+ 'childrens-day-ng':['Children’s Day','info','balloons','balloon','Happy Children’s Day, {name}','For the teachers, coaches and carers who raise them.','Nominate a mentor','NominationFlow.dc.html','NG']
+};
+class Component extends DCLogic {
+  state = { hidden:false };
+  renderVals(){
+    const p=this.props, key=p.theme ?? 'teachers', t=TH[key]||TH.teachers, tn=TONE[t[1]], ph=(p.layout ?? 'desktop')==='phone', name=p.name ?? 'Chioma', cta=t[6]&&(p.showCta ?? true);
+    return {
+      shown:!this.state.hidden, dismiss:()=>this.setState({hidden:true}), name:t[0], aria:t[0]+' greeting',
+      wash:tn[0], edge:tn[1], ink:tn[2], ctaEdge:tn[1], pattern:PAT[t[2]](tn[3]),
+      mask:ph?'linear-gradient(180deg,transparent 0 30%,#000 100%)':'linear-gradient(90deg,transparent 0 40%,#000 85%)',
+      glyph:G[t[3]], greeting:t[4].replace('{name}',name), line:t[5], hasCta:!!cta, cta:t[6], href:t[7]||'#',
+      cols:ph?'44px minmax(0,1fr)':(cta?'52px minmax(0,1fr) auto':'52px minmax(0,1fr)'), ctaCol:ph?'2':'3', gap:ph?'14px':'18px',
+      pad:ph?'16px 48px 16px 16px':'18px 64px 18px 18px', tile:ph?'44px':'52px', titleSize:ph?'18px':'20px', subSize:ph?'14px':'14.5px'
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -399,7 +399,7 @@ final class StandApplyController
             $user = $r['user'];
             if (!$user) {
                 return $this->render($res, $event, $call, null, $b,
-                    'The account was created but could not be signed in. Try signing in at /org/login.');
+                    'The account was created but could not be signed in. Try signing in at /account/login.');
             }
             (new OrgAuth($this->rateLimit))->signIn($user);
             $org = PartnerOrg::find((int) $r['org_id']);

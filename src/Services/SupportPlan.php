@@ -215,6 +215,25 @@ final class SupportPlan
             }
         }
 
+        // ── 3b · a signed-in member's own money, with no reference given ─────
+        //
+        // "Check the payments I've made — one of my votes did not go through and I need a
+        // refund" names no reference because the person expects us to know who they are,
+        // and when they are signed in we do. The agent's rules already said "my_transactions
+        // first" and nothing here ran it, so a model that answered "I will check your
+        // payments, hold on" had nothing in front of it to check. It is listed only when the
+        // context holds a member (my_transactions is not offered otherwise, and the filter
+        // below drops it), and it reads only that member's own rows.
+        if ($ref === null && $ctx->isMember()
+            && self::any($m, ['paid', 'payment', 'payments', 'charged', 'debited', 'bought', 'purchase',
+                              'refund', 'money back', 'my money', 'transaction', 'my order', 'my votes',
+                              'did not go through', "didn't go through", 'not go through', 'failed'])) {
+            // refund_status needs a reference, and my_transactions returns them: the model
+            // checks the refund on the payment the list shows, rather than being handed a
+            // "reference needed" that the person cannot answer any better than we can.
+            $add('my_transactions', [], 'a signed-in member asking about their own payments');
+        }
+
         // ── 4 · a FREE vote, which has no payment and no reference at all ────
         //
         // Most votes on this platform are free. Answering one of those with a

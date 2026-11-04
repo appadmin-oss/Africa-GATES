@@ -150,6 +150,33 @@ class SiteUrlTest extends TestCase
         $this->assertSame('http://127.0.0.1:8080', SiteUrl::base($this->request('127.0.0.1:8080', 'http')));
     }
 
+    /**
+     * A WELL-FORMED Host is still the requester's choice. Every account email — reset,
+     * verify, sign-in link — is built from this base, and the person choosing the Host on
+     * a reset request is whoever posts the victim's address to `/account/forgot`. With
+     * APP_URL unset, `Host: evil.example` mailed a real token on an evil.example link.
+     */
+    public function test_a_well_formed_host_that_is_not_ours_is_not_used(): void
+    {
+        unset($_ENV['TRUSTED_HOSTS']);
+        foreach (['evil.example', 'afg.afrovanguard.org.ng.evil.example', 'evil.example:443'] as $h) {
+            $this->assertSame(SiteUrl::FALLBACK, SiteUrl::base($this->request($h)),
+                "a link we mail must not point at a host the requester chose: {$h}");
+        }
+    }
+
+    public function test_a_listed_host_is_derived(): void
+    {
+        $_ENV['TRUSTED_HOSTS'] = ' staging.afrovanguard.org.ng , Other.test ';
+        try {
+            $this->assertSame('https://staging.afrovanguard.org.ng', SiteUrl::base($this->request('staging.afrovanguard.org.ng')));
+            $this->assertSame('https://other.test:8443', strtolower(SiteUrl::base($this->request('other.test:8443'))));
+            $this->assertSame(SiteUrl::FALLBACK, SiteUrl::base($this->request('evil.example')));
+        } finally {
+            unset($_ENV['TRUSTED_HOSTS']);
+        }
+    }
+
     // ── Forwarded scheme, only when a proxy is trusted ──────────────────────
 
     public function test_the_forwarded_scheme_is_honoured_only_behind_a_trusted_proxy(): void

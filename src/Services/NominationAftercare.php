@@ -76,28 +76,83 @@ final class NominationAftercare
         $nomEmail = strtolower(trim((string) ($data['nominee_email'] ?? '')));
         $byName   = Name::title((string) ($data['nominator_name'] ?? ''));
         $byEmail  = strtolower(trim((string) ($data['nominator_email'] ?? '')));
-        $progName = trim((string) ($data['programme_title'] ?? ''))
-                 ?: ('Programme #' . (int) ($data['programme_id'] ?? 0));
+        // Each category's title, so a reason in the brief and the Sheets row says which
+        // category it argues for (NominationRules::reasonText).
+        $catTitles = [];
+        $pickedIds = array_keys(\AfricaGates\Services\NominationRules::categories($data));
+        if ($pickedIds !== []) {
+            try {
+                $catTitles = array_map('strval', \Illuminate\Database\Capsule\Manager::table('gates_award_categories')
+                    ->whereIn('id', $pickedIds)->pluck('title', 'id')->all());
+            } catch (\Throwable) {}
+        }
+        /* ── THE AWARD'S REAL NAME, LOOKED UP WHEN IT IS NOT HANDED OVER ───────
+           This fell back to `'Programme #' . $id`, and that string is not a label —
+           it goes into the confirmation EMAIL, the SMS and the success page. A
+           nominator who had just written about somebody was told their nomination was
+           filed under "Programme #1". The fallback reads like data, which is what
+           made it survive: nothing looks broken, it just says the wrong thing.
+
+           The id is in hand either way, so the title is a lookup rather than a guess.
+           The numbered form stays as the last resort for a programme row that is
+           genuinely gone — an import, a deleted award — because an empty sentence is
+           worse than an honest placeholder. */
+        $progName = trim((string) ($data['programme_title'] ?? ''));
+        if ($progName === '' && !empty($data['programme_id'])) {
+            try {
+                $progName = trim((string) (DB::table('gates_award_programmes')
+                    ->where('id', (int) $data['programme_id'])->value('title') ?? ''));
+            } catch (\Throwable) {}
+        }
+        if ($progName === '') $progName = 'Programme #' . (int) ($data['programme_id'] ?? 0);
         $watchUrl = rtrim($baseUrl, '/') . '/leaderboard';
 
         $reference = self::reference($nominationId);
 
-        // Resolve the award CATEGORY so every message names it, not just the programme.
-        $catName = '';
-        if (!empty($data['category_id'])) {
+        /* ── EVERY CATEGORY, NOT THE FIRST ────────────────────────────────────
+           A nomination names two or three categories now, and they live in
+           `gates_nomination_categories`. This read `category_id` off the nomination
+           row — the denormalised copy of the FIRST one — so the email, the SMS and
+           the success page each named one of the three and said nothing about the
+           others. The nominator chose them deliberately and is told their nomination
+           went somewhere narrower than it did.
+
+           The row's own `category_id` is the fallback, for a nomination taken before
+           the table existed. */
+        $catNames = [];
+        try {
+            $catNames = DB::table('gates_nomination_categories as nc')
+                ->join('gates_award_categories as c', 'c.id', '=', 'nc.category_id')
+                ->where('nc.nomination_id', $nominationId)
+                ->orderBy('nc.sort_order')->orderBy('nc.id')
+                ->pluck('c.title')->all();
+        } catch (\Throwable) { $catNames = []; }
+
+        if ($catNames === [] && !empty($data['category_id'])) {
             try {
-                $catName = (string) (DB::table('gates_award_categories')
+                $one = (string) (DB::table('gates_award_categories')
                     ->where('id', (int) $data['category_id'])->value('title') ?? '');
+                if ($one !== '') $catNames = [$one];
             } catch (\Throwable) {}
         }
+
+        $catName = self::listOf($catNames);
         $catLine = $catName !== '' ? ($progName . ' · ' . $catName) : $progName;
 
         self::email($data, $mailer, $files, $baseUrl, $reference,
-                    $nomName, $nomEmail, $byName, $byEmail, $catLine, $watchUrl);
+                    $nomName, $nomEmail, $byName, $byEmail, $catLine, $watchUrl, $catTitles, $nominationId);
         self::text($data, $reference, $nomName, $nomEmail, $catLine, $watchUrl);
 
         // Advisory AI triage (score / summary / duplicates) for the review desk.
         try { NominationTriageService::enqueue($nominationId); } catch (\Throwable) {}
+
+        // And which category the work actually belongs in, for the review desk and the
+        // judging panel. QUEUED HERE rather than in either controller, for the reason
+        // this whole class exists: there are two nomination doors, and the last thing
+        // queued from only one of them was the triage itself — a nomination arriving at
+        // the API sat in the table with no score, no summary and no duplicate check
+        // until somebody happened to look at it.
+        try { NominationCategoryFit::enqueue($nominationId); } catch (\Throwable) {}
 
         // ── the operator's own spreadsheet ──────────────────────────────────
         //
@@ -122,7 +177,7 @@ final class NominationAftercare
                 'programme_id'    => (int) ($data['programme_id'] ?? 0),
                 'nominee_name'    => $nomName,
                 'country_code'    => strtoupper((string) ($data['country_code'] ?? '')),
-                'reason'          => trim((string) ($data['reason'] ?? '')),
+                'reason'          => \AfricaGates\Services\NominationRules::reasonText($data, $catTitles),
                 'nominator_name'  => $byName,
                 'nominator_email' => $byEmail,
                 'reference'       => $reference,
@@ -155,6 +210,27 @@ final class NominationAftercare
      * when the column does not exist on an unmigrated database, which is the single
      * case where there is nothing stored to disagree with.
      */
+    /**
+     * "A", "A and B", or "A, B and C" — the way a person would say a short list.
+     *
+     * One place, because this line is read in three: the confirmation email, the SMS
+     * and the success page. Three joins is three chances for one of them to come out
+     * as "Teaching,Leadership".
+     *
+     * @param list<string> $items
+     */
+    private static function listOf(array $items): string
+    {
+        $items = array_values(array_filter(array_map('trim', $items), static fn ($v) => $v !== ''));
+        $n = count($items);
+
+        if ($n === 0) return '';
+        if ($n === 1) return $items[0];
+
+        $last = array_pop($items);
+        return implode(', ', $items) . ' and ' . $last;
+    }
+
     private static function reference(int $nominationId): string
     {
         try {
@@ -177,7 +253,7 @@ final class NominationAftercare
     private static function email(
         array $data, ?OtpService $mailer, array $files, string $baseUrl, string $reference,
         string $nomName, string $nomEmail, string $byName, string $byEmail,
-        string $catLine, string $watchUrl,
+        string $catLine, string $watchUrl, array $catTitles = [], int $nominationId = 0,
     ): void {
         if ($mailer === null) return;
 
@@ -198,6 +274,9 @@ final class NominationAftercare
             'Nominator'           => $byName . ' <' . $byEmail . '>',
             'Nominator phone'     => trim((string) ($data['nominator_phone'] ?? '')),
             'Nominator age range' => trim((string) ($data['nominator_age_range'] ?? '')) ?: '—',
+            // How they know the nominee, and whether the nominee may be told who they are.
+            'Knows them as'       => \AfricaGates\Services\NominationRules::RELATIONS[\AfricaGates\Services\NominationRules::relation($data['nominator_relation'] ?? null) ?? ''] ?? '—',
+            'Name kept private'   => !empty($data['nominator_private']) ? 'Yes — the nominee is not told who nominated them' : 'No',
             'Nominator location'  => trim((string) ($data['nominator_state'] ?? '')) . ', '
                                    . trim((string) ($data['nominator_lga'] ?? '')) . ', '
                                    . strtoupper((string) ($data['nominator_country'] ?? '')),
@@ -212,40 +291,83 @@ final class NominationAftercare
             . '<table style="border-collapse:collapse;margin:6px 0 16px">' . $tbl . '</table>'
             . '<p style="margin:0 0 5px;color:#6b7674;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Reason</p>'
             . '<div style="background:#f6f7f6;border-radius:10px;padding:12px 14px;font-size:14px;line-height:1.6;color:#10292c;white-space:pre-wrap">'
-            . $esc(trim((string) ($data['reason'] ?? ''))) . '</div>'
+            . $esc(\AfricaGates\Services\NominationRules::reasonText($data, $catTitles)) . '</div>'
             . ($evidence ? '<p style="font-size:13px;margin-top:12px">Supporting document: ' . $esc($evidence) . '</p>' : '')
             . ($photo ? '<p style="font-size:13px">Photo: ' . $esc($photo) . '</p>' : '')
             . '<p style="margin-top:16px"><a href="' . $esc($base . '/admin/nominations') . '" style="color:#237b22;font-weight:600">Review in the admin console &rarr;</a></p>';
-        try {
+        if (Notifier::adminEmail() !== '') try {
             $mailer->sendBranded(Notifier::adminEmail(), 'New nomination · ' . $nomName,
                                  $adminHtml, strip_tags($adminHtml), 'Nominations');
         } catch (\Throwable) {}
 
-        // ── 2 · the nominator ────────────────────────────────────────────────
+        // ── 2 and 3 · the nominator and the nominee: the handoff's emails ─────
+        //
+        // What they promise is read from what makes it true: the review time is the
+        // setting the acknowledgement mail is sent against (NominationFeedbackService::
+        // slaHours()), the voting date is the cycle's own, and a nominator who asked to
+        // stay private is never named to the nominee (nominator_private).
+        $cycle = null;
+        try {
+            if (!empty($data['cycle_id'])) {
+                $cycle = DB::table('gates_award_cycles')->where('id', (int) $data['cycle_id'])->first(['voting_open']);
+            }
+        } catch (\Throwable) {}
+        $votingOpens = '';
+        if ($cycle && !empty($cycle->voting_open)) {
+            try { $votingOpens = \Illuminate\Support\Carbon::parse((string) $cycle->voting_open)->format('j F Y'); } catch (\Throwable) {}
+        }
+        $progOnly = trim((string) ($data['programme_title'] ?? '')) ?: (string) explode(' · ', $catLine)[0];
+        $nomFirst = \AfricaGates\Services\DoorWelcome::firstName($nomName) ?: $nomName;
+        $nomPhone = trim((string) ($data['nominee_phone'] ?? ''));
+
         if ($byEmail !== '' && filter_var($byEmail, FILTER_VALIDATE_EMAIL)) {
-            $byHtml = '<p>Hi ' . $esc($byName) . ',</p>'
-                . '<p>Thank you for nominating <strong>' . $esc($nomName) . '</strong> for <strong>' . $esc($catLine)
-                . '</strong>. We&rsquo;ve logged your entry (reference <strong>' . $esc($reference)
-                . '</strong>), and our panel reviews every profile before it joins the cycle.</p>'
-                . '<p><a href="' . $esc($watchUrl) . '" style="display:inline-block;background:#237b22;color:#fff;text-decoration:none;font-weight:600;padding:12px 22px;border-radius:999px">View your entry &amp; watch the cycle &rarr;</a></p>'
-                . '<p style="color:#6b7674;font-size:13.5px">We&rsquo;ll email you the moment the profile goes live and voting opens.</p>';
             try {
-                $mailer->sendBranded($byEmail, 'Your nomination is in — ' . $nomName,
-                                     $byHtml, strip_tags($byHtml), 'Nominations');
+                \AfricaGates\Services\Mail\Emails::send($mailer, $byEmail, 'nom-in', [
+                    'programme'          => $progOnly,
+                    'nominee'            => $nomName,
+                    'nominee_first_name' => $nomFirst,
+                    'category'           => (string) (explode(' · ', $catLine, 2)[1] ?? $catLine),
+                    'reference'          => $reference,
+                    'decide_by'          => \Illuminate\Support\Carbon::now()
+                        ->addHours(\AfricaGates\Services\NominationFeedbackService::slaHours())->format('l j F'),
+                    'nominee_contacted'  => $nomEmail !== '' || $nomPhone !== '',
+                    'voting_opens'       => $votingOpens,
+                    'watch_url'          => $watchUrl,
+                    'site_url'           => $base,
+                ]);
             } catch (\Throwable) {}
         }
 
-        // ── 3 · the nominee, only when an email was given ────────────────────
         if ($nomEmail !== '' && filter_var($nomEmail, FILTER_VALIDATE_EMAIL)) {
-            $nomHtml = '<p>Hello ' . $esc($nomName) . ',</p>'
-                . '<p>Wonderful news &mdash; you&rsquo;ve been nominated for <strong>' . $esc($catLine)
-                . '</strong> on Africa GATES, the continental Cultural Power Index.</p>'
-                . '<p>Our panel verifies every profile before it joins the cycle. Once it&rsquo;s live, the community can vote and your Cultural Power Index begins to build.</p>'
-                . '<p><a href="' . $esc($watchUrl) . '" style="display:inline-block;background:#237b22;color:#fff;text-decoration:none;font-weight:600;padding:12px 22px;border-radius:999px">Watch the cycle &rarr;</a> &nbsp; <a href="'
-                . $esc($base . '/register') . '" style="color:#237b22;font-weight:600">Claim &amp; verify your profile</a></p>';
-            try {
-                $mailer->sendBranded($nomEmail, "You've been nominated — Africa GATES",
-                                     $nomHtml, strip_tags($nomHtml), 'Nominations');
+            // ── NOTHING THE NOMINATOR TYPED, UNTIL A PERSON HAS READ IT ──────────
+            //
+            // This goes out the moment the public form is submitted, to whatever address the
+            // nominator typed, under the Africa GATES masthead and signature. Quoting their
+            // reason (or naming them) here relays a stranger's text through our brand before
+            // anyone has looked at it: "pay the ₦20,000 processing fee at … to receive your
+            // award" would arrive looking like ours, which is exactly the forgery the voting
+            // letter tells nominees to report. Nothing they wrote is sent to the nominee
+            // from here; NominationAftercareTest holds that.
+            //
+            // ── AND IT ASKS FOR WHAT THIS NOMINATION LACKS ───────────────────────
+            //
+            // The nominee knows the work best, so they are asked now, while it can still decide
+            // the review, for exactly what the row is missing (evidence first, then the places
+            // the award needs, then the blanks), with a link to the same page approval later
+            // hands them (NomineeDetails::early). Computed from the stored row, never quoted.
+            // A repeat folded into a nomination they were sent a link for today is not mailed.
+            $early = NomineeDetails::forEmail($nominationId);
+            if (!$early['skip']) try {
+                \AfricaGates\Services\Mail\Emails::send($mailer, $nomEmail, 'nominated', [
+                    'programme'  => $progOnly,
+                    'first_name' => $nomFirst,
+                    'quote'      => '',
+                    'quote_by'   => '',
+                    'confirm_url' => '',
+                    'watch_url'  => $watchUrl,
+                    'help_url'   => $base . '/support',
+                    'site_url'   => $base,
+                ] + $early);
             } catch (\Throwable) {}
         }
     }

@@ -247,14 +247,25 @@ final class DoctorCommand extends Command
             // redirect a browser to. See Support\SiteUrl.
             'app_url_usable'  => \AfricaGates\Support\SiteUrl::isConfigured()
                 ? 'yes'
-                : 'NO — unset or missing its scheme; gateway callbacks fall back to the request host',
+                : 'NO — unset or missing its scheme; links fall back to the request host only if it is trusted (TRUSTED_HOSTS)',
         ];
         foreach (['APP_URL', 'APP_ENV', 'DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASS',
                   'TRUST_PROXY', 'SESSION_SECURE', 'CRON_TOKEN', 'SETUP_TOKEN',
                   'PAYSTACK_SECRET_KEY', 'FLUTTERWAVE_WEBHOOK_HASH',
-                  'TURNSTILE_SECRET', 'TURNSTILE_SITE_KEY', 'SMTP_HOST', 'SMTP_PASS'] as $key) {
+                  'TURNSTILE_SECRET', 'TURNSTILE_SITE_KEY'] as $key) {
             $out[$key] = $where($key);
         }
+
+        // Mail from the resolver the SENDER uses, not from the environment. This listed
+        // SMTP_HOST and SMTP_PASS beside the others, and since the login moved into
+        // Settings that line read "NOT SET" on a platform that was sending — a doctor
+        // contradicting the patient. Where each value came from is the useful half.
+        $mail = \AfricaGates\Services\Mail\MailConfig::load();
+        $out['mail_transport'] = $mail->host . ':' . $mail->port . ' · ' . $mail->describe()['security']
+            . ' (host from ' . $mail->source('host') . ')';
+        $out['mail_login'] = $mail->hasCredentials()
+            ? 'set (password from ' . $mail->source('password') . ')'
+            : 'NOT SET — mail cannot be sent; see /admin/settings/mail';
 
         // Turnstile needs BOTH keys, and the broken half is invisible in a per-key
         // listing: a secret with no site key renders no widget, so no browser can
@@ -676,8 +687,10 @@ final class DoctorCommand extends Command
                  . 'gateway callback is built from it, so a blank value produced a RELATIVE '
                  . 'return URL — which Paystack and Flutterwave cannot redirect a browser to, '
                  . 'so the buyer never comes back and the order stays PENDING with their money '
-                 . 'taken. Support\\SiteUrl now falls back to the request host, which is correct '
-                 . 'on a single-host deployment, but set APP_URL explicitly: it is the only value '
+                 . 'taken. Support\\SiteUrl now falls back to the request host when that host is '
+                 . 'trusted (the production host, localhost, or one listed in TRUSTED_HOSTS) — an '
+                 . 'untrusted Host would otherwise put an attacker\'s domain in a password-reset '
+                 . 'link — and to the production host otherwise. Set APP_URL explicitly: it is the only value '
                  . 'that is right behind a TLS-terminating proxy, and cron and the console have '
                  . 'no request to derive it from.';
         }

@@ -82,7 +82,7 @@ final class AdminClassCoverageTest extends TestCase
      */
     public function testThePairedFieldRowIsTheDefinedOne(): void
     {
-        $css = (string) file_get_contents(__DIR__ . '/../../public/assets/css/admin.css');
+        $css = (string) file_get_contents(__DIR__ . '/../../public/assets/css/console/console.css');
 
         $this->assertMatchesRegularExpression(
             '/\.ad-form\s+\.row\s*\{[^}]*grid-template-columns/',
@@ -96,7 +96,7 @@ final class AdminClassCoverageTest extends TestCase
         $this->assertMatchesRegularExpression(
             '/\*\s*,\s*\*::before\s*,\s*\*::after\s*\{[^}]*box-sizing:\s*border-box/',
             $css,
-            'admin.css must carry its own border-box reset; it does not load main.css.'
+            'console.css must carry its own border-box reset; the console loads no other base sheet.'
         );
     }
 
@@ -140,7 +140,8 @@ final class AdminClassCoverageTest extends TestCase
     private function classesDefinedAnywhere(): array
     {
         $sources = [];
-        foreach ((array) glob(__DIR__ . '/../../public/assets/css/*.css') as $css) {
+        foreach (array_merge((array) glob(__DIR__ . '/../../public/assets/css/*.css'),
+                             (array) glob(__DIR__ . '/../../public/assets/css/console/*.css')) as $css) {
             $sources[] = (string) file_get_contents((string) $css);
         }
         // Templates carry their own <style> blocks, and a class defined in one of those is as

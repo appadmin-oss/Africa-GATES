@@ -121,9 +121,13 @@ final class GuideController
             $out = $useAi ? $this->guide->answer($message, $history, $page) : $this->guide->scripted($message);
             return $this->json($res, [
                 'ok'      => true,
-                'reply'   => $out['reply'],
+                'reply'   => \AfricaGates\Support\ReplyLinks::clean((string) $out['reply']),
                 'source'  => $out['source'],
                 'support' => false,
+                // Buttons the agent offered: a path on this site and a label, validated
+                // by SupportContext::offerAction() before they got here.
+                'actions' => $out['actions'] ?? [],
+                'checked' => $out['checked'] ?? [],
                 // No last resort here. A browsing question with no help match
                 // gets no strip — "how do I nominate" must not sprout a refunds
                 // card, which is what a fallback set would do on every miss.
@@ -133,6 +137,47 @@ final class GuideController
             $this->log?->error('[gee] chat failed', ['err' => $e->getMessage(), 'support' => $stuck]);
             return $this->json($res, ['ok' => false, 'reply' => "I hit a snag just now. In the meantime, /help and /support have you covered."], 500);
         }
+    }
+
+    /**
+     * POST /api/guide/rate — {mode, source, helpful, path}. A visitor's thumb on one answer.
+     *
+     * No words travel: the question and the answer stay in the visitor's tab, as the privacy
+     * note says (Services\GeeRatings). Thirty an hour per connection, quietly: a refused
+     * rating answers `ok:false` and the thumb still shows as pressed, because nothing about a
+     * rating is worth an error in front of somebody who has just been helped.
+     */
+    public function rate(Request $req, Response $res): Response
+    {
+        $ip = (string) ($req->getServerParams()['REMOTE_ADDR'] ?? '');
+        if ($this->rateLimit && !$this->rateLimit->check(hash('sha256', $ip . '|gee-rate'), 'gee_rate', 30, 3600)) {
+            return $this->json($res, ['ok' => false], 429);
+        }
+        $b = (array) $req->getParsedBody();
+        $helpful = $b['helpful'] ?? null;
+        if (!in_array($helpful, [true, false, 1, 0, '1', '0'], true)) return $this->json($res, ['ok' => false], 422);
+        $ok = \AfricaGates\Services\GeeRatings::record((string) ($b['mode'] ?? ''), (string) ($b['source'] ?? ''),
+            in_array($helpful, [true, 1, '1'], true), (string) ($b['path'] ?? ''));
+        return $this->json($res, ['ok' => $ok]);
+    }
+
+    /**
+     * What the suggested articles are matched against.
+     *
+     * "Hurry" and "when will you finish?" have no topic, so matching them alone fell to the
+     * last-resort set — a refund conversation was offered "why the nominee with the most
+     * votes may not win". A message of three words or fewer is matched together with the
+     * person's previous message, which is where its topic is.
+     */
+    private static function topic(string $message, array $history): string
+    {
+        if (count(preg_split('/\s+/u', trim($message)) ?: []) > 3) return $message;
+        foreach (array_reverse($history) as $h) {
+            if (!is_array($h) || ($h['role'] ?? '') === 'assistant') continue;
+            $t = trim((string) ($h['content'] ?? $h['text'] ?? ''));
+            if ($t !== '' && $t !== $message) return mb_substr($t, 0, 400) . ' ' . $message;
+        }
+        return $message;
     }
 
     /**
@@ -168,10 +213,10 @@ final class GuideController
             $out = $this->guide->supportFallback($message);
             return [
                 'ok'       => true,
-                'reply'    => $out['reply'],
+                'reply'    => \AfricaGates\Support\ReplyLinks::clean((string) $out['reply']),
                 'source'   => $out['source'],
                 'support'  => true,
-                'articles' => HelpCentre::previews($message, [], 3, lastResort: true),
+                'articles' => HelpCentre::previews(self::topic($message, $history), [], 3, lastResort: true),
             ];
         }
 
@@ -187,19 +232,26 @@ final class GuideController
                         'content' => mb_substr($text, 0, 2000)];
         }
 
-        $r = $this->support->ask($message, $turns, SupportContext::fromSession($this->rateLimit, $ip));
+        $ctx = SupportContext::fromSession($this->rateLimit, $ip);
+        $r = $this->support->ask($message, $turns, $ctx);
 
         return [
             'ok'        => true,
-            'reply'     => $r['reply'],
+            'reply'     => \AfricaGates\Support\ReplyLinks::clean((string) $r['reply']),
             'source'    => 'support',
             'support'   => true,
             // Shown in the widget as "re-checked your payment" — an assistant that
             // says where its answer came from is one people can sanity-check.
             'used'      => $r['used'],
+            'checked'   => SupportAgentService::checkedFrom($r['used'] ?? []),
+            // The live repair card. The desk endpoint always sent it; this road — the one a
+            // stuck visitor takes from Gee — did not, so a payment Gee had just repaired
+            // came back as a paragraph and no card.
+            'work'      => \AfricaGates\Services\SupportWork::fromResults($r['results'] ?? [], $ctx),
             'ticket'    => $r['ticket'],
             'escalated' => $r['escalated'],
-            'articles'  => HelpCentre::previews($message,
+            'actions'   => $r['actions'] ?? [],
+            'articles'  => HelpCentre::previews(self::topic($message, $history),
                 SupportAgentService::citedSlugs($r['results'] ?? []), 3, lastResort: true),
         ];
     }
@@ -251,7 +303,7 @@ final class GuideController
             // allowBridge=false — an agent asking Gee must never bounce back out
             // to the agent (infinite loop); Gee answers from its own providers.
             $out = $this->guide->answer($message, $history, $page, allowBridge: false);
-            $payload = ['ok' => true, 'reply' => $out['reply'], 'source' => $out['source']];
+            $payload = ['ok' => true, 'reply' => \AfricaGates\Support\ReplyLinks::clean((string) $out['reply']), 'source' => $out['source']];
             if (!empty($b['include_state'])) $payload['site_state'] = $this->guide->siteState();
             return $this->json($res, $payload);
         } catch (\Throwable $e) {

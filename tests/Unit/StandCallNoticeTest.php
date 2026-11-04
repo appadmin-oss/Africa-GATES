@@ -59,7 +59,7 @@ final class StandCallNoticeTest extends TestCase
             public function __construct(private array &$sink) { parent::__construct([]); }
             public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '',
                                         string $category = '', string $hero = '', string $unsubscribeUrl = '',
-                                        array $attachments = [], string $preheader = '', int $heroHeight = 0): array
+                                        array $attachments = [], string $preheader = '', int $heroHeight = 0, string $why = ''): array
             {
                 $this->sink[] = ['to' => $to, 'subject' => $subject,
                                  'body' => $htmlBody . ' ' . $plainBody, 'unsub' => $unsubscribeUrl];
@@ -232,15 +232,5 @@ final class StandCallNoticeTest extends TestCase
         } finally {
             DB::statement('ALTER TABLE _jobs_hidden RENAME TO gates_jobs');
         }
-    }
-
-    /** The source string has one owner, and the form uses it. */
-    public function test_the_form_and_the_lookup_agree_on_the_source(): void
-    {
-        $this->assertSame('stands:market', StandCallNotice::source('market'));
-
-        $t = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/stands/call.twig');
-        $this->assertStringContainsString('value="{{ notify_source }}"', $t,
-            'the template writes its own copy of the source string');
     }
 }

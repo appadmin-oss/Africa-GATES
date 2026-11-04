@@ -74,6 +74,17 @@ class AuditService
         // column already means by it.
         $adminId = ($adminId !== null && $adminId > 0) ? $adminId : null;
 
+        // ── THE REASON GIVEN IN THE CONFIRM DIALOG, WHERE IT IS WRITTEN ──────────
+        //
+        // The console's confirm-with-reason dialog (admin handoff §7, rule 5) posts the
+        // reason as `_reason` alongside whatever form it confirmed. Attached HERE, once,
+        // rather than at 124 call sites — the sentinel lesson: normalise where it is
+        // written. A caller that records its own `reason` keeps it.
+        if (!array_key_exists('reason', $meta)) {
+            $why = trim((string) ($_POST['_reason'] ?? ''));
+            if ($why !== '') $meta['reason'] = mb_substr($why, 0, 500);
+        }
+
         try {
             DB::table('gates_audit_log')->insert([
                 'admin_id'    => $adminId,
@@ -156,6 +167,40 @@ class AuditService
      *               types:list<array<string,mixed>>, total:int,
      *               span:array{first:?string,last:?string}}
      */
+    /**
+     * The timestamps the filters match, for the log's chart (owner's screenshots, 13 Oct
+     * 2026). Capped, newest first, and bucketed in PHP by Admin\Support\TimeSeries so the
+     * suite and production draw the same bars.
+     *
+     * @return list<string>
+     */
+    public function stamps(array $f, int $cap = 20000): array
+    {
+        try {
+            return $this->filtered($f)->orderByDesc('a.id')->limit($cap)->pluck('a.created_at')
+                ->map(static fn ($v): string => (string) $v)->all();
+        } catch (\Throwable $e) {
+            error_log('[audit] stamps: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Every row the filters match, for the CSV export — the same query the screen draws,
+     * so an export can never hold a row the screen would not show, or miss one it would.
+     *
+     * @return iterable<array<string,mixed>>
+     */
+    public function each(array $f, int $cap = 50000): iterable
+    {
+        $q = $this->filtered($f)->leftJoin('gates_admins as ad', 'ad.id', '=', 'a.admin_id')
+            ->select(['a.id', 'a.admin_id', 'a.action', 'a.target_type', 'a.target_id',
+                      'a.meta', 'a.ip_hash', 'a.ua', 'a.created_at',
+                      'ad.name as admin_name', 'ad.email as admin_email'])
+            ->orderByDesc('a.id')->limit($cap);
+        foreach ($q->cursor() as $r) yield $this->shape($r);
+    }
+
     public function facets(): array
     {
         $empty = ['areas' => [], 'admins' => [], 'types' => [], 'total' => 0,

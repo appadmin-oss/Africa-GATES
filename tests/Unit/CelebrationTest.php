@@ -3,60 +3,543 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
+use AfricaGates\Services\{Celebration, DemoSeeder, JudgeRubric};
+use AfricaGates\Support\{CookieRegistry, Csp, Translator};
 use Illuminate\Database\Capsule\Manager as DB;
-use Slim\Views\Twig;
+use Illuminate\Support\Carbon;
+use Tests\Support\{AppTwig, VerbatimAssets};
 use Tests\TestCase;
+use Twig\Environment;
+use Twig\Loader\FilesystemLoader;
 
 /**
- * THE WINNER'S MOMENT, AND THE FOUR WAYS A CELEBRATION BECOMES A FAULT.
+ * THE CELEBRATION: WHEN A PAGE MAY HAVE ONE, AND WHAT IT MAY NOT DO TO THE PAGE.
  *
  * ══════════════════════════════════════════════════════════════════════════════
- * A CELEBRATION ON A RESULT PAGE IS NOT DECORATION
+ * DESTROYED AND REBUILT FOR PHASE 3 (3 Oct 2026)
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * It fires on the page that tells somebody they have won an award, which makes every
- * way it can misfire a way of saying something untrue or unkind:
+ * This file held `celebrate.js`'s rules until that engine and every page carrying it
+ * were destroyed; its rules were written into docs/handoff/inventory/_scripts.md as
+ * MUST RESTORE for whatever engine shipped next. Phase 3 shipped the handoff's engine
+ * (`celebration.js`/`.css`, byte-identical), `partials/celebration.twig`,
+ * `celebration-boot.js` and `Services\Celebration`, and each restored rule is asserted
+ * here against them:
  *
- *   · ON A HELD RESULT. `/results/{id}` for a withheld award names nobody, deliberately —
- *     "half a result on a public page is the version people screenshot". Confetti over
- *     that page announces a winner the platform is refusing to announce.
+ *   · NO CELEBRATION ON A HELD OR DELAYED RESULT. It used to be enforced by placement —
+ *     the loader sat inside the winner markup. The rebuilt pages belong to three later
+ *     phases, so the rule moved into a decision the partial asks before it draws. Tested
+ *     by REASON, never by a bare false: a guard that refuses for an accident of the
+ *     fixture stops refusing when the fixture changes (CLAUDE.md, the sandbox section).
+ *   · PLAY ONCE — through the engine's `ag-cel-` key, handed over only with the visitor's
+ *     Preferences answer, because remembering for next time is what that category is.
+ *   · NEVER INSTEAD OF THE PAGE — the title, the sub and every stat's final figure are the
+ *     server's markup; the boot only replays numbers that are already right.
+ *   · No sound; reduced motion (the OS's and the site's own) means no particles.
  *
- *   · ON A DELAYED ONE. A cycle past its results date with nothing decided renders the
- *     holding page, and a celebration there tells the family refreshing it that the
- *     award has been given.
- *
- *   · ON EVERY VISIT. A burst that replays each time is a page somebody cannot read.
- *
- *   · INSTEAD OF THE PAGE. Nothing here may reveal the name or the index: they are the
- *     server's output, complete before a byte of JavaScript arrives. This codebase has
- *     shipped a dead camera, a mute door, a stop-link nobody was handed and a nominee's
- *     read-aloud blocked by a policy line — every one of them a feature that looked
- *     present and was not. A result page must not be able to join them, so the failure
- *     of this script is a page with no confetti and never a page with no winner.
- *
- * ── AND THE FIFTH, WHICH IS A HEADER ────────────────────────────────────────
- * `Permissions-Policy` denies `autoplay` site-wide, and both mobile browsers gate audible
- * playback on a gesture this page never had. A celebration that tried to play a sound
- * would fail silently on every device — exactly how the door's greeting went unheard for
- * months. So it makes no sound at all, and that is asserted rather than assumed.
+ * What survives unchanged at the end is the server half of the member dashboard's
+ * "someone you backed won" panel — {@see \AfricaGates\Services\MemberActivityService::backedWinners()}
+ * — whose rule is the same rule in another place: a member told "someone you backed won"
+ * before the announcement IS the announcement.
  */
 final class CelebrationTest extends TestCase
 {
-    private const JS      = 'public/assets/js/celebrate.js';
-    private const PARTIAL = 'templates/partials/celebrate.twig';
-    private const PAGE    = 'templates/pages/results/show.twig';
-    private const LIB     = 'public/assets/js/vendor/canvas-confetti-1.9.3.js';
+    private const ROOT = __DIR__ . '/../..';
 
-    private static function src(string $rel): string
+    private int $programmeId = 0;
+    private int $cycleId     = 0;
+    private int $categoryId  = 0;
+
+    protected function tearDown(): void
     {
-        $p = dirname(__DIR__, 2) . '/' . $rel;
-        self::assertFileExists($p, $rel . ' is missing');
-        return (string) file_get_contents($p);
+        unset($_SESSION['user_id']);
+        parent::tearDown();
     }
+
+    private static function read(string $rel): string
+    {
+        return (string) file_get_contents(self::ROOT . '/' . $rel);
+    }
+
+    /** A script with its comments removed — a comment naming a call is not the call. */
+    private static function code(string $rel): string
+    {
+        return (string) preg_replace(['~/\*.*?\*/~s', '~^\s*//.*$~m'], '', self::read($rel));
+    }
+
+    // ── fixtures: one award, released or not ────────────────────────────────
+
+    /** A programme, a cycle in `$status` and one category; returns the category id. */
+    private function award(string $status, ?string $resultsDate, string $slug = '', int $active = 1): int
+    {
+        $this->programmeId = (int) DB::table('gates_award_programmes')->insertGetId([
+            'slug' => $slug !== '' ? $slug : 'cel-' . bin2hex(random_bytes(3)),
+            'title' => 'Kenya Creative Economy Awards', 'is_active' => $active,
+        ]);
+        $this->cycleId = (int) DB::table('gates_award_cycles')->insertGetId([
+            'programme_id' => $this->programmeId, 'year' => 2025, 'status' => $status,
+            'edition_label' => 'KCEA 11th Edition', 'results_date' => $resultsDate,
+        ]);
+
+        return $this->categoryId = $this->category('Musician of the Year');
+    }
+
+    private function category(string $title): int
+    {
+        return (int) DB::table('gates_award_categories')->insertGetId([
+            'cycle_id' => $this->cycleId, 'slug' => 'c-' . bin2hex(random_bytes(4)),
+            'title' => $title, 'sort_order' => 1,
+        ]);
+    }
+
+    private function nominee(string $name, int $votes, ?int $categoryId = null): int
+    {
+        return (int) DB::table('gates_nominees')->insertGetId([
+            'category_id' => $categoryId ?? $this->categoryId, 'name' => $name, 'status' => 'approved',
+            'organic_vote_count' => $votes, 'vote_count' => $votes,
+        ]);
+    }
+
+    /** Two whole scorecards — the quorum — at a whole-number mark (a TINYINT holds no 7.9). */
+    private function panel(int $nominee, int $mark, ?int $categoryId = null): void
+    {
+        static $n = 0;
+        for ($k = 0; $k < 2; $k++) {
+            $j = (int) DB::table('gates_judges')->insertGetId([
+                'name' => 'Cel judge ' . (++$n), 'is_active' => 1, 'email' => 'cj' . $n . '@example.test',
+                'programme_ids' => json_encode([$this->programmeId]),
+            ]);
+            foreach (JudgeRubric::effective($this->programmeId) as $c) {
+                if ((int) $c->is_active !== 1) continue;
+                DB::table('gates_judge_criteria_scores')->insert([
+                    'judge_id' => $j, 'nominee_id' => $nominee, 'category_id' => $categoryId ?? $this->categoryId,
+                    'criterion_id' => (int) $c->id, 'score' => $mark,
+                    'created_at' => '2025-11-01 09:00:00', 'updated_at' => '2025-11-01 09:00:00',
+                ]);
+            }
+        }
+    }
+
+    /** @return array{0:int,1:int} the winner and the runner-up of a decided award */
+    private function decided(): array
+    {
+        $a = $this->nominee('Achieng Otieno', 1840);
+        $b = $this->nominee('Wanjiru Kamau', 620);
+        $this->panel($a, 9);
+        $this->panel($b, 7);
+
+        return [$a, $b];
+    }
+
+    private function won(int $nominee, ?int $categoryId = null): array
+    {
+        return ['moment' => 'award_won', 'category_id' => $categoryId ?? $this->categoryId, 'nominee_id' => $nominee];
+    }
+
+    // ── rendering the real partial ──────────────────────────────────────────
+
+    private function render(array $args): string
+    {
+        $twig = Translator::register(new Environment(
+            new FilesystemLoader(self::ROOT . '/templates'), ['strict_variables' => true, 'autoescape' => 'html']));
+        AppTwig::equip($twig, ['csp_nonce' => 'test-nonce']);
+
+        return $twig->render('partials/celebration.twig', $args);
+    }
+
+    private function vote(array $over = []): string
+    {
+        return $this->render($over + [
+            'kind' => 'vote', 'context' => ['moment' => 'vote_cast', 'confirmed' => true,
+                                            'edition' => 'kcea-2025', 'subject' => 'achieng'],
+            'secondary' => ['href' => '/vote/kcea'],
+        ]);
+    }
+
+    // ══ the shipped files ═════════════════════════════════════════════════════
+
+    public function test_the_engine_is_the_handoffs_byte_for_byte(): void
+    {
+        // §7.8 "SHIP VERBATIM", and the reason the colour sweep may skip the sheet at all.
+        foreach (VerbatimAssets::FILES as $rel => [, $sha]) {
+            $this->assertSame($sha, hash_file('sha256', self::ROOT . '/' . $rel),
+                "$rel is no longer the handoff's file. It ships verbatim (GAPS Q7) — an amendment "
+              . 'is the owner\'s decision, and once made it is an ordinary file the house rules sweep.');
+            $this->assertTrue(VerbatimAssets::is($rel));
+        }
+    }
+
+    public function test_the_verbatim_exemption_is_lost_the_moment_the_file_is_edited(): void
+    {
+        // Narrow by name AND by content: an edited copy is swept like any other file.
+        $rel  = 'public/assets/css/components/celebration.css';
+        $path = self::ROOT . '/' . $rel;
+        $orig = (string) file_get_contents($path);
+        try {
+            file_put_contents($path, $orig . "\n.x{color:#123456}");
+            $this->assertFalse(VerbatimAssets::is($rel), 'an edited verbatim file kept its exemption');
+            $this->assertArrayHasKey($rel, ColourLiteralTest::counts(), 'the edited copy is not being swept');
+            $this->assertSame(3, ColourLiteralTest::counts()[$rel]);
+        } finally {
+            file_put_contents($path, $orig);
+        }
+        $this->assertArrayNotHasKey($rel, ColourLiteralTest::counts());
+        $this->assertFalse(VerbatimAssets::is('public/assets/css/components/celebration-card.css'),
+            'the house sheet beside it is authored here and is never exempt');
+    }
+
+    // ══ never celebrate ═══════════════════════════════════════════════════════
+
+    public function test_the_moments_the_handoff_never_celebrates_are_refused_by_name(): void
+    {
+        // §7.8: saving drafts, settings, sign-in, add to cart, subscribe. For every kind,
+        // so no kind is a way round it.
+        $this->assertSame(['draft_saved', 'settings_saved', 'signed_in', 'added_to_cart', 'subscribed'], Celebration::NEVER);
+        foreach (Celebration::NEVER as $moment) {
+            foreach (Celebration::KINDS as $kind) {
+                $this->assertSame(Celebration::R_NEVER,
+                    Celebration::refusal($kind, ['moment' => $moment, 'confirmed' => true]), "$kind on $moment");
+            }
+            $this->assertSame('', trim($this->render([
+                'kind' => 'vote', 'context' => ['moment' => $moment, 'confirmed' => true]])),
+                "the partial drew something for '$moment'");
+        }
+    }
+
+    public function test_a_moment_is_drawn_only_as_its_own_kind(): void
+    {
+        // A nomination must not borrow the winner's choreography — "a nomination is not a
+        // win" was the destroyed engine's own rule.
+        $this->assertSame(Celebration::R_WRONG_KIND, Celebration::refusal('win', ['moment' => 'nomination_sent']));
+        $this->assertSame(Celebration::R_UNKNOWN, Celebration::refusal('vote', ['moment' => 'page_viewed']));
+        $this->assertSame(Celebration::R_UNKNOWN, Celebration::refusal('vote', []), 'no moment is not a moment');
+        $this->assertNull(Celebration::refusal('nominate', ['moment' => 'nomination_sent']));
+
+        $this->expectException(\InvalidArgumentException::class);
+        Celebration::refusal('confetti', ['moment' => 'vote_cast']);
+    }
+
+    public function test_money_a_seat_and_a_vote_celebrate_only_once_confirmed(): void
+    {
+        foreach (['vote_cast' => 'vote', 'gift_confirmed' => 'give', 'ticket_confirmed' => 'ticket'] as $m => $k) {
+            $this->assertSame(Celebration::R_UNCONFIRMED, Celebration::refusal($k, ['moment' => $m]));
+            $this->assertSame(Celebration::R_UNCONFIRMED, Celebration::refusal($k, ['moment' => $m, 'confirmed' => 1]),
+                'a truthy non-boolean is not a confirmation');
+            $this->assertNull(Celebration::refusal($k, ['moment' => $m, 'confirmed' => true]));
+        }
+    }
+
+    // ══ no celebration on a held or delayed result ════════════════════════════
+
+    public function test_a_released_award_celebrates_its_winner_and_nobody_else(): void
+    {
+        $this->award('results', Carbon::now()->subDay()->toDateTimeString());
+        [$winner, $runnerUp] = $this->decided();
+
+        $this->assertNull(Celebration::refusal('win', $this->won($winner)));
+        $this->assertSame(Celebration::R_NOT_THE_WINNER, Celebration::refusal('win', $this->won($runnerUp)));
+    }
+
+    public function test_a_delayed_result_never_celebrates(): void
+    {
+        // The results date has passed and the cycle is still judging: the late page says
+        // nothing is decided, and a burst beside it would announce what it refuses to.
+        // The panel HAS finished, so the database already holds a top nominee — which is
+        // exactly why the reason, not the absence of a winner, has to be what refuses.
+        $this->award('judging', Carbon::now()->subDays(3)->toDateTimeString());
+        [$winner] = $this->decided();
+
+        $this->assertSame(Celebration::R_DELAYED, Celebration::refusal('win', $this->won($winner)));
+        $this->assertSame('', trim($this->render(['kind' => 'win', 'first' => 'Achieng', 'context' => $this->won($winner)])));
+    }
+
+    public function test_an_unannounced_result_never_celebrates(): void
+    {
+        $this->award('judging', Carbon::now()->addDays(5)->toDateTimeString());
+        [$winner] = $this->decided();
+
+        $this->assertSame(Celebration::R_UNRELEASED, Celebration::refusal('win', $this->won($winner)));
+    }
+
+    public function test_a_held_result_never_celebrates(): void
+    {
+        // Released, but nobody met the judging quorum: the page withholds the award by name.
+        $this->award('results', Carbon::now()->subDay()->toDateTimeString());
+        $a = $this->nominee('Achieng Otieno', 1840);
+        $this->nominee('Wanjiru Kamau', 620);
+
+        $this->assertSame(Celebration::R_HELD, Celebration::refusal('win', $this->won($a)));
+    }
+
+    public function test_a_result_whose_community_half_was_never_counted_never_celebrates(): void
+    {
+        // The other held reason, and the one with a winner in it: every panel finished,
+        // so the scorer names a top nominee — but not one organic vote is counted, the
+        // public page withholds the award as HELD_DARK, and a burst would announce it.
+        $this->award('results', Carbon::now()->subDay()->toDateTimeString());
+        $a = $this->nominee('Achieng Otieno', 0);
+        $b = $this->nominee('Wanjiru Kamau', 0);
+        $this->panel($a, 9);
+        $this->panel($b, 7);
+
+        $this->assertSame(Celebration::R_HELD, Celebration::refusal('win', $this->won($a)));
+    }
+
+    public function test_the_sandbox_never_celebrates(): void
+    {
+        // The demo programme is a real released cycle with real rows; it must not reach a
+        // public burst any more than a public page.
+        $this->award('results', Carbon::now()->subDay()->toDateTimeString(), DemoSeeder::PROGRAMME_SLUG, 0);
+        [$winner] = $this->decided();
+
+        $this->assertSame(Celebration::R_UNRELEASED, Celebration::refusal('win', $this->won($winner)));
+    }
+
+    public function test_an_edition_is_celebrated_only_when_its_overall_winner_is_announced(): void
+    {
+        $slug = 'cel-ed-' . bin2hex(random_bytes(3));
+        $this->award('results', Carbon::now()->subDay()->toDateTimeString(), $slug);
+        [$winner, $runnerUp] = $this->decided();
+        $edition = $slug . '-2025';
+
+        $ctx = static fn (int $n): array => ['moment' => 'edition_won', 'edition' => $edition, 'nominee_id' => $n];
+        $this->assertNull(Celebration::refusal('win', $ctx($winner)));
+        $this->assertSame(Celebration::R_NOT_THE_WINNER, Celebration::refusal('win', $ctx($runnerUp)));
+
+        // A second award in the edition still withheld makes the overall provisional.
+        $held = $this->category('Producer of the Year');
+        $this->nominee('Unjudged Nominee', 400, $held);
+        $this->assertSame(Celebration::R_HELD, Celebration::refusal('win', $ctx($winner)));
+        $this->assertSame(Celebration::R_UNRELEASED,
+            Celebration::refusal('win', ['moment' => 'edition_won', 'edition' => 'nope-2025', 'nominee_id' => $winner]));
+    }
+
+    // ══ the play-once key ═════════════════════════════════════════════════════
+
+    public function test_the_seen_key_is_kind_edition_subject_and_the_member(): void
+    {
+        $this->assertSame('win-kcea-2025-achieng-otieno', Celebration::seenKey('win', 'kcea-2025', 'Achieng Otieno'));
+        $this->assertSame('win-kcea-2025-achieng-otieno-42', Celebration::seenKey('win', 'kcea-2025', 'Achieng Otieno', 42));
+        $this->assertNotSame(Celebration::seenKey('vote', 'kcea-2025', 'achieng'), Celebration::seenKey('win', 'kcea-2025', 'achieng'),
+            'a vote seen must not mark the win as seen');
+
+        $_SESSION['user_id'] = 7;
+        $this->assertStringContainsString('data-agc-seen-key="vote-kcea-2025-achieng-7"', $this->vote(),
+            'the partial builds the key through the one resolver, with the signed-in member');
+    }
+
+    public function test_no_template_spells_a_seen_key_or_mounts_a_stage_by_hand(): void
+    {
+        // One resolver: a key typed into a page is a second spelling of a moment, which
+        // plays twice or never. And only the partial mounts a stage, because only the
+        // partial asks the decision first.
+        $bad = [];
+        foreach (new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(self::ROOT . '/templates')) as $f) {
+            if (!$f->isFile() || !str_ends_with((string) $f, '.twig')) continue;
+            $rel  = str_replace(realpath(self::ROOT) . '/', '', (string) realpath((string) $f));
+            $body = (string) preg_replace('/\{#.*?#\}/s', '', (string) file_get_contents((string) $f));
+            if ($rel !== 'templates/partials/celebration.twig' && str_contains($body, 'data-agc-kind')) {
+                $bad[] = "$rel mounts a celebration stage itself";
+            }
+            if (preg_match_all('/seen_key\s*:\s*([^,}]+)/', $body, $m)) {
+                foreach ($m[1] as $v) {
+                    if (!str_starts_with(trim($v), 'celebration_seen_key(')) $bad[] = "$rel passes seen_key: " . trim($v);
+                }
+            }
+        }
+        $this->assertSame([], $bad);
+    }
+
+    public function test_play_once_is_kept_only_with_the_preferences_answer(): void
+    {
+        $engine = self::read('public/assets/js/celebration.js');
+        $boot   = self::read('public/assets/js/celebration-boot.js');
+
+        // The key the verbatim engine writes, declared under Preferences with that prefix.
+        $this->assertStringContainsString("var k = 'ag-cel-' + key; if (w.localStorage.getItem(k)) return true; w.localStorage.setItem(k, '1');", $engine);
+        $row = array_values(array_filter(CookieRegistry::storage(), static fn (array $s): bool => $s['key'] === 'ag-cel-'));
+        $this->assertCount(1, $row);
+        $this->assertSame(CookieRegistry::PREFERENCES, $row[0]['category']);
+        $this->assertNotContains('ag-celebrated:', array_column(CookieRegistry::storage(), 'key'), 'the destroyed engine\'s row is gone');
+
+        // …and the engine is handed a key only when Preferences is allowed — with none it
+        // stores nothing. The seen-or-not read inside the engine fails open ("not seen").
+        $this->assertStringContainsString("var keep = root.getAttribute('data-ag-keep') === '1';", $boot);
+        $this->assertStringContainsString("seenKey: keep ? el.dataset.agcSeenKey : '',", $boot);
+        $this->assertStringContainsString("catch (e) {} return false;", $engine);
+        $this->assertStringNotContainsString('localStorage', self::code('public/assets/js/celebration-boot.js'),
+            'the boot must not keep a store of its own');
+    }
+
+    // ══ never instead of the page ═════════════════════════════════════════════
+
+    public function test_the_card_is_the_dcs_markup_with_every_figure_final_on_the_server(): void
+    {
+        $html = $this->render([
+            'kind' => 'win', 'first' => 'Achieng',
+            'sub' => 'Musician of the Year, KCEA 11th Edition. The community and the jury agreed.',
+            'stats' => [['n' => 18402, 'l' => 'supporters'], ['n' => '9.1', 'l' => 'jury score'],
+                        ['n' => '68%', 'l' => 'of goal'], ['n' => '1st', 'l' => 'of 5 finalists']],
+            'secondary' => ['href' => '/results/x'],
+            'context' => ['moment' => 'vote_cast'],   // replaced below by a real win
+        ] + ['kind' => 'win']);
+        $this->assertSame('', trim($html), 'a win with a vote moment drew a card');
+
+        $this->award('results', Carbon::now()->subDay()->toDateTimeString());
+        [$winner] = $this->decided();
+        $html = $this->render([
+            'kind' => 'win', 'first' => 'Achieng',
+            'sub' => 'Musician of the Year, KCEA 11th Edition. The community and the jury agreed.',
+            'stats' => [['n' => 18402, 'l' => 'supporters'], ['n' => '9.1', 'l' => 'jury score'],
+                        ['n' => '68%', 'l' => 'of goal'], ['n' => '1st', 'l' => 'of 5 finalists']],
+            'secondary' => ['href' => '/results/x'],
+            'context' => $this->won($winner) + ['edition' => 'kcea-2025', 'subject' => 'achieng-otieno'],
+        ]);
+
+        // The stage is EMPTY — the engine owns its inside, the server owns everything else.
+        $this->assertMatchesRegularExpression(
+            '~<div class="ag-cel__stage" data-agc-kind="win" data-agc-size="full" data-agc-seen-key="win-kcea-2025-achieng-otieno"></div>~', $html);
+        $this->assertStringContainsString('<b data-agc-count="18402">18,402</b>', $html);
+        $this->assertStringContainsString('<b data-agc-count="9.1">9.1</b>', $html);
+        $this->assertStringContainsString('<b data-agc-count="68%">68%</b>', $html);
+        $this->assertStringContainsString('<b>1st</b>', $html, 'an ordinal is not counted up through "0st"');
+        $this->assertStringContainsString('<h2 class="ag-cel__title">Achieng won.</h2>', $html);
+        $this->assertStringContainsString('>Winner</span>', $html);
+        $this->assertStringContainsString('style="--cel-ink:var(--ag-gold-ink);--cel-dot:var(--ag-gold);--cel-tint:var(--ag-gold-wash)"', $html);
+        $this->assertStringContainsString('data-ag-share aria-label="Share the win"', $html);
+        $this->assertStringContainsString('href="/results/x">See how it was decided</a>', $html);
+        $this->assertStringContainsString('data-agc-replay>Celebrate again</button>', $html);
+        $this->assertStringContainsString('role="status" aria-live="polite">Achieng won. Musician of the Year', $html,
+            'the live region reads one full stop, not the DC\'s "won.."');
+
+        // The boot replays numbers that are already right and touches nothing else.
+        $boot = self::code('public/assets/js/celebration-boot.js');
+        foreach (['innerHTML', '.hidden = false', 'style.display', 'textContent'] as $never) {
+            $this->assertStringNotContainsString($never, $boot, "the boot writes the page with $never");
+        }
+    }
+
+    public function test_the_headline_and_button_defaults_are_the_handoffs_table(): void
+    {
+        $this->award('results', Carbon::now()->subDay()->toDateTimeString());
+        [$winner] = $this->decided();
+        $ctx = [
+            'vote'     => ['moment' => 'vote_cast', 'confirmed' => true],
+            'win'      => $this->won($winner),
+            'nominate' => ['moment' => 'nomination_sent'],
+            'give'     => ['moment' => 'gift_confirmed', 'confirmed' => true],
+            'ticket'   => ['moment' => 'ticket_confirmed', 'confirmed' => true],
+        ];
+        $table = [   // §7.8: title · primary · secondary
+            'vote'     => ['Your vote is in', 'Share your vote', 'Vote in another category'],
+            'win'      => ['Achieng won.', 'Share the win', 'See how it was decided'],
+            'nominate' => ['Nomination sent', 'Let them know', 'Nominate someone else'],
+            'give'     => ['Thank you for giving', 'Share the campaign', 'See where it goes'],
+            'ticket'   => ['You’re going', 'Add to calendar', 'View ticket'],
+        ];
+        foreach ($table as $kind => [$title, $primary, $secondary]) {
+            foreach (Celebration::SIZES as $size) {
+                $html = $this->render(['kind' => $kind, 'size' => $size, 'first' => 'Achieng', 'context' => $ctx[$kind],
+                                       'primary' => $kind === 'ticket' ? ['href' => '/t.ics'] : [],
+                                       'secondary' => ['href' => '/next']]);
+                $this->assertStringContainsString('<h2 class="ag-cel__title">' . htmlspecialchars($title) . '</h2>', $html, "$kind $size");
+                $this->assertStringContainsString('>' . $primary . '</', $html, "$kind $size primary");
+                $this->assertStringContainsString('>' . $secondary . '</a>', $html, "$kind $size secondary");
+                $this->assertStringContainsString("ag-cel--$size ag-cel--$kind", $html);
+            }
+        }
+
+        // And every one of them is passed through |trans in the partial.
+        $src = self::read('templates/partials/celebration.twig');
+        foreach (array_merge(...array_values($table)) as $s) {
+            if ($s === 'Achieng won.') $s = '%first% won.';
+            $this->assertStringContainsString("'" . $s . "'|trans", $src, "'$s' is not translated");
+        }
+    }
+
+    public function test_the_demo_event_can_never_reach_a_real_ticket(): void
+    {
+        // The engine falls back to "KCEA Ceremony" / "Sat 6 Dec · 18:00" on an empty value
+        // and writes both with innerHTML. So the boot escapes them, and never passes empty.
+        $this->assertStringContainsString("(o.ticketLabel || 'KCEA Ceremony')", self::read('public/assets/js/celebration.js'));
+        $boot = self::read('public/assets/js/celebration-boot.js');
+        $this->assertStringContainsString('ticketLabel: esc(el.dataset.agcTicketLabel)', $boot);
+        $this->assertStringContainsString('ticketWhen: esc(el.dataset.agcTicketWhen)', $boot);
+        $this->assertStringContainsString("}) || '\\u00a0';", $boot);
+        $this->assertStringContainsString("'<': '&lt;'", $boot);
+
+        $html = $this->render(['kind' => 'ticket', 'primary' => ['href' => '/t.ics'],
+            'context' => ['moment' => 'ticket_confirmed', 'confirmed' => true],
+            'ticket' => ['label' => 'Gala <b>night</b>', 'when' => 'Fri 12 Dec · 19:00']]);
+        $this->assertStringContainsString('data-agc-ticket-label="Gala &lt;b&gt;night&lt;/b&gt;" data-agc-ticket-when="Fri 12 Dec · 19:00"', $html);
+        $this->assertStringNotContainsString('data-ag-share', $html, '"Add to calendar" is a link, never a share button');
+    }
+
+    public function test_it_makes_no_sound_and_reduced_motion_gets_no_particles(): void
+    {
+        foreach (['public/assets/js/celebration.js', 'public/assets/js/celebration-boot.js'] as $f) {
+            foreach (['new Audio', 'AudioContext', '.play(', '<audio'] as $never) {
+                $this->assertStringNotContainsString($never, self::read($f), "$f: $never");
+            }
+        }
+        // The OS setting: the engine's own sheet. The site's own Reduce motion (html.ag-rm),
+        // which the engine cannot see: the card's sheet and the boot.
+        $this->assertStringContainsString('@media (prefers-reduced-motion:reduce){.agc-amb,.agc-fx{display:none!important}',
+            self::read('public/assets/css/components/celebration.css'));
+        $card = self::read('public/assets/css/components/celebration-card.css');
+        $this->assertStringContainsString('.ag-rm .agc-amb,.ag-rm .agc-fx{ display:none!important }', $card);
+        $this->assertStringContainsString('.ag-rm .ag-cel *{ animation:none!important }', $card);
+        $boot = self::read('public/assets/js/celebration-boot.js');
+        $this->assertStringContainsString("var rm = root.classList.contains('ag-rm');", $boot);
+        $this->assertStringContainsString('haptics: !rm && tapped(),', $boot);
+        $this->assertStringContainsString('window.AGCelebrate.countUp(card, fx.calm || rm);', $boot);
+    }
+
+    public function test_the_scripts_are_deferred_nonced_and_self_hosted(): void
+    {
+        $html = $this->vote();
+        $this->assertSame(2, preg_match_all('~<script defer nonce="test-nonce" src="/assets/js/celebration(-boot)?\.js\?v=[^"]+" data-nav="rerun"></script>~', $html),
+            'a celebration must not block the first paint, and the public CSP is nonce-based');
+        $this->assertLessThan(strpos($html, 'celebration-boot.js'), strpos($html, '/celebration.js'), 'the engine loads before its boot');
+        $this->assertDoesNotMatchRegularExpression('~src="https?://~', $html);
+    }
+
+    public function test_the_csp_keeps_the_style_attributes_the_engine_writes(): void
+    {
+        // The engine builds its ticket stub and star orbit with `style="…"` ATTRIBUTES
+        // through innerHTML (GAPS C10). Tightening style-src-attr would leave a ticket
+        // celebration with an unstyled stub and nothing anywhere to say why.
+        $this->assertStringContainsString('<div style="display:flex;flex-direction:column', self::read('public/assets/js/celebration.js'));
+        $this->assertStringContainsString("style-src-attr 'unsafe-inline'", Csp::policy());
+        $this->assertMatchesRegularExpression("~style-src 'self' 'unsafe-inline'~", Csp::staticPolicy());
+    }
+
+    public function test_the_showcase_is_dev_only(): void
+    {
+        // 404 in production, like /_dev/ui: not even discoverable.
+        $prev = $_ENV['APP_ENV'] ?? null;
+        $_ENV['APP_ENV'] = 'production';
+        try {
+            $builder = new \DI\ContainerBuilder();
+            $builder->addDefinitions(self::ROOT . '/config/container.php');
+            \Slim\Factory\AppFactory::setContainer($builder->build());
+            $app = \Slim\Factory\AppFactory::create();
+            (require self::ROOT . '/src/routes.php')($app);
+            $app->addRoutingMiddleware();
+            $app->addErrorMiddleware(false, false, false);
+            $res = $app->handle((new \Slim\Psr7\Factory\ServerRequestFactory())
+                ->createServerRequest('GET', '/_dev/celebration?kind=vote'));
+            $this->assertSame(404, $res->getStatusCode());
+        } finally {
+            if ($prev === null) unset($_ENV['APP_ENV']); else $_ENV['APP_ENV'] = $prev;
+        }
+    }
+
+    // ───────────────────────── the member's dashboard ─────────────────────────
 
     /** `slug` is NOT NULL and UNIQUE per cycle — a fixture that omits it passes on
      *  neither driver, and a shared literal collides with the next test's. */
-    private function category(string $title): int
+    private function backedCategory(string $title): int
     {
         return (int) DB::table('gates_award_categories')->insertGetId([
             'cycle_id' => 1, 'title' => $title, 'slug' => 'c-' . bin2hex(random_bytes(5)),
@@ -72,7 +555,7 @@ final class CelebrationTest extends TestCase
         ]);
     }
 
-    private function vote(string $email, int $categoryId, int $nomineeId): void
+    private function backerVote(string $email, int $categoryId, int $nomineeId): void
     {
         DB::table('gates_votes')->insert([
             'nominee_id' => $nomineeId, 'category_id' => $categoryId,
@@ -81,126 +564,6 @@ final class CelebrationTest extends TestCase
             'vote_type' => 'standard', 'voted_at' => date('Y-m-d H:i:s'),
         ]);
     }
-
-    /** The nominee's own public page, promoted or not. */
-    private function nominee(string $awardKind): string
-    {
-        $_SESSION = ['csrf_token' => 'tok'];
-        $b = new \DI\ContainerBuilder();
-        $b->addDefinitions(dirname(__DIR__, 2) . '/config/container.php');
-        return $b->build()->get(Twig::class)->fetch('pages/vote-nominee.twig', [
-            'nominee' => ['id' => 42, 'programme_id' => 3, 'name' => 'Ada Obi', 'category' => 'Innovation',
-                          'tagline' => 'A leader', 'vote_count' => 5, 'programme_title' => 'STEM'],
-            'firstName' => 'Ada', 'others' => [], 'AV' => [['#eee', '#333']],
-            'flag' => '🇳🇬', 'ctry' => 'Nigeria',
-            'award_kind' => $awardKind, 'backer_count' => 276, 'roll_of_honour' => [],
-            'gates_page' => 'vote', 'has_hero' => false,
-        ]);
-    }
-
-    /** The page, rendered with the container's own Twig — `csrf_token` is a global. */
-    private function render(array $r): string
-    {
-        $_SESSION = ['csrf_token' => 'tok'];
-        $b = new \DI\ContainerBuilder();
-        $b->addDefinitions(dirname(__DIR__, 2) . '/config/container.php');
-        return $b->build()->get(Twig::class)->fetch('pages/results/show.twig', [
-            'r' => $r, 'gates_page' => 'results', 'has_hero' => false,
-        ]);
-    }
-
-    /** @param array<string,mixed> $over */
-    private static function drawn(array $over = []): array
-    {
-        $row = [
-            'name' => 'Oluwagbemiga Dorcas', 'cpi' => 780, 'community_points' => 415,
-            'judge_points' => 365, 'vote_count' => 460, 'unique_voters' => 276,
-            'in_running' => true, 'url' => '/vote/x/dorcas',
-        ];
-        return $over + [
-            'programme' => 'Alimosho Incredible Principal Awards', 'edition' => '2026',
-            'programme_slug' => 'aipa',
-            'category' => ['title' => 'Teachers’ Choice', 'description' => 'd'],
-            'winner' => $row, 'rows' => [$row],
-            'held' => null, 'dead_heat' => false, 'tie_broken_by_votes' => false,
-            'weights' => ['community' => 0.45, 'judge' => 0.55],
-            'cohort_max' => 620, 'cohort_max_unique' => 62, 'cohort_max_by' => null,
-            'votes' => ['total' => 460, 'organic' => 400],
-            'cycle_id' => 7, 'cycle_year' => 2026,
-            'slug' => '12-teachers-choice', 'url' => '/results/12-teachers-choice',
-            'released_at' => '2026-08-01', 'sealed_at' => '2026-08-01 10:00:00',
-            'rank_recomputed' => false, 'community_basis' => 'ideal',
-            'community_scope' => 'edition', 'judge_scale' => 'linear', 'basis_from' => 'default',
-        ];
-    }
-
-    // ───────────────────────── where it may and may not fire ──────────────────
-
-    public function test_a_released_result_celebrates_its_winner(): void
-    {
-        $html = $this->render(self::drawn());
-
-        $this->assertStringContainsString('data-celebrate="12-teachers-choice"', $html);
-        $this->assertStringContainsString('celebrate.js', $html);
-        $this->assertStringContainsString('canvas-confetti', $html);
-        // The figure and the name are the SERVER'S. Verified here because the count-up
-        // reads its target out of the element — if the page rendered a placeholder, the
-        // number would animate to nothing and land on nothing.
-        $this->assertMatchesRegularExpression('~data-celebrate-figure[^>]*>780<~', $html);
-        $this->assertStringContainsString('Oluwagbemiga Dorcas', $html);
-    }
-
-    public function test_a_held_result_names_nobody_and_celebrates_nobody(): void
-    {
-        $html = $this->render(self::drawn(['held' => 'The panel has not finished']));
-
-        $this->assertStringNotContainsString('Oluwagbemiga Dorcas', $html,
-            'a held result named its winner');
-        $this->assertStringNotContainsString('data-celebrate', $html,
-            'confetti over a result the platform is deliberately withholding');
-        $this->assertStringNotContainsString('celebrate.js', $html);
-        $this->assertStringNotContainsString('canvas-confetti', $html);
-    }
-
-    public function test_the_delayed_holding_page_carries_no_celebration(): void
-    {
-        // A different template entirely — a cycle past its results date with nothing
-        // decided. Asserted rather than assumed, because "it is a different file" is
-        // exactly the reasoning that stops being true when somebody moves the include
-        // into the layout.
-        $late = self::src('templates/pages/results/late.twig');
-        $this->assertStringNotContainsString('celebrate', $late);
-    }
-
-    // ───────────────────────── the nominee's own page ─────────────────────────
-
-    public function test_the_nominee_page_celebrates_only_a_promoted_nominee(): void
-    {
-        $won  = $this->nominee('winner');
-        $none = $this->nominee('');
-
-        $this->assertStringContainsString('data-celebrate="nominee-', $won,
-            'a promoted nominee gets no moment on their own page');
-        $this->assertStringContainsString('celebrate.js', $won);
-
-        $this->assertStringNotContainsString('data-celebrate', $none,
-            'confetti on the page of somebody who has not been promoted');
-        $this->assertStringNotContainsString('celebrate.js', $none);
-    }
-
-    public function test_the_nominee_page_does_not_put_two_clocks_on_one_number(): void
-    {
-        // The backer count already carries `data-ag-count`, which ag-motion drives when
-        // the laurel section reveals. Naming it as the celebration's figure as well would
-        // be two animations writing to one element, and the loser is whichever finishes
-        // second — a count that lands on the wrong number in front of the person it is
-        // about.
-        $won = $this->nominee('winner');
-        $this->assertStringContainsString('data-ag-count', $won);
-        $this->assertStringNotContainsString('data-celebrate-figure', $won);
-    }
-
-    // ───────────────────────── the member's dashboard ─────────────────────────
 
     public function test_the_query_behind_the_dashboard_panel_actually_runs(): void
     {
@@ -211,12 +574,12 @@ final class CelebrationTest extends TestCase
         // ever without a single error anywhere. So this proves a row comes BACK.
         $email = 'backer-' . bin2hex(random_bytes(4)) . '@example.test';
         // A category each: one vote per person per category is enforced by a UNIQUE key.
-        $cat = $this->category('Teachers’ Choice');
+        $cat = $this->backedCategory('Teachers’ Choice');
         $win = $this->promoted($cat, 'Oluwagbemiga Dorcas', 'winner');
-        $this->vote($email, $cat, $win);
+        $this->backerVote($email, $cat, $win);
 
-        $other = $this->category('Still Judging');
-        $this->vote($email, $other, $this->promoted($other, 'Not Promoted Yet', 'approved'));
+        $other = $this->backedCategory('Still Judging');
+        $this->backerVote($email, $other, $this->promoted($other, 'Not Promoted Yet', 'approved'));
 
         $got = \AfricaGates\Services\MemberActivityService::backedWinners($email);
 
@@ -237,8 +600,8 @@ final class CelebrationTest extends TestCase
         // one vote per person per category is the platform's rule — so a fixture that
         // votes twice in one category is not a stricter test, it is an impossible one.
         foreach (['pending', 'approved'] as $status) {
-            $cat = $this->category('Undecided ' . $status);
-            $this->vote($email, $cat, $this->promoted($cat, 'Someone ' . $status, $status));
+            $cat = $this->backedCategory('Undecided ' . $status);
+            $this->backerVote($email, $cat, $this->promoted($cat, 'Someone ' . $status, $status));
         }
 
         $this->assertSame([], \AfricaGates\Services\MemberActivityService::backedWinners($email));
@@ -248,8 +611,8 @@ final class CelebrationTest extends TestCase
     {
         $mine   = 'mine-' . bin2hex(random_bytes(4)) . '@example.test';
         $theirs = 'theirs-' . bin2hex(random_bytes(4)) . '@example.test';
-        $cat = $this->category('Craft');
-        $this->vote($theirs, $cat, $this->promoted($cat, 'Their Winner', 'winner'));
+        $cat = $this->backedCategory('Craft');
+        $this->backerVote($theirs, $cat, $this->promoted($cat, 'Their Winner', 'winner'));
 
         $this->assertSame([], \AfricaGates\Services\MemberActivityService::backedWinners($mine));
     }
@@ -264,171 +627,14 @@ final class CelebrationTest extends TestCase
         $email = 'backer-' . bin2hex(random_bytes(4)) . '@example.test';
         $ids = [];
         foreach (['Craft', 'Service'] as $title) {
-            $cat = $this->category($title);
+            $cat = $this->backedCategory($title);
             $ids[] = $id = $this->promoted($cat, $title . ' Winner', 'winner');
-            $this->vote($email, $cat, $id);
+            $this->backerVote($email, $cat, $id);
         }
 
         $got = \AfricaGates\Services\MemberActivityService::backedWinners($email);
         $this->assertCount(2, $got);
         $this->assertSame(array_reverse($ids), array_column($got, 'id'),
             'newest first, so a fresh win is the first thing read');
-    }
-
-    // ───────────────────────── the guarantees in the script ───────────────────
-
-    public function test_the_script_reveals_nothing_and_therefore_cannot_withhold_it(): void
-    {
-        $js = self::src(self::JS);
-
-        // It must never set the winner's name or the index from script, and never unhide
-        // anything: a celebration that PAINTS the result is a celebration that can fail
-        // to paint it.
-        $this->assertStringNotContainsString('.hidden = false', $js);
-        $this->assertStringNotContainsString("style.display", $js);
-        $this->assertStringNotContainsString('innerHTML', $js);
-
-        // The figure is animated by ag-motion.js's counter, not by a copy living here.
-        // That one already knows a thousands separator has to survive the animation and
-        // that a COMPOSITE figure ("45 / 55") is two quantities rather than a number —
-        // a second counter is how one screen counts to 45 and another through 4555.
-        $this->assertStringContainsString('window.agCount(figure)', $js,
-            'the celebration stopped using the motion system\u{2019}s counter');
-        $this->assertStringNotContainsString('function countUp', $js,
-            'a second count-up implementation is back in celebrate.js');
-        $this->assertStringNotContainsString('requestAnimationFrame', $js,
-            'celebrate.js is animating a number itself again');
-
-        // And the one it delegates to is really there and really exported.
-        $motion = self::src('public/assets/js/ag-motion.js');
-        $this->assertStringContainsString('window.agCount = function', $motion,
-            'ag-motion.js no longer exports the counter celebrate.js calls');
-    }
-
-    public function test_it_makes_no_sound(): void
-    {
-        // Not taste. `Permissions-Policy` denies autoplay site-wide and both mobile
-        // browsers gate audible playback on a gesture this page never had, so a sound
-        // here is a rejected promise nobody ever hears about.
-        $js = self::src(self::JS);
-        foreach (['new Audio', 'AudioContext', '.play(', '<audio'] as $noisy) {
-            $this->assertStringNotContainsString($noisy, $js, "the celebration reaches for {$noisy}");
-        }
-    }
-
-    public function test_reduced_motion_gets_the_result_and_no_particles(): void
-    {
-        $js = self::src(self::JS);
-        $this->assertStringContainsString('prefers-reduced-motion', $js);
-        // Two belts: the module returns before it makes a canvas, and every burst also
-        // carries the library's own flag — because the check and the bursts are far
-        // enough apart in the file for one to be edited without the other.
-        $this->assertMatchesRegularExpression('~if \(quiet \|\| typeof window\.confetti[^)]*\) return;~', $js);
-        $this->assertSame(2, substr_count($js, 'disableForReducedMotion: true'),
-            'a burst was added without the reduced-motion flag');
-        // And the count-up is motion too — honoured by the counter it delegates to,
-        // which refuses to run under reduced motion on its own account. Asserted there
-        // rather than assumed, because that guard is now in a different file.
-        $motion = self::src('public/assets/js/ag-motion.js');
-        $this->assertMatchesRegularExpression(
-            '~window\.agCount = function \(el\) \{\s*if \(reduced~', $motion,
-            'the exported counter runs under reduced motion');
-    }
-
-    public function test_it_plays_once_per_result_and_forgetting_is_not_a_failure(): void
-    {
-        $js = self::src(self::JS);
-
-        $this->assertStringContainsString("'ag-celebrated:'", $js);
-        // localStorage throws in a private window and where site data is blocked. A
-        // remembered play that cannot be remembered must play AGAIN, never stop playing:
-        // both accessors return/ignore rather than propagating.
-        // Read the real function BODIES rather than pattern-matching around them: a
-        // `[^}]*` window stops at the first brace, which here is the `try` block's own —
-        // so the pattern could only ever describe a function with no try in it, which is
-        // the opposite of what is being asserted.
-        $this->assertStringContainsString('catch', self::body($js, 'seen'),
-            'a blocked localStorage read propagates, so a private window gets no celebration at all');
-        $this->assertStringContainsString('return false', self::body($js, 'seen'),
-            'an unreadable store must mean "not seen yet", never "seen"');
-        $this->assertStringContainsString('catch', self::body($js, 'remember'),
-            'a blocked localStorage write propagates and takes the celebration with it');
-    }
-
-    /**
-     * One JavaScript function body, by brace matching.
-     *
-     * Brace matching and not a regex: every naive window either stops at the first `}`
-     * inside the function or runs to the end of the file, and both produce assertions
-     * that pass on source they do not describe.
-     */
-    private static function body(string $js, string $fn): string
-    {
-        $at = strpos($js, 'function ' . $fn . '(');
-        self::assertNotFalse($at, "no function {$fn}() in celebrate.js");
-        $open = strpos($js, '{', $at);
-        self::assertNotFalse($open);
-
-        $depth = 0;
-        for ($i = $open, $n = strlen($js); $i < $n; $i++) {
-            if ($js[$i] === '{') $depth++;
-            elseif ($js[$i] === '}' && --$depth === 0) return substr($js, $open, $i - $open + 1);
-        }
-        self::fail("function {$fn}() is not closed");
-    }
-
-    public function test_the_canvas_is_taken_away_again(): void
-    {
-        $js = self::src(self::JS);
-        // Left behind it is a full-screen fixed element over every page scrolled to
-        // next. Pointer-transparent, so the only symptom is a phone getting warm.
-        $this->assertStringContainsString('removeChild(canvas)', $js);
-        $this->assertStringContainsString("setAttribute('aria-hidden', 'true')", $js);
-        $this->assertStringContainsString('pointer-events:none', $js);
-    }
-
-    public function test_no_blob_worker_is_asked_for(): void
-    {
-        // canvas-confetti's worker is built from a Blob URL, and this site's CSP has no
-        // `worker-src` — which falls back to `script-src`, and that is `'self'` plus a
-        // nonce. Asking for it logs a violation on every award page and then falls back
-        // to the main thread anyway.
-        $js  = self::src(self::JS);
-        $csp = self::src('src/Support/Csp.php');
-
-        $this->assertStringContainsString('useWorker: false', $js);
-        $this->assertStringNotContainsString('useWorker: true', $js);
-        $this->assertStringNotContainsString('worker-src', $csp,
-            'the policy gained worker-src — the comment in celebrate.js is now wrong');
-    }
-
-    // ───────────────────────── the vendored library ───────────────────────────
-
-    public function test_the_library_is_self_hosted_and_recorded(): void
-    {
-        $lib = self::src(self::LIB);
-        $this->assertStringContainsString('canvas-confetti v1.9.3', $lib,
-            'the vendored file is not the version its name claims');
-
-        $partial = self::src(self::PARTIAL);
-        // Self-hosted, like every other third party here: the CSP names no CDN in
-        // script-src, so a cdn.jsdelivr.net reference is a script that never runs.
-        $this->assertStringNotContainsString('cdn.', $partial);
-        $this->assertStringNotContainsString('unpkg', $partial);
-        $this->assertStringContainsString('/assets/js/vendor/canvas-confetti-1.9.3.js', $partial);
-
-        $prov = self::src('public/assets/js/vendor/PROVENANCE.md');
-        $this->assertStringContainsString('canvas-confetti@1.9.3', $prov,
-            'a vendored file with no provenance row — nobody can reproduce or update it');
-    }
-
-    public function test_both_scripts_are_deferred_and_nonced(): void
-    {
-        $partial = self::src(self::PARTIAL);
-        $this->assertSame(2, substr_count($partial, 'defer'),
-            'a celebration script blocks the first paint of a result page');
-        // The admin CSP has no 'unsafe-inline' and the public one is nonce-based; a
-        // script tag without the nonce is one the browser refuses.
-        $this->assertSame(2, substr_count($partial, 'csp_nonce'));
     }
 }

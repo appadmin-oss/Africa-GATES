@@ -238,9 +238,9 @@ class FinanceController
         // is changing — a CSV whose quoting silently shifts under a PHP upgrade is a
         // reconciliation file that stops parsing.
         $out = fopen('php://temp', 'r+');
-        fputcsv($out, ['Date', 'Source', 'Name', 'Email', 'Amount (NGN)', 'Status', 'Reference'], ',', '"', '\\');
+        \AfricaGates\Support\Csv::put($out, ['Date', 'Source', 'Name', 'Email', 'Amount (NGN)', 'Status', 'Reference'], ',', '"', '\\');
         foreach ($rows as $r) {
-            fputcsv($out, [
+            \AfricaGates\Support\Csv::put($out, [
                 $r['when'],
                 FinanceService::LABELS[$r['source']] ?? $r['source'],
                 $r['who'],

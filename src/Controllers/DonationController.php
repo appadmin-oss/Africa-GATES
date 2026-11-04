@@ -11,7 +11,7 @@ use Psr\Log\LoggerInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Database\Capsule\Manager as DB;
 use Slim\Views\Twig;
-use AfricaGates\Services\{PaymentService, RateLimitService, OtpService, Notifier};
+use AfricaGates\Services\{PaymentService, RateLimitService, OtpService};
 
 /**
  * Donations — free-amount philanthropic giving that funds child leadership
@@ -20,8 +20,9 @@ use AfricaGates\Services\{PaymentService, RateLimitService, OtpService, Notifier
  *      cast to an integer; an optional processing-fee cover is applied
  *      server-side (a client-sent total is never trusted).
  *   2. A PENDING gates_donations row is written before leaving for the gateway.
- *   3. Confirmation requires verify()=success AND the verified amount equalling
- *      the row's amount, via an idempotent pending→confirmed transition.
+ *   3. Confirmation requires verify()=success AND at least the row's amount, in
+ *      naira, via PaymentController::confirmByReference() — the one idempotent
+ *      pending→confirmed transition the webhook uses too.
  *
  * Donations grant NO votes (bonus_votes = 0): money never touches the CPI — it
  * funds programmes. The page's figures are drawn from real confirmed rows, never
@@ -36,6 +37,9 @@ final class DonationController
         private readonly PaymentService    $payments,
         private readonly Twig              $view,
         private readonly ?RateLimitService $rateLimit = null,
+        // Unread since the gift receipt moved to CheckoutMailer, which uses the transport
+        // the container hands it. Kept only so config/container.php's positional wiring
+        // (the logger is the next argument) does not shift; drop it with that line.
         private readonly ?OtpService       $mailer = null,
         private readonly ?LoggerInterface  $log = null,
     ) {}
@@ -117,7 +121,7 @@ final class DonationController
                     'fund_goal' => null, 'recurring' => false,
                         'fund_goal' => null, 'recurring' => false,
                         'min_naira' => self::MIN_NAIRA, 'max_naira' => self::MAX_NAIRA,
-                        'processing_fee_pct' => $this->processingFeePct(),
+                        'fee' => self::feeView(),
                         // What we tell a donor their money is for — and NOTHING on a
                         // partner's appeal, where the money settles into their account and
                         // our allocation would be a false statement about it.
@@ -145,7 +149,7 @@ final class DonationController
                         'brand' => null, 'brand_css' => null, 'story_paragraphs' => [],
                         'gates_credit' => \AfricaGates\Services\OrgBrand::GATES_CREDIT,
                     'min_naira' => self::MIN_NAIRA, 'max_naira' => self::MAX_NAIRA,
-                    'processing_fee_pct' => $this->processingFeePct(),
+                    'fee' => self::feeView(),
                         // What we tell a donor their money is for — and NOTHING on a
                         // partner's appeal, where the money settles into their account and
                         // our allocation would be a false statement about it.
@@ -178,8 +182,21 @@ final class DonationController
         // could differ if a write landed between them, on the page a gift is made from.
         $brand = $org ? \AfricaGates\Services\OrgBrand::of($org) : null;
 
+        // ── WHICH VIEW: THE CASE, OR THE CHECKOUT ────────────────────────────
+        //
+        // GivingPage.dc.html is two screens — the campaign, then the checkout — and here
+        // each is an ADDRESS (`?step=give`), so the checkout survives Back and a reload,
+        // works with no script, and a "Give now" link in a message lands on the form. A
+        // refused checkout comes back to the checkout, where the reason and the fields are.
+        // `freq=monthly` is the donor having pressed "Give monthly"; nothing else selects
+        // it, because a standing order must never be the default.
+        $q     = $req->getQueryParams();
+        $error = self::GIVE_REASONS[trim((string) ($q['give'] ?? ''))] ?? null;
+
         return $this->view->render($res, 'pages/donate.twig', [
-            'error'            => self::GIVE_REASONS[trim((string) ($req->getQueryParams()['give'] ?? ''))] ?? null,
+            'error'            => $error,
+            'step'             => (($q['step'] ?? '') === 'give' || $error !== null) ? 'give' : 'campaign',
+            'pick_monthly'     => ($q['freq'] ?? '') === 'monthly',
             'page_title'       => $campaign
                 ? ($campaign->title . ' — ' . $org->name)
                 // "Donations" is the noun on this surface — it is what the navigation, the
@@ -242,6 +259,11 @@ final class DonationController
                 ? \AfricaGates\Services\OrgCampaign::progress((int) $campaign->id) : null,
             'days_left'        => $campaign
                 ? \AfricaGates\Services\OrgCampaign::daysLeft($campaign) : null,
+            // GivingPage V2 (16 Oct 2026): the rail's gift rows and momentum line, the related
+            // appeals and the "Created" line — each behind LOW-DATA-RULES' threshold.
+            'gift_rows'        => $this->giftRows($org, $campaign),
+            'related'          => \AfricaGates\Services\HomeFront::openCampaigns(4, $campaign ? (int) $campaign->id : null),
+            'created_on'       => $campaign && !empty($campaign->created_at) ? (string) $campaign->created_at : '',
             'shortfall_text'   => $campaign
                 ? (\AfricaGates\Services\OrgCampaign::SHORTFALL[$campaign->shortfall_policy] ?? '') : '',
             'appeals'          => $org && !$campaign
@@ -285,7 +307,7 @@ final class DonationController
             'org_totals'       => \AfricaGates\Services\PartnerOrg::platformTotals(),
             'min_naira'        => self::MIN_NAIRA,
             'max_naira'        => self::MAX_NAIRA,
-            'processing_fee_pct' => $this->processingFeePct(),
+            'fee' => self::feeView(),
                         // What we tell a donor their money is for — and NOTHING on a
                         // partner's appeal, where the money settles into their account and
                         // our allocation would be a false statement about it.
@@ -305,41 +327,47 @@ final class DonationController
     /** Confirmed totals for one partner. Same doctrine as stats(): never fabricated. */
     private function orgStats(int $orgId): array
     {
+        // `raised`, not `gross`: gross includes every donor's voluntary tip to the
+        // platform, which is ours and was being printed as theirs. See PartnerOrg::tipSumSql().
         $t = \AfricaGates\Services\PartnerOrg::totals($orgId);
-        return ['raised_naira' => $t['gross'], 'gifts' => $t['count']];
+        return ['raised_naira' => $t['raised'], 'gifts' => $t['count']];
+    }
+
+    /** The gift amounts the page offers. One list: the tiles and their fee covers read it. */
+    public const PRESETS = [1000, 2000, 5000, 10000];
+
+    /**
+     * What the page needs to state the processing fee: the gateway's schedule (so giving.js
+     * computes the same cover the server will charge), the exact cover for each preset (so
+     * the first paint is right with no script), and who bears the fee on a partner gift.
+     *
+     * It used to be one percentage — `processing_fee_pct`, which was itself once ignored by
+     * start() and missing from the page. A percentage was the wrong shape as well as the
+     * wrong number: see GatewayFee.
+     *
+     * @return array{schedule:array<string,int|float>, covers:array<int,int>, org_bears:bool}
+     */
+    private static function feeView(): array
+    {
+        $covers = [];
+        foreach (self::PRESETS as $a) $covers[$a] = \AfricaGates\Services\GatewayFee::cover($a);
+        return ['schedule' => \AfricaGates\Services\GatewayFee::schedule(), 'covers' => $covers,
+                'org_bears' => \AfricaGates\Services\GatewayFee::organisationBears()];
     }
 
     /**
-     * The processing-fee cover percentage, from admin settings.
+     * Real, public-safe aggregates for the Africa GATES fund (never fabricated).
      *
-     * ── IT WAS ADMIN-CONFIGURABLE AND SERVER-IGNORED ─────────────────────────
-     *
-     * `processing_fee_pct` has a field on the settings screen and was read by nothing. The
-     * template printed it as `{{ processing_fee_pct }}` on a page that never passed it — so
-     * the checkbox read "Add % to cover processing" with the number missing — while start()
-     * hard-coded 1.5% regardless of what an operator had set.
-     *
-     * Both halves are the same defect: a donor was shown one thing and charged another. One
-     * source now feeds the sentence and the arithmetic, so they cannot disagree.
+     * Off {@see \AfricaGates\Services\PartnerOrg::countableFundDonations()}. This summed
+     * every confirmed row in `gates_donations` — paid votes, vote packs, partner gifts that
+     * settled into other organisations' accounts, refunded money — under a heading that says
+     * what people have given this fund. The goal bar is measured from it too.
      */
-    private function processingFeePct(): float
-    {
-        try {
-            $v = DB::table('gates_settings')->where('key_name', 'processing_fee_pct')->value('value');
-        } catch (\Throwable) {
-            $v = null;
-        }
-        $pct = is_numeric($v) ? (float) $v : 1.5;
-        // Clamped: a mistyped 150 in an admin field must not multiply somebody's gift.
-        return max(0.0, min(10.0, $pct));
-    }
-
-    /** Real, public-safe aggregates from confirmed donations (never fabricated). */
     private function stats(): array
     {
         try {
-            $raised = (int) DB::table('gates_donations')->where('status', 'confirmed')->sum('amount_naira');
-            $gifts  = (int) DB::table('gates_donations')->where('status', 'confirmed')->count();
+            $raised = (int) \AfricaGates\Services\PartnerOrg::countableFundDonations()->sum('amount_naira');
+            $gifts  = (int) \AfricaGates\Services\PartnerOrg::countableFundDonations()->count();
         } catch (\Throwable $e) { $raised = 0; $gifts = 0; }
         return ['raised_naira' => $raised, 'gifts' => $gifts];
     }
@@ -406,7 +434,11 @@ final class DonationController
             // started printing them, "Recent donations" was showing an April gift above a
             // two-minute-old one. `id` stays as the tiebreak so two gifts in the same
             // second still order deterministically.
-            $rows = DB::table('gates_donations')->where('status', 'confirmed')
+            //
+            // And off the FUND's scope, for the same reason as stats(): "Recent donations"
+            // on this page was listing paid votes, refunded gifts and gifts to other
+            // organisations as gifts to the fund.
+            $rows = \AfricaGates\Services\PartnerOrg::countableFundDonations()
                 ->orderByDesc('created_at')->orderByDesc('id')
                 ->limit(5)->get(['donor_name', 'amount_naira', 'created_at']);
         } catch (\Throwable $e) { return []; }
@@ -468,6 +500,42 @@ final class DonationController
     }
 
     /** "Amara Okonkwo" → "Amara O."; blank/default → "A supporter". */
+    /**
+     * Recent, top and first gift, de-duplicated (LOW-DATA-RULES: one gift that is both the
+     * newest and the largest is shown once, as the top gift), plus this week's count. Scoped
+     * exactly as the page's own total is, so a row can never name a gift the total excludes.
+     *
+     * @return array{rows:list<array{kind:string,name:string,amount:int,when:string}>, week:int}
+     */
+    private function giftRows(?object $org, ?object $campaign): array
+    {
+        $scope = static function () use ($org, $campaign) {
+            $q = $org ? \AfricaGates\Services\PartnerOrg::countableDonations((int) $org->id)
+                      : \AfricaGates\Services\PartnerOrg::countableFundDonations();
+            if ($campaign) $q->where('campaign_id', (int) $campaign->id);
+            return $q;
+        };
+        try {
+            $cols   = ['id', 'donor_name', 'amount_naira', 'created_at'];
+            $recent = $scope()->orderByDesc('created_at')->orderByDesc('id')->first($cols);
+            $top    = $scope()->orderByDesc('amount_naira')->orderBy('id')->first($cols);
+            $first  = $scope()->orderBy('created_at')->orderBy('id')->first($cols);
+            $week   = (int) $scope()->where('created_at', '>=', date('Y-m-d H:i:s', time() - 7 * 86400))->count();
+        } catch (\Throwable) {
+            return ['rows' => [], 'week' => 0];
+        }
+        $rows = []; $seen = [];
+        foreach (['top' => $top, 'recent' => $recent, 'first' => $first] as $kind => $g) {
+            if (!$g || isset($seen[(int) $g->id])) continue;
+            $seen[(int) $g->id] = true;
+            $rows[] = ['kind' => $kind, 'name' => $this->anon((string) ($g->donor_name ?? '')),
+                       'amount' => (int) $g->amount_naira, 'when' => (string) ($g->created_at ?? '')];
+        }
+        // The DC's order: recent, top, first.
+        usort($rows, static fn ($a, $b) => array_search($a['kind'], ['recent', 'top', 'first']) <=> array_search($b['kind'], ['recent', 'top', 'first']));
+        return ['rows' => $rows, 'week' => $week];
+    }
+
     private function anon(string $name): string
     {
         $name = trim($name);
@@ -487,7 +555,10 @@ final class DonationController
         // Title-cased on the way in — see PaidVoteController. A donor's name is
         // published on the supporters wall and printed on their receipt.
         $name     = \AfricaGates\Support\Name::title((string)($b['name'] ?? ''));
-        $baseAmt  = (int) preg_replace('/[^0-9]/', '', (string)($b['amount'] ?? '0'));
+        // "Other amount" is its own field, so the form needs no script: the preset radios
+        // post `amount`, and a typed figure — when there is one — is the donor's answer.
+        $typed    = trim((string) ($b['amount_other'] ?? ''));
+        $baseAmt  = (int) preg_replace('/[^0-9]/', '', $typed !== '' ? $typed : (string)($b['amount'] ?? '0'));
         $cover    = !empty($b['cover_fees']);
         $orgSlug  = trim((string)($b['org'] ?? ''));
 
@@ -540,9 +611,9 @@ final class DonationController
             return $bail('rate');
         }
 
-        // Optional processing-fee cover, computed SERVER-SIDE (never trust a client total).
-        $amount = $cover ? (int) ceil($baseAmt * (1 + $this->processingFeePct() / 100)) : $baseAmt;
-        $amount = min(self::MAX_NAIRA, max(self::MIN_NAIRA, $amount));
+        // The gift itself. The fee cover is worked out AFTER the tip, below, because the
+        // gateway charges its fee on the whole transaction (GatewayFee::cover()).
+        $amount = min(self::MAX_NAIRA, max(self::MIN_NAIRA, $baseAmt));
 
         // ── AND A VOLUNTARY GIFT TO THE PLATFORM, ON TOP ─────────────────────
         //
@@ -556,11 +627,18 @@ final class DonationController
         // form ("this does not come out of their gift") is true in the arithmetic and not
         // only in the copy.
         $tip = \AfricaGates\Services\PlatformTip::naira($amount, $b['platform_tip'] ?? 0, $org);
-        $charge = min(self::MAX_NAIRA, $amount + $tip);
+        // ── THE DONOR MAY COVER THE GATEWAY'S FEE, EXACTLY ──────────────────
+        // Opt-in (the box is never pre-ticked: an added charge the donor did not choose is
+        // the pattern consumer law forbids), computed SERVER-SIDE as the amount that leaves
+        // the recipient with the gift to the naira — the fee is charged on the whole
+        // transaction, tip and cover included, so it is a fixed point, not a percentage.
+        $coverN = $cover ? \AfricaGates\Services\GatewayFee::cover($amount, $tip) : 0;
+        $charge = min(self::MAX_NAIRA, $amount + $tip + $coverN);
         // Clamping the total could otherwise silently eat the tip at the ceiling, which
         // would take the donor's money for the organisation and give them nothing for us —
-        // the one outcome worse than not offering it.
-        $tip = max(0, $charge - $amount);
+        // the one outcome worse than not offering it. The cover goes first.
+        $coverN = max(0, min($coverN, $charge - $amount));
+        $tip = max(0, $charge - $amount - $coverN);
 
         $reference = 'AFG-GIVE-' . bin2hex(random_bytes(6));
 
@@ -602,6 +680,11 @@ final class DonationController
             // rather than calling the second one a fee they paid.
             $row['platform_fee_naira'] = (int) floor($amount * $feeBps / 10000) + $tip;
             $row['platform_tip_naira'] = $tip;
+            // The gateway's fee comes out of the organisation's share where they bear it
+            // (the standard; GatewayFee::organisationBears()), so it is recorded beside the
+            // platform's fee and taken off what they are owed — never called OUR fee.
+            $row['gateway_fee_naira']  = \AfricaGates\Services\GatewayFee::organisationBears()
+                ? \AfricaGates\Services\GatewayFee::fee($charge) : 0;
             // NULL means the organisation's general fund. A campaign id means the donor gave
             // for the thing that appeal describes, and the money is restricted to it.
             $row['campaign_id']        = $campaign ? (int) $campaign->id : null;
@@ -614,7 +697,8 @@ final class DonationController
             // and the paid-vote outage that rule was written after.
             DB::table('gates_donations')->insert(
                 \AfricaGates\Support\OptionalColumn::filter(
-                    'gates_donations', $row, ['platform_tip_naira']));
+                    'gates_donations', $row + ['fee_cover_naira' => $coverN],
+                    ['platform_tip_naira', 'fee_cover_naira', 'gateway_fee_naira']));
         } catch (\Throwable $e) {
             $this->log?->error('[donate] could not persist pending donation', ['err' => $e->getMessage()]);
             return $bail('error');
@@ -636,6 +720,9 @@ final class DonationController
 
         $planCode = '';
         if ($monthly) {
+            // Monthly gifts are only to the fund (no tip), so the plan is the gift with its
+            // cover: each month's charge then leaves the gift whole, as the first one did.
+            $amount += $coverN;
             $plan = \AfricaGates\Services\RecurringGiving::planFor($amount, $this->payments);
             if ($plan['ok']) {
                 $planCode = $plan['code'];
@@ -710,7 +797,7 @@ final class DonationController
         return $this->view->render($res->withStatus($sub ? 200 : 404), 'pages/donate-giving.twig', [
             'page_title' => $sub ? 'Your monthly gift — Africa GATES' : 'Link not valid — Africa GATES',
             'gates_page' => 'donate', 'sub'        => $sub,
-            'token'      => (string) ($args['token'] ?? ''),
+            'stop_url'   => GivingUrl::stop((string) ($args['token'] ?? '')),
             'flash_ok'   => $flash,
             'flash_err'  => $err,
         ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
@@ -769,9 +856,12 @@ final class DonationController
         $don = DB::table('gates_donations')->where('payment_ref', $reference)->first();
         if (!$don) return $this->redirect($res, $this->base($req) . GivingUrl::refused('error'));
 
+        // The receipt is not sent here any more. It is queued by the confirmation itself
+        // (PaymentController::deliver()), which the webhook and the reconcile sweep reach
+        // too — sending it only when THIS call flipped the row meant a donor whose webhook
+        // landed first never got one, and a monthly donor never got the link to stop.
         $result = $this->confirm($provider, $reference, $don);
         if ($result === 'confirmed' || $result === 'already') {
-            if ($result === 'confirmed') $this->receipt($don);
             return $this->redirect($res, $this->base($req) . GivingUrl::success($reference));
         }
         return $this->redirect($res, $this->base($req) . GivingUrl::refused('failed'));
@@ -794,71 +884,22 @@ final class DonationController
         ]);
     }
 
-    /** Idempotent confirm — mirrors PaymentController/ShopCheckoutController. */
+    /**
+     * Confirm through THE confirmation path, not a copy of it.
+     *
+     * This was a private mirror of `PaymentController::confirmByReference()` and had not
+     * kept up: it required the verified amount to EQUAL the row (so the gateway's
+     * "customer bears the fee" toggle refused every gift while the money left the donor's
+     * bank), never checked the currency (₦5,000 and $5,000 are the same integer), never
+     * stamped `confirmed_at` and never remembered the gateway's own ids — the numbers on
+     * the donor's bank receipt. The webhook already confirmed `AFG-GIVE-` references
+     * through the shared path, so one gift could be refused by the browser and confirmed
+     * by the gateway a second later. One path now; it also queues the receipt.
+     */
     private function confirm(string $provider, string $reference, object $don): string
     {
-        if (($don->status ?? '') === 'confirmed') return 'already';
-        $v = $this->payments->verify($provider, $reference);
-        if (!$v['ok'] || ($v['status'] ?? '') !== 'success') {
-            if (($v['status'] ?? '') === 'failed') {
-                DB::table('gates_donations')->where('payment_ref', $reference)->where('status', 'pending')->update(['status' => 'failed']);
-            }
-            return 'failed';
-        }
-        if ((int)$v['amount'] !== (int)$don->amount_naira) {
-            $this->log?->warning('[donate] amount mismatch — refusing to confirm', ['ref' => $reference]);
-            return 'failed';
-        }
-        $changed = DB::table('gates_donations')->where('payment_ref', $reference)->where('status', 'pending')->update(['status' => 'confirmed']);
-        return $changed > 0 ? 'confirmed' : 'already';
-    }
-
-    /**
-     * One-time receipt + admin alert on a freshly-confirmed gift.
-     *
-     * ── AND, FOR A STANDING GIFT, THE LINK THAT STOPS IT ────────────────────
-     *
-     * {@see giving()} above explains why the cancellation is a link in the receipt rather
-     * than a login, and {@see \AfricaGates\Services\RecurringGiving::start()} mints the
-     * token at checkout "so it can travel in the receipt". It never travelled: this was
-     * the only receipt a recurring donor received and it said nothing about a monthly
-     * charge and carried no way to stop one, while
-     * {@see \AfricaGates\Services\RecurringGiving::manageUrl()} — the function that
-     * builds the link — had no caller anywhere. The stop page worked perfectly and could
-     * be reached only by somebody who already knew a token nothing had ever sent.
-     *
-     * A donor who cannot find the stop button goes to their bank, and a chargeback costs
-     * more than the gift was worth.
-     */
-    private function receipt(object $don): void
-    {
-        $total = '₦' . number_format((int)$don->amount_naira);
-        $stop  = \AfricaGates\Services\RecurringGiving::stopLink(
-            (string) $don->payment_ref, $this->base());
-
-        if ($this->mailer) {
-            try {
-                $this->mailer->sendBranded(
-                    (string)$don->donor_email,
-                    'Thank you for your gift to Africa GATES',
-                    '<p>Thank you, ' . htmlspecialchars((string)$don->donor_name) . ' — your gift of <strong>' . $total . '</strong> is confirmed.</p>'
-                    . '<p style="font-family:monospace">Receipt ' . htmlspecialchars((string)$don->payment_ref) . '</p>'
-                    // Said plainly and in the same breath as the amount, because the one
-                    // thing a monthly donor must not have to hunt for is the fact that it
-                    // is monthly and where the off switch is.
-                    . ($stop === '' ? ''
-                        : '<p>This is a <strong>monthly</strong> gift of ' . $total . ', and you can '
-                        . 'stop it at any time — no sign-in, no email to anybody: '
-                        . '<a href="' . htmlspecialchars($stop, ENT_QUOTES, 'UTF-8') . '">'
-                        . htmlspecialchars($stop, ENT_QUOTES, 'UTF-8') . '</a>. '
-                        . 'Keep this email; the link stays valid.</p>')
-                    . '<p>Your gift funds child leadership programmes across the continent — mentorship, scholarships and grassroots education. With gratitude.</p>',
-                    'Donations'
-                );
-            } catch (\Throwable $e) { /* a receipt failure must never break confirmation */ }
-        }
-        Notifier::adminAlert($this->mailer, 'New donation (confirmed)',
-            'Donor:  ' . (string)$don->donor_name . ' <' . (string)$don->donor_email . ">\nAmount: " . $total . "\nRef:    " . (string)$don->payment_ref);
+        return (new PaymentController($this->payments, $this->view, $this->log))
+            ->confirmByReference($provider, $reference, $don, 'donate-callback');
     }
 
     /**

@@ -167,9 +167,9 @@ final class NomineeBroadcastCommand extends Command
     {
         $fh = @\fopen($path, 'w');
         if ($fh === false) return;
-        \fputcsv($fh, ['nominee_id', 'name', 'category', 'cycle_id', 'why']);
+        \AfricaGates\Support\Csv::put($fh, ['nominee_id', 'name', 'category', 'cycle_id', 'why']);
         foreach ($rows as [$n, $cycle]) {
-            \fputcsv($fh, [$n->id, $n->name, $n->category_title ?? '', $cycle->id,
+            \AfricaGates\Support\Csv::put($fh, [$n->id, $n->name, $n->category_title ?? '', $cycle->id,
                            'no email on file (check gates_nominations.nominee_phone)']);
         }
         \fclose($fh);

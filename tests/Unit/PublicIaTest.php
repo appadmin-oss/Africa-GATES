@@ -59,15 +59,25 @@ final class PublicIaTest extends TestCase
 {
     private const ROUTES = __DIR__ . '/../../src/routes.php';
 
-    /** Consoles and machinery that are not the public site. */
-    private const NOT_PUBLIC = ['/api', '/admin', '/judge', '/__', '/m/', '/door', '/ping', '/email'];
+    /**
+     * Consoles and machinery that are not the public site.
+     *
+     * `/_dev` is the redesign's style page — every token and base component in every
+     * state, for whoever is building the next phase. It answers 404 unless APP_ENV is
+     * something other than production, so there is nothing on the public site that
+     * could link to it and nothing on production to reach. A developer surface is the
+     * same kind as the `/__setup` tools beside it, not a public page nobody linked.
+     */
+    private const NOT_PUBLIC = ['/api', '/admin', '/judge', '/__', '/_dev', '/m/', '/door', '/ping', '/email'];
 
     /** Reached by the gateway, by completing a flow, or by an authentication step. */
     private const UNNAVIGABLE = [
         '~/(callback|redirect)$~',       // a payment gateway calls these
         '~/success$~',                   // reached by completing the thing
         '~^/pay/~',                      // gateway return paths
-        '~^/account/(verify|reset|forgot|logout)~',
+        // `confirm` is the step a POST sends somebody to before money or a console
+        // (Account\Roles): reached only by being asked, like verify and reset beside it.
+        '~^/account/(verify|reset|forgot|logout|confirm)~',
         '~^/vote/verify~',
         '~^/(signin|register)$~',        // the member sign-in is linked as /account/login
         // A SIGN-IN FOR A SEPARATE TRUST DOMAIN. `/org` is the destination and is linked;
@@ -178,12 +188,101 @@ final class PublicIaTest extends TestCase
             // now. A login bounce is the second. Only the first is out of scope here.
             if ($this->movedPermanently($app, $p)) continue;
 
+            // ── A DESTROYED PAGE AWAITING ITS REBUILD IS NOT A PAGE ─────────
+            //
+            // On 3 Oct 2026 the old public pages were destroyed and their routes left
+            // standing (docs/handoff/DESTROYED.md); each comes back when its phase
+            // rebuilds it. Until then the route renders a template that is not in the
+            // tree — there is no page to find, so asking whether it is linked asks about
+            // nothing. ASKED, not listed: the handler's own source names the template, and
+            // the route drops out of scope only while every template it names is missing.
+            // The day the rebuild lands the template, this route is back in the sweep.
+            if ($this->rendersOnlyDestroyedTemplates($r->getCallable())) continue;
+
+            // ── A ROUTE THAT ANSWERS JSON IS A DATA ENDPOINT, WHOEVER CALLS IT ──
+            //
+            // `fetched()` above recognises a data endpoint by its CALLER, and that went
+            // blind on 3 Oct 2026: `/activity/search` was fetched only by `ag-search.js`,
+            // destroyed as an orphan, so the endpoint — live, and the server half of the
+            // search palette the rebuild owes — came back into scope as "a public page
+            // nobody linked". Nothing about the route changed; only who happened to call
+            // it. So the route is ASKED what it is: a GET that answers
+            // `application/json` has nothing to navigate to. Asked last, so only a path
+            // every other kind has already let through is dispatched a second time.
+            if ($this->answersJson($app, $p)) continue;
+
             $out[rtrim($p, '/') ?: '/'] = true;
         }
 
         ksort($out);
 
         return array_keys($out);
+    }
+
+    /**
+     * Does this handler render page templates, every one of which is missing from the tree?
+     *
+     * Read from the handler's source (and the private methods it calls, one level down;
+     * for a closure, what it captured, one level down),
+     * because a destroyed page and a sign-in bounce both answer without ever reaching the
+     * render, so dispatching cannot tell them apart. A handler naming no template at all
+     * answers false: that is a redirect or data, and the checks above own it.
+     */
+    private function rendersOnlyDestroyedTemplates(mixed $callable): bool
+    {
+        $source = static function (\ReflectionFunctionAbstract $m): string {
+            $lines = file((string) $m->getFileName());
+            return implode('', array_slice($lines, $m->getStartLine() - 1, $m->getEndLine() - $m->getStartLine() + 1));
+        };
+        // A method's own source plus the private methods it calls, one level down.
+        $method = static function (\ReflectionClass $cls, string $name) use ($source): string {
+            $body = $source($cls->getMethod($name));
+            if (preg_match_all('~\$this->([A-Za-z_]+)\(~', $body, $calls)) {
+                foreach (array_unique($calls[1]) as $n) {
+                    if ($cls->hasMethod($n)) $body .= $source($cls->getMethod($n));
+                }
+            }
+            return $body;
+        };
+
+        if ($callable instanceof \Closure) {
+            // ── A CLOSURE IS A HANDLER TOO, AND MOST PUBLIC PAGES ARE ONE ────
+            //
+            // 132 public GETs are closures — `/support`, `/philosophy`, the legal
+            // documents — and several only delegate: `fn(...) => $legalRender(..., 'refunds')`
+            // or `fn(...) => $challenges->index(...)`. Reading only class handlers left
+            // every one of them in scope after its template was destroyed, and that went
+            // unseen for as long as the orphaned `layout/footer.twig` was still in the
+            // tree linking them: the sweep passed on a link from a file nothing renders.
+            // So the closure's own source is read, and what it captured, one level down —
+            // a captured closure's source, or the method it calls on a captured object.
+            $fn   = new \ReflectionFunction($callable);
+            $body = $source($fn);
+            foreach ($fn->getClosureUsedVariables() as $var => $value) {
+                if ($value instanceof \Closure) {
+                    $body .= $source(new \ReflectionFunction($value));
+                } elseif (is_object($value)
+                    && preg_match_all('~\$' . preg_quote($var, '~') . '->([A-Za-z_]+)\(~', $body, $calls)) {
+                    $cls = new \ReflectionClass($value);
+                    foreach (array_unique($calls[1]) as $n) {
+                        if ($cls->hasMethod($n)) $body .= $method($cls, $n);
+                    }
+                }
+            }
+        } else {
+            if (is_string($callable) && str_contains($callable, ':')) $callable = explode(':', $callable, 2);
+            if (!is_array($callable) || !is_string($callable[0]) || !class_exists($callable[0])) return false;
+
+            $cls = new \ReflectionClass($callable[0]);
+            if (!$cls->hasMethod($callable[1])) return false;
+            $body = $method($cls, $callable[1]);
+        }
+
+        if (!preg_match_all("~['\"](pages/[A-Za-z0-9_/.-]+\\.twig)['\"]~", $body, $m)) return false;
+        foreach (array_unique($m[1]) as $tpl) {
+            if (is_file(dirname(__DIR__, 2) . '/templates/' . $tpl)) return false;
+        }
+        return true;
     }
 
     /**
@@ -194,6 +293,25 @@ final class PublicIaTest extends TestCase
      * the sweep — a clean pass over the half it read, which is the failure this file
      * already documents for a different sweep.
      */
+    /**
+     * Does this path answer with a JSON document? Asked of the router, never listed.
+     *
+     * A sweep for pages a reader can find must not demand a link to a data endpoint, and
+     * "which template fetches it" is a property of the caller, not of the endpoint — it
+     * disappears with the caller (see the call site).
+     */
+    private function answersJson(\Slim\App $app, string $path): bool
+    {
+        try {
+            $res = $app->handle(
+                (new ServerRequestFactory())->createServerRequest('GET', $path));
+        } catch (\Throwable) {
+            return false;
+        }
+
+        return str_starts_with(strtolower($res->getHeaderLine('Content-Type')), 'application/json');
+    }
+
     private function movedPermanently(\Slim\App $app, string $path): bool
     {
         try {
@@ -319,45 +437,6 @@ final class PublicIaTest extends TestCase
           . "navigated to — add the kind, with its reason, to this class. Never add the "
           . "page itself: a list of pages nobody linked becomes the answer rather than a "
           . "record of exceptions.");
-    }
-
-    public function test_the_partner_console_is_reachable_from_the_public_site(): void
-    {
-        // Named on its own, because it is the finding this test was written for and the
-        // one with a customer on the other end of it.
-        //
-        // AND THE ASSERTION THAT MATTERS IS *WHERE*, NOT *WHETHER*. `/org` was already
-        // linked from four templates before this test existed — org-apply, the stand
-        // application, the stand offer and the member dashboard — every one of them a
-        // page a partner lands on in the minute AFTER an action they just took. So
-        // "is it linked anywhere" was true the whole time the console was unreachable in
-        // practice: close the tab, come back on Monday, and the way back in was an old
-        // email. A front door is a page somebody can arrive at cold.
-        //
-        // The two that qualify are the footer, which is on every page of the site, and
-        // `/partner`, which is the page organisations are sent to before they are
-        // anything. Both, not either: the footer alone is a link nobody reads on the one
-        // page written for this reader, and `/partner` alone is unreachable from the rest
-        // of the site.
-        //
-        // NOT by putting organisation sign-in on the member sign-in page:
-        // `account/login.twig` refuses that deliberately, because separate trust domains
-        // on separate routes are what stop one of them becoming a target. A findable
-        // public DESTINATION is a different thing from a shared login form.
-        $root = dirname(__DIR__, 2);
-
-        foreach ([
-            'templates/layout/footer.twig'  => 'the site footer, which is the one place on every page a partner can get back from',
-            'templates/pages/partner.twig'  => 'the page that tells organisations about the platform, where an organisation who already joined needs a way back in',
-        ] as $rel => $why) {
-            $body = $this->visible((string) file_get_contents($root . '/' . $rel));
-
-            $this->assertMatchesRegularExpression('~href="/org"~', $body,
-                $rel . ' does not link the organisation console — ' . $why . ".\n\n"
-              . 'Note this asks for an `href`, and asks it of the file with its comments '
-              . 'removed: a sentence in a comment saying the page points at /org is not a '
-              . 'link, and passed this assertion once.');
-        }
     }
 
     public function test_the_sweep_would_notice_an_orphan(): void

@@ -286,19 +286,22 @@
   .viz__table{ width:100%; border-collapse:collapse; font-size:13px; }
   .viz__table th, .viz__table td{ text-align:left; padding:8px 12px 8px 0;
     border-top:1px solid var(--viz-line); white-space:nowrap; }
-  .viz__table thead th{ border-top:0; font:700 10px/1 var(--ag-font-mono,monospace);
-    letter-spacing:.13em; text-transform:uppercase; color:var(--viz-mute); }
+  /* Sentence case, 13px bold — the colour pass removed every uppercase label. */
+  .viz__table thead th{ border-top:0; font-size:13px; font-weight:700; line-height:1.2; color:var(--viz-mute); }
   .viz__table .num{ text-align:right; padding-right:0; font-family:var(--ag-font-mono,monospace);
     font-variant-numeric:tabular-nums; }
 
   /* ── tooltip ──────────────────────────────────────────────────────────── */
   .viz-tip{ position:fixed; z-index:60; pointer-events:none; max-width:260px;
     padding:7px 10px; border-radius:8px; background:#10292c; color:#fff;
-    font:600 12px/1.45 var(--ag-font-body,system-ui); }
+    font:600 12px/1.45 var(--ag-font-ui,system-ui); }
   @media (prefers-reduced-motion:reduce){ .viz *{ transition:none !important } }
   @media print{ .viz__btn, .viz__legend{ display:none } .viz__tw{ display:block !important } }
 </style>
-<script nonce="{{ nonce }}">
+{# `data-nav="rerun"`: it binds only its own charts' elements, so the console may swap a
+   page that carries it. Unmarked, the stands page reloaded the whole console on the way in
+   and the way out (console-nav.js treats any unmarked page script as unsafe to run twice). #}
+<script nonce="{{ nonce }}" data-nav="rerun">
 (function () {
   'use strict';
   var charts = document.querySelectorAll('[data-viz]');
@@ -309,6 +312,8 @@
   // being pointed at, so there is nothing to keep in sync and nothing to leak.
   var tip = null;
   function showTip(text, x, y) {
+    // Reused across swaps: a second visit must not leave a second box on the page.
+    if (!tip) tip = document.querySelector('body > .viz-tip');
     if (!tip) { tip = document.createElement('div'); tip.className = 'viz-tip'; document.body.appendChild(tip); }
     tip.textContent = text;
     tip.hidden = false;

@@ -267,8 +267,7 @@ final class StandNotice
             'deposit'         => $deposit > 0 ? $naira($deposit) : '',
             'site_url'        => $site,
             'unsubscribe_url' => EmailOptOut::url($site, $email),
-            'postal_address'  => (string) \AfricaGates\Support\Env::get(
-                'MAIL_POSTAL_ADDRESS', 'Afrovanguard, Lagos, Nigeria'),
+            'postal_address'  => \AfricaGates\Services\Mail\MailConfig::postal(),
         ];
     }
 
@@ -297,12 +296,13 @@ final class StandNotice
         // need the app's extensions — and not depending on them keeps this renderable from
         // a console with no HTTP request in flight.
         static $twig = null;
-        $twig ??= new Environment(
+        $twig ??= \AfricaGates\Support\Translator::register(new Environment(
             new FilesystemLoader(\dirname(__DIR__, 2) . '/templates'),
             ['autoescape' => 'html']
-        );
+        ));
 
-        return $twig->render('emails/stand-decision.twig', $vars);
+        // `c`: the palette, by name — mail cannot read var() (Accent::mail()).
+        return $twig->render('emails/stand-decision.twig', $vars + ['c' => \AfricaGates\Support\Accent::mail()]);
     }
 
     /**

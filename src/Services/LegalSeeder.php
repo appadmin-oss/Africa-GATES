@@ -127,7 +127,95 @@ final class LegalSeeder
             // failure as a rejection with no reason.
             'vendor-terms' => ['title' => 'Vendor Trading Terms', 'sort' => 5,
                                'body' => self::vendorTerms()],
+            // ── ADS NEED A POLICY BEFORE THEY NEED A PRICE ───────────────────
+            //
+            // Ads arrived on 27 Oct 2026 (Services\Ads), and every platform that sells them
+            // publishes what an ad may be before it sells one. The standards and the figures
+            // are generated (LegalDocument::advertisingHtml(), from AdRules) so the policy
+            // cannot describe a different rule from the one the builder and the reviewer use.
+            'advertising' => ['title' => 'Advertising Policy', 'sort' => 6, 'body' => self::advertising()],
         ];
+    }
+
+    /**
+     * The advertising policy. Plain sentences; what an ad may not be, and every number, is
+     * generated beneath it from AdRules (LegalDocument::advertisingHtml()).
+     *
+     * The law it names is what research found on 28 Oct 2026: ARCON Act 2022 (pre-exposure
+     * vetting of adverts, online included) and the FCCPA 2018 (no misleading marketing).
+     */
+    private static function advertising(): string
+    {
+        return <<<'HTML'
+<p>Ads help pay for Africa GATES. This policy says who may advertise, what an ad may be, and
+   how ads are checked, shown and paid for. Ads are in beta, so some of this will change; the
+   date at the top says when it last did.</p>
+
+<h2>Who may advertise</h2>
+<p>Anyone with an Africa GATES account, for a real business, product, service or event that
+   is theirs or that they are allowed to promote. The business name you give is shown on
+   every ad, so it must be the real one.</p>
+
+<h2>Nominees</h2>
+<p>Nominees are never promoted on this site, free or paid. A nominee may still advertise
+   what they do, under four rules:</p>
+<ul>
+  <li>The ad is about their business, never their nomination, their award or a vote.</li>
+  <li>Any offer is open to everyone and never depends on voting.</li>
+  <li>While their own award is open for voting, their ads do not appear on the vote page.</li>
+  <li>They pay the same prices as everyone else.</li>
+</ul>
+
+<h2>The law</h2>
+<p><strong>ARCON approval.</strong> In Nigeria, an advert must be approved by the Advertising
+   Regulatory Council of Nigeria (ARCON) before it is published, online as well as offline
+   (ARCON Act 2022). Getting that approval is the advertiser's responsibility. Add your
+   approval number when you create an ad. We may refuse or remove an ad that needs approval
+   and does not have it.</p>
+<p><strong>Honest claims.</strong> Nigeria's consumer protection law (Federal Competition and
+   Consumer Protection Act 2018) forbids misleading claims about a product, its price or what
+   it does. Your ad must be true, and the page it links to must match it.</p>
+<p><strong>Elsewhere.</strong> If your ad reaches people in another country, that country's
+   rules apply too.</p>
+
+<h2>Review</h2>
+<p>A person checks every ad before it runs, and again whenever it is changed. If we refuse
+   an ad we say why, and you can fix it and send it again. Approval does not mean an ad is
+   lawful: that stays the advertiser's responsibility.</p>
+
+<h2>How ads are shown</h2>
+<ul>
+  <li>Every ad is labelled Sponsored and names who paid for it.</li>
+  <li>Ads never appear beside a ballot, a nominee or a result.</li>
+  <li>Ads are chosen by the page, never by what a visitor did here. During the beta there is
+      no targeting by location either.</li>
+  <li>A view is counted only when at least half the ad has been on screen for one second,
+      and each showing can be counted once. Bots are not counted.</li>
+  <li>Every running ad is listed in the public ad library, with who placed it and since
+      when.</li>
+</ul>
+
+<h2>Prices and refunds</h2>
+<ul>
+  <li>Prices are published on the Advertise page, per 1,000 views, and are the same for
+      everyone.</li>
+  <li>A campaign is paid for in full before it runs. We hold no balance and no credit for
+      you.</li>
+  <li>You pay only for views delivered. Money a campaign does not spend goes back to the card
+      or account it came from, including when we remove an ad that breaks this policy.</li>
+</ul>
+
+<h2>Reports and removal</h2>
+<p>Anyone can report an ad from its menu. A person reads every report; a report alone never
+   takes an ad down. We may remove an ad at any time if it breaks this policy, and stop an
+   account from advertising if it does so again.</p>
+
+<h2>Your information</h2>
+<p>We keep what you give us to run your ads: your account, your business name, your ad and
+   its images, and its daily views and clicks. Ads use nothing about the people who see
+   them: no profile and no tracking across sites. The Cookies policy says what the site
+   itself stores.</p>
+HTML;
     }
 
     /**
@@ -239,9 +327,11 @@ HTML;
      *
      * So the facts are no longer written here. They are generated on every render from
      * {@see \AfricaGates\Support\CookieRegistry} and {@see \AfricaGates\Services\CookiePrefs}
-     * by {@see \AfricaGates\Services\LegalDocument::cookiesHtml()} — the list of cookies,
-     * the browser storage, what the counting records, how long it is kept, and whether an
-     * operator has switched it off. `CookieRegistryTest` fails if a cookie is set anywhere
+     * by {@see \AfricaGates\Services\LegalDocument::cookiesHtml()} — the four consent
+     * choices and what each covers, the list of cookies, the browser storage, what the
+     * counting records, how long it is kept, and whether an operator has switched it off.
+     * (Rewritten on 3 Oct 2026 for the four-category model; `2027_02_27_cookie_consent_policy_repair.php`
+     * carries it to a deployment whose copy nobody has edited.) `CookieRegistryTest` fails if a cookie is set anywhere
      * in the shipped code without a registry entry, and `LegalCookieProseTest` fails if
      * what is left below starts contradicting the registry again.
      *
@@ -257,16 +347,19 @@ HTML;
    cannot quietly go out of date.</p>
 <p>There is <strong>no Google Analytics here, no advertising pixel and no third-party tag of
    any kind</strong>. Nothing on this site reports your visit to another company.</p>
-<p>We do count arrivals ourselves, so that somebody who shares a link can find out whether it
-   worked. That is described below, and <strong>you can switch it off</strong> with the
-   control at the top of this page. It takes one click and we do not ask you why.</p>
+<p>Beyond what is essential, <strong>you choose</strong>: whether we may remember your
+   language and display settings on this device between visits, and whether we may count
+   your visits ourselves so that whoever shared a link can see whether it worked. Each choice
+   is described below with exactly what it covers, and you can allow or refuse each one with
+   the choices at the top of this page or in the cookie notice. It takes one click and we do
+   not ask you why.</p>
 
 <h2>Turning cookies off</h2>
 <p>Every browser lets you block or delete cookies. If you block ours you can still read the
    site, but you will not be able to sign in, vote, or complete a payment &mdash; the session
    cookie is what tells us one page of your visit is connected to the next.</p>
-<p>Blocking cookies is not the same as switching off the counting, and neither one needs the
-   other. The counting can be refused on its own with the control at the top of this page.</p>
+<p>Blocking cookies in your browser is not the same as the choices on this page, and neither
+   one needs the other. Refusing a choice here is enough on its own.</p>
 
 <h2>Payments</h2>
 <p>When you pay, you are handed to a payment provider on their own page. What they set while
@@ -392,8 +485,8 @@ HTML;
 </ul>
 <p>Unverified profiles score nothing. No votes or impact points attach to a profile until it has cleared review, so a fabricated entry cannot accumulate a standing while it waits.</p>
 
-<h2>Voting &mdash; free</h2>
-<p>Free voting is open to the public and is the vote that determines a nominee&rsquo;s community score.</p>
+<h2>Voting &mdash; the free vote</h2>
+<p>An award may offer a free vote, open to the public, alongside contributions &mdash; or it may run on contributions alone, in which case there is no free vote and the rules in this section do not apply to it. Each award&rsquo;s own page says which. A free vote and a contributed vote count towards the community part of the score in the same way; the larger share of that part counts separate verified people, so each person counts once however they took part.</p>
 <ul>
 <li>Every vote requires a <strong>one-time code</strong> sent to a working email address. An unconfirmed code is not a vote.</li>
 <li><strong>One identity, one vote, per category.</strong> You may vote in as many categories as you wish, but only once in each.</li>
@@ -411,34 +504,35 @@ HTML;
 <p><strong>It does:</strong></p>
 <ul>
 <li>Add to the nominee&rsquo;s public tally, shown on their page and on the leaderboard.</li>
+<li><strong>Count in the community part of the score.</strong> Contributed votes add to the nominee&rsquo;s total tally, and the total tally is one of the two things the community part measures.</li>
 <li>Place the supporter&rsquo;s name on the nominee&rsquo;s supporters list, if the supporter chose to be named.</li>
 <li>Set aside a share for the nominee once they qualify.</li>
 <li>Fund the programme.</li>
 </ul>
 <p><strong>It does not:</strong></p>
 <ul>
-<li><strong>Move the Cultural Power Index.</strong> The community component of the score is computed over organic, code-verified votes only. Purchased votes are held in a separate column the scorer does not read.</li>
-<li><strong>Break a tie.</strong> Where two nominees finish level, the tiebreak is organic votes. One verified supporter outranks any number of purchased votes.</li>
-<li><strong>Run without a ceiling.</strong> Purchased votes on a nominee are capped as a proportion of the organic support that nominee has earned, so money can amplify a real following and cannot manufacture one.</li>
-<li><strong>Buy consideration from a judge</strong>, who cannot see it.</li>
+<li><strong>Buy more than one person&rsquo;s worth of support.</strong> The larger share of the community part counts separate people, not votes. A supporter counts once however much they spend, and splitting one payment into many orders counts as one person.</li>
+<li><strong>Reach the judges&rsquo; part of the score.</strong> Judges score on equally-weighted criteria and cannot see the vote tally while they score.</li>
+<li><strong>Make a nominee eligible to win.</strong> A nominee needs a minimum number of complete judge scorecards; no amount of votes replaces them.</li>
 </ul>
-<p>Money can make a nominee look more popular. It cannot make them win. The current weightings, the ceiling and the judging quorum are published at <a href="/integrity">/integrity</a>, read live from the scoring configuration rather than restated here, so that page is always the authoritative figure.</p>
+<p>Money can make a nominee look more popular and can move the community part of their score. It cannot buy the judges&rsquo; part, and it cannot make somebody eligible to win. The current weightings and the judging quorum are published at <a href="/integrity">/integrity</a>, read live from the scoring configuration rather than restated here, so that page is always the authoritative figure.</p>
 
 <h2>The community return</h2>
-<p>Where a nominee&rsquo;s supporters raise contributions in their name, a share is set aside for the nominee &mdash; win or lose, because they raised it either way.</p>
+<p>Where a nominee&rsquo;s supporters raise contributions in their name, a share of that money can come back to nominees, under the rule each edition publishes at <a href="/integrity">/integrity</a> before it opens. Under the house rule the share is set aside for the nominee &mdash; win or lose, because they raised it either way. Under a <strong>target pool</strong>, every nominee has the same vote target; when voting closes, those who reached it share the edition&rsquo;s pool by their votes, and a nominee below the target receives nothing.</p>
 <ul>
-<li>A nominee begins earning only after reaching a <strong>qualifying-support threshold</strong>, counted in votes.</li>
+<li>Under the house rule, a nominee begins earning only after reaching a <strong>qualifying-support threshold</strong>, counted in votes.</li>
 <li><strong>No single supporter can carry the threshold.</strong> One supporter&rsquo;s contribution counts only up to a capped proportion of it, so qualifying requires support from several different verified people however much any one person spends.</li>
 <li>Crossing the threshold does not reach backwards. Earlier contributions stay unshared.</li>
 <li>The share is held as an <strong>append-only ledger</strong>. If a contribution is refunded or charged back, the share accrued on it is reversed and the reversal stays on the record beside the original.</li>
-<li>Nothing is payable until the cycle has ended and its results have been announced. A nominee cannot cash out mid-race.</li>
+<li>Nothing is payable before the edition&rsquo;s rule allows it: under the house rule, until the cycle has ended and its results have been announced; under a target pool, until the pool is settled after voting closes. A nominee cannot cash out mid-race.</li>
+<li>A nominee may withdraw an available return to a bank account in their own name, for the published service fee, or spend it on votes for any nominee. <strong>Votes paid from a return earn no return and do not count towards qualifying for one</strong>; otherwise they count exactly like any bought vote.</li>
 </ul>
 <p>The current share, threshold and per-supporter cap are published at <a href="/integrity">/integrity</a>. Eligibility requirements and payment arrangements are communicated to qualifying nominees directly.</p>
 
 <h2>How winners are decided</h2>
 <p>The Cultural Power Index combines verified community votes with an independent judging panel. Neither alone decides a winner.</p>
 <ul>
-<li>The community component is <strong>normalised within each category</strong>, against that category&rsquo;s strongest vote count, so a nominee in a small field is not penalised for being in one.</li>
+<li>The community component is measured against the <strong>strongest vote total anywhere in the edition</strong>, so a share means the same thing in every category. A programme that runs a different rule says so at <a href="/integrity">/integrity</a>.</li>
 <li>Judges score each shortlisted nominee on equally-weighted criteria and <strong>cannot see the vote tally</strong> while scoring.</li>
 <li>A nominee must have a minimum number of <strong>complete</strong> judge scorecards to be eligible to win. A partial scorecard counts as nothing. Where no nominee in a category reaches the quorum, the award is not given.</li>
 <li>Judges recuse themselves from nominees they are connected to, and their own votes in a category they judge are excluded.</li>
@@ -452,7 +546,7 @@ HTML;
 <ul>
 <li>All payments are verified <strong>server-side with the gateway</strong> before any vote is recorded. We do not take a browser&rsquo;s word for it.</li>
 <li><strong>If the ballot was open when you paid, the votes are yours</strong> even if the confirmation reached us late. We use the time you started the payment, not the moment our system noticed it.</li>
-<li>Card contribution closes a short time before free voting does, so payments already in flight have time to land before the ballot shuts.</li>
+<li>Card contribution closes a short time before voting ends, so payments already in flight have time to land before the ballot shuts.</li>
 <li><strong>Where votes genuinely cannot be delivered</strong> &mdash; the nominee left the ballot, or a payment confirmed long after voting closed &mdash; the order is refunded. We do not keep money for votes we did not deliver.</li>
 <li>Every order carries a reference beginning <code>AFG-</code>. Give it to the <a href="/support/assistant">support assistant</a> and it re-checks the payment with the gateway directly, adding the votes on the spot if the money arrived.</li>
 <li>Contributions are otherwise non-refundable once the corresponding votes have been delivered, because the recognition process they funded has taken place.</li>
@@ -475,8 +569,8 @@ HTML;
 <p>Africa GATES is <strong>not</strong> a Ponzi scheme, pyramid scheme, multi-level marketing programme, investment scheme, get-rich-quick scheme or fraudulent fundraising operation.</p>
 <ul>
 <li>No participant is promised a financial return for recruiting other participants.</li>
-<li>No participant earns anything by introducing another person into the programme.</li>
-<li>There is no chain, no downline, no tier to climb and no referral commission.</li>
+<li>No participant earns anything for bringing another person into the programme: nobody is paid because somebody else registered, was nominated or voted.</li>
+<li>There is no chain, no downline and no tier to climb. The one referral reward is a published retail commission on event tickets and shop orders bought through a member&rsquo;s own link, paid on what those buyers actually paid and reversed if they are refunded. It is never paid for recruitment, and never on votes.</li>
 <li>Any community-return arrangement is a programme-based allocation subject to stated eligibility requirements. It is <strong>not</strong> an investment return, interest, profit share, or a promise of financial appreciation, and it is not payable simply because money was spent.</li>
 </ul>
 <p>If anyone tells you otherwise &mdash; particularly if they ask you to pay them directly, or promise you earnings for signing others up &mdash; they are not acting for Africa GATES. Report it.</p>

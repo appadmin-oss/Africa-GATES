@@ -63,6 +63,9 @@ final class JudgeEvidenceFileTest extends TestCase
                 'id' => $p, 'name' => 'J' . $p, 'email' => 'j' . $p . '@x.io',
                 'is_active' => 1, 'programme_ids' => json_encode([$p]),
             ]);
+            // The panel judges the published shortlist, and evidenceFor() now asks
+            // mayJudgeNominee() — the gate that knows it — instead of its own copy.
+            $this->publishShortlist($p, $p, [$p]);
         }
     }
 

@@ -4,7 +4,7 @@ use AfricaGates\Support\Env;
 use AfricaGates\Services\SystemStatus;
 use Slim\App;
 use Slim\Routing\RouteCollectorProxy;
-use AfricaGates\Controllers\{HomeController,ApiController,RegistryController,AwardsController,LeaderboardController,LegacyController,OpportunityController,NominationController,PartnerController,VoteController,CommunityController,EventsController,BlogController,PaymentController,ShopController,ShopCheckoutController,GuideController,DonationController,PaidVoteController,PulseController,JudgesController,AccountController,GatedFormController,FormController,ActivityController,FlierController,SupportController,HelpController,ClaimController,VoteMessageController,CountdownController,EmailPrefsController,HonourController,ResultsController};
+use AfricaGates\Controllers\{HomeController,ApiController,RegistryController,AwardsController,LeaderboardController,LegacyController,OpportunityController,NominationController,PartnerController,VoteController,CommunityController,EventsController,BlogController,PaymentController,ShopController,ShopCheckoutController,GuideController,DonationController,PaidVoteController,PulseController,JudgesController,AccountController,GatedFormController,FormController,FlierController,SupportController,HelpController,ClaimController,VoteMessageController,CountdownController,EmailPrefsController,HonourController,ResultsController};
 use AfricaGates\Judge\Controllers\{
     AuthController as JudgeAuthController,
     BallotController as JudgeBallotController
@@ -19,6 +19,7 @@ use AfricaGates\Admin\Controllers\{
     ModerationController as AdminModerationController,
     ProgrammesController as AdminProgrammesController,
     ShortlistsController as AdminShortlistsController,
+    ChallengesController as AdminChallengesController,
     NomineesController as AdminNomineesController,
     LegacyController as AdminLegacyController,
     OpportunitiesController as AdminOpportunitiesController,
@@ -241,13 +242,13 @@ return function(App $app) {
         // to ten on screen.
         if (($q['csv'] ?? '') === '1') {
             $fh = fopen('php://temp', 'r+');
-            fputcsv($fh, ['kind', 'nominee_id', 'name', 'category', 'cycle_id', 'detail']);
+            \AfricaGates\Support\Csv::put($fh, ['kind', 'nominee_id', 'name', 'category', 'cycle_id', 'detail']);
             foreach ($plan['unreachable'] as [$nom, $cyc]) {
-                fputcsv($fh, ['no-email', $nom->id, $nom->name, $nom->category_title ?? '', $cyc->id,
+                \AfricaGates\Support\Csv::put($fh, ['no-email', $nom->id, $nom->name, $nom->category_title ?? '', $cyc->id,
                               'no address on file — check gates_nominations.nominee_phone']);
             }
             foreach ($plan['ambiguous'] as [$nom, $addrs]) {
-                fputcsv($fh, ['ambiguous', $nom->id, $nom->name, $nom->category_title ?? '', '',
+                \AfricaGates\Support\Csv::put($fh, ['ambiguous', $nom->id, $nom->name, $nom->category_title ?? '', '',
                               'two approved nominations share this name: ' . implode(' | ', $addrs)]);
             }
             rewind($fh);
@@ -396,31 +397,24 @@ return function(App $app) {
         // Grouping by feature is what stops that happening again. Adding a release
         // now means adding a heading, and a heading with nothing under it is
         // obvious in a way that a missing row in a flat list of twelve is not.
+        // Rows that checked a public page template were removed on 3 Oct 2026 when the
+        // old pages were destroyed (docs/handoff/DESTROYED.md): a page deliberately gone
+        // is not an upload that failed, and a ✗ here would send an operator hunting for
+        // it. Each rebuilt page adds its row back.
         $groups = [
             'Comments on a vote, and sharing' => [
-                ['The message box on the paid form', 'templates/pages/vote-nominee.twig', 'id="pvMsg"'],
-                ['The message box on the free form', 'templates/pages/vote-nominee.twig', 'id="vnMsg"'],
                 ['One message, rendered',            'templates/partials/vote-message.twig', 'vmi__act'],
-                ['Cheer / Report behaviour',         'templates/partials/vote-message-assets.twig', 'vmItem'],
-                ['A nominee\'s full wall',           'templates/pages/vote-messages.twig', 'vmi-list'],
-                ['A message\'s own page',            'templates/pages/vote-message.twig', 'vm__quote'],
-                ['The share row',                    'templates/partials/share.twig', 'ag-share--grid'],
                 ['Message routes + card',            'src/Controllers/VoteMessageController.php', 'messageCard'],
                 ['The message card renderer',        'src/Services/FlierService.php', 'messageCard'],
                 ['Moderation queue rows',            'templates/admin/moderation/index.twig', 'vote_message'],
-                ['Quantity chips (deformity fix)',   'templates/pages/vote-nominee.twig', 'vn-qty'],
-                ['Poll options (deformity fix)',     'templates/partials/poll.twig', 'ag-poll__opt'],
             ],
             'The full nomination story, and every supporter' => [
-                ['The story and its “read the full nomination”', 'templates/pages/vote-nominee.twig', 'vn-story'],
-                ['The all-supporters page',                      'templates/pages/vote-supporters.twig', 'vsu__grid'],
                 ['Sentence-aware short lines',                   'src/Support/Text.php', 'firstSentence'],
             ],
             'Profile claiming: the cooling-off period and the freeze link' => [
                 ['The cooling-off rule, with code behind it', 'src/Services/ClaimGuard.php', 'payoutState'],
                 ['The one-tap freeze',                       'src/Services/ClaimDispute.php', 'function freeze'],
                 ['Risk signals that hold rather than refuse', 'src/Services/ClaimRisk.php', 'SHARED_CONTACT_NOMINEES'],
-                ['The confirm-then-freeze page',             'templates/pages/claim-dispute.twig', 'class="cdp"'],
             ],
             'Finding a payment by the number the supporter has' => [
                 ['Reference resolution',            'src/Services/PaymentLookup.php', 'function canonical'],
@@ -432,8 +426,6 @@ return function(App $app) {
                 ['The schedule takes itself over', 'src/Support/Maintenance.php', 'shouldAdopt'],
             ],
             'The Help Centre, and one door for nominations' => [
-                ['A page per topic',            'templates/pages/help-category.twig', 'hcc-list'],
-                ['Packed, capped topic cards',  'templates/pages/help.twig', 'hc-cats'],
                 ['Both nomination doors agree', 'src/Services/NominationAftercare.php', 'function run'],
             ],
             'A chargeback can be answered before the 16 hours run out' => [
@@ -446,17 +438,14 @@ return function(App $app) {
                 ['The sitting, from invite to transcript', 'src/Services/InterviewService.php', 'function publish'],
                 ['Questions built from the dossier',       'src/Services/InterviewBrief.php', 'function fromRules'],
                 ['The transcript read by criterion',       'src/Services/InterviewReview.php', 'function figureCheck'],
-                ['The nominee\'s own consent page',        'templates/pages/interview.twig', 'ivp__consent'],
                 ['The live panel console',                 'templates/admin/interviews/run.twig', 'rn-cov'],
                 ['The Meet + transcript door',             'src/Services/GoogleMeetService.php', 'function createSpace'],
                 ['Apps Script: calendar + transcript',     'config/AfricaGATES_AppScript.gs', 'function meetCreate'],
             ],
             'The nominee\'s own case, in their own words' => [
                 ['The questionnaire, per programme', 'src/Services/QuestionnaireService.php', 'function publishEvidence'],
-                ['The nominee\'s page',              'templates/pages/my-work.twig', 'mw__work'],
                 ['Sending it out',                   'src/Admin/Controllers/QuestionnairesController.php', 'function inviteAll'],
                 ['Answering it as a conversation',    'src/Services/QuestionnaireChat.php', 'function probeFor'],
-                ['Chat, form and live progress',     'templates/pages/my-work.twig', 'mw__prog'],
                 ['Questions read aloud (ElevenLabs)', 'src/Services/VoiceService.php', 'function speak'],
                 ['Answering by talking',              'src/Services/QuestionnaireVoice.php', 'function hear'],
                 ['What the voice notice says',        'src/Services/LegalDocument.php', 'function voiceHtml'],
@@ -472,7 +461,8 @@ return function(App $app) {
                 ['What needs a person today',   'src/Admin/Services/AttentionBoard.php', 'function probes'],
                 ['A zero is never a card',      'src/Admin/Services/AttentionBoard.php', 'function items'],
                 ['No door a role cannot open',  'src/Admin/Services/AttentionBoard.php', 'function forRole'],
-                ['The board on the page',       'templates/admin/dashboard.twig', 'db-board'],
+                ['The board on the page',       'templates/admin/dashboard.twig', 'cn-board'],
+                ['Home, from real figures',     'src/Admin/Services/HomeBoard.php', 'function board'],
                 ['A questionnaire to rehearse', 'src/Services/QuestionnaireService.php', 'function openTest'],
             ],
             // ── THE RELEASE THAT PROVED WHY THIS PAGE EXISTS ─────────────────
@@ -1576,6 +1566,16 @@ return function(App $app) {
             // lines alone, because a stack trace contains blank lines of its own.
             $parts = preg_split('/\n(?=\[\d{4}-\d{2}-\d{2}T)/', trim($raw)) ?: [];
             $parts = array_values(array_filter(array_map('trim', $parts)));
+            // `&ref=EC4Y-Y8Y7` — the reference a person quoted from the error page, which
+            // is the question this page is opened with nine times in ten.
+            $wantRef = strtoupper(trim((string) ($req->getQueryParams()['ref'] ?? '')));
+            if ($wantRef !== '') {
+                $parts = array_values(array_filter($parts, static fn ($p) => str_contains($p, '[ref ' . $wantRef . ']')));
+                if ($parts === []) {
+                    $h .= '<pre>No entry carries reference <code>' . $e($wantRef) . '</code>. Check it was copied '
+                        . 'exactly (no O, I, L, U, 0 or 1 are ever used), or that the log has not been cleared since.</pre>';
+                }
+            }
             $total = count($parts);
             $show  = array_slice(array_reverse($parts), 0, $want);
 
@@ -1590,7 +1590,7 @@ return function(App $app) {
             }
         }
 
-        $h .= '<p class="n">Add <code>&amp;n=30</code> for more. This page is token-gated and '
+        $h .= '<p class="n">Add <code>&amp;n=30</code> for more, or <code>&amp;ref=XXXX-XXXX</code> for the entry a person quoted. This page is token-gated and '
             . 'noindex. Delete <code>var/logs/error-detail.log</code> to clear it.</p>';
 
         $res->getBody()->write($h);
@@ -1717,24 +1717,51 @@ return function(App $app) {
                     $now = date('Y-m-d H:i:s');
                     $ip  = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
                     $tbl = \Illuminate\Database\Capsule\Manager::table('gates_admins');
+                    // ONE LOGIN (owner, 29 Oct 2026): the console opens from the Africa GATES
+                    // account holding this address, and there is no console sign-in. So the
+                    // recovery also leaves that ACCOUNT able to sign in with this password,
+                    // verified — on a fresh install mail may not work yet, and an emailed code
+                    // would be the only other way in.
+                    $giveAccount = static function (string $email, string $name, string $pass) use ($now): void {
+                        $users = \Illuminate\Database\Capsule\Manager::table('gates_users');
+                        $u = (clone $users)->whereRaw('LOWER(email) = ?', [$email])->first();
+                        $row = ['password_hash' => password_hash($pass, PASSWORD_DEFAULT), 'email_verified' => 1, 'status' => 'active'];
+                        if ($u) (clone $users)->where('id', $u->id)->update($row);
+                        else (clone $users)->insert($row + ['name' => $name, 'email' => $email, 'created_at' => $now]);
+                    };
                     $existing = (clone $tbl)->where('email', $email)->first();
                     if ($existing) {
-                        // RESET is limited to genuine recovery — a locked-out or
-                        // disabled account. An active, unlocked admin must rotate
-                        // from the console (or via the magic-link) so that a leaked
-                        // SETUP_TOKEN can't silently seize a live superadmin.
-                        $locked   = $existing->locked_until !== null && strtotime((string) $existing->locked_until) > time();
-                        $disabled = (int) ($existing->is_active ?? 1) === 0;
-                        if (!$locked && !$disabled) {
-                            error_log("[setup] REFUSED password reset for active account {$email} from {$ip}");
-                            $msg = 'This account is active and not locked, so in-place reset here is disabled. '
-                                 . 'Use the admin magic-link at /admin/magic, or delete SETUP_TOKEN and run `php bin/console admin:create`.';
+                        // RESET is limited to genuine recovery: NO superadmin can sign in
+                        // at all, so nobody inside the console is able to fix it.
+                        //
+                        // It used to be "this account is locked or disabled", and both
+                        // halves of that were the attack rather than the recovery. A lock
+                        // is something anybody can CAUSE — five wrong passwords at
+                        // /admin/login — so a holder of a leaked SETUP_TOKEN locked a live
+                        // superadmin on purpose and then reset it to a password of their
+                        // choosing. And `is_active = 0` is how an admin is deliberately
+                        // switched off; flipping it back to 1 here quietly re-armed
+                        // somebody a colleague had removed. A lock also expires on its own
+                        // — waiting is the recovery for it, and needs no token.
+                        $activeSupers = (int) (clone $tbl)->where('role', 'superadmin')->where('is_active', 1)->count();
+                        if ($activeSupers > 0) {
+                            error_log("[setup] REFUSED password reset for {$email} from {$ip} — {$activeSupers} active superadmin(s) exist");
+                            $msg = 'A superadmin account is active, so reset here is disabled. Sign in at /account/login '
+                                 . 'with that superadmin’s email (a code is emailed to it), ask a superadmin to '
+                                 . 'act from the console (Admins), or delete SETUP_TOKEN and run `php bin/console admin:create`.';
+                        } elseif ((string) ($existing->role ?? '') !== 'superadmin') {
+                            // Recovery means getting a superadmin back. Re-arming some other
+                            // (possibly deliberately disabled) account restores nobody's
+                            // ability to administer anything.
+                            error_log("[setup] REFUSED password reset for non-superadmin {$email} from {$ip}");
+                            $msg = 'Only a superadmin account can be recovered here. Enter the email of a superadmin.';
                         } else {
                             (clone $tbl)->where('id', $existing->id)->update([
                                 'password_hash' => password_hash($pass, PASSWORD_BCRYPT),
                                 'is_active' => 1, 'failed_attempts' => 0, 'locked_until' => null, 'updated_at' => $now,
                             ]);
-                            error_log("[setup] password reset + unlock for {$email} from {$ip}");
+                            $giveAccount($email, (string) ($existing->name ?? $name), $pass);
+                            error_log("[setup] superadmin recovery: password reset + unlock for {$email} from {$ip}");
                             $ok = true; $msg = "Password reset and account unlocked for {$email} (role unchanged).";
                         }
                     } else {
@@ -1745,13 +1772,14 @@ return function(App $app) {
                         if ($adminCount > 0) {
                             error_log("[setup] REFUSED create superadmin {$email} from {$ip} — {$adminCount} admin(s) already exist");
                             $msg = 'An admin account already exists, so first-admin creation here is disabled. '
-                                 . 'Add admins from the console (Admins), recover a locked/disabled account, or use `php bin/console admin:create`.';
+                                 . 'Add admins from the console (Admins), recover a superadmin here when none is active, or use `php bin/console admin:create`.';
                         } else {
                             (clone $tbl)->insert([
                                 'email' => $email, 'name' => $name, 'role' => 'superadmin',
                                 'password_hash' => password_hash($pass, PASSWORD_BCRYPT),
                                 'is_active' => 1, 'failed_attempts' => 0, 'created_at' => $now, 'updated_at' => $now,
                             ]);
+                            $giveAccount($email, $name, $pass);
                             error_log("[setup] created first superadmin {$email} from {$ip}");
                             $ok = true; $msg = "Created superadmin {$email}.";
                         }
@@ -1763,7 +1791,7 @@ return function(App $app) {
         }
         $action = '/__setup/admin?token=' . rawurlencode($tok);
         $banner = $msg !== '' ? '<p class="' . ($ok ? 'ok' : 'err') . '">' . $e($msg) . '</p>' : '';
-        $next   = $ok ? '<p class="ok">Now sign in at <a href="/admin/login">/admin/login</a> — then DELETE the SETUP_TOKEN line from your .env.</p>' : '';
+        $next   = $ok ? '<p class="ok">Now sign in at <a href="/account/login?with=password&amp;next=%2Fadmin">/account/login</a> with this email and password — the console opens from your account. Then DELETE the SETUP_TOKEN line from your .env.</p>' : '';
         $html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Africa GATES — admin setup</title>'
             . '<style>body{font-family:system-ui,"Segoe UI",Roboto,sans-serif;background:#10292C;margin:0;padding:40px 16px}'
             . '.card{max-width:440px;margin:0 auto;background:#fff;border-radius:16px;padding:28px 26px;box-shadow:0 20px 50px -20px rgba(0,0,0,.55)}'
@@ -1792,6 +1820,12 @@ return function(App $app) {
         $g->get('[/]',            HomeController::class.':index');
         $g->get('/awards',        AwardsController::class.':index');
         $g->get('/awards/{p}',    AwardsController::class.':programme');
+        // "Notify me" on a coming-soon award (Phase 5): the form posts here, and the signed
+        // links in the two mails land on one page that shows on GET and acts on POST — mail
+        // scanners fetch every link (AwardAlert, the event alerts' rule).
+        $g->post('/awards/{p}/notify', AwardsController::class.':notify');
+        $g->map(['GET', 'POST'], '/awards/alerts/{token:[a-f0-9]{32}}/{action:confirm|stop}',
+                AwardsController::class.':alertPage');
         $g->get('/leaderboard',   LeaderboardController::class.':index');
         // ── THE PUBLIC RECORD OF AN AWARD ────────────────────────────────────
         //
@@ -1819,8 +1853,36 @@ return function(App $app) {
         $g->get('/results/{edition:[a-z][a-z0-9-]*}', ResultsController::class.':edition');
         $g->get('/judges',        JudgesController::class.':index');
         $g->get('/judges/{slug}', JudgesController::class.':show');
+        // A 301 to Discover's People tab since Phase 6 (Discover is the directory —
+        // owner-delegated, 5 Oct 2026); a URL naming ONE profile goes to that profile.
         $g->get('/registry',      RegistryController::class.':index');
+        // ── DISCOVER (Phase 4, design/DiscoverPage.dc.html) ──────────────────
+        //
+        // Was a 302 to /registry while no page existed — 302 deliberately, because a 301
+        // says the address is never the page and it was about to be (PublicIaTest reads
+        // exactly that distinction). The page is here now. `/discover/count` is the
+        // filter panel's live "Show N results"; it is a literal with no placeholder
+        // anywhere above it, so nothing can shadow it (RouteTableIntegrityTest).
+        $g->get('/discover',       \AfricaGates\Controllers\DiscoverController::class.':index');
+        // Advertising: the rate card, the trial and the rules, public before anybody signs
+        // up (Services\Ads). The two endpoints an ad reports through: a view (ads.js, POST,
+        // the single-use token is the credential and the CSRF header rides along) and a
+        // click, counted once and sent on to the advertiser.
+        $g->get('/advertise',      \AfricaGates\Controllers\AdsController::class.':advertise');
+        $g->get('/advertise/library', \AfricaGates\Controllers\AdsController::class.':library');
+        $g->post('/ads/seen',      \AfricaGates\Controllers\AdsController::class.':seen');
+        $g->post('/ads/hide',      \AfricaGates\Controllers\AdsController::class.':hide');
+        $g->post('/ads/report',    \AfricaGates\Controllers\AdsController::class.':report');
+        $g->get('/ads/go/{token:[0-9]+\.[a-z_]+\.[0-9]{8}\.[a-f0-9]{12}\.[a-f0-9]{32}}', \AfricaGates\Controllers\AdsController::class.':go');
+        $g->get('/discover/count', \AfricaGates\Controllers\DiscoverController::class.':count');
         $g->get('/registry/{slug}',RegistryController::class.':profile');
+        // The profile's two writes (Phase 6): the owner's About, and a member's Follow.
+        // Plain forms that post and redirect back — both work without script. Owner checks
+        // are ProfilePage::owns(), the one answer the page itself uses.
+        $g->post('/registry/{slug}/edit',   RegistryController::class.':edit');
+        $g->post('/registry/{slug}/follow', RegistryController::class.':follow');
+        // The public withdrawal log (REFERENCE §11): every recognition withdrawn, and why.
+        $g->get('/recognitions/withdrawn', \AfricaGates\Controllers\RecognitionsController::class.':withdrawn');
         // ── NEAR-MISS URLS ───────────────────────────────────────────────────
         //
         // People type the word they have in mind, not the segment we chose. They type the
@@ -1861,7 +1923,7 @@ return function(App $app) {
             '/partners'        => '/partner',
             '/shops'           => '/shop',
             '/leaderboards'    => '/leaderboard',
-            '/registries'      => '/registry',
+            '/registries'      => '/discover?tab=people',
             // Straight to the canonical path, not to /donate — which is itself a 301
             // now, and a redirect chain costs a round trip and loses ranking signal.
             // Spelled literally, unlike everywhere else, because this table is a flat
@@ -1873,17 +1935,10 @@ return function(App $app) {
             '/give'            => '/giving',
             '/votes'           => '/vote',
             '/cookie'          => '/cookies',
-            // ── WHAT PEOPLE TYPE WHEN THEY WANT TO FIND SOMEBODY ─────────
-            //
-            // The site search is `/activity`, which is accurate about what it reads and
-            // useless as a guess: nobody looking for a principal types "activity". These
-            // are the words they do type. The alias preserves the query string, so
-            // `/search?q=ada` lands on the results rather than on an empty box.
-            //
-            // NOT a second search page. See partials/find-band.twig — one endpoint, one
-            // index, one set of promises about what is covered.
-            '/search'          => '/activity',
-            '/find'            => '/activity',
+            // `/search` and `/find` were aliases to the HTML `/activity` page here. Both
+            // were retired on 3 Oct 2026 (owner, GAPS C16): `/search` is the search
+            // palette's JSON endpoint now (SearchController, below), and `/activity` is a
+            // page the redesign retires into Discover — an alias to it would chain.
             // the thing they want, not the section it lives in
             '/ticket'          => '/events',
             '/tickets'         => '/events',
@@ -1901,8 +1956,8 @@ return function(App $app) {
             '/rankings'        => '/leaderboard',
             '/nominee'         => '/leaderboard',
             '/nominees'        => '/leaderboard',
-            '/profile'         => '/registry',
-            '/profiles'        => '/registry',
+            '/profile'         => '/discover?tab=people',
+            '/profiles'        => '/discover?tab=people',
             '/store'           => '/shop',
             '/merch'           => '/shop',
             '/sponsor'         => '/partner',
@@ -1943,7 +1998,9 @@ return function(App $app) {
         foreach ($aliases as $from => $to) {
             $g->get($from, function ($req, $res) use ($to) {
                 $qs = $req->getUri()->getQuery();
-                return $res->withHeader('Location', $to . ($qs !== '' ? '?' . $qs : ''))
+                // A target may carry its own query (`/discover?tab=people`), so the
+                // visitor's is appended with `&` there rather than a second `?`.
+                return $res->withHeader('Location', $to . ($qs !== '' ? (str_contains($to, '?') ? '&' : '?') . $qs : ''))
                            ->withStatus(301);
             });
         }
@@ -1966,8 +2023,15 @@ return function(App $app) {
         // the authentication, which is why it is not optional.
         $g->post('/hooks/sms-inbound', \AfricaGates\Controllers\SmsInboundController::class.':receive');
 
+        // What the mail provider learned after a message left: hard bounces, spam
+        // complaints, unsubscribes from its own footer. The token in the path is the
+        // credential — see MailEvents for why, and MailEventsController for the answer
+        // a wrong one gets.
+        $g->post('/hooks/mail-events/{token:[a-f0-9]{32}}', \AfricaGates\Controllers\MailEventsController::class.':receive');
+
         $g->get('/opportunities',  OpportunityController::class.':index');
         $g->get('/events',         EventsController::class.':index');
+        $g->get('/events.ics',     EventsController::class.':feedCalendar');
         // ── PAID TICKETS ─────────────────────────────────────────────────────
         //
         // BEFORE `/events/{slug}`, and that ordering is load-bearing: Slim matches in
@@ -1992,6 +2056,7 @@ return function(App $app) {
         // TicketPdf — "Fit to page" silently rescales the QR below what a scanner resolves,
         // and nobody finds out until a queue has stopped.
         $g->get('/events/ticket/{ref:[A-Za-z0-9\-]{8,60}}/ticket.pdf', EventsController::class.':ticketPdf');
+        $g->get('/events/ticket/{ref:[A-Za-z0-9\-]{8,60}}/qr.png',     EventsController::class.':ticketQr');
         $g->get('/events/ticket/{ref:[A-Za-z0-9\-]{8,60}}/calendar.ics',
                 EventsController::class.':ticketCalendar');
         $g->get('/events/ticket/{ref:[A-Za-z0-9\-]{8,60}}', EventsController::class.':ticket');
@@ -2018,6 +2083,7 @@ return function(App $app) {
         // enumerable address would let anybody render a stranger's name over this event's
         // branding and post it. See EventFlierToken.
         $g->get('/events/{slug}/flier.png', EventsController::class.':flier');
+        $g->get('/events/{slug}/video', \AfricaGates\Controllers\ShareVideoController::class.':event');
         // The generator. A POST that returns the PNG in the same request the photo arrives
         // in, so the upload is never written to this disk — see flierMake().
         //
@@ -2046,6 +2112,13 @@ return function(App $app) {
         // The call page is public and stays reachable after the deadline: a vendor who
         // arrives a week late is owed "this closed on the 14th" rather than a 404 that reads
         // as though the whole thing was imaginary.
+        // "Email me when tickets go on sale" (Phase 7, coming soon): the form posts here, and
+        // the signed links in the two mails land on one page that shows on GET and acts on
+        // POST — mail scanners fetch every link. See EventSaleAlert. Before the bare
+        // /events/{slug} for the reason given above.
+        $g->post('/events/{slug}/notify', EventsController::class.':alertWant');
+        $g->map(['GET', 'POST'], '/events/alerts/{token:[a-f0-9]{32}}/{action:confirm|stop}',
+                EventsController::class.':alertPage');
         $S = \AfricaGates\Controllers\StandApplyController::class;
         $g->get ('/events/{slug}/stands',       $S.':call');
         $g->get ('/events/{slug}/stands/apply', $S.':form');
@@ -2104,15 +2177,70 @@ return function(App $app) {
         // Members post to the feed. Goes through CommunityService::postThread, so it
         // inherits the spam filter, the moderation verdict and the moderation queue.
         $g->post('/pulse',         PulseController::class.':post');
-        // Activity — one searchable timeline. TWO routes on purpose: /activity is a
-        // real GET form rendered server-side so the search works with no JavaScript,
-        // and /activity/search is the JSON the live combobox layers on top. Same
-        // service behind both, so they cannot disagree about what happened.
-        $g->get('/activity',       ActivityController::class.':index');
-        $g->get('/activity/search',ActivityController::class.':search');
+        // ── /activity IS RETIRED INTO DISCOVER'S LIVE TAB (Phase 4, §8.23) ──────
+        //
+        // 301, because this address will never be the page again (PublicIaTest's
+        // distinction), and it keeps exactly the two keys the timeline reads — `q` and
+        // `literal` — so a search somebody bookmarked or was sent lands on the same
+        // search. Nothing else in a stranger's query string is carried. Its controller
+        // and template were destroyed; the index behind it (ActivityFeedService) is the
+        // one Discover reads. One route, never a twin beside a live handler.
+        $g->get('/activity', function ($req, $res) {
+            $keep = ['tab' => 'live'];
+            foreach (['q', 'literal'] as $k) {
+                $v = $req->getQueryParams()[$k] ?? null;
+                if (is_string($v)) $keep[$k] = $v;
+            }
+            return $res->withHeader('Location', '/discover?' . http_build_query($keep, '', '&', PHP_QUERY_RFC3986))
+                       ->withStatus(301);
+        });
+        // ── THE SEARCH PALETTE'S DATA (REFERENCE §7.1) ───────────────────────
+        // `GET /search.json?q=&scope=` is the endpoint (owner, AUDIT 5 Oct 2026, Q13 —
+        // superseding the 3 Oct choice of `/search` itself). Same index behind it
+        // (ActivityFeedService); the scope map stays on the server, grouped there, so the
+        // script never names a source. `/search` is a PAGE address — somebody types it, or
+        // a browser's site search sends them there — so it 301s to Discover with only the
+        // query kept, as `/activity` does.
+        $g->get('/search.json',    \AfricaGates\Controllers\SearchController::class.':search');
+        // ── THE PAGE'S CURRENT TOKEN (csrf-fresh.js) ─────────────────────────
+        // A page left open keeps the token it was drawn with; this hands it the session's
+        // current one so a form posts with what the server will accept. Same-origin only
+        // by the browser's own rule (no CORS here), `no-store`, and it reveals nothing a
+        // page of this site did not already print. Reading it also touches the session,
+        // which is what keeps an open page's session from being collected under it.
+        $g->get('/session/token.json', function ($req, $res) {
+            $res->getBody()->write(json_encode(['token' => (string) ($_SESSION['csrf_token'] ?? '')]));
+            return $res->withHeader('Content-Type', 'application/json')
+                       ->withHeader('Cache-Control', 'no-store')
+                       ->withHeader('X-Robots-Tag', 'noindex');
+        });
+        $g->get('/search', function ($req, $res) {
+            $q = $req->getQueryParams()['q'] ?? null;
+            return $res->withHeader('Location', '/discover' . (is_string($q) && trim($q) !== '' ? '?' . http_build_query(['q' => $q], '', '&', PHP_QUERY_RFC3986) : ''))
+                       ->withStatus(301);
+        });
         $g->get('/nominate',      NominationController::class.':form');
         $g->post('/nominate',     NominationController::class.':submit');
-        $g->get('/nominate/success',function($req,$res) use ($tv){ $d=$_SESSION['nom_done']??null; unset($_SESSION['nom_done']); return $tv($req)->render($res,'pages/nominate-success.twig',['page_title'=>'Nomination Submitted — Africa GATES','meta_description'=>'Your nomination is in. Thank you for championing African excellence — our team will review it for the Africa GATES awards cycle. Nominate someone else too.','gates_page'=>'nominate','ref'=>$d['ref']??'','nominee'=>$d['nominee']??'','category'=>$d['cat']??'','share_payload'=>$d['share']??null]); });
+        // The done screen (NominationFlow.dc.html step 6): a controller method now, because it
+        // draws the award's own timeline and mints the share link once on the server.
+        $g->get('/nominate/success', NominationController::class.':success');
+        // The nominator's answer to the review desk's "Ask for more": one link, emailed,
+        // that takes what was asked for and sends the nomination back to the queue.
+        // Two segments, so `/nominate/{slug}` below never matches it.
+        $g->get('/nominate/answer/{token:[a-f0-9]{64}}',  NominationController::class.':answerForm');
+        $g->post('/nominate/answer/{token:[a-f0-9]{64}}', NominationController::class.':answer');
+        // ── ONE AWARD'S OWN NOMINATION PAGE ──────────────────────────────────
+        //
+        // AFTER `/nominate/success`, and the order is the whole of it: a literal
+        // declared after a placeholder that matches it is served by the PLACEHOLDER
+        // and answers 200 with the wrong page — which reads as a bug in the handler
+        // rather than a routing mistake. RouteTableIntegrityTest holds exactly this
+        // shape, so getting it the wrong way round fails the build.
+        //
+        // The slug is constrained, so `/nominate/Success` and `/nominate/../x` never
+        // reach it. A constrained placeholder is not `[^/]+`, and treating it loosely
+        // is what condemned nearly every admin sub-page in an earlier sweep.
+        $g->get('/nominate/{slug:[a-z0-9-]+}', NominationController::class.':award');
         // Paid-voting routes are STATIC and must be registered BEFORE the
         // /vote/{program}/{slug} variable route, or FastRoute treats them as
         // shadowed and aborts routing for the whole app.
@@ -2157,6 +2285,28 @@ return function(App $app) {
          * widens the pattern.
          */
         $g->get('/honour/{reference}/qr.svg', HonourController::class.':qr');
+        // The challenge cover's pattern tile, one per cover tone (DEFAULT-GRAPHICS §7a). Built
+        // from Accent on each request (CoverKind::gamesSvg) so its colour has one source;
+        // cached a day, as it changes only when the palette does.
+        $g->get('/img/patterns/games-{tone:[a-z]+}.svg', function ($req, $res, array $args) {
+            $tone = (string) $args['tone'];
+            if (!in_array($tone, \AfricaGates\Support\Accent::coverTones(), true)) return $res->withStatus(404);
+            $res->getBody()->write(\AfricaGates\Support\CoverKind::gamesSvg($tone));
+            return $res->withHeader('Content-Type', 'image/svg+xml')
+                       ->withHeader('Cache-Control', 'public, max-age=86400')
+                       ->withHeader('X-Content-Type-Options', 'nosniff');
+        });
+        // The default cover as a share image, for an event with no uploaded photo (§7).
+        $g->get('/og/{subject:[a-z]+}/{id:[0-9]+}-{ratio:[0-9]+x[0-9]+}.png', \AfricaGates\Controllers\CoverImageController::class.':show');
+        // The seasonal greeting's SVG pattern tiles, built from Accent (HolidayTheme::patternSvg).
+        $g->get('/img/holiday/{pattern:[a-z]+}-{tone:[a-z]+}.svg', function ($req, $res, array $args) {
+            $svg = \AfricaGates\Services\HolidayTheme::patternSvg((string) $args['pattern'], (string) $args['tone']);
+            if ($svg === null) return $res->withStatus(404);
+            $res->getBody()->write($svg);
+            return $res->withHeader('Content-Type', 'image/svg+xml')
+                       ->withHeader('Cache-Control', 'public, max-age=86400')
+                       ->withHeader('X-Content-Type-Options', 'nosniff');
+        });
         $g->get('/honour/{reference}/tick',   HonourController::class.':tick');
         $g->get('/honour/{reference}',        HonourController::class.':page');
 
@@ -2182,6 +2332,8 @@ return function(App $app) {
         // og:image to. The 4:5 flier lost its bottom third — the vote URL and the rally
         // copy — in every preview. See FlierService::ogCard().
         $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/card.png',   FlierController::class.':card');
+        // The 9:16 share video (ShareVideoController). Beside card.png, before /{slug}.
+        $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/video', \AfricaGates\Controllers\ShareVideoController::class.':nominee');
         // Every message of support for one nominee, paginated. Before /{slug} for the
         // same reason the flier routes are: FastRoute matches in declaration order.
         $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/messages',   VoteMessageController::class.':forNominee');
@@ -2208,7 +2360,7 @@ return function(App $app) {
         $g->get('/m/{token:[A-Za-z0-9_-]{16,32}}', VoteMessageController::class.':permalink');
         $g->get('/partner',       PartnerController::class.':form');
         $g->post('/partner',      PartnerController::class.':submit');
-        $g->get('/partner/success',fn($req,$res)=>$tv($req)->render($res,'pages/partner-success.twig',['page_title'=>'Thank You — Africa GATES','meta_description'=>'Thank you for your interest in partnering with Africa GATES. Our team will be in touch to explore how we can champion African excellence together.','gates_page'=>'partner']));
+        $g->get('/partner/success',fn($req,$res)=>$tv($req)->render($res,'pages/partner-success.twig',['page_title'=>'Thank you — Africa GATES','meta_description'=>'Thank you for your interest in partnering with Africa GATES. Our team will be in touch to explore how we can champion African excellence together.','gates_page'=>'partner']));
 
         // ── Shop (storefront + gateway checkout; static routes before {slug}) ──
         $g->get('/shop',           ShopController::class.':index');
@@ -2230,11 +2382,22 @@ return function(App $app) {
         $g->post('/shop/{slug}/notify-me', ShopController::class.':notifyMe');
 
         // ── Payments (Paystack / Flutterwave behind PaymentService) ──────────
-        //   /pay/init     first-party form post (CSRF-protected) → hosted checkout
+        //   /pay/init     RETIRED — 410. See below.
         //   /pay/callback browser return; verified server-side before crediting
         //   /pay/success  read-only confirmation page
         //   /pay/webhook  server-to-server, signature-verified, CSRF-EXEMPT
-        $g->post('/pay/init',     PaymentController::class.':init');
+        //
+        // /pay/init sold "vote packs": a donation row carrying `bonus_votes`, described as
+        // "redeemable later via BonusVoteService". Nothing redeems them — redeem() has no
+        // caller and no template posts here — so it took money for votes that could never be
+        // cast, and anybody who found the endpoint could buy them. Paid voting is
+        // PaidVoteController, which mints at confirmation. 410 rather than 404 so a stale
+        // form says "this has gone" rather than "this never existed"; the callback, success
+        // page and webhook stay, because a checkout already started here may still settle.
+        $g->post('/pay/init', function ($req, $res) {
+            $res->getBody()->write('This checkout has been retired. Nothing has been charged.');
+            return $res->withStatus(410)->withHeader('Content-Type', 'text/plain; charset=utf-8');
+        });
         $g->get('/pay/redirect',  PaymentController::class.':handoff');  // see GatewayHandoff
         $g->get('/pay/callback',  PaymentController::class.':callback');
         $g->get('/pay/success',   PaymentController::class.':success');
@@ -2302,11 +2465,14 @@ return function(App $app) {
         // (PartnerController::form) and registering a second route on it makes FastRoute
         // refuse the whole route table, which takes every page on the site down rather than
         // just this one.
-        $g->get ('/org/login',  \AfricaGates\Controllers\OrgDashboardController::class.':loginPage');
-        $g->post('/org/login',  \AfricaGates\Controllers\OrgDashboardController::class.':login');
+        // Forwarding addresses only: an organisation opens from the one account sign-in.
+        $g->get ('/org/login',  \AfricaGates\Controllers\OrgDashboardController::class.':toAccount');
+        $g->post('/org/login',  \AfricaGates\Controllers\OrgDashboardController::class.':toAccount');
         $g->post('/org/logout', \AfricaGates\Controllers\OrgDashboardController::class.':logout');
         $g->get ('/org',        \AfricaGates\Controllers\OrgDashboardController::class.':dashboard');
-        $g->post('/org/payout', \AfricaGates\Controllers\OrgDashboardController::class.':requestPayout');
+        // Opened from a member's account, a payout needs the organisation's own password first.
+        $g->post('/org/payout', \AfricaGates\Controllers\OrgDashboardController::class.':requestPayout')
+            ->add(new \AfricaGates\Middleware\AccountReconfirmMiddleware('org'));
         // Appeals. The id is in the path and is checked against the SESSION's organisation in
         // the controller — a path id is a claim, not an authorisation.
         $g->post('/org/appeal',                    \AfricaGates\Controllers\OrgDashboardController::class.':saveCampaign');
@@ -2366,6 +2532,8 @@ return function(App $app) {
         // wrong charity.
         $g->get('/giving/{slug:(?!' . $reservedGiving . ')[a-z0-9][a-z0-9-]{1,118}}/{campaign:[a-z0-9][a-z0-9-]{1,118}}',
                 DonationController::class.':page');
+        $g->get('/giving/{slug:(?!' . $reservedGiving . ')[a-z0-9][a-z0-9-]{1,118}}/{campaign:[a-z0-9][a-z0-9-]{1,118}}/video',
+                \AfricaGates\Controllers\ShareVideoController::class.':campaign');
 
         // ── AND EVERY OLDER PATH, PERMANENTLY ────────────────────────────────
         //
@@ -2384,11 +2552,36 @@ return function(App $app) {
         // The query string is carried on every one of these — losing it drops the `?ref=`
         // a gateway appends to a callback, and the `?give=` that explains a refusal.
         //
-        // The RETURNED closure is not static, and that is not a style choice: Slim binds
-        // the container to a route callable, and binding to a static closure is a PHP
-        // warning it emits on every request to each of these seven redirects. Nothing
-        // here uses `$this`, so the warning bought nothing and cost a line in the error
-        // log per hit — invisible on a host with no shell, which is where these run.
+        // ── THE RETURNED CLOSURE MAY NOT BE `static`, AND IT IS A 500 ────────
+        //
+        // Slim resolves every route handler through `CallableResolver::bindToContainer()`,
+        // which calls `$callable->bindTo($this->container)` on any Closure. `bindTo` on a
+        // STATIC closure cannot work — there is no `$this` to bind — so PHP emits
+        // "Cannot bind an instance to a static closure" as a WARNING and the call returns
+        // NULL. Slim then hands that null on as the route's callable, and the request dies
+        // with a 500.
+        //
+        // THE WARNING IS NOT THE COST, AND THAT IS WHY THIS COMMENT IS LONG. It was first
+        // read here as log noise — "nothing uses `$this`, so the warning bought nothing and
+        // cost a line in the error log per hit" — which is the natural reading and is wrong
+        // in the one way that matters: every one of these paths was answering 500. Measured
+        // by dispatching the whole route table: EIGHTEEN verb-path pairs, not seven.
+        // `/donate` and `/gift`, the `/apply`, `/redirect`, `/callback` and `/success`
+        // under each, the partner-appeal slugs, and `/donate/giving/{token}` — the link a
+        // donor follows to stop a monthly gift.
+        //
+        // These redirects are permanent rather than a tidy-up for the reason stated above:
+        // twenty-two files link to `/donate`, and the manage link is printed in receipts
+        // already sent. So the failure landed on people following a link this platform
+        // sent them.
+        //
+        // Nothing points at it: a warning rather than an error, a 500 rendered as the
+        // site's own error page, and a server log naming a line in a vendor file with no
+        // mention of which route. The OUTER closure may stay static — it is a factory and
+        // never reaches the resolver — and `static fn` is correct in dozens of other places
+        // in this file, all of them helpers called from inside a handler.
+        // `RouteTableIntegrityTest::test_no_route_handler_is_a_static_closure` holds the
+        // rule for the whole table rather than for these eighteen.
         $bounce = static function (callable $to, int $code) {
             return function ($req, $res, array $args = []) use ($to, $code) {
                 $qs  = $req->getUri()->getQuery();
@@ -2433,124 +2626,47 @@ return function(App $app) {
         // (Paid-voting routes are registered above, before /vote/{program}.)
         // Admin-editable legal/policy docs (gates_legal_docs via LegalService).
         // Content is no longer hardcoded; a missing/unpublished doc → 404.
-        /**
-         * What /cookies shows above the policy: what is happening, and the button.
-         *
-         * ── WHY THE WORDS ARE HERE AND NOT IN THE TEMPLATE ───────────────────
-         *
-         * Because there are four states and three of them are easy to draw wrongly. Being
-         * counted under the exempt posture is not the same sentence as being counted
-         * because you said yes; not being counted because you refused is not the same as
-         * not being counted because an administrator switched the whole thing off, and a
-         * page that told somebody "you have opted out" when in fact nothing is running
-         * would be making them a promise about a mechanism rather than about us.
-         *
-         * The fourth is the one that must never be got wrong: the browser said no. We
-         * honour that even over a yes given here, so the page has to SAY that rather than
-         * quietly disagree with a button it is still offering.
-         */
-        $cookieControl = function($req): array {
-            $P        = \AfricaGates\Services\CookiePrefs::class;
-            $on       = \AfricaGates\Services\VisitTracker::enabled();
-            $locked   = $P::signalledNo($req);
-            $choice   = $P::choice($req);
-            $counting = $on && $P::analyticsAllowed($req);
-
-            $saved = (string) ($_SESSION['cookie_saved'] ?? '');
-            unset($_SESSION['cookie_saved']);
-
-            if (!$on) {
-                $headline = 'Nothing is being counted';
-                $why = 'Arrival counting is switched off across the whole site at the moment, so '
-                     . 'there is nothing here to refuse. If it is switched back on, whatever you '
-                     . 'choose below is what will apply to you.';
-            } elseif ($locked) {
-                $headline = 'Your browser has already said no';
-                $why = 'You are sending Do Not Track or Global Privacy Control, and we treat that '
-                     . 'as a refusal. Nothing about your visits is being recorded.';
-            } elseif ($counting) {
-                $headline = $choice === true ? 'You said we may count your visits' : 'We are counting your visits';
-                $why = $choice === true
-                    ? 'One row for this visit, so that whoever shared the link you followed can '
-                    . 'find out whether it worked. You can change your mind here at any time.'
-                    : 'One row for this visit — where you came from, the page you landed on, and '
-                    . 'whether it led to a vote, a nomination or a ticket. It is ours alone and '
-                    . 'reaches no one else. You have not been asked before now because it stores '
-                    . 'nothing extra on your device; you can stop it here.';
-            } else {
-                $headline = 'We are not counting your visits';
-                $why = $choice === false
-                    ? 'You told us not to, and we have not since. Nothing about your visits has '
-                    . 'been recorded, and nothing will be unless you say otherwise here.'
-                    : 'We ask before counting anything, and you have not been asked yet — or you '
-                    . 'have, and said no. Either way nothing is being recorded.';
-            }
-
-            return [
-                'counting'    => $counting,
-                'locked'      => $locked,
-                'headline'    => $headline,
-                'explanation' => $why,
-                'cookie_name' => $P::COOKIE,
-                'saved'       => $saved !== '',
-                'saved_word'  => $saved === 'yes'
-                    ? 'We will count your visits from now on.'
-                    : 'We will not count your visits.',
-                'locked_note' => 'We could offer to overrule that — the Global Privacy Control '
-                               . 'specification permits a site-specific opt-in — and we have '
-                               . 'decided not to. If you do want to be counted, turn the setting '
-                               . 'off in your browser and this page will offer you the choice.',
-            ];
-        };
-
-        $legalRender = function($req,$res,string $slug) use ($tv, $cookieControl){
+        // /cookies' own state (the old `$cookieControl` panel) is not built here any more:
+        // the consent state is CookiePrefs::state(), primed for every request by
+        // VisitTrackingMiddleware and read by the layout through `consent()`, so the page,
+        // the notice and the preferences sheet cannot describe one visitor two ways. The
+        // page itself (DocPage, `doc=cookies`) is Phase 9's.
+        $legalRender = function($req,$res,string $slug) use ($tv){
             $doc = \AfricaGates\Services\LegalService::get($slug);
             if (!$doc) return $res->withStatus(404);
 
             $L     = \AfricaGates\Services\LegalDocument::class;
-            $url   = \AfricaGates\Support\SiteUrl::base($req) . '/' . $slug;
+            // One answer to "where does this document live" (LegalService::path()): the
+            // canonical URL, the citation and both downloads all read it, so a document under
+            // /legal/{slug} no longer cites itself at an address that 404s.
+            $path  = \AfricaGates\Services\LegalService::path($slug);
+            $url   = \AfricaGates\Support\SiteUrl::base($req) . $path;
             $today = date('Y-m-d');
             $eff   = $L::effectiveDate($doc);
+
+            // DocPage (Phase 9): the body arrives already cut into its numbered sections,
+            // from the same walk that anchors it — so a contents entry and the heading it
+            // jumps to cannot disagree. The .txt and .md are built from the same body.
+            $cut = $L::sections($doc);
 
             return $tv($req)->render($res,'pages/legal.twig',[
                 'page_title'=>$doc['title'].' — Africa GATES',
                 'meta_description'=>'The '.$doc['title'].' for Africa GATES — the continental Cultural Power Index recognising African excellence.',
-                'og_type'=>'article',
-                'gates_page'=>'legal', 'breadcrumbs'=>[['label'=>'Home','url'=>'/'],['label'=>$doc['title']]],
+                'gates_page'=>'legal',
                 'legal_doc'=>$doc,
                 'legal_tabs'=>\AfricaGates\Services\LegalService::published(),
-
-                // ── ONE SOURCE FOR THREE RENDERINGS ──────────────────────────
-                // The body the page shows is the body the .txt and .md contain —
-                // including the generated AI disclosure, which used to be assembled
-                // in the template and would therefore have been missing from every
-                // download of the privacy policy. See LegalDocument.
-                'legal_body'=>$L::bodyWithAnchors($doc),
-                'doc_outline'=>$L::outline($doc),
+                'doc_lead'=>$cut['lead'],
+                'doc_sections'=>$cut['sections'],
+                'doc_read_minutes'=>$L::readMinutes($doc),
+                'doc_contact'=>$L::contact($doc),
                 'doc_author'=>$L::AUTHOR,
                 'doc_publisher'=>$L::PUBLISHER,
                 'doc_effective'=>$eff,
                 'doc_url'=>$url,
-                'doc_accessed'=>$today,
                 'doc_citations'=>$L::citations($doc, $url, $today),
                 'doc_file_stem'=>$L::fileStem($doc),
-                'doc_txt_url'=>'/'.$slug.'/download/txt',
-                'doc_md_url'=>'/'.$slug.'/download/md',
-                'doc_standfirst'=>($doc['updated_label'] ?? '') !== ''
-                    ? 'Last updated '.$doc['updated_label'].', and effective immediately. Written to be read — if any part of it is unclear, that is a fault worth reporting.'
-                    : 'Effective immediately. Written to be read — if any part of it is unclear, that is a fault worth reporting.',
-
-                // ── THE LIVE CONTROL, ON ONE DOCUMENT ONLY ───────────────────
-                //
-                // /cookies is the one policy here that is not only a promise: it carries
-                // the switch that turns arrival counting off. The panel is built in PHP
-                // rather than in the template because the state it shows has to come from
-                // CookiePrefs — the same resolver the tracker asks — and a template
-                // deciding for itself whether somebody is being counted is how a page
-                // comes to show a person the opposite of what is happening to them.
-                //
-                // Null on every other slug, so the partial is simply not drawn.
-                'cookie_control'=>$slug === 'cookies' ? $cookieControl($req) : null,
+                'doc_txt_url'=>$path.'/download/txt',
+                'doc_md_url'=>$path.'/download/md',
             ]);
         };
 
@@ -2567,7 +2683,7 @@ return function(App $app) {
             if (!$doc) return $res->withStatus(404);
 
             $L    = \AfricaGates\Services\LegalDocument::class;
-            $url  = \AfricaGates\Support\SiteUrl::base($req) . '/' . $slug;
+            $url  = \AfricaGates\Support\SiteUrl::base($req) . \AfricaGates\Services\LegalService::path($slug);
             $body = $fmt === 'md' ? $L::markdown($doc, $url) : $L::plainText($doc, $url);
 
             $res->getBody()->write($body);
@@ -2578,6 +2694,17 @@ return function(App $app) {
                 ->withHeader('Cache-Control', 'public, max-age=3600');
         };
 
+        // The legal directory: every document, grouped by who it is for, each with the one
+        // question it answers (LegalService::directory()). Before it there was no page that
+        // listed them, so a reader had to know a document's name to find it.
+        $g->get('/legal', function($req,$res) use ($tv){
+            return $tv($req)->render($res, 'pages/legal-index.twig', [
+                'page_title' => 'Legal — Africa GATES',
+                'meta_description' => 'Every Africa GATES policy in one place: terms, privacy, cookies, refunds, advertising and trading terms.',
+                'gates_page' => 'legal',
+                'groups' => \AfricaGates\Services\LegalService::directory(),
+            ]);
+        });
         $g->get('/privacy', fn($req,$res)=>$legalRender($req,$res,'privacy'));
         $g->get('/terms',   fn($req,$res)=>$legalRender($req,$res,'terms'));
         // Downloads. Declared BEFORE the {slug} routes below, because Slim's default
@@ -2601,59 +2728,182 @@ return function(App $app) {
         $g->get('/legal/{slug}.md',  fn($req,$res,$args)=>$legalFile($req,$res,strtolower((string)($args['slug']??'')),'md'));
         $g->get('/legal/{slug}', fn($req,$res,$args)=>$legalRender($req,$res,strtolower((string)($args['slug']??''))));
         // Per-programme terms (admin-editable). Unknown slug falls back to the general terms.
+        // Per-programme terms (DocPage `doc=programme-terms`, Phase 9). The text is the
+        // version in force from AwardTerms — the one reader of gates_award_terms — with its
+        // number, effective date and changelog, because "which words did I agree to?" is the
+        // question every dispute arrives with. Unknown slug falls back to the general terms.
         $g->get('/terms/{slug}', function($req,$res,$args) use ($tv){
             $p = \Illuminate\Database\Capsule\Manager::table('gates_award_programmes')->where('slug',(string)($args['slug']??''))->where('is_active',1)->first();
             if (!$p) return $res->withHeader('Location','/terms')->withStatus(302);
+            $L     = \AfricaGates\Services\LegalDocument::class;
+            $cur   = \AfricaGates\Services\AwardTerms::current((int) $p->id);
+            $url   = \AfricaGates\Support\SiteUrl::base($req) . '/terms/' . $p->slug;
+            $host  = \AfricaGates\Support\ProgrammeHost::forProgramme((int) $p->id);
+            // Cut and sanitised by the same walk as every policy, so the contents and the
+            // headings cannot disagree and an operator's markup is held to the same tag set.
+            $doc   = $cur ? ['slug' => 'terms-' . $p->slug, 'title' => $p->title,
+                             'body_html' => $cur['body'], 'updated_at' => $cur['effective_at']] : null;
+            $cut   = $doc ? $L::sections($doc) : ['lead' => '', 'sections' => []];
+            $by    = $host['name'] ?? $L::AUTHOR;
             return $tv($req)->render($res,'pages/programme-terms.twig',[
                 'page_title'=>$p->title.' — Terms — Africa GATES',
                 'meta_description'=>'The terms for the '.$p->title.' programme on Africa GATES — eligibility, voting and nomination rules.',
-                'gates_page'=>'legal','programme'=>(array)$p,
+                'gates_page'=>'legal',
+                'programme'=>['title' => (string) $p->title, 'slug' => (string) $p->slug],
+                'terms'=>$cur,
+                'terms_log'=>$cur ? \AfricaGates\Services\AwardTerms::history((int) $p->id) : [],
+                'doc_lead'=>$cut['lead'],
+                'doc_sections'=>$cut['sections'],
+                'doc_author'=>$by,
+                'doc_url'=>$url,
+                'doc_citations'=>$cur ? \AfricaGates\Support\Citation::formats([
+                    'title' => $p->title . ' terms', 'author' => $by, 'publisher' => $L::PUBLISHER,
+                    'version' => (string) $cur['version'], 'published' => substr($cur['effective_at'], 0, 10),
+                    'updated' => substr($cur['effective_at'], 0, 10), 'url' => $url, 'key' => 'terms-' . $p->slug,
+                ]) : [],
             ]);
         });
         $g->get('/cookies', fn($req,$res)=>$legalRender($req,$res,'cookies'));
 
         /**
-         * POST /cookies/choice — the answer, from the page or from the notice.
+         * The nominee's own answer — /n/confirm/{token}
+         *
+         * A short path on purpose: it travels inside a 160-character SMS beside a
+         * sentence that has to explain itself to somebody who did not ask to be
+         * contacted, and every character of path is one not available to the
+         * explanation.
+         *
+         * The token is constrained to its exact shape, so a probe for
+         * `/n/confirm/../../something` never reaches the handler and a mistyped link
+         * is a 404 from the router rather than a database lookup on rubbish.
+         */
+        $nomineeConfirm = new \AfricaGates\Controllers\NomineeConfirmController(
+            $container->get(\Slim\Views\Twig::class));
+
+        /**
+         * The challenge pages. One template renders every challenge, and every word
+         * on them comes from `ChallengeCopy` — the ported design function — so a card,
+         * a strip and the full page can never promise different prizes.
+         *
+         * `/challenges` is not in the design pack and is built in the house card
+         * idiom: the handoff puts "Challenges" under Participate in the mega menu
+         * while one is open, and a nav entry needs somewhere to land. A menu item
+         * pointing at nothing is this codebase's oldest fault.
+         */
+        $challenges = new \AfricaGates\Controllers\ChallengeController(
+            $container->get(\Slim\Views\Twig::class));
+
+        $g->get('/challenges', fn($req, $res) => $challenges->index($req, $res));
+        $g->get('/challenges/{slug:[a-z0-9-]{1,160}}',
+            fn($req, $res, $args) => $challenges->show($req, $res, $args));
+        // Joining is a POST: it writes the entry `attachNomination()` counts against.
+        $g->post('/challenges/{slug:[a-z0-9-]{1,160}}/join',
+            fn($req, $res, $args) => $challenges->join($req, $res, $args));
+
+        /**
+         * The 1080x1080 share graphic — /challenges/{slug}/flier.png
+         *
+         * Public, because the point of it is that an entrant posts it. It carries only
+         * what the page already says: the kicker, the campaign's own lines, who wins, the
+         * prize, what qualifies, and the date it closes.
+         * A draft or cancelled challenge has no flier for the same reason it has no
+         * page — it would be publishing an offer nobody approved.
+         */
+        $g->get('/challenges/{slug:[a-z0-9-]{1,160}}/flier.png',
+            function ($req, $res, $args) {
+                $c = \AfricaGates\Services\ChallengeService::bySlug((string) $args['slug']);
+
+                if (!$c || in_array($c->status, ['draft', 'cancelled'], true)) {
+                    return $res->withStatus(404);
+                }
+
+                // The host's mark sits beside ours on the flier, resolved from the
+                // challenge's scopes exactly as the page resolves it.
+                $host = \AfricaGates\Support\ProgrammeHost::forScopes(
+                    \AfricaGates\Services\ChallengeService::scopeIds($c, 'award_cycle'),
+                    \AfricaGates\Services\ChallengeService::scopeIds($c, 'category'));
+                $png = \AfricaGates\Services\ChallengeFlier::png((array) $c, [
+                    'claimed'   => \AfricaGates\Services\ChallengeService::claimed((int) $c->id),
+                    'host_logo' => (string) ($host['logo'] ?? ''),
+                ]);
+
+                // GD or FreeType missing is a 503, not a broken image: an empty square
+                // posted to a timeline is worse than a download that plainly failed.
+                if ($png === null) return $res->withStatus(503);
+
+                $res->getBody()->write($png);
+
+                return $res->withHeader('Content-Type', 'image/png')
+                    ->withHeader('Cache-Control', 'public, max-age=900')
+                    ->withHeader('Content-Disposition',
+                        'inline; filename="' . $args['slug'] . '-flier.png"');
+            });
+
+        $g->get('/n/confirm/{token:[a-f0-9]{40}}',
+            fn($req, $res, $args) => $nomineeConfirm->show($req, $res, $args));
+        $g->post('/n/confirm/{token:[a-f0-9]{40}}',
+            fn($req, $res, $args) => $nomineeConfirm->answer($req, $res, $args));
+
+        /**
+         * POST /cookies/choice — the answer, from the notice, the preferences sheet or /cookies.
          *
          * ── A FORM POST, WITH NO JAVASCRIPT ANYWHERE IN THE PATH ─────────────
          *
-         * A privacy control that needs scripts to run is a privacy control that is missing
-         * for exactly the people most likely to have switched them off. So this is a plain
-         * POST that sets a cookie and redirects, and it is the ONLY writer of that cookie
-         * on the whole platform — see CookiePrefs::apply().
+         * A privacy control that needs scripts is a privacy control missing for exactly the
+         * people most likely to have switched them off. So this is a plain POST that sets a
+         * cookie and redirects (303), and it is the ONLY writer of `ag_consent` — see
+         * CookiePrefs::write(). `answer` is `all`, `essential`, `save` (with a `1` per
+         * switched-on category) or `choose`; anything else is read as `essential`, because a
+         * request we could not understand about whether somebody agreed is one in which they
+         * did not (CookiePrefs::fromPost()).
          *
-         * ── WHAT AN UNRECOGNISED ANSWER MEANS ────────────────────────────────
+         * `choose` stores NOTHING: it is the notice's third button, which without a script
+         * has to reach the preferences sheet somehow. It sends the visitor back to the page
+         * they were on with `#ag-consent`, which the sheet answers with `:target` — a
+         * fragment, so nothing about it is stored or logged, and the notice stays up because
+         * nothing was answered.
          *
-         * No. A malformed or missing `choice` is a request we could not understand about
-         * whether somebody agreed to be counted, and the only safe reading of that is that
-         * they did not. Storing the refusal rather than leaving it unanswered is also the
-         * kinder outcome, because leaving it unanswered would show the notice again.
+         * ── THE LANGUAGE COOKIE FOLLOWS THE ANSWER AT ONCE ───────────────────
+         *
+         * `ag_lang` is persistent only with Preferences. A visitor who chose French before
+         * answering has a session cookie; saying yes now makes it a year, saying no makes a
+         * year-long one a session cookie again. Re-written here, on the same response, so
+         * the Preferences switch changes what is on the device the moment it is pressed
+         * rather than the next time somebody happens to pick a language.
          */
         $g->post('/cookies/choice', function($req,$res){
             $P    = \AfricaGates\Services\CookiePrefs::class;
             $b    = (array) ($req->getParsedBody() ?? []);
-            // The token field is `_token`, which is what CsrfMiddleware reads — the Twig
-            // GLOBAL is `csrf_token` and the two names are not interchangeable. Naming the
-            // field after the global posts a correct token in a box nothing opens, and
-            // every submission is rejected as a forgery. CsrfFieldNameTest caught exactly
-            // that on both of this feature's forms.
-            $yes  = strtolower(trim((string) ($b['choice'] ?? ''))) === 'yes';
 
-            // Re-validated here and not trusted from the field. The notice writes the path
-            // it was drawn on, but a hidden input is something anybody can edit, and this
-            // value ends up in a Location header — see CookiePrefs::safeReturn(), which
-            // refuses `//host` as well as an absolute URL.
-            $back = $P::safeReturn((string) ($b['return'] ?? '/cookies'));
-            if ($back === '/') $back = '/cookies';
+            // Re-validated here and not trusted from the field: a hidden input is something
+            // anybody can edit, and this value ends up in a Location header — see
+            // CookiePrefs::safeReturn(), which refuses `//host` as well as an absolute URL.
+            $back = $P::safeReturn((string) ($b['return'] ?? '/'));
+
+            if (strtolower(trim((string) ($b['answer'] ?? ''))) === 'choose') {
+                return $res->withHeader('Location', $back . '#ag-consent')->withStatus(303);
+            }
+
+            $answers = $P::fromPost($req, $b);
+            $res     = $P::write($res, $answers, isset($req->getCookieParams()[$P::LEGACY]));
+
+            $lang = (string) ($req->getCookieParams()[\AfricaGates\Support\Languages::COOKIE] ?? '');
+            if (\AfricaGates\Support\Languages::supported($lang)) {
+                $res = \AfricaGates\Support\Languages::apply($res, $lang,
+                    $P::allows($req, $P::PREFERENCES, $answers));
+            }
 
             // So the page can confirm it heard. A control that changes nothing you can see
-            // is a control people press twice.
-            $_SESSION['cookie_saved'] = $yes ? 'yes' : 'no';
+            // is a control people press twice. The words are the layout's, chosen by key.
+            $all = true; $none = true;
+            foreach ($P::OPTIONAL as $c) {
+                if (!$P::offered($c)) continue;
+                if ($answers[$c] === true) $none = false; else $all = false;
+            }
+            $_SESSION['consent_saved'] = $P::signal($req) !== null && !$none ? 'signal'
+                : ($none ? 'essential' : ($all ? 'all' : 'mine'));
 
-            // The fragment lands them on the panel rather than at the top of a policy.
-            return $P::apply($res, $yes)
-                ->withHeader('Location', $back . '#your-choice')
-                ->withStatus(303);
+            return $res->withHeader('Location', $back)->withStatus(303);
         });
         // Its own path as well as /legal/refunds. This is the page somebody looks for while
         // deciding whether to pay, and while holding a receipt they want reversed — both
@@ -2665,6 +2915,10 @@ return function(App $app) {
         // trader who wants to read it before pressing the button should not have to find it
         // under a footer heading called Legal.
         $g->get('/vendor-terms', fn($req,$res)=>$legalRender($req,$res,'vendor-terms'));
+        // Their own downloads, beside the page: the document toolbar offers `/<slug>/download/…`
+        // for every legal page, and these two were the only ones it 404'd on (Phase9PagesTest).
+        $g->get('/refunds/download/{fmt:txt|md}',      fn($req,$res,$args)=>$legalFile($req,$res,'refunds',(string)$args['fmt']));
+        $g->get('/vendor-terms/download/{fmt:txt|md}', fn($req,$res,$args)=>$legalFile($req,$res,'vendor-terms',(string)$args['fmt']));
         // ── THE PAGE HAS TO READ THE ENGINE, NOT REMEMBER IT ─────────────────
         //
         // These numbers were prose. The route passed no data at all, so
@@ -2697,21 +2951,24 @@ return function(App $app) {
                 'community_pct'    => (int) round($w['community'] * 100),
                 'judge_pct'        => (int) round($w['judge'] * 100),
                 'paid_cap_pct'     => (int) ($eff['max_paid_weight_pct'] ?? 50),
+                // What a contribution does to the community half, from the one resolver the
+                // ballot and the award page use — never a typed claim (AUDIT 2026-10-05 #10).
+                'paid_sentence'    => \AfricaGates\Services\PaidVoteCopy::sentence(),
                 'min_judges'       => (int) ($eff['min_judges_per_nominee'] ?? 2),
                 'fraud_block'      => (int) ($eff['fraud_block'] ?? 80),
                 'fraud_flag'       => (int) ($eff['fraud_flag'] ?? 60),
                 'fraud_monitor'    => (int) ($eff['fraud_monitor'] ?? 30),
-                'return_pct'       => $ret['pct'],
                 'return_on'        => $ret['on'],
                 // WHY it is off, not just that it is. The section prints a different
                 // note for "the share is 0%" than for "this site sells no votes", and
                 // a template deriving that itself would be a second reader of a
                 // setting the service already resolves.
                 'return_off_reason'=> $ret['off_reason'],
-                'return_threshold' => $ret['threshold'],
-                'return_cap_pct'   => $ret['cap_pct'],
-                'return_cap_votes' => $ret['cap_votes'],
-                'return_people'    => $ret['min_supporters'],
+                // The house rule in one sentence, whatever its model, or that none is running.
+                'return_sentence'  => $ret['sentence'],
+                // The withdrawal terms, from the resolver the withdrawals use — never typed
+                // into the page. No edition's rule: each award publishes its own.
+                'return_terms'     => \AfricaGates\Services\CommunityReturnWithdrawals::terms($eff),
             ];
         };
 
@@ -2779,6 +3036,84 @@ return function(App $app) {
          * Splitting them is what stopped sixteen sections of Ubuntu sitting between a
          * reader arriving from a ballot and the answer to "how is a winner decided".
          */
+        // ── THE STYLE PAGE ──────────────────────────────────────────────────
+        //
+        // Phase 1 of the redesign: every token and every base component, in every
+        // state, rendered through the REAL layout so the cascade it specimens is
+        // the cascade that ships. Somebody building a later phase reads this
+        // rather than three stylesheets.
+        //
+        // Dev only, and gated on APP_ENV rather than on a token: there is nothing
+        // secret on it, and a token would mean the one page whose whole job is to
+        // be looked at needs a credential to look at. 404 rather than 403 in
+        // production, so it is not discoverable either.
+        $g->get('/_dev/ui', function ($req, $res) use ($tv) {
+            if (\AfricaGates\Support\Env::get('APP_ENV', 'production') === 'production') {
+                return $res->withStatus(404);
+            }
+            // `?bar=root` draws the ROOT app bar instead of the child one, and `?flow=1`
+            // drops the tab bar as a flow page does — so every prop combination of the
+            // shared chrome (Phase 2) can be walked on this one dev page.
+            $q = $req->getQueryParams();
+            $vars = [
+                'page_title'  => 'Tokens & base components',
+                'meta_robots' => 'noindex, nofollow',
+            ];
+            if (($q['bar'] ?? '') === 'root') {
+                $vars['app_bar'] = ['variant' => 'root', 'title' => 'Base components'];
+                $vars['tab'] = 'discover';
+            }
+            if (($q['flow'] ?? '') === '1') $vars['flow_page'] = true;
+            // `?sticky=1`: a flow page with a mock bottom action bar (Phase 3), the bar Gee
+            // must clear at 108px.
+            if (($q['sticky'] ?? '') === '1') { $vars['flow_page'] = true; $vars['mock_sticky'] = true; }
+            return $tv($req)->render($res, 'pages/dev-ui.twig', $vars);
+        });
+
+        // ── THE CELEBRATION SHOWCASE (Phase 3) ──────────────────────────────
+        //
+        // One celebration per load, chosen by `?kind=&size=&layout=`, so every prop
+        // combination of Celebration.dc.html can be screenshotted at every width — and
+        // with no query, an index of all twenty. Dev only, 404 in production, like
+        // /_dev/ui above.
+        //
+        // It does NOT bypass the decision. `win` asks Services\Celebration about the
+        // newest released, decided award in THIS database — the same question a result
+        // page asks — and where there is none the partial draws nothing and the page says
+        // why. A showcase that celebrated a winner the database does not hold would be a
+        // second path into the one moment the guard exists for.
+        $g->get('/_dev/celebration', function ($req, $res) use ($tv) {
+            if (\AfricaGates\Support\Env::get('APP_ENV', 'production') === 'production') {
+                return $res->withStatus(404);
+            }
+            $q      = $req->getQueryParams();
+            $kinds  = \AfricaGates\Services\Celebration::KINDS;
+            $kind   = in_array($q['kind'] ?? '', $kinds, true) ? (string) $q['kind'] : '';
+            $size   = in_array($q['size'] ?? '', \AfricaGates\Services\Celebration::SIZES, true) ? (string) $q['size'] : 'full';
+            $layout = in_array($q['layout'] ?? '', ['phone', 'desktop'], true) ? (string) $q['layout'] : 'auto';
+
+            $award = null;
+            try {
+                foreach (\Illuminate\Database\Capsule\Manager::table('gates_award_categories as c')
+                    ->join('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
+                    ->whereIn('cy.status', \AfricaGates\Services\PublicResults::RELEASED)
+                    ->orderByDesc('c.id')->limit(20)->pluck('c.id') as $cid) {
+                    $r = \AfricaGates\Services\PublicResults::category((int) $cid);
+                    if ($r !== null && $r['held'] === null && !empty($r['winner'])) { $award = $r; break; }
+                }
+            } catch (\Throwable) {
+                $award = null;
+            }
+
+            return $tv($req)->render($res, 'pages/dev-celebration.twig', [
+                'page_title'  => 'Celebrations',
+                'meta_robots' => 'noindex, nofollow',
+                'kind' => $kind, 'size' => $size, 'layout' => $layout,
+                'kinds' => $kinds, 'award' => $award,
+                'flow_page' => true,
+            ]);
+        });
+
         $g->get('/philosophy', function ($req, $res) use ($tv, $integrityFigures) {
             $doc   = \AfricaGates\Services\CommunityVotingPhilosophy::class;
             $figs  = $integrityFigures();
@@ -2872,6 +3207,23 @@ return function(App $app) {
                 // cannot quote different figures; see the class for why it is a
                 // separate rendering rather than the first N sections.
                 'doc_summary'      => $phil::summary($figs),
+                // WHICH rule the prose may describe as the rule (Phase 9). RuleEngine still
+                // resolves the older bases and the curved scale for reproducing announced
+                // standings; a page stating `ideal` and the linear mark as plain fact while
+                // either is switched on is the handbook's fault again (CLAUDE.md, template
+                // variables). The template states the default's arithmetic only when it is
+                // the arithmetic in force, and says so plainly when it is not.
+                // The split inside the community half and the exchange rate it fixes, read
+                // from the one constant the scorer uses rather than typed as "70%" and "2.33".
+                'people_pct'       => (int) round(\AfricaGates\Services\CpiService::REACH_PEOPLE_SHARE * 100),
+                'supporter_votes'  => rtrim(rtrim(number_format(\AfricaGates\Services\CpiService::REACH_PEOPLE_SHARE
+                                        / (1 - \AfricaGates\Services\CpiService::REACH_PEOPLE_SHARE), 2), '0'), '.'),
+                'rule_is_default'  => (static function (): bool {
+                    $e = (new \AfricaGates\Services\RuleEngine())->effective();
+                    return ($e['community_basis'] ?? \AfricaGates\Services\CpiService::BASIS_IDEAL) === \AfricaGates\Services\CpiService::BASIS_IDEAL
+                        && ($e['community_scope'] ?? \AfricaGates\Services\CpiService::SCOPE_EDITION) === \AfricaGates\Services\CpiService::SCOPE_EDITION
+                        && ($e['judge_scale'] ?? \AfricaGates\Services\CpiService::SCALE_LINEAR) === \AfricaGates\Services\CpiService::SCALE_LINEAR;
+                })(),
                 // No reading time. The philosophy can count its own words because it
                 // IS its data; this page's prose is in its template, so any figure
                 // here would be typed, and a typed reading time is one more number
@@ -2893,7 +3245,7 @@ return function(App $app) {
         //
         // {@see SystemStatus} measures instead, from evidence the platform already
         // records, and has an honest fourth state for the things it could not check.
-        $g->get('/status', function($req,$res) use ($tv) {
+        $g->get('/status', function($req,$res) use ($tv, $container) {
             $st = SystemStatus::report();
             // The record answers the question the live check cannot: "was it broken
             // earlier?" A supporter whose payment failed at nine and who loads a green page
@@ -2915,7 +3267,50 @@ return function(App $app) {
                 'meta_description' => 'A live check of Africa GATES: voting and profiles, scheduled work, messages going out, payments, email and the AI helpers.',
                 'gates_page'       => 'status',
                 'status_labels'    => SystemStatus::LABELS,
+                // Phase 9 (StatusPageV2): the planned-work notice from its one reader, and
+                // "Get updates" only where mail can actually leave (StatusAlert::senderReady).
+                'planned'          => \AfricaGates\Services\PlannedWork::current(),
+                'can_subscribe'    => \AfricaGates\Services\StatusAlert::senderReady($container->get(\AfricaGates\Services\OtpService::class)),
+                'subscribe_said'   => (static function (): ?string { $m = $_SESSION['status_alert_said'] ?? null; unset($_SESSION['status_alert_said']); return is_string($m) ? $m : null; })(),
             ]);
+        });
+
+        // ── "GET STATUS UPDATES" — double opt-in (Phase 9, StatusAlert) ─────────
+        //
+        // A plain form that posts, throttled per connection, answering the same sentence
+        // whatever happened, then post/redirect/get so a refresh does not resubmit and the
+        // address never lands in a URL. The confirm and stop links SHOW on GET and ACT on
+        // POST: mail scanners fetch every link in a message (the newsletter's rule).
+        $g->post('/status/subscribe', function($req,$res) use ($container) {
+            $mailer = $container->get(\AfricaGates\Services\OtpService::class);
+            if (!\AfricaGates\Services\StatusAlert::senderReady($mailer)) {
+                return $res->withHeader('Location', '/status')->withStatus(303);
+            }
+            $ip = hash('sha256', \AfricaGates\Support\ClientIp::from($req));
+            $rl = $container->get(\AfricaGates\Services\RateLimitService::class);
+            if (!$rl->check($ip, 'status_alert', 10, 3600)) {
+                $_SESSION['status_alert_said'] = \AfricaGates\Support\Translator::t('Too many requests from this connection in the last hour. Try again later.');
+            } else {
+                $r = \AfricaGates\Services\StatusAlert::want((string) (((array) $req->getParsedBody())['email'] ?? ''), $ip,
+                    rtrim(\AfricaGates\Support\SiteUrl::base($req), '/'),
+                    \AfricaGates\Services\Newsletter\NewsletterAudience::transport($mailer));
+                $_SESSION['status_alert_said'] = \AfricaGates\Support\Translator::t($r['message']);
+            }
+            return $res->withHeader('Location', '/status#st-sub')->withStatus(303);
+        });
+        $g->map(['GET', 'POST'], '/status/alerts/{token:[a-f0-9]{32}}/{action:confirm|stop}', function($req,$res,$args) use ($tv) {
+            $token = (string) $args['token']; $action = (string) $args['action'];
+            $A = \AfricaGates\Services\StatusAlert::class;
+            $row = $A::find($token); $done = false;
+            if ($row && $req->getMethod() === 'POST') { $row = $action === 'stop' ? $A::stop($token) : $A::confirm($token); $done = true; }
+            return $tv($req)->render($res->withStatus($row ? 200 : 404), 'pages/status-alert.twig', [
+                'page_title'  => \AfricaGates\Support\Translator::t('Status updates') . ' — Africa GATES',
+                'gates_page'  => 'status',
+                'meta_robots' => 'noindex, nofollow',
+                'alert'       => $row ? ['token' => (string) $row->token, 'action' => $action,
+                                         'confirmed' => $row->confirmed_at !== null, 'stopped' => $row->cancelled_at !== null] : null,
+                'done'        => $done,
+            ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
         });
 
         // ── THE SAME BOARD, FOR ANYTHING THAT IS NOT A PERSON ────────────────
@@ -2960,7 +3355,23 @@ return function(App $app) {
         $g->get ('/stand/{token:[a-f0-9]{48}}/redirect', \AfricaGates\Controllers\StandOfferController::class.':handoff');
         $g->get ('/stand/{token:[a-f0-9]{48}}/callback', \AfricaGates\Controllers\StandOfferController::class.':callback');
 
-        $g->get('/support/assistant', SupportController::class.':page');
+        // ── THE SUPPORT DESK IS GEE'S HELP-DESK MODE NOW (REFERENCE §8.22) ─────────
+        //
+        // The page is retired, not its address: it is in sent emails, help articles and the
+        // assistant's own answers. 301 to the Help Centre with Gee opened in support mode,
+        // keeping `q` — the four pages that hand a question over (highlight-to-ask, "No, ask
+        // the assistant", a search that found nothing, the repair button on /vote/verify)
+        // still arrive with it. `ref`, `topic` and `ask` travel too: the repair button sends
+        // a reference and asks for the repair to run, and dropping them here would turn
+        // that button into an empty composer. gee.js reads all four, and only beside
+        // `gee=support`.
+        $g->get('/support/assistant', function ($req, $res) {
+            $keep = array_intersect_key($req->getQueryParams(), array_flip(['q', 'ref', 'topic', 'ask']));
+            $keep = array_filter(array_map(static fn ($v): string => is_string($v) ? $v : '', $keep),
+                static fn (string $v): bool => $v !== '');
+            return $res->withHeader('Location', '/help?' . http_build_query(['gee' => 'support'] + $keep))
+                       ->withStatus(301);
+        });
         // Ticket threads. The page redirects a guest to sign-in; the write
         // endpoints refuse one, because a ticket is a promise to reply and a
         // reply needs a verified address.
@@ -3044,6 +3455,10 @@ return function(App $app) {
         $g->post('/my-work/{token:[a-f0-9]{32}}/interview/phase',   \AfricaGates\Controllers\MyWorkController::class.':interviewPhase');
         $g->post('/my-work/{token:[a-f0-9]{32}}/interview/amend',   \AfricaGates\Controllers\MyWorkController::class.':interviewAmend');
         $g->post('/my-work/{token:[a-f0-9]{32}}/interview/outcome', \AfricaGates\Controllers\MyWorkController::class.':interviewOutcome');
+        // The interviewer's upload buttons: a file arriving and "I can't share this" each leave
+        // a notice on the transcript, and `react` runs the one interviewer turn that answers it.
+        $g->post('/my-work/{token:[a-f0-9]{32}}/interview/react',   \AfricaGates\Controllers\MyWorkController::class.':interviewReact');
+        $g->post('/my-work/{token:[a-f0-9]{32}}/interview/decline', \AfricaGates\Controllers\MyWorkController::class.':interviewDecline');
         // Voice, both directions. `speak` returns MP3 bytes and is addressed by TURN INDEX,
         // never by text, so it cannot be used to have the platform's ElevenLabs account read
         // out a stranger's paragraph; `listen` transcribes a recording and hands the words
@@ -3112,6 +3527,15 @@ return function(App $app) {
         $g->get('/email/unsubscribe',  EmailPrefsController::class . ':show');
         $g->post('/email/unsubscribe', EmailPrefsController::class . ':stop');
 
+        // The newsletter's way in, and its yes. /newsletter is a plain form that posts —
+        // the only signup that existed was a script bound to a form no template renders.
+        // /email/confirm is GET-shows, POST-confirms, for the same scanner reason as
+        // the unsubscribe above. See NewsletterController.
+        $g->get('/newsletter',          \AfricaGates\Controllers\NewsletterController::class . ':show');
+        $g->post('/newsletter',         \AfricaGates\Controllers\NewsletterController::class . ':join');
+        $g->get('/email/confirm',  \AfricaGates\Controllers\NewsletterController::class . ':confirmShow');
+        $g->post('/email/confirm', \AfricaGates\Controllers\NewsletterController::class . ':confirm');
+
         // SEO: robots.txt + sitemap.xml
         $g->get('/robots.txt', function($req, $res) {
             $scheme = $req->getUri()->getScheme();
@@ -3179,6 +3603,36 @@ return function(App $app) {
         // X-API-Version header (see ApiVersionMiddleware).
         $apiRoutes = function(RouteCollectorProxy $a) {
             $a->get('/registry',         ApiController::class.':registry');
+            // The events calendar for other sites (Afrovanguard). See EventsFeed.
+            $a->get('/events',           EventsController::class.':feed');
+
+            /**
+             * GET /api/v1/promos?placement=account — the band's own slides.
+             *
+             * Reads `PromoService::payload()`, which calls the SAME method the
+             * server-rendered band uses. Two readers of one placement is how an
+             * endpoint and a page come to disagree about what is running, and the pair
+             * most likely to differ is the one that publishes a value and the one that
+             * acts on it.
+             *
+             * It takes the signed-in state from the SESSION, never from a parameter: a
+             * client that could ask for the signed-in set would be able to read
+             * promos aimed at members while signed out.
+             */
+            $a->get('/promos', function ($req, $res) {
+                $placement = (string) ($req->getQueryParams()['placement'] ?? '');
+                $payload   = \AfricaGates\Services\PromoService::payload(
+                    $placement, !empty($_SESSION['user_id']));
+
+                $res->getBody()->write((string) json_encode($payload,
+                    JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+
+                return $res->withHeader('Content-Type', 'application/json')
+                    // A band that differs by session must never be cached by a shared
+                    // proxy: one visitor's signed-in slides served to the next is a
+                    // disclosure, small but gratuitous.
+                    ->withHeader('Cache-Control', 'private, max-age=60');
+            });
             $a->get('/registry/{slug}',  ApiController::class.':profileBySlug');
             $a->get('/awards',           ApiController::class.':awardsIndex');
             $a->get('/nominees',         ApiController::class.':nominees');
@@ -3237,10 +3691,15 @@ return function(App $app) {
             // and neither accepts an identity — see SupportController.
             $a->post('/support/chat',       SupportController::class.':chat');
             $a->post('/support/escalate',   SupportController::class.':escalate');
+            // Gee's help desk, before anybody types: the member's own unresolved payment
+            // and newest open support ticket, the status line and the reply promise.
+            $a->get('/support/desk',        SupportController::class.':desk');
             $a->post('/support/ticket',     SupportController::class.':ticketCreate');
             $a->post('/support/reply',      SupportController::class.':ticketReply');
             // Gee — the page-aware AI guide
             $a->post('/guide',              GuideController::class.':chat');
+            // A thumb on one of Gee's answers. No words travel — see GeeRatings.
+            $a->post('/guide/rate',         GuideController::class.':rate');
             // Inbound Make.com agent bridge — bearer-authenticated, 404 until configured.
             $a->post('/agent/gee',          GuideController::class.':agent');
             // ── LIVE INTERVIEW CAPTURE (the browser extension) ───────────────
@@ -3282,13 +3741,15 @@ return function(App $app) {
         $g->get('/community/new',            CommunityController::class.':threadNew');
         $g->post('/community/new',           CommunityController::class.':threadCreate');
         $g->get('/community/{slug}',         CommunityController::class.':threadShow');
+        $g->post('/community/{slug}/reply',  CommunityController::class.':replyForm');
     });
 
     // ═══ JUDGES ═══════════════════════════════════════════════════════
     $app->group('/judge', function (RouteCollectorProxy $j) {
-        $j->get('/login',              JudgeAuthController::class.':loginForm');
-        $j->post('/login/request',     JudgeAuthController::class.':loginRequest');
-        $j->post('/login/verify',      JudgeAuthController::class.':loginVerify');
+        // Forwarding addresses only: the panel opens from the one account sign-in.
+        $j->get('/login',              JudgeAuthController::class.':toAccount');
+        $j->post('/login/request',     JudgeAuthController::class.':toAccount');
+        $j->post('/login/verify',      JudgeAuthController::class.':toAccount');
         $j->get('/logout',             JudgeAuthController::class.':logout');
         $j->post('/logout',            JudgeAuthController::class.':logout');
 
@@ -3375,6 +3836,12 @@ return function(App $app) {
         $a->get('/logout',        AccountController::class.':logout');
         $a->post('/logout',       AccountController::class.':logout');
         // Mint this member's referral code. POST, because it creates something.
+        // A nominee's own details (NomineeDetails): their contact, photographs, evidence and
+        // bio, on their account for good. The nominator's reason is shown and never editable.
+        $a->get('/nomination[/{id:[0-9]+}]',  \AfricaGates\Controllers\NomineeProfileController::class . ':page');
+        $a->post('/nomination/{id:[0-9]+}',   \AfricaGates\Controllers\NomineeProfileController::class . ':save');
+        $a->get('/nomination/pending/{nid:[0-9]+}',  \AfricaGates\Controllers\NomineeProfileController::class . ':pending');
+        $a->post('/nomination/pending/{nid:[0-9]+}', \AfricaGates\Controllers\NomineeProfileController::class . ':save');
         $a->post('/referral', AccountController::class . ':referral');
         // Ask to be paid what the referrals earned. Creates a request; an admin settles it
         // against a real transfer reference — see ReferralPayout.
@@ -3384,21 +3851,130 @@ return function(App $app) {
         $a->post('/bank', AccountController::class . ':bank');
         $a->post('/redeem',       AccountController::class.':redeem');
         $a->post('/profile',      AccountController::class.':profileUpdate');
+        // Display & reading, saved to the member so it follows them between devices
+        // (REFERENCE §7.5). JSON, from a11y.js; the member is the session's, never a param.
+        $a->post('/display',      \AfricaGates\Controllers\DisplayReadingController::class.':save');
+        // One open of a Menu destination, for the Menu's most-used tiles (MenuShortcuts). A
+        // beacon from menu-sheet.js as the link is followed; 204, never a redirect.
+        $a->post('/menu-use',     \AfricaGates\Controllers\MenuUseController::class.':record');
         // The member's own points history as a file. Above the catch-all below, which would
         // otherwise swallow it — and reachable by the owner alone, because there is no id in
         // the path to change.
         $a->get('/points.csv',    AccountController::class.':pointsCsv');
+        // ── THE ACCOUNT'S OWN PAGES (Phase 8) ─────────────────────────────────
+        // Each a sub-page linked from the account page, never a tab inside it: a phone
+        // pushes a screen with its own back button (REFERENCE §7.2 child bar). Interests is
+        // also step 4 of joining (`?first=1`, SignIn.dc.html view=interests).
+        $a->get('/interests',          AccountController::class.':interests');
+        $a->post('/interests',         AccountController::class.':interestsSave');
+        $a->get('/notifications',      AccountController::class.':notifications');
+        $a->post('/notifications/read', AccountController::class.':notificationsRead');
+        $a->get('/points',             AccountController::class.':points');
+        // One account, one login, roles given (owner, 29 Oct 2026; plan §7.1). No roles page
+        // and nothing to join: the switcher posts here, and a console opened from the account
+        // confirms again before money or configuration.
+        $a->post('/switch',            \AfricaGates\Controllers\AccountSwitchController::class.':switch');
+        $a->get('/confirm',            \AfricaGates\Controllers\AccountSwitchController::class.':confirmPage');
+        $a->post('/confirm',           \AfricaGates\Controllers\AccountSwitchController::class.':confirm');
+        // The Ads Manager (Services\Ads): campaigns, the builder, one campaign, its switch,
+        // and fixing a refused ad. `/ads/new` and `/ads/ad/…` are literals registered before
+        // the `{id}` placeholder they would otherwise be matched by.
+        $a->get('/ads',                     \AfricaGates\Controllers\AdsController::class.':index');
+        $a->post('/ads',                    \AfricaGates\Controllers\AdsController::class.':store');
+        $a->get('/ads/new',                 \AfricaGates\Controllers\AdsController::class.':create');
+        $a->post('/ads/ad/{id:[0-9]+}',     \AfricaGates\Controllers\AdsController::class.':resubmit');
+        $a->get('/ads/{id:[0-9]+}',         \AfricaGates\Controllers\AdsController::class.':show');
+        // A campaign's results by day and place, for the advertiser's own spreadsheet.
+        $a->get('/ads/{id:[0-9]+}/results.csv', \AfricaGates\Controllers\AdsController::class.':export');
+        $a->post('/ads/{id:[0-9]+}/{action:pause|resume|cancel}', \AfricaGates\Controllers\AdsController::class.':status');
+        // Another version of a campaign's ad (up to AdRules::ADS_PER_SET), for review.
+        $a->post('/ads/{id:[0-9]+}/ads', \AfricaGates\Controllers\AdsController::class.':addVersion');
+        // A paid campaign: pay for it (again, if a checkout was left), and the gateway's return.
+        $a->post('/ads/{id:[0-9]+}/pay', \AfricaGates\Controllers\AdsController::class.':pay');
+        $a->get('/ads/{id:[0-9]+}/paid', \AfricaGates\Controllers\AdsController::class.':paid');
+        // The wallet: one balance across every pocket (MemberWallet), each movement's receipt,
+        // and the three-step withdrawal. The JSON is what an open wallet polls, so money that
+        // arrives while it is on screen says so. Every one reads the member from the session.
+        $a->get('/wallet',             AccountController::class.':wallet');
+        $a->get('/wallet.json',        AccountController::class.':walletJson');
+        $a->get('/wallet/history',     AccountController::class.':walletHistory');
+        $a->get('/wallet/history.csv', AccountController::class.':walletHistoryCsv');
+        $a->get('/wallet/history.pdf', AccountController::class.':walletHistoryPdf');
+        $a->get('/wallet/tx/{key:(?:cr|crw|rc|rp|pt|wv)-[0-9]+}', AccountController::class.':walletTx');
+        $a->get('/wallet/tx/{key:(?:cr|crw|rc|rp|pt|wv)-[0-9]+}.{ext:png|pdf}', AccountController::class.':walletTxFile');
+        $a->get('/wallet/withdraw',    AccountController::class.':walletWithdraw');
+        $a->get('/wallet/resolve.json', AccountController::class.':walletResolve');
+        $a->post('/wallet/withdraw/review', AccountController::class.':walletWithdrawReview');
+        $a->post('/wallet/withdraw',   AccountController::class.':walletWithdrawConfirm');
+        $a->get('/display',            AccountController::class.':display');
+        // The seasonal greeting (HOLIDAY-THEMES): "not this year" for one theme, and the
+        // member's own switch for all of them.
+        $a->post('/holiday/{slug:[a-z-]+}/dismiss', AccountController::class.':holidayDismiss');
+        $a->post('/greetings',         AccountController::class.':greetingsSave');
         $a->get('[/]',            AccountController::class.':dashboard');
     })->add(new UserAuthMiddleware());
+
+    // ═══ VOLUNTEERS (consoles v7 handoff §6; docs/architecture/CONSOLES-V7-REVIEW.md, V1) ═══
+    // A member area behind the member session: a volunteer is a member actor and never an admin
+    // one (§0.4). Literals are registered before the placeholders they would match.
+    // The application page is open to somebody signed out, because its first job is telling
+    // them to make an account (owner, 30 Oct 2026) — the group's middleware would bounce them to
+    // a sign-in screen that never says why. The page itself asks for the account.
+    // The link approval emails a nominee. Open signed-out: its first job is the sign-in.
+    $app->get('/nominee/start/{token:[a-f0-9]{40}}', \AfricaGates\Controllers\NomineeProfileController::class . ':start');
+    $app->get('/volunteer/apply', \AfricaGates\Controllers\VolunteerController::class . ':applyForm');
+    // The Volunteer academy: open signed-out so a coordinator can share it (owner, 31 Oct 2026).
+    $app->get('/volunteer/academy', \AfricaGates\Controllers\VolunteerController::class . ':academy');
+    $app->group('/volunteer', function (RouteCollectorProxy $v) {
+        $c = \AfricaGates\Controllers\VolunteerController::class;
+        $v->post('/apply',                        $c . ':apply');
+        $v->post('/act',                          $c . ':act');
+        $v->get('/me/export.json',                $c . ':export');
+        $v->get('/me[/{page:[a-z]+}]',            $c . ':me');
+        $v->get('/training/take/{slug:[a-z0-9-]+}', $c . ':module');
+        $v->get('/contacts[/{rest:.*}]',          $c . ':contacts');
+        $v->get('/meetings/{id:[0-9]+}.ics',      $c . ':meetingIcs');
+        $v->get('/meetings/{id:[0-9]+}',          $c . ':meeting');
+        $v->get('/requests/{id:[0-9]+}',          $c . ':request');
+        $v->get('/{kind:cycle|event}/{id:[0-9]+}[/{page:[a-z]+}[/{tab:[a-z]+}]]', $c . ':place');
+        $v->get('/{page:tasks|meetings|hours|training|record|team|requests}[/{tab:[a-z]+}]', $c . ':root');
+        $v->get('[/]',                            $c . ':root');
+    })->add(new UserAuthMiddleware());
+
+    // ═══ EVENT LEADS (consoles v7 §5) ═══
+    // A member area behind the account sign-in, like /volunteer: a lead is a member account
+    // holding an `event.lead` grant, never a staff admin (owner, 29 Oct 2026 — organisations
+    // adopting the platform bring leads who are not our staff). /admin/lead forwards here.
+    // Each page is its own literal route, so the route table can name every one; a request
+    // opens as ?r= on Requests and a view as ?tab=.
+    $app->group('/lead', function (RouteCollectorProxy $l) {
+        $c = \AfricaGates\Controllers\LeadController::class;
+        $l->post('/act', $c . ':act');
+        foreach (['inbox', 'requests', 'yours', 'deadlines', 'risks', 'approvals', 'analytics', 'people'] as $leadPage) {
+            $l->get('/' . $leadPage, $c . ':root')->setArgument('page', $leadPage);
+        }
+        $l->get('/event/{id:[0-9]+}', $c . ':event');
+        foreach (['plan', 'award', 'people', 'crm', 'money', 'night', 'growth', 'reports', 'requests', 'settings', 'work', 'risks'] as $leadPage) {
+            $l->get('/event/{id:[0-9]+}/' . $leadPage, $c . ':event')->setArgument('page', $leadPage);
+        }
+        $l->get('', $c . ':root');
+    })->add(new UserAuthMiddleware());
+    // Its old addresses under /admin forward here, permanently, query and all. Outside the admin
+    // group on purpose: the admin gate would bounce a lead who is not staff before the forward.
+    $app->get('/admin/lead[/{rest:.*}]', function ($req, $res, array $args) {
+        $q = $req->getUri()->getQuery();
+        return $res->withHeader('Location', '/lead' . (($args['rest'] ?? '') !== '' ? '/' . $args['rest'] : '') . ($q !== '' ? '?' . $q : ''))->withStatus(301);
+    });
 
     // ═══ ADMIN ═══════════════════════════════════════════════════════
     $app->group('/admin', function (RouteCollectorProxy $a) {
         // Unauthenticated
-        $a->get('/login',           AdminAuthController::class.':loginForm');
-        $a->post('/login/submit',   AdminAuthController::class.':loginSubmit');
-        $a->get('/magic',           AdminAuthController::class.':magicForm');
-        $a->post('/magic/request',  AdminAuthController::class.':magicRequest');
-        $a->get('/magic/consume',   AdminAuthController::class.':magicConsume');
+        // Forwarding addresses only: the console opens from the one account sign-in.
+        $a->get('/login',           AdminAuthController::class.':toAccount');
+        $a->post('/login/submit',   AdminAuthController::class.':toAccount');
+        $a->get('/magic',           AdminAuthController::class.':toAccount');
+        $a->post('/magic/request',  AdminAuthController::class.':toAccount');
+        $a->get('/magic/consume',   AdminAuthController::class.':toAccount');
         $a->get('/logout',          AdminAuthController::class.':logout');
         $a->post('/logout',         AdminAuthController::class.':logout');
 
@@ -3469,6 +4045,26 @@ return function(App $app) {
         // run as on the scheduled path.
         $a->post('/result-release/release', \AfricaGates\Admin\Controllers\ResultReleaseController::class.':release')
           ->add(new RoleMiddleware('superadmin'));
+        // Re-walks the tamper-evidence chain and reports. A POST because it reads the whole
+        // archive and a link could be fired by a prefetch. See checkRecord(): the promise
+        // this answers had no route a person could take.
+        //
+        // No RoleMiddleware of its own, and that is currently a distinction without a
+        // difference: `Permissions::PATH_SECTIONS` has no `result-release` key, so
+        // `SectionGuardMiddleware` fails the whole screen CLOSED to superadmin — by design,
+        // an unmapped /admin path is superadmin-only so a new route cannot ship ungated.
+        // The release above adds `superadmin` explicitly on top of that.
+        //
+        // Worth knowing rather than fixing here: CLAUDE.md describes this page as sitting
+        // under the `data` gate, which it does in `AdminNav` and does not in the path map,
+        // so a `data`-role operator sees it in the rail and is redirected on arrival.
+        // Mapping it is an ACCESS change and must never ride along inside a feature one.
+        $a->post('/result-release/check-record', \AfricaGates\Admin\Controllers\ResultReleaseController::class.':checkRecord');
+
+        // Recognitions (Phase 6): issued at announcement, never edited, withdrawable with a
+        // published reason. Unmapped in Permissions, so superadmin only — see the controller.
+        $a->get('/recognitions', \AfricaGates\Admin\Controllers\RecognitionsController::class.':index');
+        $a->post('/recognitions/{id:[0-9]+}/withdraw', \AfricaGates\Admin\Controllers\RecognitionsController::class.':withdraw');
 
         // ── AND THE MARKS UNDER IT ──────────────────────────────────────────
         //
@@ -3503,6 +4099,8 @@ return function(App $app) {
         // audited itself: a log that records being read fills with rows about itself.
         $a->get('/audit',                    \AfricaGates\Admin\Controllers\AuditController::class.':index')
             ->add(new RoleMiddleware('superadmin', 'admin', 'viewer'));
+        $a->get('/audit/export.csv',         \AfricaGates\Admin\Controllers\AuditController::class.':export')
+            ->add(new RoleMiddleware('superadmin', 'admin', 'viewer'));
         $a->get('/audit/actor/{id:[0-9]+}',  \AfricaGates\Admin\Controllers\AuditController::class.':actor')
             ->add(new RoleMiddleware('superadmin', 'admin', 'viewer'));
         // A writable-by-hand link for one record's history, so another screen can point
@@ -3534,9 +4132,17 @@ return function(App $app) {
         $a->get('/nominations',     AdminNominationsController::class.':index');
         // Review DESK — high-volume queue walker ({id} below is digit-constrained, no conflict)
         $a->post('/nominations/ai-filter', AdminNominationsController::class.':aiFilter');
-        $a->get('/nominations/review', AdminNominationsController::class.':desk');
+        // The review list (v2) is "Nominations" in the rail; the one-at-a-time desk is
+        // its own page. `/review/next` stays the desk's fragment, which it has always fetched.
+        $a->get('/nominations/review', AdminNominationsController::class.':queue');
+        $a->get('/nominations/review/count', AdminNominationsController::class.':queueCount');
+        $a->get('/nominations/review/export.csv', AdminNominationsController::class.':queueExport');
+        $a->post('/nominations/review/bulk', AdminNominationsController::class.':bulk');
+        $a->post('/nominations/review/presence', AdminNominationsController::class.':presence');
+        $a->get('/nominations/desk', AdminNominationsController::class.':desk');
         $a->get('/nominations/review/next', AdminNominationsController::class.':deskFragment');
         $a->get('/nominations/{id:[0-9]+}',           AdminNominationsController::class.':review');
+        $a->post('/nominations/{id:[0-9]+}/note', AdminNominationsController::class.':note');
         $a->post('/nominations/{id:[0-9]+}/suggest-reason', AdminNominationsController::class.':suggestReason');
         $a->post('/nominations/{id:[0-9]+}/ai-insight', AdminNominationsController::class.':aiInsight');
         $a->post('/nominations/{id:[0-9]+}/regenerate-form', AdminNominationsController::class.':regenerateForm');
@@ -3580,15 +4186,40 @@ return function(App $app) {
         $a->get('/support/{ref:[A-Za-z0-9\-]+}',     \AfricaGates\Admin\Controllers\SupportController::class.':show');
         $a->post('/support/{ref:[A-Za-z0-9\-]+}/reply', \AfricaGates\Admin\Controllers\SupportController::class.':reply');
         $a->post('/support/{ref:[A-Za-z0-9\-]+}/status/{to}', \AfricaGates\Admin\Controllers\SupportController::class.':status');
+        // The calendar — every stored deadline, event day and draw (AdminConsole v2).
+        $a->get('/calendar',        \AfricaGates\Admin\Controllers\CalendarController::class.':index');
+        // Contacts — everybody who took part, one row per person (AdminConsole v2).
+        $a->get('/contacts',        \AfricaGates\Admin\Controllers\ContactsController::class.':index');
         // AI assistant — console copilot (all roles; superadmin unlimited)
         $a->get('/assistant',       \AfricaGates\Admin\Controllers\AssistantController::class.':index');
         $a->post('/assistant/chat', \AfricaGates\Admin\Controllers\AssistantController::class.':chat');
+        // The assistant's conversations, kept per administrator (Admin\Services\AssistantThreads).
+        $a->get('/assistant/threads/feed', \AfricaGates\Admin\Controllers\AssistantController::class.':threads');
+        $a->get('/assistant/threads/{id:[0-9]+}', \AfricaGates\Admin\Controllers\AssistantController::class.':thread');
+        $a->post('/assistant/threads/{id:[0-9]+}/delete', \AfricaGates\Admin\Controllers\AssistantController::class.':deleteThread');
+        $a->post('/assistant/messages/{id:[0-9]+}/rate', \AfricaGates\Admin\Controllers\AssistantController::class.':rate');
+        $a->get('/assistant/scripts', \AfricaGates\Admin\Controllers\AssistantController::class.':scripts');
+        $a->post('/assistant/scripts/{key:[a-z_]+}', \AfricaGates\Admin\Controllers\AssistantController::class.':runScript');
 
         $a->get('/programmes',                       AdminProgrammesController::class.':index');
         $a->get('/programmes/new',                   AdminProgrammesController::class.':form');
         $a->post('/programmes/new',                  AdminProgrammesController::class.':save');
         $a->get('/programmes/{id:[0-9]+}',           AdminProgrammesController::class.':form');
         $a->post('/programmes/{id:[0-9]+}',          AdminProgrammesController::class.':save');
+        // ── WHAT THIS AWARD CALLS ITS OWN PEOPLE ─────────────────────────────
+        //
+        // The one way into `gates_award_programmes.wording_json`. Before this the
+        // column had a reader, a validator, caps and house fallbacks, and NO WRITER —
+        // §18's shape, where every part of a mechanism is complete and there is no
+        // door. The nomination form read it on every render and it could only ever
+        // answer with the house words.
+        //
+        // The same gate as the rest of the programme, deliberately: this changes what
+        // the form SAYS, not who may enter or where money goes, and an editor running
+        // an award is exactly who knows whether it is for principals or for choirs.
+        $a->get('/programmes/{id:[0-9]+}/wording',  AdminProgrammesController::class.':wording');
+        $a->post('/programmes/{id:[0-9]+}/wording', AdminProgrammesController::class.':wordingSave');
+
         // ── SPONSORSHIP ──────────────────────────────────────────────────────
         //
         // Superadmin on the WRITES, not on the read: naming a commercial backer beside an
@@ -3601,7 +4232,14 @@ return function(App $app) {
                  AdminProgrammesController::class.':sponsorDelete')
             ->add(new RoleMiddleware('superadmin'));
         $a->get('/programmes/{id:[0-9]+}/cycle',     AdminProgrammesController::class.':cycleEdit')->add(new RoleMiddleware('superadmin'));
+        $a->get('/programmes/{id:[0-9]+}/cycle/voting-letter', AdminProgrammesController::class.':votingLetterPreview')->add(new RoleMiddleware('superadmin'));
+        $a->post('/programmes/{id:[0-9]+}/cycle/voting-letter/send', AdminProgrammesController::class.':votingLetterSend')->add(new RoleMiddleware('superadmin'));
+        $a->post('/programmes/{id:[0-9]+}/cycle/voting-letter/correct', AdminProgrammesController::class.':votingLetterCorrect')->add(new RoleMiddleware('superadmin'));
+        // The voting letter's words, per edition: the editor, and its autosave/publish/restore.
+        $a->get('/programmes/{id:[0-9]+}/cycle/letter',  AdminProgrammesController::class.':letterEditor')->add(new RoleMiddleware('superadmin'));
+        $a->post('/programmes/{id:[0-9]+}/cycle/letter', AdminProgrammesController::class.':letterSave')->add(new RoleMiddleware('superadmin'));
         $a->post('/programmes/{id:[0-9]+}/cycle',    AdminProgrammesController::class.':cycleSave')->add(new RoleMiddleware('superadmin'));
+        $a->post('/programmes/{id:[0-9]+}/cycle/prizes', AdminProgrammesController::class.':prizesSave')->add(new RoleMiddleware('superadmin'));
         // Opening next year's edition is its OWN action. The cycle form posts the current
         // cycle's id, so "change the year and save" renames this year's edition and takes
         // its nominees, votes and scores with it — creating one is a different intention.
@@ -3615,6 +4253,38 @@ return function(App $app) {
         // holds. PUBLISHING is not: it cuts the field, and it carries the weight of
         // announcing a result. Hence the narrower guard on the three routes that make a
         // shortlist real, withdraw one, or hand somebody the document.
+        /**
+         * Challenges — the builder and its queues.
+         *
+         * Under the `programmes` gate, beside awards and cycles, because a challenge is
+         * attached to one. Deliberately NOT a new nav section: the rail is seven
+         * headings and each carries exactly one gate, so a new one would move pages
+         * between gates — an access change, which must never ride along inside a
+         * navigation change.
+         */
+        $a->get('/challenges',                                 AdminChallengesController::class.':index');
+        $a->get('/challenges/new',                             AdminChallengesController::class.':form');
+        $a->post('/challenges/seeds/run',                      AdminChallengesController::class.':runSeed');
+        // A seed checked before it runs. The name is constrained to a seed's own shape
+        // (a date, then words) so the literal `/seeds/run` above can never be read as one.
+        $a->get('/challenges/seeds/{name:[0-9]{4}_[0-9]{2}_[0-9]{2}_[a-z0-9_]+}',        AdminChallengesController::class.':seedForm');
+        $a->post('/challenges/seeds/{name:[0-9]{4}_[0-9]{2}_[0-9]{2}_[a-z0-9_]+}',       AdminChallengesController::class.':seedSave');
+        $a->post('/challenges/seeds/{name:[0-9]{4}_[0-9]{2}_[0-9]{2}_[a-z0-9_]+}/reset', AdminChallengesController::class.':seedReset');
+        $a->post('/challenges/new',                            AdminChallengesController::class.':save');
+        $a->post('/challenges/new/draft',                      AdminChallengesController::class.':draft');
+        $a->get('/challenges/{id:[0-9]+}',                     AdminChallengesController::class.':form');
+        $a->post('/challenges/{id:[0-9]+}',                    AdminChallengesController::class.':save');
+        $a->post('/challenges/{id:[0-9]+}/draft',              AdminChallengesController::class.':draft');
+        $a->post('/challenges/{id:[0-9]+}/publish',            AdminChallengesController::class.':publish');
+        $a->post('/challenges/{id:[0-9]+}/cancel',             AdminChallengesController::class.':cancel');
+        $a->get('/challenges/{id:[0-9]+}/queues',              AdminChallengesController::class.':queues');
+        $a->get('/challenges/{id:[0-9]+}/export',              AdminChallengesController::class.':export');
+        $a->post('/challenges/{id:[0-9]+}/draw',               AdminChallengesController::class.':draw');
+        $a->post('/challenges/{id:[0-9]+}/entry/{entry:[0-9]+}/paid',
+            AdminChallengesController::class.':markPaid');
+        $a->post('/challenges/{id:[0-9]+}/entry/{entry:[0-9]+}/disqualify',
+            AdminChallengesController::class.':disqualify');
+
         $a->get('/shortlists',                                 AdminShortlistsController::class.':index');
         $a->post('/shortlists/rule',                            AdminShortlistsController::class.':saveRule');
         $a->get('/shortlists/category/{catId:[0-9]+}',          AdminShortlistsController::class.':category');
@@ -3683,6 +4353,10 @@ return function(App $app) {
         $a->post('/legal/{slug:[a-z0-9-]+}/delete',\AfricaGates\Admin\Controllers\LegalController::class.':delete');
         // Shared admin AI helpers (drafting + form-schema generation)
         $a->post('/ai/assist',      \AfricaGates\Admin\Controllers\AiAssistController::class.':assist');
+        // Drafts an award's seven form phrases from what the award says about itself.
+        // Writes nothing — the reply lands in the boxes on /admin/programmes/{id}/wording
+        // and the operator saves it, or does not.
+        $a->post('/ai/award-wording', \AfricaGates\Admin\Controllers\AiAssistController::class.':awardWording');
         $a->post('/ai/form-fields', \AfricaGates\Admin\Controllers\AiAssistController::class.':formFields');
 
         // Shop — product catalogue CRUD.
@@ -3704,7 +4378,14 @@ return function(App $app) {
 
         $a->get('/nominees',        AdminNomineesController::class.':index');
         $a->get('/nominees/duplicate-scan', AdminNomineesController::class.':duplicateScan');
+        // Duplicates and net counts: people, not entries — nominees across the whole
+        // edition, voters by inbox. A sub-page of Nominees, linked from it.
+        $a->get('/nominees/duplicates',        \AfricaGates\Admin\Controllers\DuplicatesController::class.':index');
+        $a->post('/nominees/duplicates/rule',  \AfricaGates\Admin\Controllers\DuplicatesController::class.':rule');
+        $a->post('/nominees/duplicates/ai',    \AfricaGates\Admin\Controllers\DuplicatesController::class.':ai');
+        $a->post('/nominees/duplicates/merge', \AfricaGates\Admin\Controllers\DuplicatesController::class.':merge');
         $a->post('/nominees/merge', AdminNomineesController::class.':merge');
+        $a->post('/nominees/not-duplicate', AdminNomineesController::class.':notDuplicate');
         $a->post('/nominees/unmerge', AdminNomineesController::class.':unmerge');
         $a->post('/nominees/{id:[0-9]+}/link',     AdminNomineesController::class.':link');
         $a->post('/nominees/{id:[0-9]+}/photo',         AdminNomineesController::class.':photo');
@@ -3779,6 +4460,9 @@ return function(App $app) {
         // Door passes: minted and revoked on the event's own tickets screen, because a door
         // belongs to an event and the person who needs one is already on that page an hour
         // before the gates open. See EventScanPass.
+        $a->get('/events/leads',                    AdminEventsController::class.':allLeads');
+        $a->get('/events/{id:[0-9]+}/leads',        AdminEventsController::class.':leads');
+        $a->post('/events/{id:[0-9]+}/leads',       AdminEventsController::class.':leadsAct');
         $a->post('/events/{id:[0-9]+}/door',        AdminEventsController::class.':issueDoorPass');
         $a->post('/events/{id:[0-9]+}/door/revoke', AdminEventsController::class.':revokeDoorPass');
         // Refunds that did not land. On the tickets screen and not on finance, because a
@@ -3849,6 +4533,24 @@ return function(App $app) {
         $a->get('/payouts',                      \AfricaGates\Admin\Controllers\PayoutsController::class.':index');
         $a->post('/payouts/{id:[0-9]+}/pay',     \AfricaGates\Admin\Controllers\PayoutsController::class.':pay');
         $a->post('/payouts/{id:[0-9]+}/reject',  \AfricaGates\Admin\Controllers\PayoutsController::class.':reject');
+        // Release a request the automatic checks held, to be paid by transfer.
+        $a->post('/payouts/{id:[0-9]+}/send',    \AfricaGates\Admin\Controllers\PayoutsController::class.':send');
+        // An ORGANISATION's request for money that reached our account rather than theirs
+        // (OrgPayout::heldForOrg). Settled by hand with the transfer reference, or refused.
+        $a->post('/payouts/org/{id:[0-9]+}/pay',    \AfricaGates\Admin\Controllers\PayoutsController::class.':orgPay');
+        $a->post('/payouts/org/{id:[0-9]+}/refuse', \AfricaGates\Admin\Controllers\PayoutsController::class.':orgRefuse');
+        // ── COMMUNITY RETURN ──────────────────────────────────────────────
+        //
+        // An edition's return rules and milestone confirmation, and the nominees'
+        // withdrawals queue. See CommunityReturnController.
+        $a->get('/community-return',                                   \AfricaGates\Admin\Controllers\CommunityReturnController::class.':index');
+        $a->post('/community-return/{cycle:[0-9]+}/rules',             \AfricaGates\Admin\Controllers\CommunityReturnController::class.':saveRules');
+        $a->post('/community-return/{cycle:[0-9]+}/confirm',           \AfricaGates\Admin\Controllers\CommunityReturnController::class.':confirm');
+        $a->post('/community-return/{cycle:[0-9]+}/settle',            \AfricaGates\Admin\Controllers\CommunityReturnController::class.':settle');
+        $a->post('/community-return/withdrawals/{id:[0-9]+}/approve',  \AfricaGates\Admin\Controllers\CommunityReturnController::class.':approve');
+        $a->post('/community-return/withdrawals/{id:[0-9]+}/pay',      \AfricaGates\Admin\Controllers\CommunityReturnController::class.':pay');
+        $a->post('/community-return/withdrawals/{id:[0-9]+}/reject',   \AfricaGates\Admin\Controllers\CommunityReturnController::class.':reject');
+        $a->post('/community-return/withdrawals/{id:[0-9]+}/send',     \AfricaGates\Admin\Controllers\CommunityReturnController::class.':send');
         $a->get('/finance/export',               AdminFinanceController::class.':export');
         // Re-verify stale pending payments against the gateway. POST because it makes
         // outbound calls and, in apply mode, moves money — a GET would let a prefetch
@@ -3945,6 +4647,23 @@ return function(App $app) {
         // these routes is the safety mechanism.
         $a->group('/campaigns', function (RouteCollectorProxy $s) {
             $s->get('',                      \AfricaGates\Admin\Controllers\CampaignsController::class.':index');
+            // The automated newsletter — a sub-page of campaigns, linked from its list.
+            // Literal segments, so they cannot collide with the digits-only /{id} below.
+            $s->get('/newsletter',                       \AfricaGates\Admin\Controllers\NewsletterAdminController::class.':index');
+            // The member pages' seasonal greeting windows (HOLIDAY-THEMES) — linked from the
+            // newsletter's holiday section; literal segments, clear of /{id} below.
+            $s->get('/greetings',                        \AfricaGates\Admin\Controllers\GreetingsAdminController::class.':index');
+            $s->post('/greetings',                       \AfricaGates\Admin\Controllers\GreetingsAdminController::class.':add');
+            $s->post('/greetings/{id:[0-9]+}/toggle',    \AfricaGates\Admin\Controllers\GreetingsAdminController::class.':toggle');
+            $s->post('/greetings/{id:[0-9]+}/delete',    \AfricaGates\Admin\Controllers\GreetingsAdminController::class.':delete');
+            $s->post('/newsletter/settings',             \AfricaGates\Admin\Controllers\NewsletterAdminController::class.':settings');
+            $s->post('/newsletter/compose',              \AfricaGates\Admin\Controllers\NewsletterAdminController::class.':compose');
+            $s->post('/newsletter/holidays',             \AfricaGates\Admin\Controllers\NewsletterAdminController::class.':holidays');
+            $s->get('/newsletter/{id:[0-9]+}/preview',   \AfricaGates\Admin\Controllers\NewsletterAdminController::class.':preview');
+            $s->post('/newsletter/{id:[0-9]+}/approve',  \AfricaGates\Admin\Controllers\NewsletterAdminController::class.':approve');
+            $s->post('/newsletter/{id:[0-9]+}/skip',     \AfricaGates\Admin\Controllers\NewsletterAdminController::class.':skip');
+            $s->post('/newsletter/{id:[0-9]+}/test',     \AfricaGates\Admin\Controllers\NewsletterAdminController::class.':test');
+            $s->post('/newsletter/{id:[0-9]+}/send',     \AfricaGates\Admin\Controllers\NewsletterAdminController::class.':send');
             $s->post('/new',                 \AfricaGates\Admin\Controllers\CampaignsController::class.':create');
             $s->get('/{id:[0-9]+}',          \AfricaGates\Admin\Controllers\CampaignsController::class.':show');
             $s->post('/{id:[0-9]+}',         \AfricaGates\Admin\Controllers\CampaignsController::class.':save');
@@ -4111,6 +4830,48 @@ return function(App $app) {
             $s->post('/{id:[0-9]+}/toggle', AdminAdminsController::class.':toggle');
         })->add(new RoleMiddleware('superadmin'));
 
+        // ── HEALTH: READ BY superadmin, admin AND viewer (owner, 4 Oct 2026, GAPS §8d) ──
+        //
+        // The integrations check and email health, and only their READS: the page and the
+        // read-only diagnostics (every probe is a read; the mail diagnosis stops at MAIL
+        // FROM). Their published URLs stay under /settings — every mail alert ever sent
+        // links /admin/settings/mail — and Permissions::SUBPATH_SECTIONS maps them to the
+        // `health` gate. Everything on those pages that CHANGES configuration or costs
+        // money (the transport switch, the send rules, rotating the events token, lifting
+        // a suppression, sending a real test message) stays in the superadmin group below.
+        $a->group('/settings', function (RouteCollectorProxy $s) {
+            $s->get('/providers',      AdminSettingsController::class.':providers');
+            $s->post('/providers/run', AdminSettingsController::class.':providersRun');
+            $s->get('/mail',           \AfricaGates\Admin\Controllers\MailHealthController::class.':index');
+            $s->post('/mail/diagnose', \AfricaGates\Admin\Controllers\MailHealthController::class.':diagnose');
+        });
+
+        // ── WHAT THE PLATFORM NOTICED ON ITS OWN ───────────────────────────────
+        //
+        // Derived on read from the platform's own records (Admin\Services\ConsoleAlerts):
+        // an email outage, a stalled schedule, chargebacks on a clock, schema behind the
+        // code. The top bar's alert pill and Home's "needs a person" read the same list.
+        // The staff side of the volunteer workspace (consoles v7 §6; review slice V1). Unmapped in
+        // Permissions, so the guard holds it to superadmin until the owner decides who else.
+        $a->get('/volunteers',  \AfricaGates\Admin\Controllers\VolunteersController::class.':index');
+        $a->post('/volunteers', \AfricaGates\Admin\Controllers\VolunteersController::class.':act');
+        // Where staff decide what leads and volunteers asked for (§2.6). Mapped to `finance`.
+        $a->get('/requests',  \AfricaGates\Admin\Controllers\RequestsController::class.':index');
+        $a->post('/requests', \AfricaGates\Admin\Controllers\RequestsController::class.':act');
+        $a->get('/alerts', \AfricaGates\Admin\Controllers\AlertsController::class.':index');
+        // "Assign to me" — the alert's owner and its timeline (AdminConsole v2).
+        $a->post('/alerts/{key:[a-z_]+}/assign', \AfricaGates\Admin\Controllers\AlertsController::class.':assign');
+
+        // ── THE ADMIN'S OWN CONSOLE: PINNED VIEWS AND THE SIDEBAR ─────────────────
+        //
+        // Stored per admin, server-side (gates_admin_pins, gates_admin_prefs), so a pin
+        // follows somebody to another browser. `/admin/me/` changes nothing on the
+        // platform, which is why AdminAuthMiddleware lets a read-only role write here.
+        $a->post('/me/pins',                     \AfricaGates\Admin\Controllers\ConsoleMeController::class.':pin');
+        $a->post('/me/pins/{id:[0-9]+}/unpin',   \AfricaGates\Admin\Controllers\ConsoleMeController::class.':unpin');
+        $a->post('/me/sidebar',                  \AfricaGates\Admin\Controllers\ConsoleMeController::class.':sidebar');
+        $a->post('/me/feedback',                 \AfricaGates\Admin\Controllers\ConsoleMeController::class.':feedback');
+
         $a->group('/settings', function (RouteCollectorProxy $s) {
             $s->get('',  AdminSettingsController::class.':form');
             $s->post('', AdminSettingsController::class.':save');
@@ -4120,8 +4881,6 @@ return function(App $app) {
             // will say which link is broken. Every probe is a READ — a balance, an account,
             // a model list — so pressing it never sends an SMS, opens a transaction or
             // synthesises audio. See ProviderProbe.
-            $s->get('/providers',      AdminSettingsController::class.':providers');
-            $s->post('/providers/run', AdminSettingsController::class.':providersRun');
             // ── AND THE ONE THING ON THAT PAGE THAT ACTUALLY SENDS ───────────
             //
             // A gateway can pass every read this platform can perform and still deliver
@@ -4130,6 +4889,16 @@ return function(App $app) {
             // numbers verified in its console. All three read as working everywhere else.
             // A number typed by hand, capped per admin per hour, opt-out honoured.
             $s->post('/providers/send-test', AdminSettingsController::class.':providersSendTest');
+            // ── IS EMAIL WORKING, AND WHY NOT ────────────────────────────────
+            //
+            // Where every mail alert points. The diagnosis walks the SMTP conversation
+            // to MAIL FROM and stops: it never sends, so it can run by itself hourly.
+            $s->post('/mail/sending',  \AfricaGates\Admin\Controllers\MailHealthController::class.':sending');
+            $s->post('/mail/apps-script', \AfricaGates\Admin\Controllers\MailHealthController::class.':appsScript');
+            $s->post('/mail/use-env',  \AfricaGates\Admin\Controllers\MailHealthController::class.':useEnv');
+            $s->post('/mail/rules',    \AfricaGates\Admin\Controllers\MailHealthController::class.':rules');
+            $s->post('/mail/events/rotate', \AfricaGates\Admin\Controllers\MailHealthController::class.':rotate');
+            $s->post('/mail/suppression/{id:[0-9]+}/lift', \AfricaGates\Admin\Controllers\MailHealthController::class.':lift');
             // ── TAKE BACK A BATCH OF WORKED-OUT PRONUNCIATIONS ───────────────
             //
             // A name is asked about once, ever, so a bad run of answers is otherwise
@@ -4220,7 +4989,10 @@ return function(App $app) {
             $s->post('/{id:[0-9]+}/delete', AdminWebhooksController::class.':delete');
             $s->post('/{id:[0-9]+}/test',   AdminWebhooksController::class.':test');
         })->add(new RoleMiddleware('superadmin'));
-    // Auth runs first (outermost), then the per-section RBAC guard.
-    })->add(new SectionGuardMiddleware())
+    // Auth runs first (outermost), then the per-section RBAC guard, then — for a console
+    // opened from the member's account — a fresh code before a write in Finance or
+    // Configuration (AccountReconfirmMiddleware).
+    })->add(new \AfricaGates\Middleware\AccountReconfirmMiddleware('console'))
+      ->add(new SectionGuardMiddleware())
       ->add(new AdminAuthMiddleware($app->getContainer()->get(\AfricaGates\Admin\Services\AuthService::class)));
 };

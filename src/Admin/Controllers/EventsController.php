@@ -41,10 +41,19 @@ class EventsController
     public function index(Request $req, Response $res): Response
     {
         $rows = DB::table('gates_site_events')->orderByDesc('event_date')->get()->map(fn($r)=>(array)$r)->all();
+        /* Who leads each event, on the list itself (owner, 3 Nov 2026: the only way in was a link
+           at the foot of the edit form). One read of the leads and one of the waiting invitations
+           for the whole list, grouped here — never a query per row. */
+        $leads = [];
+        foreach (\AfricaGates\Services\EventPlan\Leads::everywhere() as $l) {
+            if (!in_array($l->state, ['lead', 'invited'], true)) continue;   // owners are listed on the event's own page
+            $leads[$l->event_id][$l->state === 'lead' ? 'names' : 'invited'][] = $l->state === 'lead' ? $l->name : $l->email;
+        }
         return $this->view->render($res, 'admin/events/index.twig', [
             'page_title' => 'Events — Admin',
             'admin_page' => 'events',
             'rows'       => $rows,
+            'leads'      => $leads,
         ]);
     }
 
@@ -177,7 +186,11 @@ class EventsController
             'extras_missing' => OptionalColumn::missing('gates_site_events', [
                 'waitlist_open', 'sales_close_at', 'attendee_note', 'refund_policy',
                 'organiser_email', 'organiser_phone',
+                'livestream_url', 'recording_url', 'access_notes', 'cover_kind', 'spotlight_rank',
             ]),
+            // The kinds an organiser may pick for the default cover (DEFAULT-GRAPHICS §4):
+            // the list and its labels from the one resolver, never typed into the form.
+            'cover_kinds'    => array_map(static fn ($k) => $k[0], \AfricaGates\Support\CoverKind::KINDS),
             // The enforceable half of the refund policy, hidden until migrated for the same
             // reason as the rest — an organiser setting "50% up to 48 hours" and having it
             // silently dropped would be worse than not offering it.
@@ -259,7 +272,9 @@ class EventsController
             'status'      => in_array($b['status'] ?? '', ['published','draft'], true) ? $b['status'] : 'draft',
             'capacity'    => trim((string)($b['capacity'] ?? '')) !== '' ? max(0, (int)$b['capacity']) : null,
             'schedule'            => $schedule ? json_encode($schedule) : null,
-            'map_embed'           => trim((string)($b['map_embed'] ?? '')) ?: null,
+            // Normalised and checked (EventsFront::mapLink()): a long Google Maps place link
+            // used to overflow the column and 500 the whole save on MySQL.
+            'map_embed'           => ($mapLink = \AfricaGates\Services\EventsFront::mapLink((string) ($b['map_embed'] ?? '')))['url'],
             'early_bird_text'     => trim((string)($b['early_bird_text'] ?? '')) ?: null,
             'early_bird_deadline' => self::fromInput($b['early_bird_deadline'] ?? ''),
             'early_bird_url'      => trim((string)($b['early_bird_url'] ?? '')) ?: null,
@@ -295,6 +310,20 @@ class EventsController
                 'refund_policy'   => mb_substr(trim((string) ($b['refund_policy'] ?? '')), 0, 1000) ?: null,
                 'organiser_email' => mb_substr(trim((string) ($b['organiser_email'] ?? '')), 0, 190) ?: null,
                 'organiser_phone' => mb_substr(trim((string) ($b['organiser_phone'] ?? '')), 0, 40) ?: null,
+                // Phase 7 (the public page's Livestream, Recording and Access sections). Links
+                // out, http(s) only — EventsFront::link() validates them again on the way out.
+                'livestream_url'  => \AfricaGates\Services\EventsFront::link(mb_substr(trim((string) ($b['livestream_url'] ?? '')), 0, 500)) ?: null,
+                'recording_url'   => \AfricaGates\Services\EventsFront::link(mb_substr(trim((string) ($b['recording_url'] ?? '')), 0, 500)) ?: null,
+                'access_notes'    => mb_substr(trim((string) ($b['access_notes'] ?? '')), 0, 2000) ?: null,
+                // What the default cover draws when there is no image. A KIND, never a colour;
+                // anything not in CoverKind::KINDS is stored as NULL (nobody chose), which the
+                // cover resolves by whether the event is tied to an award.
+                'cover_kind'      => \AfricaGates\Support\CoverKind::isKind($b['cover_kind'] ?? null)
+                                        ? strtolower(trim((string) $b['cover_kind'])) : null,
+                // The events page's spotlight position, 1–4 (EVENTS-INDEX §2); anything else
+                // is "not featured". Two events may share a number — the earlier one leads.
+                'spotlight_rank'  => in_array((int) ($b['spotlight_rank'] ?? 0), range(1, \AfricaGates\Services\EventsFront::SPOTLIGHT), true)
+                                        ? (int) $b['spotlight_rank'] : null,
                 // ── THE REFUND POLICY, AS A RULE ─────────────────────────
                 //
                 // `refund_policy` above stays: it is the prose a buyer reads, and it can say
@@ -317,6 +346,7 @@ class EventsController
         $data = OptionalColumn::filter('gates_site_events', $data, [
             'waitlist_open', 'sales_close_at', 'attendee_note', 'refund_policy',
             'organiser_email', 'organiser_phone',
+            'livestream_url', 'recording_url', 'access_notes', 'cover_kind', 'spotlight_rank',
             'self_cancel', 'refund_mode', 'refund_percent', 'refund_cutoff_hours',
         ]);
         // The ticket's appearance. Validated in the service rather than here, because the
@@ -334,6 +364,10 @@ class EventsController
             $_SESSION['flash_error'] = 'Title and slug are required.';
             return $res->withHeader('Location', $id ? "/admin/events/{$id}" : '/admin/events/new')->withStatus(302);
         }
+        // A map link that cannot be kept does not cost the organiser the rest of the form:
+        // the event saves without it and says why. Refusing the whole save would throw away
+        // everything else typed with it.
+        if ($mapLink['error'] !== '') $_SESSION['flash_error'] = $mapLink['error'];
         if ($id) {
             DB::table('gates_site_events')->where('id', $id)->update($data);
             $this->audit->record((int)$_SESSION['admin_id'], 'event.update', 'site_event', $id);
@@ -1128,6 +1162,238 @@ class EventsController
         return $res->withHeader('Location', $back)->withStatus(302);
     }
 
+    /**
+     * GET /admin/events/{id}/leads — who leads this event. A lead is a MEMBER account found by
+     * email (EventPlan\Leads), so an organisation's own people can run its event from /lead
+     * without being given this console.
+     */
+    public function leads(Request $req, Response $res, array $args): Response
+    {
+        $event = DB::table('gates_site_events')->where('id', (int) ($args['id'] ?? 0))->first();
+        if (!$event) {
+            $_SESSION['flash_error'] = 'That event could not be found.';
+            return $res->withHeader('Location', '/admin/events')->withStatus(302);
+        }
+        $ok = $_SESSION['flash_ok'] ?? null; $err = $_SESSION['flash_error'] ?? null;
+        unset($_SESSION['flash_ok'], $_SESSION['flash_error']);
+        $mayStaff = $this->mayStaffVolunteers();
+        return $this->view->render($res, 'admin/events/leads.twig', [
+            'admin_page' => 'events', 'topbar_title' => 'Leads and volunteers', 'event' => $event,
+            'leads' => \AfricaGates\Services\EventPlan\Leads::of((int) $event->id), 'flash_ok' => $ok, 'flash_error' => $err,
+            'owners' => \AfricaGates\Services\EventPlan\Teams::owners((int) $event->id), 'team' => $this->teamView((int) $event->id),
+            'invites' => \AfricaGates\Services\RoleInvites::waiting((int) $event->id),
+            'awards' => \AfricaGates\Services\EventInvites::programmesFor((int) $event->id),
+            'may_staff' => $mayStaff, 'crew' => $this->crew((int) $event->id),
+            'pool' => $mayStaff ? $this->volunteerPool() : [], 'vol_roles' => self::EVENT_VOL_ROLES,
+            'default_until' => date('Y-m-d', strtotime((string) ($event->end_date ?: $event->event_date) . ' +1 day')),
+        ]);
+    }
+
+    /**
+     * GET /admin/events/leads — every lead at every event, and every invitation still waiting,
+     * on one page (owner, 3 Nov 2026: "nowhere lists every lead across all events"). Each row
+     * goes to that event's own Leads and volunteers page, where the role is given and ended.
+     */
+    public function allLeads(Request $req, Response $res): Response
+    {
+        $rows = \AfricaGates\Services\EventPlan\Leads::everywhere();
+        $ids = array_values(array_unique(array_map(static fn ($r) => $r->event_id, $rows)));
+        $events = $ids ? DB::table('gates_site_events')->whereIn('id', $ids)->get(['id', 'title', 'event_date'])->keyBy('id')->all() : [];
+        foreach ($rows as $r) { $e = $events[$r->event_id] ?? null; $r->event = $e ? (string) $e->title : 'An event no longer listed'; $r->date = $e ? (string) $e->event_date : ''; }
+        usort($rows, static fn ($a, $b) => [$a->date, $a->event, $a->state] <=> [$b->date, $b->event, $b->state]);
+        return $this->view->render($res, 'admin/events/all-leads.twig', [
+            'admin_page' => 'events', 'topbar_title' => 'Event leads', 'rows' => $rows,
+        ]);
+    }
+
+    /**
+     * VOLUNTEERS ON AN EVENT (owner, 1 Nov 2026: "volunteers cannot be added to an event").
+     * The only way in was Volunteers → Roster, one row at a time, with every event and award
+     * in one long list — nothing on the event itself said who was working it or offered to
+     * add anybody. These are the roles a night is staffed with; an award's roles stay on the
+     * award. The same Grants::grant() the roster uses, so a role given here is the same role.
+     */
+    private const EVENT_VOL_ROLES = ['vol.door' => 'Door steward', 'vol.usher' => 'Usher', 'vol.team_lead' => 'Team lead'];
+
+    /**
+     * Giving a volunteer a role is the Volunteers page's power, so this asks the guard about
+     * THAT page rather than widening it to everybody who can open Events (CLAUDE.md: an access
+     * change never rides inside a feature). Everybody else sees the crew and not the form.
+     */
+    private function mayStaffVolunteers(): bool
+    {
+        $role = (string) ($_SESSION['admin_role'] ?? '');
+        return \AfricaGates\Admin\Support\Permissions::canOpen($role, '/admin/volunteers') && \AfricaGates\Admin\Support\Permissions::canWrite($role);
+    }
+
+    /** @return list<object> live volunteer roles on this event, with ->name and ->label */
+    private function crew(int $eventId): array
+    {
+        if (!\AfricaGates\Services\Grants::ready()) return [];
+        $rows = DB::table('gates_grants as g')->join('gates_volunteers as v', 'v.user_id', '=', 'g.actor_id')
+            ->leftJoin('gates_users as u', 'u.id', '=', 'v.user_id')
+            ->where('g.actor_kind', 'member')->where('g.scope_kind', 'event')->where('g.scope_id', $eventId)
+            ->where('g.capability', 'like', 'vol.%')->whereNull('g.revoked_at')->where('g.expires_at', '>', date('Y-m-d H:i:s'))
+            ->orderBy('g.capability')->get(['g.id', 'g.capability', 'g.expires_at', 'v.display_name', 'u.name as user_name'])->all();
+        foreach ($rows as $r) {
+            $r->name = (string) ($r->display_name ?: $r->user_name ?: 'Volunteer');
+            $r->label = \AfricaGates\Services\Grants::CAPABILITIES[$r->capability] ?? $r->capability;
+        }
+        usort($rows, static fn ($a, $b) => [$a->label, $a->name] <=> [$b->label, $b->name]);
+        return $rows;
+    }
+
+    /** @return list<array{id:int,name:string}> approved volunteers, by name */
+    private function volunteerPool(): array
+    {
+        $out = [];
+        foreach (DB::table('gates_volunteers as v')->leftJoin('gates_users as u', 'u.id', '=', 'v.user_id')
+                     ->whereIn('v.status', ['active', 'paused'])->limit(2000)->get(['v.id', 'v.display_name', 'u.name', 'v.status']) as $v) {
+            $out[] = ['id' => (int) $v->id, 'name' => (string) ($v->display_name ?: $v->name ?: 'Volunteer #' . $v->id) . ($v->status === 'paused' ? ' (on a break)' : '')];
+        }
+        usort($out, static fn ($a, $b) => strcasecmp($a['name'], $b['name']));
+        return $out;
+    }
+
+    /**
+     * The event's own teams, roles and people, for staff to SEE and to decide or end anything
+     * (EventPlan\Teams: staff are the second person when an event has no other owner).
+     *
+     * @return array{rows:list<array>, waiting:int}
+     */
+    private function teamView(int $eventId): array
+    {
+        $T = \AfricaGates\Services\EventPlan\Teams::class;
+        if (!$T::ready()) return ['rows' => [], 'waiting' => 0];
+        $roleName = [];
+        $rows = [];
+        foreach ($T::teams($eventId) as $t) {
+            $rows[] = ['subject' => 'team', 'id' => (int) $t->id, 'title' => 'Team: ' . $t->name, 'sub' => (string) ($t->purpose ?? ''), 'status' => (string) $t->status];
+        }
+        foreach ($T::roles($eventId) as $r) {
+            $roleName[(int) $r->id] = (string) $r->name;
+            $flags = \AfricaGates\Services\EventPlan\EventPermissions::risks($r->perms, (string) $r->kind);
+            $rows[] = ['subject' => 'role', 'id' => (int) $r->id, 'title' => 'Role: ' . $r->name, 'status' => (string) $r->status,
+                'sub' => implode(', ', array_map(static fn ($p) => \AfricaGates\Services\EventPlan\EventPermissions::MENU[$p]['label'], $r->perms))
+                    . ($flags ? ' · flagged: ' . implode(' ', $flags) : '')];
+        }
+        foreach ($T::members($eventId) as $m) {
+            $rows[] = ['subject' => 'member', 'id' => (int) $m->id, 'title' => (string) $m->email . ' as ' . ($roleName[(int) $m->role_id] ?? 'a role')
+                . ($m->team_role === 'lead' ? ', team lead' : ''), 'sub' => '', 'status' => (string) $m->status];
+        }
+        foreach ($rows as &$r) {
+            $r['label'] = $T::STATUSES[$r['status']] ?? $r['status'];
+        }
+        unset($r);
+        return ['rows' => $rows, 'waiting' => $T::waitingCount($eventId)];
+    }
+
+    /** POST /admin/events/{id}/leads — give the event to a member by email, or end a lead's access. */
+    public function leadsAct(Request $req, Response $res, array $args): Response
+    {
+        $id = (int) ($args['id'] ?? 0);
+        $b = (array) $req->getParsedBody();
+        $adminId = (int) ($_SESSION['admin_id'] ?? 0);
+        $do = (string) ($b['do'] ?? '');
+        if (in_array($do, ['vol_give', 'vol_end'], true)) {
+            if (!$this->mayStaffVolunteers()) {
+                $_SESSION['flash_error'] = 'Your role can see who is working this event but not change it.';
+            } elseif ($do === 'vol_give') {
+                $cap = (string) ($b['capability'] ?? '');
+                $uid = (int) DB::table('gates_volunteers')->where('id', (int) ($b['volunteer'] ?? 0))->whereIn('status', ['active', 'paused'])->value('user_id');
+                $r = !isset(self::EVENT_VOL_ROLES[$cap]) ? ['ok' => false, 'error' => 'Pick a role for the night.']
+                   : (!$uid ? ['ok' => false, 'error' => 'Pick a volunteer from the list.']
+                   : \AfricaGates\Services\Grants::grant('member', $uid, $cap, 'event', $id, (string) ($b['until'] ?? ''), $adminId, 'Given on the event page'));
+                if ($r['ok']) {
+                    $_SESSION['flash_ok'] = 'Added. The event is in their volunteer workspace on their next page.';
+                    $this->audit->record($adminId, 'event.volunteer.give', 'event', $id, ['grant' => (int) ($r['id'] ?? 0), 'capability' => $cap]);
+                } else {
+                    $_SESSION['flash_error'] = (string) $r['error'];
+                }
+            } else {
+                $grant = (int) ($b['grant'] ?? 0);
+                // Only a volunteer role on THIS event: the id in the form is not trusted to be one.
+                $mine = DB::table('gates_grants')->where('id', $grant)->where('scope_kind', 'event')->where('scope_id', $id)->where('capability', 'like', 'vol.%')->exists();
+                if ($mine && \AfricaGates\Services\Grants::revoke($grant, $adminId)) {
+                    $_SESSION['flash_ok'] = 'Removed from this event.';
+                    $this->audit->record($adminId, 'event.volunteer.end', 'event', $id, ['grant' => $grant]);
+                } else {
+                    $_SESSION['flash_error'] = 'That role had already ended.';
+                }
+            }
+        } elseif (in_array($do, ['team_decide', 'team_end'], true)) {
+            /* Staff see every team, role and person at the event and may decide or end any of it
+               — the second person where an event has no other owner. Same rules as an owner's
+               (Teams), always with a reason, audited as event.team.*. */
+            $by = ['kind' => 'admin', 'id' => $adminId ?: null, 'name' => (string) ($_SESSION['admin_name'] ?? 'Staff')];
+            $T = \AfricaGates\Services\EventPlan\Teams::class;
+            $subject = (string) ($b['subject'] ?? '');
+            $sid = (int) ($b['id'] ?? 0);
+            $reason = (string) ($b['reason'] ?? '');
+            $r = $do === 'team_decide' ? $T::decide($subject, $sid, (string) ($b['verdict'] ?? ''), $reason, $by)
+               : ($subject === 'member' ? $T::endMember($sid, $id, $reason, $by)
+               : ($subject === 'role' ? $T::archiveRole($sid, $id, $reason, $by) : ['ok' => false, 'error' => 'Only a person or a role can be ended here.']));
+            if ($r['ok'] && (int) ($r['event'] ?? $id) !== $id) $r = ['ok' => false, 'error' => 'That is not at this event.'];
+            if ($r['ok']) {
+                $_SESSION['flash_ok'] = (string) ($r['msg'] ?? 'Done.');
+                $this->audit->record($adminId, 'event.team.' . ($do === 'team_decide' ? ($r['verdict'] ?? 'decide') : 'end'), 'event', $id,
+                    ['subject' => $subject, 'id' => $sid, 'reason' => $reason]);
+            } else {
+                $_SESSION['flash_error'] = (string) $r['error'];
+            }
+        } elseif ($do === 'owner_give') {
+            $r = \AfricaGates\Services\EventPlan\Leads::giveOwner($id, (string) ($b['email'] ?? ''), (string) ($b['until'] ?? ''), $adminId, (string) ($_SESSION['admin_name'] ?? ''));
+            if ($r['ok']) {
+                $mail = !empty($r['emailed']) ? ' We emailed them.' : ' The email could not be sent — tell them yourself; Settings › Mail says why.';
+                $_SESSION['flash_ok'] = (!empty($r['granted']) ? 'Done. They own this event now and decide what its leads propose.' : 'Invitation sent. It switches on when they sign in with that address confirmed.') . $mail;
+                $this->audit->record($adminId, !empty($r['granted']) ? 'event.owner.give' : 'event.owner.invite', 'event', $id,
+                    !empty($r['granted']) ? ['grant' => (int) ($r['id'] ?? 0)] : ['invite' => (int) ($r['id'] ?? 0)]);
+            } else {
+                $_SESSION['flash_error'] = (string) $r['error'];
+            }
+        } elseif ($do === 'owner_end') {
+            $grant = (int) ($b['grant'] ?? 0);
+            if (\AfricaGates\Services\EventPlan\Leads::end($grant, $id, $adminId, 'event.own')) {
+                $_SESSION['flash_ok'] = 'Ended. They no longer decide this event’s teams and roles.';
+                $this->audit->record($adminId, 'event.owner.end', 'event', $id, ['grant' => $grant]);
+            } else {
+                $_SESSION['flash_error'] = 'That access had already ended.';
+            }
+        } elseif ($do === 'end') {
+            $grant = (int) ($b['grant'] ?? 0);
+            if (\AfricaGates\Services\EventPlan\Leads::end($grant, $id, $adminId)) {
+                $_SESSION['flash_ok'] = 'Ended. The event leaves their list on their next page.';
+                $this->audit->record($adminId, 'event.lead.end', 'event', $id, ['grant' => $grant]);
+            } else {
+                $_SESSION['flash_error'] = 'That access had already ended.';
+            }
+        } elseif ($do === 'invite_cancel') {
+            $inv = (int) ($b['invite'] ?? 0);
+            if (\AfricaGates\Services\RoleInvites::cancel($inv, $id)) {
+                $_SESSION['flash_ok'] = 'Invitation withdrawn. It will not switch on.';
+                $this->audit->record($adminId, 'event.lead.invite_cancel', 'event', $id, ['invite' => $inv]);
+            } else {
+                $_SESSION['flash_error'] = 'That invitation had already been used or withdrawn.';
+            }
+        } else {
+            $r = \AfricaGates\Services\EventPlan\Leads::give($id, (string) ($b['email'] ?? ''), (string) ($b['until'] ?? ''), $adminId,
+                (string) ($_SESSION['admin_name'] ?? ''));
+            if ($r['ok']) {
+                /* Say what actually happened, including whether the email went: the old sentence
+                   promised a person would "see it" while nothing ever reached them. */
+                $mail = !empty($r['emailed']) ? ' We emailed them.' : ' The email could not be sent — tell them yourself; Settings › Mail says why.';
+                $_SESSION['flash_ok'] = !empty($r['granted'])
+                    ? 'Done. They lead this event now, from Events I lead in their account.' . $mail
+                    : 'Invitation sent. It switches on by itself when they sign in with that address confirmed.' . $mail;
+                $this->audit->record($adminId, !empty($r['granted']) ? 'event.lead.give' : 'event.lead.invite', 'event', $id,
+                    !empty($r['granted']) ? ['grant' => (int) ($r['id'] ?? 0)] : ['invite' => (int) ($r['id'] ?? 0)]);
+            } else {
+                $_SESSION['flash_error'] = (string) $r['error'];
+            }
+        }
+        return $res->withHeader('Location', '/admin/events/' . $id . '/leads')->withStatus(303);
+    }
+
     /** POST /admin/events/{id}/door/revoke — turn one off immediately. */
     public function revokeDoorPass(Request $req, Response $res, array $args): Response
     {
@@ -1389,12 +1655,12 @@ class EventsController
         }
 
         $out = fopen('php://temp', 'r+');
-        fputcsv($out, ['Name', 'Email', 'Phone', 'Ticket', 'Seat', 'Seats', 'Status',
+        \AfricaGates\Support\Csv::put($out, ['Name', 'Email', 'Phone', 'Ticket', 'Seat', 'Seats', 'Status',
                        'Amount (NGN)', 'Discount code', 'Discount (NGN)',
                        'Ticket code', 'Reference', 'Registered', 'Waitlisted',
                        'Offered', 'Offer expires', 'Checked in']);
         foreach (EventTicketService::attendees($id, '', 5000) as $a) {
-            fputcsv($out, [
+            \AfricaGates\Support\Csv::put($out, [
                 $a['name'] ?? '', $a['email'] ?? '', $a['phone'] ?? '',
                 $a['tier'] ?? '',
                 // The seat label, next to the tier rather than at the far right: a printed

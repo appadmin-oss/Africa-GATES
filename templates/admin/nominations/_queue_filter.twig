@@ -1,0 +1,46 @@
+{#
+  The review list's Filter: facets built from the data (ReviewQueue::facets), each option
+  with its count from the list before facets apply, sorted by count, with an "Only" link.
+  A plain GET form inside a <details>, so it works with no script, and `data-ux="off"`
+  because console-ux.js submits a GET form on every tick — here a reviewer ticks several
+  boxes and then presses Show. review-queue.js keeps
+  "Show N" live by asking the server — the one place that counts. On a phone the same
+  element opens as a bottom sheet, with the search inside it.
+#}
+<details class="rq-pop rq-filter" id="rqFilter" data-rq-filter>
+  <summary class="cn-pillbtn{% if chips|length %} is-on{% endif %}"><svg aria-hidden="true" focusable="false"><use href="#ic-filter"/></svg>Filter{% if chips|length %}<span class="rq-filter__n">{{ chips|length }}</span>{% endif %}</summary>
+  <form class="rq-pop__panel rq-filter__panel" method="get" action="/admin/nominations/review" role="dialog" aria-label="Filters" data-rq-filter-form data-ux="off">
+    {% for k, v in {tab: p.tab, scope: p.scope, view: p.view, sort: p.sort, dir: p.dir} %}{% if v and not (k == 'tab' and v == 'pending') and not (k == 'view' and v == 'all') and not (k == 'dir' and not p.sort) %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{% endfor %}
+    <div class="rq-filter__head">
+      <span class="rq-filter__title">Filter</span>
+      <button type="button" class="rq-filter__close rq-js" data-rq-close-filter aria-label="Close filters"><svg aria-hidden="true" focusable="false"><use href="#ic-x"/></svg></button>
+    </div>
+    <label class="ls-search rq-filter__q">
+      <svg aria-hidden="true" focusable="false"><use href="#ic-search"/></svg>
+      <input type="search" name="q" value="{{ p.q }}" placeholder="Search nominees, schools, nominators" aria-label="Search nominees, schools, nominators" autocomplete="off">
+    </label>
+    <div class="rq-filter__scroll">
+      {% for f in facets %}
+        <fieldset class="rq-facet">
+          <legend class="rq-pop__h">{{ f.label }}</legend>
+          {% for o in f.opts %}
+            <label class="rq-pop__opt">
+              <input type="checkbox" name="{{ f.key }}[]" value="{{ o.v }}"{% if o.on %} checked{% endif %}>
+              {% if o.tone %}<span class="rq-dot rq-dot--{{ o.tone }}" aria-hidden="true"></span>{% endif %}
+              <span class="rq-pop__l">{{ o.label }}</span>
+              <span class="rq-pop__num">{{ o.n }}</span>
+              <a class="rq-only" href="{{ o.only }}" title="Show only {{ o.label }}">Only</a>
+            </label>
+          {% endfor %}
+        </fieldset>
+      {% else %}
+        <p class="rq-pop__note">Nothing to filter by on this tab yet.</p>
+      {% endfor %}
+    </div>
+    <div class="rq-filter__foot">
+      <a class="rq-clear" href="{{ clear }}">Clear</a>
+      <span class="ls-bar__gap"></span>
+      <button type="submit" class="rq-show" data-rq-show>Show {{ total|number_format }}</button>
+    </div>
+  </form>
+</details>

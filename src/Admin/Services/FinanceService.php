@@ -55,13 +55,14 @@ final class FinanceService
      * rather than being dropped — a total that silently omits a row is worse than a
      * bucket called "other" that prompts someone to look.
      */
-    public const SOURCES = ['donation', 'paid-vote', 'shop', 'event', 'other'];
+    public const SOURCES = ['donation', 'paid-vote', 'shop', 'event', 'ads', 'other'];
 
     public const LABELS = [
         'donation'  => 'Donations',
         'paid-vote' => 'Paid votes',
         'shop'      => 'Shop orders',
         'event'     => 'Event tickets',
+        'ads'       => 'Advertising',
         'other'     => 'Other payments',
     ];
 
@@ -135,6 +136,13 @@ final class FinanceService
             $out['event']['gross'] += (int) ($r->gross ?? 0);
             $out['event']['count'] += (int) ($r->n ?? 0);
         } catch (\Throwable) {}
+
+        // ── gates_ad_campaigns: paid campaigns, less refunds, WITHOUT the VAT ──
+        // VAT is owed to the tax authority, not earned, so it is not revenue here; it is
+        // reported on its own (AdCheckout::income()['vat']).
+        $ads = \AfricaGates\Services\Ads\AdCheckout::income($since, $until);
+        $out['ads']['gross'] += $ads['gross'];
+        $out['ads']['count'] += $ads['count'];
 
         return $out;
     }
@@ -506,7 +514,7 @@ final class FinanceService
         foreach ($ledgers as $stream => [$table, $refCol, $amtCol, $paid]) {
             $row = [
                 'stream'     => $stream,
-                'label'      => \AfricaGates\Services\PaymentDestination::STREAMS[$stream] ?? $stream,
+                'label'      => \AfricaGates\Services\PaymentDestination::labelFor($stream),
                 'configured' => \AfricaGates\Services\PaymentDestination::forStream($stream),
                 'bearer'     => \AfricaGates\Services\PaymentDestination::bearerFor($stream),
                 'routed_count' => 0, 'routed_naira' => 0,

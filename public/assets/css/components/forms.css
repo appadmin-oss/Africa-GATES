@@ -1,0 +1,55 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   FORMS — the field macros' sheet (templates/partials/field.twig) · Phase 8
+   REFERENCE §9.4 (errors), §9.5 (forms), §6.4 (radius 14), SignIn.dc.html inputs
+   ══════════════════════════════════════════════════════════════════════════════
+
+   One appearance for an input, a hint, an inline error and the error summary on every
+   public form, so a server-side refusal and a browser-side one look and read the same
+   (form-validate.js draws exactly this markup). Loaded by layout/shell.twig beside the
+   validator: a form that turns the native bubble off on the promise these replace it
+   must be able to keep that promise on every page (FormErrorStateTest).
+
+   The input is SignIn.dc.html's: 54px (56 for the one-field sign-in steps, set by the
+   page), padding 0 16, a 1px `line-2` border, radius 14, 16px ink on white. Never
+   under 16px — iOS zooms the page on focus and does not zoom back (§9.5). */
+
+.ag-fieldset{ display:flex; flex-direction:column; gap:var(--ag-sp-6) }
+.ag-fieldset > .ag-label{ margin:0 }
+.ag-fieldset > .ag-hint{ margin:0 }
+
+.ag-input{
+  width:100%; min-width:0; height:54px; padding:0 var(--ag-sp-16);
+  border:1px solid var(--ag-line-2); border-radius:var(--ag-r-14);
+  background:var(--ag-surface); color:var(--ag-ink);
+  font-size:var(--ag-fs-16);
+}
+.ag-input::placeholder{ color:var(--ag-soft) }
+.ag-input--area{ height:auto; min-height:120px; padding:var(--ag-sp-12) var(--ag-sp-16); line-height:1.55; resize:vertical }
+select.ag-input{ appearance:none; cursor:pointer }
+
+/* The error state is on the CONTROL — `aria-invalid` from the server, `data-invalid` from
+   the script — never colour alone: the sentence below it says what is wrong. */
+.ag-input:is([aria-invalid="true"],[data-invalid]){ border-color:var(--ag-error) }
+
+.ag-label__opt{ font-weight:500; color:var(--ag-soft) }
+.ag-label__req{ color:var(--ag-error) }
+
+/* The icon form-validate.js and the macro both draw. */
+.ag-err__i{ flex:none }
+
+/* A live counter (`data-ag-count`): soft while there is nothing to say, the error ink
+   while a minimum is unmet, words always — never a colour change alone. */
+.ag-count{ margin:0; font-size:var(--ag-fs-13); color:var(--ag-soft); font-variant-numeric:tabular-nums }
+.ag-count[data-state="short"]{ color:var(--ag-error) }
+
+/* The summary at the top of a bounced form: a card, the count as a heading, each failure
+   a link to its field. It takes focus on arrival (form-validate.js). */
+.ag-formsum{
+  margin:0 0 var(--ag-sp-16); padding:var(--ag-sp-14) var(--ag-sp-16);
+  background:var(--ag-surface); color:var(--ag-error);
+  border:1px solid var(--ag-line); border-radius:var(--ag-r-14);
+}
+.ag-formsum[hidden]{ display:none }
+.ag-formsum__t{ margin:0 0 var(--ag-sp-6); font-weight:700; font-size:var(--ag-fs-15) }
+.ag-formsum__list{ margin:0; padding-inline-start:var(--ag-sp-18); font-size:var(--ag-fs-14-5); line-height:1.5 }
+.ag-formsum__list a{ color:var(--ag-error); text-decoration:underline; text-underline-offset:3px }

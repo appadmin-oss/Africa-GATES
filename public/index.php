@@ -151,8 +151,11 @@ if (session_status() === PHP_SESSION_NONE) {
     $secure = Env::has('SESSION_SECURE')
         ? Env::bool('SESSION_SECURE', true)
         : ($isHttps || $appEnv === 'production');
+    // The data lasts as long as the cookie, in a directory nobody else collects —
+    // see Support\SessionStore for the "CSRF validation failed" this ended.
+    \AfricaGates\Support\SessionStore::configure(dirname(__DIR__));
     session_set_cookie_params([
-        'lifetime' => 86400 * 7,
+        'lifetime' => \AfricaGates\Support\SessionStore::LIFETIME,
         'path'     => '/',
         'secure'   => $secure,
         'httponly' => true,
@@ -216,6 +219,12 @@ $app->add(new \AfricaGates\Middleware\ReferralCaptureMiddleware());
 // at. Records nothing for bots, admin pages, or anybody sending DNT / Sec-GPC, and
 // swallows its own errors — a tracker that can 500 the home page is worse than none.
 $app->add(new \AfricaGates\Middleware\VisitTrackingMiddleware());
+// Which language this request renders in, and the one place `?lang=` becomes a
+// stored preference. Middleware because a shared link carries `?lang=` on whatever
+// page it points at, so it has to work on all of them — see the class for why every
+// language control on the site is a plain link and not a script.
+$app->add(new \AfricaGates\Middleware\LanguageMiddleware());
+
 $app->add(new CsrfMiddleware());
 $app->addBodyParsingMiddleware();
 

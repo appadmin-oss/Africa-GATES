@@ -33,46 +33,22 @@ final class SupportTicketNamingTest extends TestCase
 {
     /** The surfaces where the word means the support desk. */
     private const SURFACES = [
-        'templates/pages/support-tickets.twig',
-        'templates/pages/support.twig',
-        'templates/pages/support-ticket-link.twig',
-        'templates/pages/support-assistant.twig',
+        // The four public support pages (support-tickets, support, support-ticket-link,
+        // support-assistant) left this list on 3 Oct 2026 when they were destroyed
+        // (docs/handoff/DESTROYED.md); each rebuild adds itself back.
         'templates/admin/support/index.twig',
         'templates/admin/support/show.twig',
     ];
 
-    /**
-     * The assistant's client-side copy, which renders on EVERY public page.
-     *
-     * These are the strings the first sweep missed, and the miss was structural: the
-     * visible-text scan below strips `<script>` blocks, and this file is not a template at
-     * all. Gee floats over an event page — where "your tickets" is the thing the reader
-     * just bought and is holding a code for — and told them it had "checked your tickets"
-     * meaning the support desk. Same label, opposite meaning, one line apart from the page
-     * content underneath it.
-     *
-     * @var array<string,string> file => the phrase that must carry the qualifier
+    /*
+     * Gee's copy — which renders on EVERY public page, over event pages where "your
+     * tickets" is the thing the reader just bought — is held by GeeTest::
+     * test_gee_never_says_a_bare_ticket. It is not a surface in the list above because
+     * every word in partials/gee.twig is a `'…'|trans` literal, which visibleText() strips
+     * with the rest of `{{ … }}`: listed here it would read nothing and pass. A
+     * `SCRIPT_COPY` constant used to stand here naming gee.js; nothing read it (§17), and
+     * the rebuilt gee.js types no sentence at all (its words arrive as data-msg-*).
      */
-    private const SCRIPT_COPY = [
-        'public/assets/js/gee.js'                     => 'my_tickets:',
-        'templates/pages/support-assistant.twig'      => 'my_tickets:',
-    ];
-
-    public function test_the_assistants_own_labels_say_support_ticket(): void
-    {
-        $root = dirname(__DIR__, 2) . '/';
-
-        foreach (self::SCRIPT_COPY as $rel => $key) {
-            $src = (string) file_get_contents($root . $rel);
-
-            $this->assertMatchesRegularExpression(
-                "~" . preg_quote($key, "~") . "\\s*'[^']*support tickets?'~",
-                $src,
-                $rel . " tells a reader it checked their \"tickets\" — on an event page that is "
-                     . 'the thing they just bought'
-            );
-        }
-    }
 
     /**
      * Everything a reader actually sees: comments, styles, scripts, Twig tags and
@@ -110,33 +86,5 @@ final class SupportTicketNamingTest extends TestCase
 
         $this->assertSame([], $bad,
             "a support surface says \"ticket\" where the member also has event tickets:\n" . implode("\n", $bad));
-    }
-
-    /**
-     * And the qualified form is really on the page — a scan for what is ABSENT
-     * passes just as happily on a page that says nothing at all.
-     */
-    public function test_the_member_desk_names_them(): void
-    {
-        $s = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/support-tickets.twig');
-
-        foreach (['Your support tickets', 'Raise a support ticket', 'Open support ticket',
-                  'aria-label="Support ticket status"', 'aria-label="Filter support tickets by status"'] as $phrase) {
-            $this->assertStringContainsString($phrase, $s);
-        }
-    }
-
-    /**
-     * Event tickets are NOT renamed. They are tickets: a thing with a code, shown
-     * at a door. "Support ticket" on the account page's events panel would be a
-     * straight lie, and this test exists so a future sweep does not make it.
-     */
-    public function test_event_tickets_keep_their_name(): void
-    {
-        $me = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/account/dashboard.twig');
-
-        $this->assertStringContainsString('<p class="me-panel__h">Tickets</p>', $me,
-            'the events panel was renamed; an event ticket is not a support ticket');
-        $this->assertStringNotContainsString('support ticket code', strtolower($me));
     }
 }

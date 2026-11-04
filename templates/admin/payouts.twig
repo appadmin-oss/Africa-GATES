@@ -1,5 +1,5 @@
 {% extends "admin/layout.twig" %}
-{% block topbar_title %}Referral payouts{% endblock %}
+{% block topbar_title %}Payouts{% endblock %}
 
 {#
   Paying members what their referrals earned.
@@ -38,13 +38,23 @@
   .po-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
   .po-tabs a{border:1px solid rgba(16,41,44,.14);background:#fff;color:#10292c;border-radius:999px;
     padding:6px 14px;font-size:13px;font-weight:600;text-decoration:none}
+  .po-h2{font-size:17px;margin:26px 0 10px}
+  .po-sub{color:var(--cn-soft);font-size:12px}
+  .po-right{text-align:right}
   .po-tabs a.is-on{background:#237b22;border-color:transparent;color:#fff}
 </style>
 
 <p class="po-note">
+  {% if auto_on %}
+  Members withdraw by bank transfer. A request that passes every automatic check is sent by
+  Paystack and settles itself when the bank confirms it; what is waiting here is what the
+  checks held, each with the reason. Send it by transfer, or pay it however the
+  organisation normally does and record the reference.
+  {% else %}
   Members withdraw by bank transfer. You move the money however the organisation normally
   does, then record the transfer reference here — that is what stamps the commission as
-  settled. Nothing on this page moves money by itself.
+  settled. Automatic payouts are off, so nothing on this page moves money by itself.
+  {% endif %}
   The smallest withdrawal is ₦{{ min_naira|number_format }}.
 </p>
 
@@ -93,9 +103,13 @@
 
       <p class="po-bank">
         {{ p.bank_name }} · {{ p.account_name }} · <b>{{ p.account_number }}</b>
+        {# The fee frozen on the request (WalletFee); transfer the amount less it. #}
+        {% if p.fee_naira|default(0) > 0 %}<br>Transfer <b>₦{{ (p.amount_naira - p.fee_naira)|number_format }}</b> — ₦{{ p.amount_naira|number_format }} less the ₦{{ p.fee_naira|number_format }} withdrawal fee.{% endif %}
       </p>
 
-      {% if p.status == 'requested' %}
+      {% include 'admin/partials/wallet-auto.twig' with {row: p, found: r.found, send: '/admin/payouts/' ~ p.id ~ '/send',
+                 amount: '₦' ~ (p.amount_naira - p.fee_naira|default(0))|number_format} only %}
+      {% if p.status == 'requested' and p.auto_state|default('') not in ['sending', 'checking', 'done'] %}
         <div class="po-acts">
           <form method="post" action="/admin/payouts/{{ p.id }}/pay">
             <input type="hidden" name="_token" value="{{ csrf_token }}">
@@ -134,5 +148,54 @@
       Nothing here yet.
     {% endif %}
   </p>
+{% endif %}
+
+{#
+  ORGANISATIONS. Their gifts settle straight to their own bank through the gateway, so what
+  waits here is only money that reached our account instead (a gift before their account was
+  attached, or one the gateway would not route). It had no reader before this section.
+#}
+<h2 class="po-h2" id="organisations">Organisations</h2>
+{% if org_rows %}
+  {% for p in org_rows %}
+    <div class="po-card">
+      <div class="po-head">
+        <div>
+          <strong>{{ p.org_name|default('Organisation #' ~ p.org_id) }}</strong>
+          <br><span class="po-sub">requested {{ p.requested_at ? p.requested_at|slice(0,16) : '—' }} · {{ p.reference }}</span>
+        </div>
+        <div class="po-right">
+          <div class="po-amt">₦{{ p.amount_naira|number_format }}</div>
+          <span class="po-pill po-requested">Requested</span>
+        </div>
+      </div>
+      <p class="po-bank">
+        {% if p.account_last4 %}Their account ending <b>{{ p.account_last4 }}</b>{% if p.settlement_bank %} (bank code {{ p.settlement_bank }}){% endif %}.{% else %}No account on file — ask them for one before paying.{% endif %}
+        <br>Held here for them now: ₦{{ p.held_naira|number_format }}{% if p.amount_naira > p.held_naira %} — <b>less than this request</b>; check before paying.{% endif %}
+      </p>
+      {% if org_mode == 'transfer' %}
+        <p class="po-note">Payouts are sent by transfer here, so this request is the transfer’s to settle.</p>
+      {% else %}
+        <div class="po-acts">
+          <form method="post" action="/admin/payouts/org/{{ p.id }}/pay">
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            <label>Transfer reference
+              <input type="text" name="reference" required maxlength="60" placeholder="e.g. GTB/2026/08/44192">
+            </label>
+            <button class="ad-btn ad-btn--primary" type="submit">Record as paid</button>
+          </form>
+          <form method="post" action="/admin/payouts/org/{{ p.id }}/refuse">
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            <label>Or refuse, with a reason
+              <input type="text" name="why" required maxlength="200" placeholder="e.g. already settled by the gateway">
+            </label>
+            <button class="ad-btn" type="submit">Refuse</button>
+          </form>
+        </div>
+      {% endif %}
+    </div>
+  {% endfor %}
+{% else %}
+  <p class="po-note">No organisation is waiting. Their gifts settle to their own bank through the gateway.</p>
 {% endif %}
 {% endblock %}

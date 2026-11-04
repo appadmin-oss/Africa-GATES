@@ -27,18 +27,31 @@ final class UserAccountService
     }
 
     /** Create an account. Returns ['ok'=>bool, 'id'=>?int, 'error'=>?string]. */
+    /**
+     * Every refusal names the FIELD it is about, not only the sentence.
+     *
+     * A form that answers "Password must be at least 8 characters" and reddens the
+     * email box is worse than one that reddens nothing: it sends somebody to correct
+     * an address that was right. That was live on `/account/register`, where the
+     * template's `{% if error %}` marked the email input for ANY failure — under a
+     * comment correctly describing it as "the one failure that has a field to blame".
+     *
+     * The key is additive, so the 20-odd callers reading `error` alone are unaffected.
+     * A new refusal added here without a `field` degrades to the summary rather than
+     * accusing the wrong box, which is the right failure direction.
+     */
     public function register(string $name, string $email, string $phone, ?string $password): array
     {
         $name  = trim($name);
         $email = strtolower(trim($email));
         $phone = trim($phone);
 
-        if ($name === '' || !preg_match('/\S+\s+\S+/u', $name)) return ['ok' => false, 'error' => 'Please enter your full name (first and last).'];
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL))          return ['ok' => false, 'error' => 'Please enter a valid email address.'];
-        if (\AfricaGates\Support\DisposableEmail::isDisposable($email)) return ['ok' => false, 'error' => 'Please use a permanent email address — disposable inboxes are not accepted.'];
-        if (strlen((string) preg_replace('/\D+/', '', $phone)) < 7) return ['ok' => false, 'error' => 'Please enter a valid phone number.'];
-        if ($password !== null && $password !== '' && strlen($password) < 8) return ['ok' => false, 'error' => 'Password must be at least 8 characters.'];
-        if (DB::table('gates_users')->where('email', $email)->exists()) return ['ok' => false, 'error' => 'An account with that email already exists — please sign in.'];
+        if (!self::isFullName($name)) return ['ok' => false, 'field' => 'name', 'error' => self::NAME_RULE];
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL))          return ['ok' => false, 'field' => 'email', 'error' => 'Please enter a valid email address.'];
+        if (\AfricaGates\Support\DisposableEmail::isDisposable($email)) return ['ok' => false, 'field' => 'email', 'error' => 'Please use a permanent email address — disposable inboxes are not accepted.'];
+        if (strlen((string) preg_replace('/\D+/', '', $phone)) < 7) return ['ok' => false, 'field' => 'phone', 'error' => 'Please enter a valid phone number.'];
+        if ($password !== null && $password !== '' && strlen($password) < 8) return ['ok' => false, 'field' => 'password', 'error' => 'Password must be at least 8 characters.'];
+        if (DB::table('gates_users')->where('email', $email)->exists()) return ['ok' => false, 'field' => 'email', 'error' => 'An account with that email already exists — please sign in.'];
 
         $id = (int) DB::table('gates_users')->insertGetId([
             'name'          => mb_substr($name, 0, 160),
@@ -51,6 +64,140 @@ final class UserAccountService
             'created_at'    => Carbon::now()->toDateTimeString(),
         ]);
         return ['ok' => true, 'id' => $id];
+    }
+
+    /**
+     * THE NAME RULE, ONCE. "First and last", because a ballot, a receipt and a public profile
+     * all print it — and the browser's `pattern` on every form that asks for a name is
+     * {@see NAME_PATTERN}, which accepts exactly what this accepts (AccountJoinTest samples
+     * the two against each other rather than pinning either).
+     */
+    public const NAME_RULE = 'Please enter your full name (first and last).';
+
+    /** The browser half of {@see isFullName()}: some non-space, a space, some non-space. */
+    public const NAME_PATTERN = '[\s\S]*\S\s+\S[\s\S]*';
+
+    public static function isFullName(string $name): bool
+    {
+        $name = trim($name);
+        return $name !== '' && (bool) preg_match('/\S+\s+\S+/u', $name);
+    }
+
+    // ══ PASSWORDLESS: ONE CODE, BY EMAIL OR BY PHONE (SignIn.dc.html) ═══════════════
+    //
+    // A code is keyed on the IDENTITY it was sent to, hashed — the email as every other
+    // purpose in gates_otp_tokens already does, a phone as `tel:` + its E.164 form so the two
+    // spaces can never collide. `user_login` is a code for an account that exists (its id in
+    // the reused `nominee_id` column); `user_join` is a code for an identity no account holds
+    // yet, minted so that "Sign in or join" answers both the same way — which is also why
+    // neither path can be used to ask whether an address is a member.
+
+    public const LOGIN_PURPOSE = 'user_login';
+    public const JOIN_PURPOSE  = 'user_join';
+
+    /**
+     * How long before the SAME channel may send another code. The code screen counts it
+     * down ("Resend in 0:42") and the controller refuses a resend inside it, so a
+     * double-press cannot cancel the code that is on its way.
+     */
+    public const RESEND_AFTER_SECONDS = 60;
+
+    /** The hash a code is filed under. `via` is 'email' or 'phone' (E.164). */
+    public static function identityHash(string $via, string $value): string
+    {
+        return $via === 'phone'
+            ? hash('sha256', 'tel:' . $value)
+            : hash('sha256', strtolower(trim($value)));
+    }
+
+    /**
+     * The one active account holding this number, if exactly one does.
+     *
+     * `shared` is true when two or more do — a family line, an office phone. A code sent to
+     * that handset proves the handset, not which of the accounts on it is being opened, so
+     * the controller asks that person to use their email instead. It is told only AFTER the
+     * code is proved, so it discloses nothing to somebody who does not hold the phone.
+     *
+     * @return array{user:?object, shared:bool}
+     */
+    public function byPhone(string $e164): array
+    {
+        try {
+            $rows = DB::table('gates_users')->where('phone_e164', $e164)->where('status', self::ACTIVE)
+                ->limit(2)->get()->all();
+        } catch (\Throwable) {
+            $rows = [];   // pre-migration: no number is on file in the normalised shape
+        }
+        return ['user' => count($rows) === 1 ? $rows[0] : null, 'shared' => count($rows) > 1];
+    }
+
+    /**
+     * Create an account from an identity a code has just PROVED (step 3 of joining).
+     *
+     * The same refusals as {@see register()}, field by field, so the two ways an account is
+     * made cannot disagree about what a name or an address is. What differs is what was
+     * proved: an email joiner's address is verified by the code itself; a phone joiner's
+     * handset is, and the address they type here is not — it is stored unverified and a
+     * link is sent, exactly as a registration's would be.
+     *
+     * The phone is optional for an email joiner: the DC's step asks for a name, what they
+     * do and where they are based, and a sign-up that demands a number the design does not
+     * ask for is a sign-up that adds a field. It is required nowhere a vote is concerned —
+     * the ballot asks for its own.
+     *
+     * @param array{name:string,email:string,phone?:?string,phone_e164?:?string,headline?:string,based_in?:string,email_verified:bool} $in
+     * @return array{ok:bool, id?:int, field?:string, error?:string}
+     */
+    public function join(array $in): array
+    {
+        $name  = trim((string) $in['name']);
+        $email = strtolower(trim((string) $in['email']));
+        $head  = trim((string) ($in['headline'] ?? ''));
+        $based = trim((string) ($in['based_in'] ?? ''));
+
+        if (!self::isFullName($name)) return ['ok' => false, 'field' => 'name', 'error' => self::NAME_RULE];
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) return ['ok' => false, 'field' => 'email', 'error' => 'Please enter a valid email address.'];
+        if (\AfricaGates\Support\DisposableEmail::isDisposable($email)) return ['ok' => false, 'field' => 'email', 'error' => 'Please use a permanent email address — disposable inboxes are not accepted.'];
+        if (mb_strlen($head) > 120)  return ['ok' => false, 'field' => 'headline', 'error' => 'Keep this to 120 characters.'];
+        if (mb_strlen($based) > 120) return ['ok' => false, 'field' => 'based_in', 'error' => 'Keep this to 120 characters.'];
+        if (DB::table('gates_users')->where('email', $email)->exists()) {
+            return ['ok' => false, 'field' => 'email', 'error' => 'An account with that email already exists — please sign in.'];
+        }
+
+        $row = [
+            'name'           => mb_substr($name, 0, 160),
+            'email'          => $email,
+            'phone'          => ($in['phone'] ?? null) !== null ? mb_substr((string) $in['phone'], 0, 40) : null,
+            'password_hash'  => null,
+            'points'         => 0,
+            'status'         => self::ACTIVE,
+            'email_verified' => !empty($in['email_verified']) ? 1 : 0,
+            'created_at'     => Carbon::now()->toDateTimeString(),
+        ];
+        // The new columns only where the migration has run — a join must not 500 on a
+        // database one deploy behind.
+        $extra = \AfricaGates\Support\OptionalColumn::filter('gates_users', [
+            'phone_e164' => $in['phone_e164'] ?? null,
+            'headline'   => $head !== '' ? $head : null,
+            'based_in'   => $based !== '' ? $based : null,
+        ], ['phone_e164', 'headline', 'based_in']);
+
+        $id = (int) DB::table('gates_users')->insertGetId($row + ($extra ?: []));
+        return ['ok' => true, 'id' => $id];
+    }
+
+    /** "What you do" and "Where you're based", from the account page. */
+    public function saveAbout(int $userId, string $headline, string $based): array
+    {
+        $headline = trim($headline); $based = trim($based);
+        if (mb_strlen($headline) > 120) return ['ok' => false, 'field' => 'headline', 'error' => 'Keep this to 120 characters.'];
+        if (mb_strlen($based) > 120)    return ['ok' => false, 'field' => 'based_in', 'error' => 'Keep this to 120 characters.'];
+        $row = \AfricaGates\Support\OptionalColumn::filter('gates_users', [
+            'headline' => $headline !== '' ? $headline : null,
+            'based_in' => $based !== '' ? $based : null,
+        ], ['headline', 'based_in']);
+        if ($row) DB::table('gates_users')->where('id', $userId)->update($row);
+        return ['ok' => true];
     }
 
     /** Verify password; null on failure (with timing equalisation for unknown emails). */
@@ -77,6 +224,8 @@ final class UserAccountService
 
     public function logout(): void
     {
+        // Roles opened from this account (Account\Roles) close with it.
+        \AfricaGates\Services\Account\Roles::signOutOpened();
         unset($_SESSION['user_id'], $_SESSION['user_name'], $_SESSION['user_email']);
     }
 
@@ -117,11 +266,41 @@ final class UserAccountService
     {
         $name = trim($name);
         $phone = trim($phone);
-        if ($name === '' || !preg_match('/\S+\s+\S+/u', $name)) return ['ok' => false, 'error' => 'Please enter your full name (first and last).'];
-        if (strlen((string) preg_replace('/\D+/', '', $phone)) < 7) return ['ok' => false, 'error' => 'Please enter a valid phone number.'];
-        DB::table('gates_users')->where('id', $userId)->update(['name' => mb_substr($name, 0, 160), 'phone' => mb_substr($phone, 0, 40)]);
+        if (!self::isFullName($name)) return ['ok' => false, 'error' => self::NAME_RULE];
+        // Optional now — an account made with an emailed code has no number until its owner
+        // adds one — but a number that IS given must be one: a code may be sent to it.
+        if ($phone !== '' && strlen((string) preg_replace('/\D+/', '', $phone)) < 7) return ['ok' => false, 'error' => 'Please enter a valid phone number.'];
+        $row = ['name' => mb_substr($name, 0, 160), 'phone' => $phone !== '' ? mb_substr($phone, 0, 40) : null];
+        // A changed NAME is recorded: the bank's account name is checked against it before a
+        // withdrawal is sent without a person, so editing it to match a stranger's account is
+        // a takeover signal like new bank details (WalletRisk::takeover()).
+        $before = DB::table('gates_users')->where('id', $userId)->first();
+        $was = (string) ($before->name ?? '');
+        if (trim($was) !== trim($row['name'])) {
+            $row += \AfricaGates\Support\OptionalColumn::filter('gates_users',
+                ['name_changed_at' => Carbon::now()->toDateTimeString()], ['name_changed_at']);
+        }
+        // The normalised copy moves with it, or the sign-in by phone would go on finding the
+        // number the member has just replaced.
+        $row += \AfricaGates\Support\OptionalColumn::filter('gates_users',
+            ['phone_e164' => $phone !== '' ? \AfricaGates\Support\Phone::normalize($phone, 'NG') : null], ['phone_e164']);
+        DB::table('gates_users')->where('id', $userId)->update($row);
         if ((int) ($_SESSION['user_id'] ?? 0) === $userId) $_SESSION['user_name'] = $name;
+        // A changed name or phone is told to the member, the text going to the number on
+        // file BEFORE this change (AccountChangeNotice explains why).
+        if ($before) AccountChangeNotice::profile($userId, $before, $row['name'], $phone);
         return ['ok' => true];
+    }
+
+    /** When this member last signed in with a one-time code (see WalletRisk::takeover()). */
+    public static function markCodeSignIn(int $userId): void
+    {
+        if ($userId < 1) return;
+        try {
+            $row = \AfricaGates\Support\OptionalColumn::filter('gates_users',
+                ['otp_signin_at' => Carbon::now()->toDateTimeString()], ['otp_signin_at']);
+            if ($row) DB::table('gates_users')->where('id', $userId)->update($row);
+        } catch (\Throwable) { /* a missing stamp must never cost somebody their sign-in */ }
     }
 
     public function setPassword(int $userId, string $password): bool
@@ -228,7 +407,11 @@ final class UserAccountService
             ->where('is_used', 0)->where('expires_at', '>', Carbon::now()->toDateTimeString())
             ->orderByDesc('id')->first();
         if (!$tok) return null;
-        DB::table('gates_otp_tokens')->where('id', $tok->id)->update(['is_used' => 1]);
+        // Spent by a GUARDED update, and only the request that changed the row goes on.
+        // A bare update by id after the SELECT lets two requests presenting the same link
+        // together both read it unused and both sign in — see consumePasswordReset().
+        $spent = DB::table('gates_otp_tokens')->where('id', $tok->id)->where('is_used', 0)->update(['is_used' => 1]);
+        if ($spent !== 1) return null;
         $user = $this->findById((int) $tok->nominee_id);
         // The token is spent above whatever happens next, so a refusal here cannot leave a
         // presented link spendable — and a suspended account must not be signed in by a
@@ -257,7 +440,8 @@ final class UserAccountService
     // account; a verification link only proves an address. They are not the same risk and
     // must not share a window.
     public const RESET_PURPOSE = 'user_pwreset';
-    private const RESET_TTL_MINUTES = 60;
+    /** How long a reset link lives. Public because the email that carries it says so. */
+    public const RESET_TTL_MINUTES = 60;
 
     /**
      * Mint a single-use reset token, invalidating any earlier unused one. Returns the RAW
@@ -319,7 +503,16 @@ final class UserAccountService
         // PRESENTED is spent, whatever is decided about it afterwards: if the write below
         // throws, or the account turns out to be one that may not be signed in, a live link
         // left in an inbox is one somebody can carry on trying.
-        DB::table('gates_otp_tokens')->where('id', $row->id)->update(['is_used' => 1]);
+        //
+        // And the burn is the CLAIM: `is_used = 0` is in the update, and only the request
+        // whose update changed the row goes on. Without the predicate, two submits of the
+        // same link (a double-tap, or the owner and whoever else holds the inbox) both
+        // read it live, both stamp it, and both set a password — the last write wins, and
+        // it need not be the owner's. `attempts + 1`-style relativity is not needed here:
+        // `0 → 1` always changes the value, so MySQL's rows-CHANGED and SQLite's
+        // rows-matched agree on it.
+        $spent = DB::table('gates_otp_tokens')->where('id', $row->id)->where('is_used', 0)->update(['is_used' => 1]);
+        if ($spent !== 1) return null;
 
         $user = $this->findById((int) $row->nominee_id);
         if (!$user || !$this->canSignIn($user)) return null;
@@ -345,6 +538,17 @@ final class UserAccountService
         // to spend rather than keep.
         DB::table('gates_otp_tokens')
             ->where('email_hash', (string) $row->email_hash)
+            ->where('is_used', 0)
+            ->update(['is_used' => 1]);
+
+        // And the codes filed under the account's PHONE. A code sent by text or WhatsApp is
+        // keyed on the number, not on this address, so the clause above never meets it — and
+        // it is as complete a credential as the emailed one. Scoped by the account id the
+        // sign-in purpose carries, never by `nominee_id` alone: that column holds a NOMINEE's
+        // id for the vote purposes, and a bare id match would spend a stranger's vote code.
+        DB::table('gates_otp_tokens')
+            ->where('purpose', self::LOGIN_PURPOSE)
+            ->where('nominee_id', (int) $user->id)
             ->where('is_used', 0)
             ->update(['is_used' => 1]);
 

@@ -61,6 +61,9 @@ CREATE TABLE IF NOT EXISTS gates_award_cycles (
   -- announced) so the site admits it with or without this; the note is the part only a
   -- person can write, and it stops being shown the moment the cycle is announced.
   results_delay_note TEXT NULL DEFAULT NULL,
+  -- Which edition this is ("11th Edition"), stored because a programme may have run for
+  -- years before it came here; migrations/2027_03_05_edition_number.php, Support\EditionName.
+  edition_number SMALLINT UNSIGNED NULL DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY(id), KEY idx_prog_year(programme_id,year),
   CONSTRAINT fk_cycle_prog FOREIGN KEY(programme_id) REFERENCES gates_award_programmes(id) ON DELETE CASCADE
@@ -108,7 +111,7 @@ CREATE TABLE IF NOT EXISTS gates_merge_log (
   tbl VARCHAR(64) NOT NULL,
   row_pk BIGINT UNSIGNED DEFAULT NULL,
   col VARCHAR(64) DEFAULT NULL,
-  old_val VARCHAR(64) DEFAULT NULL,
+  old_val TEXT DEFAULT NULL,
   snapshot TEXT DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY(id), KEY idx_merge_log_merged(merged_id), KEY idx_merge_log_batch(batch)
@@ -124,7 +127,7 @@ CREATE TABLE IF NOT EXISTS gates_profile_merge_log (
   tbl VARCHAR(64) NOT NULL,
   row_pk BIGINT UNSIGNED DEFAULT NULL,
   col VARCHAR(64) DEFAULT NULL,
-  old_val VARCHAR(64) DEFAULT NULL,
+  old_val TEXT DEFAULT NULL,
   snapshot TEXT DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY(id), KEY idx_pmerge_log_merged(merged_id), KEY idx_pmerge_log_batch(batch)
@@ -317,9 +320,22 @@ CREATE TABLE IF NOT EXISTS gates_nominations (
   nominator_state VARCHAR(100) DEFAULT NULL,
   nominator_lga VARCHAR(100) DEFAULT NULL,
   nominator_age_range VARCHAR(20) DEFAULT NULL,
+  -- "How do you know them?" (NominationFlow.dc.html step 5): one key of
+  -- NominationRules::RELATIONS. For the review desk, in the operator brief.
+  nominator_relation VARCHAR(40) DEFAULT NULL,
+  -- "Keep my name private from the nominee": the nominee's confirmation names nobody.
+  nominator_private TINYINT(1) NOT NULL DEFAULT 0,
   decision_reason TEXT,
   nominator_ack_at TIMESTAMP NULL DEFAULT NULL,
-  status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+  -- WIDENED FOR CHALLENGES, NEVER REPLACED. The handoff specifies
+  -- (draft,submitted,checking,verified,needs_details,rejected); 176 places in src/
+  -- read the literal 'approved'. Dropping it would make every one of them match zero
+  -- rows, silently, on MySQL. So this is the union, the three live words keep their
+  -- original positions (an ENUM reorder rewrites every stored row), and
+  -- `Support\NominationStatus` is the one place that knows the two vocabularies
+  -- overlap: `approved` is the historic spelling of a moderator pass, and a prize
+  -- also needs the nominee's own confirmation.
+  status ENUM('pending','approved','rejected','draft','submitted','checking','verified','needs_details') NOT NULL DEFAULT 'pending',
   ip_hash VARCHAR(64) DEFAULT NULL,
   device_fp VARCHAR(64) DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -337,7 +353,9 @@ CREATE TABLE IF NOT EXISTS gates_legacy_events (
   attendee_count INT UNSIGNED NOT NULL DEFAULT 0, award_count INT UNSIGNED NOT NULL DEFAULT 0,
   highlight_reel JSON DEFAULT NULL, icon VARCHAR(10) DEFAULT '🏆',
   is_published TINYINT(1) NOT NULL DEFAULT 0, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY(id), UNIQUE KEY uq_slug(slug), KEY idx_published(is_published), KEY idx_date(event_date DESC)
+  -- The released cycle this night was, and where (2027_03_06_legacy_edition_link.php).
+  cycle_id BIGINT UNSIGNED NULL DEFAULT NULL, country_code CHAR(2) NULL DEFAULT NULL,
+  PRIMARY KEY(id), UNIQUE KEY uq_slug(slug), KEY idx_published(is_published), KEY idx_date(event_date DESC), KEY idx_legacy_cycle(cycle_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS gates_opportunities (
@@ -410,10 +428,15 @@ CREATE TABLE IF NOT EXISTS gates_mail_log (
   to_masked VARCHAR(120) NOT NULL,
   subject VARCHAR(200) NOT NULL,
   category VARCHAR(40) DEFAULT NULL,
-  status ENUM('sent','failed','logged_dev') NOT NULL,
+  -- sent | failed | logged_dev | refused | deferred — Mail\MailLog. VARCHAR, not ENUM:
+  -- see 2027_02_20_mail_send_rules.php, which repairs databases built with the ENUM.
+  status VARCHAR(16) NOT NULL,
   error VARCHAR(300) DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY(id), KEY idx_mail_created(created_at), KEY idx_mail_status(status)
+  to_hash CHAR(64) DEFAULT NULL,
+  bulk TINYINT(1) NOT NULL DEFAULT 0,
+  PRIMARY KEY(id), KEY idx_mail_created(created_at), KEY idx_mail_status(status),
+  KEY idx_mail_to(to_hash, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Outbound SMS / WhatsApp delivery audit (recipients stored hashed + masked, never raw).
@@ -576,17 +599,24 @@ CREATE TABLE IF NOT EXISTS gates_site_events (
   venue VARCHAR(200) NULL,
   event_date DATETIME NOT NULL,
   end_date DATETIME NULL,
-  cover_image VARCHAR(500) NULL,
-  rsvp_url VARCHAR(500) NULL,
+  cover_image TEXT NULL,
+  rsvp_url TEXT NULL,
   status VARCHAR(20) NOT NULL DEFAULT 'published',
   capacity INT UNSIGNED DEFAULT NULL,
   price_naira INT UNSIGNED DEFAULT NULL,
   schedule TEXT NULL,
-  map_embed VARCHAR(500) NULL,
+  map_embed TEXT NULL,
   ticket_tiers TEXT NULL,
   early_bird_text VARCHAR(255) NULL,
   early_bird_deadline DATETIME NULL,
-  early_bird_url VARCHAR(500) NULL,
+  early_bird_url TEXT NULL,
+  -- Phase 7: a link out to the broadcast and the recording, and the access provisions
+  -- (one per line). See migrations/2027_03_04_event_page_links.php.
+  livestream_url VARCHAR(500) NULL DEFAULT NULL,
+  recording_url VARCHAR(500) NULL DEFAULT NULL,
+  cover_kind VARCHAR(24) NULL DEFAULT NULL,
+  spotlight_rank TINYINT UNSIGNED NULL DEFAULT NULL,
+  access_notes TEXT NULL,
   created_at DATETIME NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_site_events_slug (slug)
@@ -608,6 +638,67 @@ CREATE TABLE IF NOT EXISTS gates_event_registrations (
   PRIMARY KEY (id),
   UNIQUE KEY uq_evreg_event_email (event_id, email),
   KEY idx_evreg_event (event_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─── Award terms, versioned, and who accepted which version (migrations/2027_03_05_award_terms.php) ───
+CREATE TABLE IF NOT EXISTS gates_award_terms (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  programme_id INT UNSIGNED NOT NULL,
+  version SMALLINT UNSIGNED NOT NULL,
+  body MEDIUMTEXT NOT NULL,
+  changelog VARCHAR(500) NULL DEFAULT NULL,
+  effective_at DATETIME NOT NULL,
+  created_at TIMESTAMP NULL DEFAULT NULL,
+  created_by INT UNSIGNED NULL DEFAULT NULL,
+  UNIQUE KEY uq_terms_version (programme_id, version),
+  KEY idx_terms_effective (programme_id, effective_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS gates_award_terms_acceptance (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  terms_id BIGINT UNSIGNED NOT NULL,
+  programme_id INT UNSIGNED NOT NULL,
+  kind VARCHAR(20) NOT NULL,
+  email_hash CHAR(64) NOT NULL,
+  subject_id BIGINT UNSIGNED NULL DEFAULT NULL,
+  accepted_at DATETIME NOT NULL,
+  UNIQUE KEY uq_terms_accept (terms_id, email_hash, kind, subject_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─── "Notify me" on a coming-soon award (double opt-in; migrations/2027_03_05_award_alerts.php) ───
+CREATE TABLE IF NOT EXISTS gates_award_alerts (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  programme_id INT UNSIGNED NOT NULL,
+  email VARCHAR(190) NOT NULL,
+  email_hash CHAR(64) NOT NULL,
+  token CHAR(32) NOT NULL,
+  ip_hash CHAR(64) NULL,
+  created_at TIMESTAMP NULL DEFAULT NULL,
+  confirm_sent_at TIMESTAMP NULL DEFAULT NULL,
+  confirmed_at TIMESTAMP NULL DEFAULT NULL,
+  notified_at TIMESTAMP NULL DEFAULT NULL,
+  cancelled_at TIMESTAMP NULL DEFAULT NULL,
+  UNIQUE KEY uq_awa_who (programme_id, email_hash),
+  UNIQUE KEY uq_awa_token (token),
+  KEY idx_awa_due (programme_id, confirmed_at, notified_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─── "Email me when tickets go on sale" (double opt-in; migrations/2027_03_04_event_sale_alerts.php) ───
+CREATE TABLE IF NOT EXISTS gates_event_sale_alerts (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  event_id INT UNSIGNED NOT NULL,
+  email VARCHAR(190) NOT NULL,
+  email_hash CHAR(64) NOT NULL,
+  token CHAR(32) NOT NULL,
+  ip_hash CHAR(64) NULL,
+  created_at TIMESTAMP NULL DEFAULT NULL,
+  confirm_sent_at TIMESTAMP NULL DEFAULT NULL,
+  confirmed_at TIMESTAMP NULL DEFAULT NULL,
+  notified_at TIMESTAMP NULL DEFAULT NULL,
+  cancelled_at TIMESTAMP NULL DEFAULT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_esa_who (event_id, email_hash),
+  UNIQUE KEY uq_esa_token (token),
+  KEY idx_esa_due (event_id, confirmed_at, notified_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─── Gated single-use form links (verified nominees + judge invites) ───
@@ -671,7 +762,25 @@ CREATE TABLE IF NOT EXISTS gates_users (
   -- feature stores: everything else is derived from the tables that already
   -- record the events. NULL = never opened = everything unread.
   alerts_read_at DATETIME NULL DEFAULT NULL,
+  -- Display & reading, saved to the member so it follows them between devices
+  -- (REFERENCE §7.5). NULL = never saved. Written only by DisplayReadingPrefs.
+  display_json VARCHAR(255) NULL DEFAULT NULL,
+  -- The Menu's most-used tiles: a decayed open count per menu destination (MenuShortcuts).
+  -- NULL = no history. Bounded by the catalogue, so 1024 ASCII bytes always hold it.
+  menu_use_json VARCHAR(1024) NULL DEFAULT NULL,
+  -- Passwordless sign-in by phone (Phase 8): the number a code is sent to, normalised to
+  -- E.164 by Support\Phone. NOT unique — a family or an office may share a line; see
+  -- UserAccountService::byPhone(). `phone` beside it stays as the member typed it.
+  phone_e164 VARCHAR(20) NULL DEFAULT NULL,
+  -- Joining, steps 3 and 4 (SignIn.dc.html): "What you do", "Where you're based", and the
+  -- areas they care about (MemberInterests::FIELDS keys, JSON). Read by the account page
+  -- and by the nomination hub's ordering.
+  headline VARCHAR(120) NULL DEFAULT NULL,
+  based_in VARCHAR(120) NULL DEFAULT NULL,
+  interests_json VARCHAR(255) NULL DEFAULT NULL,
+  seasonal_greetings TINYINT(1) NOT NULL DEFAULT 1,
   PRIMARY KEY (id),
+  KEY idx_users_phone_e164 (phone_e164),
   UNIQUE KEY uq_user_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -929,4 +1038,205 @@ CREATE TABLE IF NOT EXISTS gates_vote_messages (
   KEY idx_vmsg_queue (status, created_at),
   KEY idx_vmsg_reported (reports, reported_at),
   CONSTRAINT fk_vmsg_nominee FOREIGN KEY (nominee_id) REFERENCES gates_nominees(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- CHALLENGES
+-- A time-boxed campaign that pays people for real actions. Every campaign is ONE
+-- ROW here: the launch one (first 11 to get 10 nominees verified, ₦6,000 each,
+-- inside Alimosho Awards 2026) differs from "20 gala tickets drawn among everyone
+-- who thanks 5 teachers" only by these values. If a second campaign ever needs a
+-- migration, this shape is wrong.
+--
+-- Kept in step with `database/migrations/2027_02_10_challenges.php` and with
+-- `Support\ChallengeEnum`, which is where every word below is declared.
+-- ══════════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS gates_challenges (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  slug VARCHAR(160) NOT NULL,
+  title VARCHAR(200) NOT NULL,
+  kicker VARCHAR(160) NOT NULL,
+  summary TEXT,
+  action ENUM('nominate','vote','refer','give','attend') NOT NULL DEFAULT 'nominate',
+  target SMALLINT UNSIGNED NOT NULL DEFAULT 1,
+  mode ENUM('first','top','draw') NOT NULL DEFAULT 'first',
+  -- SMALLINT and not TINYINT: a cap of 300 is an ordinary campaign, and a TINYINT
+  -- stores it as 255 with nothing to see. This codebase has paid for that twice.
+  cap SMALLINT UNSIGNED DEFAULT NULL,
+  draw_count SMALLINT UNSIGNED DEFAULT NULL,
+  draw_at DATETIME DEFAULT NULL,
+  draw_seed VARCHAR(64) DEFAULT NULL,
+  prize_type ENUM('cash_each','cash_pool','points','tickets') NOT NULL DEFAULT 'cash_each',
+  -- INT: a shared pool in Naira passes a SMALLINT at ₦65,536.
+  prize_amount INT UNSIGNED NOT NULL DEFAULT 0,
+  prize_currency VARCHAR(8) DEFAULT NULL,
+  prize_label VARCHAR(80) DEFAULT NULL,
+  theme ENUM('green','blue','gold','rose') NOT NULL DEFAULT 'green',
+  art_url VARCHAR(400) DEFAULT NULL,
+  art_alt VARCHAR(200) DEFAULT NULL,
+  icon VARCHAR(400) DEFAULT NULL,
+  flag TINYINT(1) NOT NULL DEFAULT 0,
+  eligibility TEXT,
+  extra_rules TEXT,
+  starts_at DATETIME DEFAULT NULL,
+  ends_at DATETIME DEFAULT NULL,
+  timezone VARCHAR(64) NOT NULL DEFAULT 'Africa/Lagos',
+  terms_version VARCHAR(16) NOT NULL DEFAULT '1.0',
+  status ENUM('draft','upcoming','open','full','ended','cancelled') NOT NULL DEFAULT 'draft',
+  cancel_reason VARCHAR(300) DEFAULT NULL,
+  created_by BIGINT UNSIGNED DEFAULT NULL,
+  published_at DATETIME DEFAULT NULL,
+  created_at DATETIME DEFAULT NULL,
+  updated_at DATETIME DEFAULT NULL,
+  PRIMARY KEY(id),
+  UNIQUE KEY uq_challenge_slug(slug),
+  KEY idx_challenge_status(status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- An action counts ONLY inside a scope. This table is the whole difference between
+-- "nominate anybody" and "nominate for Alimosho 2026, in three named categories".
+CREATE TABLE IF NOT EXISTS gates_challenge_scopes (
+  challenge_id INT UNSIGNED NOT NULL,
+  scope_type ENUM('award_cycle','category','event') NOT NULL,
+  -- BIGINT because a category id is BIGINT, even though an event id is INT: of two
+  -- joined keys it is the narrower one that silently truncates.
+  scope_id BIGINT UNSIGNED NOT NULL,
+  PRIMARY KEY (challenge_id, scope_type, scope_id),
+  KEY idx_scope_lookup(scope_type, scope_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS gates_challenge_entries (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  challenge_id INT UNSIGNED NOT NULL,
+  user_id BIGINT UNSIGNED NOT NULL,
+  -- Hashed, never stored: one entry per PERSON is enforced on a number we must not
+  -- keep beside a prize.
+  phone_hash CHAR(64) DEFAULT NULL,
+  joined_at DATETIME DEFAULT NULL,
+  progress SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  verified SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  checking SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  needs_details SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  qualified_at DATETIME DEFAULT NULL,
+  -- `standing`, never `rank`: RANK is reserved in MySQL 8 and bare-legal in SQLite,
+  -- which is how a column name passes dev and fails production. The release seal hit
+  -- this already and settled on the same word.
+  standing SMALLINT UNSIGNED DEFAULT NULL,
+  status ENUM('active','qualified','won','disqualified','withdrawn') NOT NULL DEFAULT 'active',
+  disqualify_reason VARCHAR(300) DEFAULT NULL,
+  payout_status ENUM('none','pending','paid','failed') NOT NULL DEFAULT 'none',
+  payout_ref VARCHAR(120) DEFAULT NULL,
+  payout_at DATETIME DEFAULT NULL,
+  created_at DATETIME DEFAULT NULL,
+  updated_at DATETIME DEFAULT NULL,
+  PRIMARY KEY(id),
+  -- The two ways one human arrives twice.
+  UNIQUE KEY uq_entry_user(challenge_id, user_id),
+  UNIQUE KEY uq_entry_phone(challenge_id, phone_hash),
+  KEY idx_entry_rank(challenge_id, status, qualified_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- APPEND-ONLY. A disqualification, a payout and a draw are decisions somebody may
+-- have to answer for months later. `gates_audit_log` already taught this codebase
+-- that a record nothing can QUERY is not a record, so this one is indexed for the
+-- two questions it exists to answer: what happened to this entry, and what has been
+-- done on this challenge.
+CREATE TABLE IF NOT EXISTS gates_challenge_events (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  challenge_id INT UNSIGNED DEFAULT NULL,
+  entry_id BIGINT UNSIGNED DEFAULT NULL,
+  kind VARCHAR(60) NOT NULL,
+  ref_type VARCHAR(40) DEFAULT NULL,
+  ref_id BIGINT UNSIGNED DEFAULT NULL,
+  actor_id BIGINT UNSIGNED DEFAULT NULL,
+  meta TEXT,
+  created_at DATETIME DEFAULT NULL,
+  PRIMARY KEY(id),
+  KEY idx_chev_entry(entry_id, id),
+  KEY idx_chev_challenge(challenge_id, kind)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- The rows `partials/promo-carousel.twig` reads. `challenge_id` is nullable because a
+-- promo may advertise something that is not a challenge; where it is set, the state
+-- chip is computed live rather than copied, so a full challenge cannot go on
+-- advertising spare places.
+CREATE TABLE IF NOT EXISTS gates_promos (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  placement ENUM('account','nominate','home','vote','events','award','event') NOT NULL,
+  kicker VARCHAR(120) DEFAULT NULL,
+  title VARCHAR(200) NOT NULL,
+  sub VARCHAR(300) DEFAULT NULL,
+  cta VARCHAR(80) DEFAULT NULL,
+  href VARCHAR(400) DEFAULT NULL,
+  theme ENUM('green','blue','gold','rose') NOT NULL DEFAULT 'green',
+  art_url VARCHAR(400) DEFAULT NULL,
+  challenge_id INT UNSIGNED DEFAULT NULL,
+  priority SMALLINT NOT NULL DEFAULT 0,
+  audience ENUM('all','signed_in','signed_out') NOT NULL DEFAULT 'all',
+  starts_at DATETIME DEFAULT NULL,
+  ends_at DATETIME DEFAULT NULL,
+  active TINYINT(1) NOT NULL DEFAULT 1,
+  created_at DATETIME DEFAULT NULL,
+  updated_at DATETIME DEFAULT NULL,
+  PRIMARY KEY(id),
+  KEY idx_promo_slot(placement, active, priority)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─── Recognitions from verified issuers (REFERENCE §11; 2027_03_06_recognitions.php) ───
+-- Seeded from sealed, announced releases only (Services\Recognitions). Immutable apart
+-- from the withdrawal fields; every withdrawal is a row in the public log below.
+CREATE TABLE IF NOT EXISTS gates_recognition_issuers (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  issuer_type VARCHAR(20) NOT NULL DEFAULT 'organisation',
+  name VARCHAR(200) NOT NULL,
+  programme_id BIGINT UNSIGNED NULL, partner_org_id BIGINT UNSIGNED NULL,
+  url VARCHAR(400) NULL,
+  verified_at TIMESTAMP NULL DEFAULT NULL, verified_basis VARCHAR(40) NULL,
+  created_at TIMESTAMP NULL DEFAULT NULL,
+  PRIMARY KEY(id), UNIQUE KEY uq_rci_programme(programme_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS gates_recognitions (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  issuer_id BIGINT UNSIGNED NOT NULL,
+  recipient_profile_id BIGINT UNSIGNED NULL, recipient_nominee_id BIGINT UNSIGNED NULL,
+  recipient_name VARCHAR(200) NOT NULL,
+  kind VARCHAR(20) NOT NULL DEFAULT 'award', standing VARCHAR(20) NULL,
+  title VARCHAR(300) NOT NULL, citation TEXT NULL,
+  issued_at TIMESTAMP NULL DEFAULT NULL,
+  reference VARCHAR(64) NOT NULL,
+  visibility VARCHAR(20) NOT NULL DEFAULT 'public',
+  evidence_ids TEXT NULL,
+  cycle_id BIGINT UNSIGNED NULL, category_id BIGINT UNSIGNED NULL,
+  withdrawn_at TIMESTAMP NULL DEFAULT NULL, withdrawn_reason TEXT NULL,
+  created_at TIMESTAMP NULL DEFAULT NULL,
+  PRIMARY KEY(id), UNIQUE KEY uq_rec_reference(reference),
+  KEY idx_rec_profile(recipient_profile_id), KEY idx_rec_nominee(recipient_nominee_id),
+  KEY idx_rec_issued(issued_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS gates_recognition_withdrawals (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  recognition_id BIGINT UNSIGNED NOT NULL,
+  reason TEXT NOT NULL,
+  withdrawn_at TIMESTAMP NOT NULL,
+  actor_admin_id BIGINT UNSIGNED NULL,
+  PRIMARY KEY(id), KEY idx_rcw_rec(recognition_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─── "Get status updates" on /status (double opt-in; migrations/2027_03_07_status_alerts.php) ───
+CREATE TABLE IF NOT EXISTS gates_status_alerts (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  email VARCHAR(190) NOT NULL,
+  email_hash CHAR(64) NOT NULL,
+  token CHAR(32) NOT NULL,
+  ip_hash CHAR(64) NULL,
+  created_at TIMESTAMP NULL DEFAULT NULL,
+  confirm_sent_at TIMESTAMP NULL DEFAULT NULL,
+  confirmed_at TIMESTAMP NULL DEFAULT NULL,
+  cancelled_at TIMESTAMP NULL DEFAULT NULL,
+  UNIQUE KEY uq_sta_who (email_hash),
+  UNIQUE KEY uq_sta_token (token),
+  KEY idx_sta_live (confirmed_at, cancelled_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

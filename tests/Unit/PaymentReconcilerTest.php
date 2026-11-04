@@ -236,6 +236,34 @@ final class PaymentReconcilerTest extends TestCase
     }
 
     /**
+     * A declined card the sweep catches gives its discount use back — as confirm() always
+     * did for the same answer. Without it every such order spent a limited code for good.
+     * Once only: a second sweep over the already-failed row must not hand back another.
+     */
+    public function test_an_order_the_sweep_fails_gives_its_code_use_back_once(): void
+    {
+        DB::table('gates_shop_codes')->delete();
+        $codeId = (int) DB::table('gates_shop_codes')->insertGetId([
+            'code' => 'GATES10', 'label' => 'x', 'kind' => 'percent', 'amount' => 10,
+            'max_per_email' => 1, 'max_uses' => 5, 'used_count' => 2, 'free_shipping' => 0,
+            'is_active' => 1, 'created_at' => Carbon::now()->toDateTimeString(),
+        ]);
+        DB::table('gates_orders')->insert([
+            'reference' => 'SHOP-3', 'email' => 'c@example.test', 'name' => 'Buyer',
+            'items_json' => '[]', 'subtotal_naira' => 8000, 'status' => 'pending',
+            'provider' => 'paystack', 'discount_code' => 'GATES10',
+            'created_at' => Carbon::now()->subHour()->toDateTimeString(),
+        ]);
+
+        $answers = ['SHOP-3' => ['ok' => true, 'status' => 'failed', 'amount' => 0]];
+        $this->reconciler($answers)->run(apply: true);
+        $this->reconciler($answers)->run(apply: true);
+
+        $this->assertSame('failed', (string) DB::table('gates_orders')->where('reference', 'SHOP-3')->value('status'));
+        $this->assertSame(1, (int) DB::table('gates_shop_codes')->where('id', $codeId)->value('used_count'));
+    }
+
+    /**
      * An order whose gateway is no longer configured cannot be verified either way.
      * Surfaced for a human rather than skipped silently — money nobody can account
      * for is exactly what this feature exists to make visible.

@@ -118,7 +118,7 @@ foreach ($categories as $cat) {
 
 // ─── Admin + judges ────────────────────────────────────────────────
 echo "Seeding admin accounts and judges...\n";
-$adminEmail = getenv('SEED_ADMIN_EMAIL') ?: 'admin@afrovanguard.org.ng';
+$adminEmail = getenv('SEED_ADMIN_EMAIL') ?: 'admin@gates.test';
 // No known-default password ships. Use SEED_ADMIN_PASSWORD if set, otherwise
 // generate a strong random one for this local DB and print it once below.
 $adminPass     = getenv('SEED_ADMIN_PASSWORD') ?: '';
@@ -130,17 +130,17 @@ if ($adminPass === '') {
 // Each password_hash() call gets its own bcrypt salt — no hash is reused.
 $insA = $pdo->prepare("INSERT INTO gates_admins(email,password_hash,name,role,is_active) VALUES (?,?,?,?,1)");
 $insA->execute([$adminEmail, password_hash($adminPass, PASSWORD_BCRYPT), 'Afrovanguard Admin', 'superadmin']);
-$insA->execute(['app.admin@afrovanguard.org.ng', password_hash($adminPass, PASSWORD_BCRYPT), 'App Admin', 'superadmin']);
-$insA->execute(['editor@afrovanguard.org.ng', password_hash($adminPass, PASSWORD_BCRYPT), 'Content Editor', 'editor']);
-$insA->execute(['judge1@afrovanguard.org.ng', password_hash($adminPass, PASSWORD_BCRYPT), 'Dr. Adaobi Nwosu', 'judge']);
+$insA->execute(['superadmin@gates.test', password_hash($adminPass, PASSWORD_BCRYPT), 'App Admin', 'superadmin']);
+$insA->execute(['editor@gates.test', password_hash($adminPass, PASSWORD_BCRYPT), 'Content Editor', 'editor']);
+$insA->execute(['judge1@gates.test', password_hash($adminPass, PASSWORD_BCRYPT), 'Dr. Adaobi Nwosu', 'judge']);
 
 $insJ = $pdo->prepare("INSERT INTO gates_judges(admin_id,name,email,title,organisation,bio,country_code,programme_ids,is_active) VALUES (?,?,?,?,?,?,?,?,1)");
 $judges = [
-    [3, 'Dr. Adaobi Nwosu',  'judge1@afrovanguard.org.ng', 'Professor of Education',          'University of Lagos',         'Three decades championing access to quality education across West Africa.', 'NG', '[1,4]'],
-    [null, 'Wangari Mwangi', 'wangari@afrovanguard.org.ng','Founder & Choral Director',       'Voices of Mombasa',           'Multi-award-winning choral director and pan-African cultural producer.',    'KE', '[3]'],
-    [null, 'Kofi Mensah',    'kofi@afrovanguard.org.ng',   'Managing Partner',                'AccraVentures Capital',       'Backs early-stage African businesses with operational rigour.',             'GH', '[4]'],
-    [null, 'Amal El-Sayed',  'amal@afrovanguard.org.ng',   'Director, Youth Policy',          'Cairo Civic Lab',             'Designs youth leadership programmes adopted across North Africa.',           'EG', '[2]'],
-    [null, 'Thandi Khumalo', 'thandi@afrovanguard.org.ng', 'Head, Education Innovation',      'Cape Town Schools Network',   'Brings digital learning to 200+ schools across Southern Africa.',           'ZA', '[1]'],
+    [3, 'Dr. Adaobi Nwosu',  'judge1@gates.test', 'Professor of Education',          'University of Lagos',         'Three decades championing access to quality education across West Africa.', 'NG', '[1,4]'],
+    [null, 'Wangari Mwangi', 'wangari@gates.test','Founder & Choral Director',       'Voices of Mombasa',           'Multi-award-winning choral director and pan-African cultural producer.',    'KE', '[3]'],
+    [null, 'Kofi Mensah',    'kofi@gates.test',   'Managing Partner',                'AccraVentures Capital',       'Backs early-stage African businesses with operational rigour.',             'GH', '[4]'],
+    [null, 'Amal El-Sayed',  'amal@gates.test',   'Director, Youth Policy',          'Cairo Civic Lab',             'Designs youth leadership programmes adopted across North Africa.',           'EG', '[2]'],
+    [null, 'Thandi Khumalo', 'thandi@gates.test', 'Head, Education Innovation',      'Cape Town Schools Network',   'Brings digital learning to 200+ schools across Southern Africa.',           'ZA', '[1]'],
 ];
 foreach ($judges as $j) {
     $insJ->execute($j);

@@ -56,11 +56,23 @@ final class StandPhotoController
      */
     private function mine(Request $req, Response $res, array $args): array
     {
-        $orgId = OrgAuth::orgId();
-        if ($orgId < 1) {
+        // The LIVE user, not the org id the session remembers. `orgId()` is two integers in
+        // a cookie-keyed session: a login deactivated, demoted to viewer, or moved to
+        // another organisation five minutes ago still carries the old one until it signs
+        // out, and would go on editing that organisation's application. `user()` re-reads
+        // the row and refuses a session whose org no longer matches it.
+        $user = OrgAuth::user();
+        if ($user === null) {
             return [null, $this->json($res, ['ok' => false, 'code' => 'SIGN_IN',
                 'message' => 'Sign in to change your application.'], 401)];
         }
+        // The same write gate as every other change from the org dashboard: a `viewer`
+        // may read and change nothing ({@see VendorAccount::writableOrgId()}).
+        if (!OrgAuth::canRequestPayout($user)) {
+            return [null, $this->json($res, ['ok' => false, 'code' => 'OWNER_ONLY',
+                'message' => 'Only the account owner can change the application.'], 403)];
+        }
+        $orgId = (int) $user->org_id;
 
         $id  = (int) ($args['application'] ?? 0);
         $app = $id > 0 ? StandApplication::find($id) : null;

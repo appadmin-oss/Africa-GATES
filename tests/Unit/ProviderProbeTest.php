@@ -105,12 +105,15 @@ final class ProviderProbeTest extends TestCase
      */
     public function test_an_absent_credential_is_reported_as_absent_not_as_broken(): void
     {
+        ProviderProbe::$requests = 0;
         $r = ProviderProbe::one('termii');
 
         $this->assertFalse($r['configured'], 'an unset provider is reported as configured');
         $this->assertFalse($r['ok']);
         $this->assertStringContainsStringIgnoringCase('no api key', $r['detail']);
-        $this->assertSame(0, $r['ms'], 'an unset provider made a network call anyway');
+        // Counted, not timed: `ms` includes the settings read, which is a millisecond on
+        // MySQL, so "0 ms" failed the parity run without any network call being made.
+        $this->assertSame(0, ProviderProbe::$requests, 'an unset provider made a network call anyway');
     }
 
     /** A configured provider that refuses is a THIRD state, and says what it said. */

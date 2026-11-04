@@ -221,6 +221,21 @@ final class StandPhotosTest extends TestCase
 
     // ── the scope check, which is the whole controller ──────────────────────
 
+    /**
+     * A real org login, because the controller re-reads it: the session's ids alone no
+     * longer authorise a write.
+     */
+    private function signIn(int $orgId, string $role = 'owner', int $active = 1): int
+    {
+        $uid = (int) DB::table('gates_org_users')->insertGetId([
+            'org_id' => $orgId, 'email' => "u{$orgId}{$role}" . bin2hex(random_bytes(2)) . '@vendor.test',
+            'password_hash' => 'x', 'role' => $role, 'is_active' => $active,
+        ]);
+        $_SESSION['org_id'] = $orgId;
+        $_SESSION['org_user_id'] = $uid;
+        return $uid;
+    }
+
     private function ctrl(): \AfricaGates\Controllers\StandPhotoController
     {
         return new \AfricaGates\Controllers\StandPhotoController($this->uploads());
@@ -250,7 +265,7 @@ final class StandPhotosTest extends TestCase
      */
     public function test_another_vendors_application_is_not_reachable(): void
     {
-        $_SESSION['org_id'] = 999;   // signed in, but not as the owner of this application
+        $this->signIn(999);   // signed in, but not as the owner of this application
 
         [$status, $body] = $this->call(fn () => $this->ctrl()->add(
             $this->post(['photo' => $this->photo()]), new \Slim\Psr7\Response(),
@@ -263,7 +278,7 @@ final class StandPhotosTest extends TestCase
 
     public function test_a_signed_out_visitor_is_refused(): void
     {
-        unset($_SESSION['org_id']);
+        unset($_SESSION['org_id'], $_SESSION['org_user_id']);
 
         [$status, $body] = $this->call(fn () => $this->ctrl()->add(
             $this->post(['photo' => $this->photo()]), new \Slim\Psr7\Response(),
@@ -281,7 +296,7 @@ final class StandPhotosTest extends TestCase
      */
     public function test_photographs_cannot_be_changed_after_the_call_closes(): void
     {
-        $_SESSION['org_id'] = 7;
+        $this->signIn(7);
         $this->add();
         DB::table('gates_stand_calls')->where('id', 1)->update(['status' => 'closed']);
 
@@ -303,7 +318,7 @@ final class StandPhotosTest extends TestCase
     /** And the owner can add through the endpoint, so the guard is not simply refusing. */
     public function test_the_owner_can_add_through_the_endpoint(): void
     {
-        $_SESSION['org_id'] = 7;
+        $this->signIn(7);
 
         [$status, $body] = $this->call(fn () => $this->ctrl()->add(
             $this->post(['photo' => $this->photo()]), new \Slim\Psr7\Response(),
@@ -314,27 +329,39 @@ final class StandPhotosTest extends TestCase
         $this->assertSame(1, $body['count']);
     }
 
-    // ── arriving with the form ──────────────────────────────────────────────
-
     /**
-     * The photographs ride along in the single POST that was already there.
-     *
-     * There is nothing to attach them to before that: the application does not exist
-     * until the form is submitted. So they are staged in the browser and posted as one
-     * more part of the same request, which is also why the form carries an enctype now —
-     * without it the browser sends the filenames as text and the photographs never leave
-     * the machine, silently, with a 200 and a cheerful success page.
+     * The session's org id is not an authorisation. A viewer may read the dashboard and
+     * change nothing, and a login deactivated (or moved to another organisation) since it
+     * signed in must lose its writes now — both were let through when the controller asked
+     * `OrgAuth::orgId()`, which is only what the session remembers.
      */
-    public function test_the_form_posts_the_photographs_with_everything_else(): void
+    public function test_a_viewer_or_a_stale_session_cannot_change_photographs(): void
     {
-        $t = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/stands/apply.twig');
+        $this->signIn(7, 'viewer');
+        [$status, $body] = $this->call(fn () => $this->ctrl()->add(
+            $this->post(['photo' => $this->photo()]), new \Slim\Psr7\Response(),
+            ['application' => $this->appId]));
+        $this->assertSame(403, $status, 'a viewer changed an application');
+        $this->assertFalse($body['ok']);
 
-        $this->assertStringContainsString('enctype="multipart/form-data"', $t,
-            'the form carries files and did not say so');
-        $this->assertStringContainsString('name="photos[]"', $t);
-        // The admin CSP has no 'unsafe-inline', and the public pages follow the same rule.
-        $this->assertStringNotContainsString('onclick=', $t);
+        $this->signIn(7, 'owner', 0);
+        [$status] = $this->call(fn () => $this->ctrl()->add(
+            $this->post(['photo' => $this->photo()]), new \Slim\Psr7\Response(),
+            ['application' => $this->appId]));
+        $this->assertSame(401, $status, 'a deactivated login changed an application');
+
+        // A login moved to org 8 whose session still says 7.
+        $uid = $this->signIn(7);
+        DB::table('gates_org_users')->where('id', $uid)->update(['org_id' => 8]);
+        [$status] = $this->call(fn () => $this->ctrl()->add(
+            $this->post(['photo' => $this->photo()]), new \Slim\Psr7\Response(),
+            ['application' => $this->appId]));
+        $this->assertSame(401, $status, 'a session for an org the login has left still wrote');
+
+        $this->assertSame(0, StandPhotos::count($this->appId));
     }
+
+    // ── arriving with the form ──────────────────────────────────────────────
 
     /**
      * A refused photograph never costs somebody the form they just filled in.

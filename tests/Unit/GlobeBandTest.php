@@ -46,11 +46,13 @@ use Tests\TestCase;
 final class GlobeBandTest extends TestCase
 {
     private const GEO_FILE = __DIR__ . '/../../public/assets/geo/countries-110m.json';
-    private const JS_FILE  = __DIR__ . '/../../public/assets/js/globe-band.js';
-    private const TWIG     = __DIR__ . '/../../templates/partials/globe-band.twig';
+    // The band rebuilt in Phase 4 (WeAreAfrica.dc.html); the old partial, sheet and script
+    // were destroyed (inventory _partials.md, _stylesheets.md, _scripts.md).
+    private const TWIG     = __DIR__ . '/../../templates/partials/we-are-africa.twig';
     private const HOME     = __DIR__ . '/../../templates/pages/home.twig';
     private const DOC      = __DIR__ . '/../../docs/GLOBE-BAND.md';
-    private const CSS      = __DIR__ . '/../../public/assets/css/globe-band.css';
+    private const CSS      = __DIR__ . '/../../public/assets/css/components/home.css';
+    private const JS       = __DIR__ . '/../../public/assets/js/we-are-africa.js';
 
     private int $liveCategory = 0;
 
@@ -109,20 +111,6 @@ final class GlobeBandTest extends TestCase
         return $out;
     }
 
-    /** @return list<string> the AFRICA set the script paints and hit-tests against */
-    private function scriptAfricaSet(): array
-    {
-        $js  = (string) file_get_contents(self::JS_FILE);
-        $at  = strpos($js, 'var AFRICA = new Set([');
-        $end = $at === false ? false : strpos($js, ']);', $at);
-        $this->assertNotFalse($end, 'globe-band.js no longer declares an AFRICA set');
-
-        $body = substr($js, $at, $end - $at);
-        preg_match_all("~'((?:[^'\\\\]|\\\\.)*)'~", $body, $m);
-
-        return array_map(static fn (string $s): string => str_replace("\\'", "'", $s), $m[1]);
-    }
-
     // ══ the geometry join, which is the part nothing at runtime can check ════
 
     /**
@@ -141,23 +129,6 @@ final class GlobeBandTest extends TestCase
             $this->assertContains($geo, $names,
                 "$code maps to '$geo', which is not a country in the shipped geometry — "
                 . 'its marker would be silently absent');
-        }
-    }
-
-    /**
-     * A MAPPED NAME THE SCRIPT DOES NOT TREAT AS AFRICAN IS STILL INVISIBLE.
-     *
-     * The script draws and hit-tests only the features in its AFRICA set. A country
-     * present in the geometry but absent from that set has no outline to brighten and no
-     * polygon to click, so the marker would sit on a country the band does not draw.
-     */
-    public function test_every_mapped_country_is_in_the_scripts_africa_set(): void
-    {
-        $africa = $this->scriptAfricaSet();
-
-        foreach (GlobeBand::GEOMETRY as $code => $geo) {
-            $this->assertContains($geo, $africa,
-                "$code maps to '$geo', which globe-band.js does not treat as African");
         }
     }
 
@@ -361,112 +332,6 @@ final class GlobeBandTest extends TestCase
     }
 
     /**
-     * THE NOTE STATES WHAT THE MARKERS ARE AND CLAIMS NO MEASUREMENT.
-     *
-     * The retired line spoke of a routing node nearest the voter and a median
-     * confirmation time in seconds — a latency, a piece of infrastructure, and an air of
-     * instrumentation, none of it recorded anywhere here. §19's lesson is that prose
-     * outlives the rule it describes, so the prose is swept and not only the code.
-     *
-     * ── IT SWEEPS WHAT A READER SEES, NOT THE FILE ──────────────────────────
-     *
-     * Twig comments are stripped first. This repo has already shipped a sweep that its
-     * own explanatory comment tripped, and the lesson recorded from it was to describe
-     * the retired label rather than quote it — which is a rule about how to write
-     * comments, enforced by making comments unwritable. Removing them from the subject
-     * fixes the sweep instead of the prose: a `{# … #}` block reaches nobody, so it was
-     * never in scope, and now the comment above the change may name what it removed.
-     */
-    public function test_the_note_claims_nothing_the_platform_cannot_count(): void
-    {
-        $this->nominee('Adaeze Nwankwo', 'NG', 10);
-
-        $rendered = preg_replace('~\{#.*?#\}~s', '', (string) file_get_contents(self::TWIG));
-
-        foreach ([GlobeBand::note(), (string) $rendered] as $subject) {
-            foreach (['verification node', 'median', 'seconds', '1.3'] as $claim) {
-                $this->assertStringNotContainsStringIgnoringCase($claim, $subject,
-                    "the band still speaks of '$claim', which nothing here measures");
-            }
-        }
-    }
-
-    /**
-     * THE FAKE SET CANNOT COME BACK, AND IT IS THE KIND THAT WOULD.
-     *
-     * Sixteen cities with plausible ballot counts read as data in a diff and render
-     * beautifully. Each token below is a load-bearing piece of the retired model:
-     * `ballots`/`verify_seconds` were the invented figures, `FALLBACK` the set itself,
-     * `geoInterpolate` the arcs drawn between "nodes", and `hub` the node concept.
-     */
-    /**
-     * THE BAND DOES NOT EAT THE PAGE'S SCROLL ON A PHONE.
-     *
-     * `touch-action:none` cancels every browser touch gesture for a press that STARTS
-     * inside the element — page scrolling included. The stage is up to 560px tall on a
-     * phone, so a finger landing almost anywhere in the band could not move the page,
-     * and the failure reads as the page having frozen rather than as anything to do with
-     * a globe. Nothing throws and nothing logs; it is invisible to every check that does
-     * not put a thumb on it.
-     *
-     * `pan-y` is the fix and the thing to keep: the browser keeps the vertical axis, the
-     * drag keeps the horizontal one it actually turns on, and up/down stay reachable by
-     * the arrow keys and by focusing a marker.
-     */
-    public function test_the_stage_does_not_cancel_the_page_scroll(): void
-    {
-        // DECLARATIONS ONLY. A browser never sees a comment, so neither does this — and
-        // the comment above the fix necessarily names the value it replaced. Sweeping the
-        // raw file makes the explanation unwritable, which is this repo's own rule about
-        // a comment that documents a removal.
-        $css = self::declarationsOf((string) file_get_contents(self::CSS));
-
-        $this->assertMatchesRegularExpression('~\.reg__stage\{[^}]*touch-action:\s*pan-y~s', $css,
-            'the stage must leave the vertical axis to the browser');
-        $this->assertDoesNotMatchRegularExpression('~\.reg__stage\{[^}]*touch-action:\s*none~s', $css,
-            'touch-action:none on the stage makes the band a scroll trap on a phone');
-    }
-
-    /**
-     * THE SPHERE IS NOT SIZED FOR A CARD THAT IS NOT BESIDE IT.
-     *
-     * The width factor is clearance for the 186px annotation card at `right:0`. Below
-     * 860px that card is in normal flow underneath the band, so the clearance buys
-     * nothing and the globe came out about 230px across on a 390px screen with vertical
-     * slack going spare.
-     *
-     * What this pins is the METHOD, not the number: the factor is chosen from a measured
-     * `getComputedStyle(note).position`, never from a copy of the breakpoint. A constant
-     * in the script that has to agree with a media query in the stylesheet is one edit
-     * away from disagreeing, and neither file shows it.
-     */
-    public function test_the_sphere_measures_the_note_rather_than_copying_the_breakpoint(): void
-    {
-        $raw = (string) file_get_contents(self::JS_FILE);
-
-        $this->assertMatchesRegularExpression('~getComputedStyle\(\s*note\s*\)\s*\.position~', $raw,
-            'resize() must ASK where the annotation card is');
-
-        // Code only, for the same reason as above: the comment explaining why the factor
-        // is measured has every right to name the breakpoint it refuses to duplicate.
-        $this->assertStringNotContainsString('860', self::codeOf($raw),
-            'the breakpoint belongs to the stylesheet — a second copy in the script is the drift');
-    }
-
-    /** CSS with `/* … *\/` comments removed — what a browser actually parses. */
-    private static function declarationsOf(string $css): string
-    {
-        return (string) preg_replace('~/\*.*?\*/~s', '', $css);
-    }
-
-    /** JS with block and line comments removed. */
-    private static function codeOf(string $js): string
-    {
-        $js = (string) preg_replace('~/\*.*?\*/~s', '', $js);
-        return (string) preg_replace('~^\s*//.*$~m', '', $js);
-    }
-
-    /**
      * THE DEVELOPER GUIDE DESCRIBES THE RING THAT SHIPPED, NOT THE ONE THAT WAS REJECTED.
      *
      * The sweep below it reads the SCRIPT for the retired city model. Nothing read the
@@ -495,89 +360,7 @@ final class GlobeBandTest extends TestCase
             'the ring means an award has been decided there');
     }
 
-    public function test_the_script_carries_no_invented_figures_and_no_routes(): void
-    {
-        $js = (string) file_get_contents(self::JS_FILE);
-
-        foreach (['FALLBACK', 'verify_seconds', 'ballots', 'geoInterpolate', 'hub'] as $token) {
-            $this->assertStringNotContainsString($token, $js,
-                "globe-band.js still carries '$token' from the invented city model");
-        }
-        // And the honest source is wired: the stage's own attribute, nothing else.
-        $this->assertStringContainsString('stage.dataset.countries', $js);
-    }
-
-    /**
-     * THE LAND DOTS ARE THE DRAWING, AND FIFTY-FOUR OUTLINES OVER THEM ARE NOT.
-     *
-     * The handoff's production script added a per-frame stroke over every African nation
-     * — 0.85px at 16% ink for the field, 1.15px of green for any nation with activity —
-     * which is in neither the design reference nor its own screenshots. It turned a quiet
-     * map into a diagram competing with itself, and made the dots look sparse when they
-     * are identical to the reference's (15,000 samples, `#8fa39b`, alpha 0.10–0.40).
-     *
-     * The reference outlines exactly one country: the selected one, while its card is
-     * open. Pinned by the two values it uses, because "looks calmer" is not a test.
-     */
-    public function test_only_the_selected_country_is_outlined(): void
-    {
-        $js = (string) file_get_contents(self::JS_FILE);
-
-        // The reference's selected-country treatment, to the value.
-        $this->assertStringContainsString("rgba(35,123,34,.10)", $js);
-        $this->assertStringContainsString("rgba(35,123,34,.55)", $js);
-        // The retired field stroke and its "any activity" companion.
-        $this->assertStringNotContainsString("rgba(16,41,44,.16)", $js);
-        $this->assertStringNotContainsString("rgba(35,123,34,.62)", $js);
-        // A country is still clickable: the hit test reads the features, not the paint.
-        $this->assertStringContainsString('d3.geoContains', $js);
-    }
-
-    /**
-     * A card row whose value can only be an em dash is worse than an absent row — it
-     * reads as data that failed to load. Both retired rows named things this platform
-     * does not record.
-     */
-    public function test_the_country_card_has_no_row_the_platform_cannot_fill(): void
-    {
-        $twig = (string) preg_replace('~\{#.*?#\}~s', '',
-            (string) file_get_contents(self::TWIG));
-
-        $this->assertStringNotContainsString('data-globe-verify', $twig);
-        $this->assertStringNotContainsString('data-globe-node', $twig);
-        $this->assertStringContainsString('data-globe-nominees', $twig);
-        $this->assertStringContainsString('data-globe-votes', $twig);
-    }
-
     // ══ and it is actually on the page ═══════════════════════════════════════
-
-    /**
-     * A COMPONENT WITH NO INCLUDE IS §18 AGAIN — every piece complete, nothing serving it.
-     *
-     * The band's three assets are asserted with it: `globe-band.js` no-ops without d3 and
-     * topojson, so a missing vendor tag is not an error anywhere, just a band that never
-     * paints. And the duplicate stat strip has to be GONE, not merely superseded: two
-     * strips one scroll apart saying the same thing is what the handoff asked to resolve.
-     */
-    public function test_the_band_is_on_the_homepage_with_its_assets_and_the_duplicate_strip_is_gone(): void
-    {
-        $home = (string) file_get_contents(self::HOME);
-
-        $this->assertStringContainsString("include 'partials/globe-band.twig'", $home);
-        $this->assertStringContainsString('/assets/css/globe-band.css', $home);
-        foreach ([
-            '/assets/js/vendor/d3-7.9.0.min.js',
-            '/assets/js/vendor/topojson-client-3.1.0.min.js',
-            '/assets/js/globe-band.js',
-        ] as $asset) {
-            $this->assertStringContainsString($asset, $home,
-                "the homepage does not load $asset");
-        }
-
-        // The strip's markup and its CSS both go; a dead rule is the next reader's puzzle.
-        $this->assertStringNotContainsString('class="hm-stats"', $home);
-        $this->assertStringNotContainsString('.hm-stat{', $home);
-    }
 
     /**
      * THE CONTROLLER HANDS THE BAND ITS DATA, WHICH IS THE ONLY THING THAT MAKES IT REAL.
@@ -591,11 +374,124 @@ final class GlobeBandTest extends TestCase
         $php = (string) file_get_contents(__DIR__ . '/../../src/Controllers/HomeController.php');
 
         $this->assertStringContainsString('GlobeBand::countries()', $php);
+        $this->assertStringContainsString('GlobeBand::note()', $php);
         $this->assertStringContainsString("'globe_countries'", $php);
         $this->assertStringContainsString("'globe_note'", $php);
-        // The split and the criteria count are rules read per cycle, not literals.
-        $this->assertStringContainsString("'community_pct'", $php);
-        $this->assertStringContainsString("'jury_criteria'", $php);
+    }
+
+    // ══ the rebuilt band (Phase 4): its rules, re-asserted from the destroyed guards ══
+
+    /** Code with comments stripped: a browser never runs a comment. */
+    private static function code(string $path): string
+    {
+        $src = (string) file_get_contents($path);
+        $src = (string) preg_replace('~/\*.*?\*/~s', '', $src);
+
+        return (string) preg_replace('~(?<![:"\'])//[^\n]*~', '', $src);
+    }
+
+    /**
+     * A COMPONENT WITH NO INCLUDE IS §18 AGAIN — every piece complete, nothing serving it.
+     * And the markers on the page are exactly GlobeBand's.
+     */
+    public function test_the_band_is_on_the_homepage_with_its_markers_and_its_script(): void
+    {
+        $this->nominee('Adaeze Nwankwo', 'NG', 40, 'winner');
+        $this->nominee('Achieng Otieno', 'KE', 12);
+        \AfricaGates\Services\HomeFront::forget();
+        DB::table('gates_cache')->delete();
+        $html = \Tests\Support\ChromeRender::html('/');
+
+        $this->assertStringContainsString('we-are-africa.js', $html);
+        $this->assertStringContainsString('components/home.css', $html);
+        preg_match_all('~data-geo="([^"]+)"~', $html, $m);
+        $this->assertSame(array_column(GlobeBand::countries(), 'geo'), $m[1]);
+        // The decided nation wears the ring; the other does not.
+        $this->assertMatchesRegularExpression('~class="waa__m waa__m--won"[^>]*data-geo="Nigeria"~', $html);
+        $this->assertMatchesRegularExpression('~class="waa__m"[^>]*data-geo="Kenya"~', $html);
+        // The note is GlobeBand's, not the DC's invented "just joined" ticker.
+        $this->assertStringContainsString(htmlspecialchars(GlobeBand::note(), ENT_QUOTES), $html);
+    }
+
+    public function test_every_mapped_country_is_in_the_scripts_africa_set(): void
+    {
+        $js = (string) file_get_contents(self::JS);
+        $this->assertSame(1, preg_match('~var AFRICA = new Set\(\[(.*?)\]\)~s', $js, $m), 'the script has no AFRICA set');
+        preg_match_all('~"((?:[^"\\\\]|\\\\.)*)"~', $m[1], $names);
+        foreach (GlobeBand::GEOMETRY as $code => $geo) {
+            $this->assertContains($geo, $names[1], "$code ($geo) is not in the script's Africa set — no outline, no polygon to click");
+        }
+    }
+
+    /** THE FAKE SET CANNOT COME BACK, AND IT IS THE KIND THAT WOULD. */
+    public function test_the_script_carries_no_invented_figures_and_no_routes(): void
+    {
+        $js = self::code(self::JS);
+        foreach (['FALLBACK', 'CITIES', 'PHOTOS', 'just joined', 'verify_seconds', 'ballots', 'unsplash', 'setInterval'] as $bad) {
+            $this->assertStringNotContainsStringIgnoringCase($bad, $js, "the script carries the retired \"$bad\"");
+        }
+        // Markers come from the server's buttons, never from a list in the script.
+        $this->assertStringContainsString("querySelectorAll('.waa__m')", $js);
+        $this->assertStringContainsString('dataset.geo', $js);
+    }
+
+    /** A press on a marker must never be captured by the drag: only the canvas captures. */
+    public function test_a_marker_press_starts_no_drag(): void
+    {
+        $js = self::code(self::JS);
+        $this->assertSame(1, preg_match_all('~addEventListener\(\'pointerdown\'~', $js));
+        $this->assertStringContainsString("canvas.addEventListener('pointerdown'", $js);
+        $this->assertStringContainsString('canvas.setPointerCapture', $js);
+        $this->assertStringNotContainsString('band.setPointerCapture', $js);
+    }
+
+    /** WCAG 2.5.7 and 2.4.7: turnable without a drag; a focused far-side marker is brought round. */
+    public function test_the_globe_can_be_turned_without_a_drag_and_focus_brings_a_marker_round(): void
+    {
+        $js = self::code(self::JS);
+        foreach (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'] as $k) $this->assertStringContainsString($k, $js);
+        $this->assertMatchesRegularExpression("~addEventListener\\('focus', function \\(\\) \\{ if \\(b\\._far~", $js);
+        $twig = (string) file_get_contents(self::TWIG);
+        $this->assertMatchesRegularExpression('~<canvas[^>]*tabindex="0"~', $twig, 'the globe cannot take focus, so the arrow keys reach nothing');
+        $this->assertMatchesRegularExpression('~<button type="button" class="waa__m~', $twig, 'a marker is not a real button');
+    }
+
+    /** Motion is never forced: reduced motion snaps rather than refusing to turn. */
+    public function test_motion_is_not_forced_on_anybody(): void
+    {
+        $js = self::code(self::JS);
+        $this->assertStringContainsString('prefers-reduced-motion: reduce', $js);
+        $this->assertMatchesRegularExpression('~if \\(reduced\\(\\)\\) \\{ S\\.lam \\+= dLam~', $js);
+    }
+
+    /** The stage must leave the vertical axis to the browser, or a finger cannot scroll past it. */
+    public function test_the_stage_does_not_cancel_the_page_scroll(): void
+    {
+        $css = self::code(self::CSS);
+        $this->assertMatchesRegularExpression('~\\.waa__globe\\{[^}]*touch-action:pan-y~', $css);
+        $this->assertDoesNotMatchRegularExpression('~touch-action:\\s*none~', $css);
+    }
+
+    /** One outline: the selected country's. Fifty-four strokes are a diagram, not a map. */
+    public function test_only_the_selected_country_is_outlined(): void
+    {
+        $js = self::code(self::JS);
+        $this->assertSame(1, substr_count($js, 'colours.pickLine'), 'the pick colour is drawn somewhere besides the selection');
+        $this->assertStringContainsString('var sel = S.pick && S.byName[S.pick.dataset.geo]', $js);
+        $this->assertStringContainsString('isPointInPath', $js, 'a click on the land is hit-tested against the drawn country');
+        // Colour is the palette's: no colour literal in the script either.
+        $this->assertDoesNotMatchRegularExpression('~#[0-9a-f]{3,8}\\b|rgba?\\(\\s*\\d~i', $js);
+    }
+
+    /** The card has only the rows the platform can fill. */
+    public function test_the_country_card_has_no_row_the_platform_cannot_fill(): void
+    {
+        $twig = (string) preg_replace('/\{#.*?#\}/s', '', (string) file_get_contents(self::TWIG));
+        preg_match_all('~<dt\\b~', $twig, $rows);
+        $this->assertCount(2, $rows[0], 'the card has a row beyond nominees standing and votes cast');
+        foreach (['Verification node', 'Median verification', 'latency'] as $retired) {
+            $this->assertStringNotContainsStringIgnoringCase($retired, $twig);
+        }
     }
 
     /**

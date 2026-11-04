@@ -24,7 +24,7 @@ class ClaimFlowMailer extends OtpService
         $this->fail = $fail;
     }
 
-    public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '', string $category = '', string $hero = '', string $unsubscribeUrl = '', array $attachments = [], string $preheader = '', int $heroHeight = 0): array
+    public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '', string $category = '', string $hero = '', string $unsubscribeUrl = '', array $attachments = [], string $preheader = '', int $heroHeight = 0, string $why = ''): array
     {
         if ($this->fail) return ['success' => false, 'error' => 'refused'];
         $this->sent[] = ['to' => $to, 'subject' => $subject, 'text' => $plainBody];
@@ -706,7 +706,7 @@ final class NomineeClaimServiceTest extends TestCase
         // The mailer sends the CODE, then refuses the announcement.
         $mailer = new class extends ClaimFlowMailer {
             public int $calls = 0;
-            public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '', string $category = '', string $hero = '', string $unsubscribeUrl = '', array $attachments = [], string $preheader = '', int $heroHeight = 0): array
+            public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '', string $category = '', string $hero = '', string $unsubscribeUrl = '', array $attachments = [], string $preheader = '', int $heroHeight = 0, string $why = ''): array
             {
                 $this->calls++;
                 if ($this->calls > 1) return ['success' => false, 'error' => 'refused'];

@@ -123,15 +123,24 @@ class JudgeService
         return $id . ($s !== '' ? '-' . $s : '');
     }
 
-    /** Programmes this judge is assigned to. */
+    /**
+     * Programmes this judge is assigned to.
+     *
+     * ── AND NOTHING AT ALL FOR A JUDGE WHO HAS BEEN TAKEN OFF THE PANEL ──────
+     *
+     * This decoded `programme_ids` whatever `is_active` said, so a deactivated judge still
+     * resolved their whole appointment — and every gate built on this method (the ballot,
+     * the evidence reader, the dossier map, canScore's fallback) asked a question whose
+     * answer ignored the one fact that means "this person no longer judges here". The
+     * assignment rule itself lives in {@see programmeIdsFor()}, which the scorer reads too.
+     */
     public function programmes(int $judgeId): array
     {
-        $j = $this->findById($judgeId);
-        if (!$j) return [];
-        $ids = $j->programme_ids ? (json_decode((string)$j->programme_ids, true) ?: []) : [];
+        $a = self::assignments([$judgeId])[$judgeId] ?? null;
+        if ($a === null || $a['ids'] === []) return [];
 
-        $out = $ids
-            ? DB::table('gates_award_programmes')->whereIn('id', $ids)->orderBy('sort_order')
+        $out = $a['appointed']
+            ? DB::table('gates_award_programmes')->whereIn('id', $a['appointed'])->orderBy('sort_order')
                 ->get()->map(fn($r) => (array)$r)->all()
             : [];
 
@@ -149,11 +158,68 @@ class JudgeService
         // safe rather than merely convenient.
         //
         // It appears only when an operator has BUILT the sandbox. That build is the opt-in.
-        if ((int) ($j->is_active ?? 0) === 1) {
+        if ($a['practice'] !== null) {
             $practice = $this->practiceProgramme();
-            if ($practice !== null && !in_array((int) $practice['id'], array_map('intval', $ids), true)) {
-                $out[] = $practice;
+            if ($practice !== null) $out[] = $practice;
+        }
+
+        return $out;
+    }
+
+    /**
+     * Which programmes each of these judges may judge, as ids — THE assignment rule.
+     *
+     * Appointed (`programme_ids`) plus the practice programme when a sandbox exists, and
+     * nothing for an inactive judge. A judge id with no row is ABSENT from the result
+     * rather than mapped to []: the caller decides what an unknown judge means, and the
+     * scorer and the portal answer that differently for good reasons.
+     *
+     * Public and batched because {@see \AfricaGates\Services\NomineeScoringService} asks
+     * it too, for every judge with a mark — a mark from somebody no longer assigned to the
+     * programme must not count, and a second decoding of `programme_ids` over there is
+     * exactly how canScore() once came to disagree with the ballot about practice.
+     *
+     * @param  list<int> $judgeIds
+     * @return array<int, list<int>>
+     */
+    public static function programmeIdsFor(array $judgeIds): array
+    {
+        return array_map(static fn (array $a): array => $a['ids'], self::assignments($judgeIds));
+    }
+
+    /**
+     * @param  list<int> $judgeIds
+     * @return array<int, array{ids:list<int>, appointed:list<int>, practice:?int}>
+     */
+    private static function assignments(array $judgeIds): array
+    {
+        $judgeIds = array_values(array_unique(array_filter(array_map('intval', $judgeIds))));
+        if ($judgeIds === []) return [];
+
+        $practice = null;
+        try {
+            $pid = DB::table('gates_award_programmes')
+                ->where('slug', \AfricaGates\Services\DemoSeeder::PROGRAMME_SLUG)->value('id');
+            $practice = $pid !== null ? (int) $pid : null;
+        } catch (\Throwable) {
+            // No programmes table yet is not a reason to refuse a real appointment.
+        }
+
+        $out = [];
+        foreach (DB::table('gates_judges')->whereIn('id', $judgeIds)
+                    ->get(['id', 'is_active', 'programme_ids']) as $j) {
+            if ((int) ($j->is_active ?? 0) !== 1) {
+                $out[(int) $j->id] = ['ids' => [], 'appointed' => [], 'practice' => null];
+                continue;
             }
+            $decoded   = $j->programme_ids ? (json_decode((string) $j->programme_ids, true) ?: []) : [];
+            $appointed = array_values(array_unique(array_filter(array_map('intval', (array) $decoded))));
+            $extra     = ($practice !== null && !in_array($practice, $appointed, true)) ? $practice : null;
+            $out[(int) $j->id] = [
+                'ids'       => $extra !== null ? [...$appointed, $extra] : $appointed,
+                'appointed' => $appointed,
+                'practice'  => $extra,
+            ];
         }
 
         return $out;
@@ -202,25 +268,26 @@ class JudgeService
     {
         if ($judgeId < 1 || $evidenceId < 1) return null;
 
-        $mine = array_map(static fn (array $p): int => (int) $p['id'], $this->programmes($judgeId));
-        if ($mine === []) return null;
-
         try {
-            return DB::table('gates_nominee_evidence as e')
-                ->join('gates_nominees as n', 'n.id', '=', 'e.nominee_id')
-                ->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')
-                ->join('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
+            $row = DB::table('gates_nominee_evidence as e')
                 ->where('e.id', $evidenceId)
                 ->where('e.visible_to_judges', 1)
-                ->whereIn('cy.programme_id', $mine)
-                // A tombstone left the ballot; its dossier goes with it.
-                ->whereNull('n.merged_into')
-                ->whereIn('n.status', ['approved', 'winner', 'runner_up'])
                 ->first(['e.id', 'e.title', 'e.source_url', 'e.nominee_id']);
         } catch (\Throwable $ex) {
             error_log('[judge] evidence lookup ' . $evidenceId . ': ' . $ex->getMessage());
             return null;
         }
+        if (!$row) return null;
+
+        // ── THE NOMINEE HALF IS ASKED THROUGH mayJudgeNominee(), NOT RE-SPELLED ──
+        //
+        // This carried its own copy of the chain — programme, merge, status — and that copy
+        // had already fallen behind: the shortlist clause and the conflict clause were added
+        // to mayJudgeNominee() and never here, so a judge could open the dossier of a
+        // nominee the shortlist had left off, or of a programme they had recused from, by
+        // incrementing an evidence id. The note on mayJudgeNominee() says an access check
+        // that exists twice will eventually differ; this was the second copy, differing.
+        return $this->mayJudgeNominee($judgeId, (int) $row->nominee_id) ? $row : null;
     }
 
     /**
@@ -242,7 +309,7 @@ class JudgeService
         if ($mine === []) return false;
 
         try {
-            return DB::table('gates_nominees as n')
+            $programmeId = DB::table('gates_nominees as n')
                 ->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')
                 ->join('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
                 ->where('n.id', $nomineeId)
@@ -264,11 +331,21 @@ class JudgeService
                       ->where('sl.status', 'published')
                       ->whereColumn('e.nominee_id', 'n.id');
                 })
-                ->exists();
+                ->value('cy.programme_id');
         } catch (\Throwable $ex) {
             error_log('[judge] nominee access ' . $nomineeId . ': ' . $ex->getMessage());
             return false;
         }
+        if ($programmeId === null) return false;
+
+        // ── AND NOT A PROGRAMME THIS JUDGE HAS RECUSED FROM ──────────────────
+        //
+        // BallotController::orient() has always said the dossier map is withheld from a
+        // judge with a conflict, and nothing here checked one — so a recused judge could
+        // still pull the map, open the evidence, and flag maps for the panel, on the
+        // programme they had told us they should not be judging. saveScore() refused the
+        // MARK, which is the half that was visible; the rest stayed open behind it.
+        return !$this->hasConflict($judgeId, (int) $programmeId);
     }
 
     /** All criteria (currently global; programme-specific override supported). */
@@ -324,17 +401,29 @@ class JudgeService
         if ($cycles->isEmpty()) return null;
 
         foreach ($cycles as $c) {
-            try {
-                if (\AfricaGates\Services\CyclePolicy::phaseFor($c)
-                    === \AfricaGates\Services\CyclePhase::Judging) {
-                    return $c;
-                }
-            } catch (\Throwable) {
-                // A row with unreadable windows is not a reason to show no ballot.
+            // A row with unreadable windows (null) is not a reason to show no ballot.
+            if (self::judgingPhaseOf($c) === \AfricaGates\Services\CyclePhase::Judging) {
+                return $c;
             }
         }
 
         return $cycles->first();
+    }
+
+    /**
+     * The phase a ballot is judged against — THE one reader for "may marks be written".
+     *
+     * {@see CyclePolicy::phaseFor()}, the same computation cycleToJudge() picks a cycle
+     * with. Null when the row's windows cannot be read, which every caller treats as
+     * closed: a lock with a reason is recoverable, a mark written outside the window is not.
+     */
+    private static function judgingPhaseOf(object $cycle): ?\AfricaGates\Services\CyclePhase
+    {
+        try {
+            return \AfricaGates\Services\CyclePolicy::phaseFor($cycle);
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     public function ballot(int $judgeId, int $programmeId): array
@@ -488,31 +577,39 @@ class JudgeService
                 'empty_why' => $why,
             ];
         }
+        // ── A RECUSED JUDGE IS NOT HANDED THE DOSSIER EITHER ─────────────────
+        //
+        // Asked here, before anything is fetched, because mayJudgeNominee() now refuses a
+        // judge with a conflict — so the evidence links, the map button and the flag on
+        // this page would each answer "not on your ballot" one click later. A locked
+        // ballot already says why it is locked; it should not also be a page of dead links.
+        $coi = $this->hasConflict($judgeId, $programmeId);
+        $dossierIds = $coi ? [] : array_column($nominees, 'id');
+
         // The dossier, in one query for the whole ballot rather than one per nominee on
         // the screen a judge keeps open for hours. See EvidenceService.
         $dossiers = (new \AfricaGates\Services\EvidenceService())
-            ->forBallot(array_column($nominees, 'id'));
+            ->forBallot($dossierIds);
 
         // The dossier maps that ALREADY exist. Read-only on render, deliberately: a judge
         // opening a ballot of forty must not start forty model calls by scrolling, and a
         // page that spends money on render spends it again on every refresh and every back
         // button. The ballot shows what is there and offers a button for the rest.
-        $maps = \AfricaGates\Services\JudgeAssist::forBallot(array_column($nominees, 'id'));
+        $maps = \AfricaGates\Services\JudgeAssist::forBallot($dossierIds);
 
         // …minus the ones THIS judge has said misread the dossier. Continuing to show a
         // map above the evidence after its reader has told us it is wrong is the whole
         // harm the map risks, delivered on purpose. Per judge: the map is cached and
         // shared across a panel, and one judge's objection does not decide for the rest.
         $flagged = \AfricaGates\Services\JudgeAssist::flaggedBy(
-            $judgeId, array_column($nominees, 'id'));
+            $judgeId, $dossierIds);
 
         // The summary the nominee themselves confirmed, in their own submission. Distinct
         // from the dossier map above and shown separately: the map is ours, written for a
         // judge; this is a description of the entry that the nominee read and agreed
         // represents them before pressing send. Confirmed-only — a draft summary nobody
         // approved must never sit at the top of somebody's entry.
-        $summaries = \AfricaGates\Services\QuestionnaireSummary::forNominees(
-            array_column($nominees, 'id'));
+        $summaries = \AfricaGates\Services\QuestionnaireSummary::forNominees($dossierIds);
 
         foreach ($nominees as $n) {
             // Popularity is stripped at the boundary, not merely left unrendered. The row
@@ -557,7 +654,6 @@ class JudgeService
         // inputs on which every nominee already read as complete. Locking it states the
         // cause instead, and names the fix, because the person who hits this cannot apply
         // it themselves.
-        $coi = $this->hasConflict($judgeId, $programmeId);
         $noRubric = $criteria === [];
 
         // ── AND AN UNPUBLISHED SHORTLIST IS A LOCK FOR THE SAME REASON ───────
@@ -577,7 +673,18 @@ class JudgeService
         // cycle render as open with empty categories in it.
         $noShortlist = $nominees === [] && array_sum($beforeCut) > 0;
 
-        $judgingOpen = ($cycle->status === 'judging') && !$coi && !$noRubric && !$noShortlist;
+        // ── THE PHASE IS THE COMPUTED ONE, THE SAME ONE THAT CHOSE THIS CYCLE ─
+        //
+        // This read `$cycle->status === 'judging'` two screens after cycleToJudge() chose
+        // the cycle by its COMPUTED phase — so on a host whose scheduler had not yet
+        // materialised the column, the ballot picked the judging cycle and then locked it
+        // as "not in the judging phase yet", while a cycle whose results date had passed
+        // stayed writable for as long as the cache lagged. One resolver, asked once:
+        // {@see self::judgingPhaseOf()}, which saveScore() reads too.
+        $phase = self::judgingPhaseOf($cycle);
+        $inJudging = $phase === \AfricaGates\Services\CyclePhase::Judging;
+
+        $judgingOpen = $inJudging && !$coi && !$noRubric && !$noShortlist;
         $lockReason = $coi
             ? 'You have declared a conflict of interest for this programme, so scoring is disabled.'
             : ($noRubric
@@ -593,8 +700,10 @@ class JudgeService
                       . 'to judge. The panel scores the shortlist rather than every entry — this is a '
                       . 'step for the organisers, not something you can fix. Please tell them the '
                       . 'shortlist is still unpublished.'
-                    : (($cycle->status !== 'judging')
-                        ? 'Scoring is closed — this cycle is not in the judging phase yet.'
+                    : (!$inJudging
+                        ? ($phase !== null && $phase->ordinal() > \AfricaGates\Services\CyclePhase::Judging->ordinal()
+                            ? 'Scoring is closed — judging for this cycle has finished.'
+                            : 'Scoring is closed — this cycle is not in the judging phase yet.')
                         : '')));
 
         return [
@@ -602,6 +711,7 @@ class JudgeService
             'criteria' => $criteria,
             'categories' => array_values($byCategory),
             'judging_open' => $judgingOpen,
+            'in_judging' => $inJudging,
             'coi' => $coi,
             'no_rubric' => $noRubric,
             'no_shortlist' => $noShortlist,
@@ -657,6 +767,28 @@ class JudgeService
         if (!$this->canScore($judgeId, $nomineeId)) {
             return ['ok' => false, 'message' => 'You are not assigned to this nominee\'s programme.'];
         }
+        $catId = (int)$nominee->category_id;
+
+        // Judging window: scores are writable only while this nominee's cycle is in
+        // the 'judging' phase — locked before (nominations/voting) and after (results).
+        //
+        // The COMPUTED phase, through the same resolver the ballot uses to decide whether
+        // to draw the sliders at all. Reading the stored column here while the ballot read
+        // the computed phase meant the two could disagree in both directions: sliders drawn
+        // and every save refused, or a ballot locked "after judging" still accepting marks.
+        $cy = DB::table('gates_award_cycles AS cy')
+            ->join('gates_award_categories AS c', 'c.cycle_id', '=', 'cy.id')
+            ->where('c.id', $catId)->select('cy.*')->first();
+        if (!$cy || self::judgingPhaseOf($cy) !== \AfricaGates\Services\CyclePhase::Judging) {
+            return ['ok' => false, 'message' => 'Scoring is closed — this cycle is not in the judging phase.'];
+        }
+        // Conflict of interest: a judge who recused from this programme cannot score it.
+        // Asked BEFORE the shortlist gate below, which refuses a recused judge too and
+        // would otherwise answer with the wrong reason.
+        if ($this->hasConflict($judgeId, (int)$cy->programme_id)) {
+            return ['ok' => false, 'message' => 'You have declared a conflict of interest for this programme.'];
+        }
+
         // ── AND ONLY THE SHORTLIST ──────────────────────────────────────────
         //
         // Enforced server-side as well as in ballot(), for the same reason the status
@@ -668,20 +800,6 @@ class JudgeService
                     'message' => 'This nominee is not on the published shortlist, so they are not '
                                . 'open for scoring. Reload the ballot — it may have changed since '
                                . 'you opened it.'];
-        }
-        $catId = (int)$nominee->category_id;
-
-        // Judging window: scores are writable only while this nominee's cycle is in
-        // the 'judging' phase — locked before (nominations/voting) and after (results).
-        $cy = DB::table('gates_award_cycles AS cy')
-            ->join('gates_award_categories AS c', 'c.cycle_id', '=', 'cy.id')
-            ->where('c.id', $catId)->select('cy.status', 'cy.programme_id')->first();
-        if (!$cy || $cy->status !== 'judging') {
-            return ['ok' => false, 'message' => 'Scoring is closed — this cycle is not in the judging phase.'];
-        }
-        // Conflict of interest: a judge who recused from this programme cannot score it.
-        if ($this->hasConflict($judgeId, (int)$cy->programme_id)) {
-            return ['ok' => false, 'message' => 'You have declared a conflict of interest for this programme.'];
         }
 
         // Only accept criteria belonging to THIS programme's rubric — silently
@@ -790,48 +908,170 @@ class JudgeService
         return ['ok' => true, 'saved' => $valid];
     }
 
-    /** Record a programme-level conflict-of-interest recusal for a judge. */
-    public function declareConflict(int $judgeId, int $programmeId, ?string $reason = null): void
+    /**
+     * Record a programme-level conflict-of-interest recusal for a judge.
+     *
+     * ── ONLY ON A PROGRAMME THEY ACTUALLY SIT ON ─────────────────────────────
+     *
+     * The id arrives from the URL. Unchecked, a typo or a crafted post wrote a row against
+     * a programme that does not exist — refused outright by the foreign key on production,
+     * which surfaced as a 500 on the one form a judge uses to do the right thing — or
+     * against a panel they are not on, which is a recusal from nothing that the audit then
+     * reports as a declaration.
+     *
+     * ── AND THE FIRST DECLARATION'S DATE IS KEPT ─────────────────────────────
+     *
+     * This was an upsert that rewrote `created_at` on every post. The judging audit orders
+     * "declared, then scored" against that stamp, so declaring a second time moved the
+     * declaration to after every mark and turned "a control that did not hold" into "a
+     * judge recusing partway". The first moment we were told is the fact; a repeat or a
+     * re-declaration after a withdrawal is in the audit log.
+     *
+     * @return array{ok:bool, message:string}
+     */
+    public function declareConflict(int $judgeId, int $programmeId, ?string $reason = null): array
     {
-        DB::table('gates_judge_coi')->updateOrInsert(
-            ['judge_id' => $judgeId, 'programme_id' => $programmeId],
-            [
-                'reason'     => $reason !== null && $reason !== '' ? mb_substr(trim($reason), 0, 500) : null,
-                'created_at' => Carbon::now()->toDateTimeString(),
-            ]
-        );
+        $mine = array_map(static fn (array $p): int => (int) $p['id'], $this->programmes($judgeId));
+        if ($programmeId < 1 || !in_array($programmeId, $mine, true)) {
+            return ['ok' => false, 'message' => 'That programme is not one you are judging.'];
+        }
+
+        $reason = $reason !== null && trim($reason) !== '' ? mb_substr(trim($reason), 0, 500) : null;
+        $now    = Carbon::now()->toDateTimeString();
+        $soft   = self::coiIsSoft();
+
+        $existing = DB::table('gates_judge_coi')
+            ->where('judge_id', $judgeId)->where('programme_id', $programmeId)->first();
+        if ($existing) {
+            $set = ['reason' => $reason ?? $existing->reason];
+            if ($soft) $set['withdrawn_at'] = null;
+            DB::table('gates_judge_coi')->where('id', $existing->id)->update($set);
+        } else {
+            DB::table('gates_judge_coi')->insert([
+                'judge_id' => $judgeId, 'programme_id' => $programmeId,
+                'reason' => $reason, 'created_at' => $now,
+            ]);
+        }
+
+        self::auditCoi('judge.conflict_declare', $judgeId, $programmeId, [
+            'reason'      => $reason,
+            'redeclared'  => $existing ? true : null,
+        ]);
+
+        return ['ok' => true, 'message' => 'Conflict of interest recorded — you are recused from scoring this programme.'];
     }
 
-    /** Withdraw a previously-declared conflict of interest (a judge may have declared in error). */
-    public function withdrawConflict(int $judgeId, int $programmeId): void
+    /**
+     * Withdraw a previously-declared conflict of interest (a judge may have declared in error).
+     *
+     * ── WITHDRAWN, NEVER DELETED ─────────────────────────────────────────────
+     *
+     * This deleted the row. Withdrawing a recusal does restore the judge's marks to the
+     * result — that is what "I declared in error" means, and it is reversible on purpose —
+     * but the delete also erased the declaration from the judging audit and wrote nothing
+     * anywhere, so "declared a conflict, then withdrew it and kept scoring" left no trace
+     * on the one screen built to compare what a judge declared with what they did. The row
+     * is stamped `withdrawn_at` now, the audit reads it, and the audit log has the act.
+     *
+     * ── AND NOT AFTER JUDGING HAS CLOSED ─────────────────────────────────────
+     *
+     * Once the cycle has gone to results, a withdrawal would put marks back into a decided
+     * award — moving every recomputed figure for it — on the say-so of the judge whose
+     * marks they are. That needs a person and a reason, not a button on the judge's own
+     * screen.
+     *
+     * @return array{ok:bool, message:string}
+     */
+    public function withdrawConflict(int $judgeId, int $programmeId): array
     {
-        DB::table('gates_judge_coi')
-            ->where('judge_id', $judgeId)->where('programme_id', $programmeId)->delete();
+        $row = $this->coiFor($judgeId, $programmeId);
+        if ($row === null) {
+            return ['ok' => false, 'message' => 'There is no conflict of interest on record for this programme.'];
+        }
+
+        $cycle = self::cycleToJudge($programmeId);
+        $phase = $cycle ? self::judgingPhaseOf($cycle) : null;
+        if ($phase !== null && $phase->ordinal() > \AfricaGates\Services\CyclePhase::Judging->ordinal()) {
+            return ['ok' => false, 'message' => 'Judging for this programme has closed, so the conflict '
+                . 'can no longer be withdrawn here. Please contact the organisers if it was declared in error.'];
+        }
+
+        $now = Carbon::now()->toDateTimeString();
+        if (self::coiIsSoft()) {
+            DB::table('gates_judge_coi')->where('id', $row->id)->update(['withdrawn_at' => $now]);
+        } else {
+            // Not migrated yet: the only way to withdraw is the old one. The audit log
+            // entry below still records that it happened.
+            DB::table('gates_judge_coi')->where('id', $row->id)->delete();
+        }
+
+        self::auditCoi('judge.conflict_withdraw', $judgeId, $programmeId, [
+            'declared_at' => (string) ($row->created_at ?? ''),
+        ]);
+
+        return ['ok' => true, 'message' => 'Conflict of interest withdrawn — you can score this programme again.'];
     }
 
-    /** True if the judge has declared a conflict of interest for the programme. */
+    /** True if the judge has a STANDING (declared, not withdrawn) conflict for the programme. */
     public function hasConflict(int $judgeId, int $programmeId): bool
     {
-        return DB::table('gates_judge_coi')
-            ->where('judge_id', $judgeId)->where('programme_id', $programmeId)->exists();
+        return $this->coiFor($judgeId, $programmeId) !== null;
     }
 
-    /** The COI recusal row for a judge+programme, or null. */
+    /** The standing COI recusal row for a judge+programme, or null. */
     public function coiFor(int $judgeId, int $programmeId): ?object
     {
-        return DB::table('gates_judge_coi')
-            ->where('judge_id', $judgeId)->where('programme_id', $programmeId)->first() ?: null;
+        $q = DB::table('gates_judge_coi')
+            ->where('judge_id', $judgeId)->where('programme_id', $programmeId);
+        self::standing($q);
+
+        return $q->first() ?: null;
     }
 
-    /** All COI recusals for a judge, with the programme title, newest first. */
+    /** All standing COI recusals for a judge, with the programme title, newest first. */
     public function conflicts(int $judgeId): array
     {
-        return DB::table('gates_judge_coi as coi')
+        $q = DB::table('gates_judge_coi as coi')
             ->leftJoin('gates_award_programmes as p', 'p.id', '=', 'coi.programme_id')
-            ->where('coi.judge_id', $judgeId)
-            ->orderByDesc('coi.created_at')
+            ->where('coi.judge_id', $judgeId);
+        self::standing($q, 'coi.withdrawn_at');
+
+        return $q->orderByDesc('coi.created_at')
             ->select('coi.programme_id', 'p.title as programme', 'coi.reason', 'coi.created_at')
             ->get()->map(fn ($r) => (array) $r)->all();
+    }
+
+    /**
+     * Narrow a `gates_judge_coi` query to recusals that STAND — THE one clause.
+     *
+     * Public because the scorer asks the same question when it decides whose marks count,
+     * and a withdrawn recusal that still barred marks there while re-opening the ballot
+     * here would be a judge scoring into a result that ignores them.
+     */
+    public static function standing(\Illuminate\Database\Query\Builder $q,
+                                    string $col = 'withdrawn_at'): \Illuminate\Database\Query\Builder
+    {
+        if (self::coiIsSoft()) $q->whereNull($col);
+
+        return $q;
+    }
+
+    private static function coiIsSoft(): bool
+    {
+        return \AfricaGates\Support\SchemaHas::column('gates_judge_coi', 'withdrawn_at');
+    }
+
+    /**
+     * A judge's own act, in the audit log. There is no admin behind it, so `admin_id` is
+     * null (the record() sentinel) and the judge is the target.
+     *
+     * @param array<string,mixed> $meta
+     */
+    private static function auditCoi(string $action, int $judgeId, int $programmeId, array $meta): void
+    {
+        (new \AfricaGates\Admin\Services\AuditService())->record(null, $action, 'judge', $judgeId,
+            array_filter(['programme_id' => $programmeId, 'by' => 'judge'] + $meta,
+                         static fn ($v): bool => $v !== null));
     }
 
     // ── Judge home / dashboard ──────────────────────────────────────────────
@@ -857,7 +1097,9 @@ class JudgeService
             // The judging deadline is when results are published; fall back to the
             // close of voting if no results date is set.
             $deadline = $cycle['results_date'] ?? ($cycle['voting_close'] ?? null);
-            $judgingOpen = $status === 'judging' && !$coi;
+            // The computed phase, from the ballot that was just built — not the stored
+            // column, which the ballot's own lock stopped trusting. See judgingPhaseOf().
+            $judgingOpen = !empty($b['in_judging']) && !$coi;
 
             // ── PRACTICE IS EXCLUDED FROM EVERY COUNT ────────────────────────
             //

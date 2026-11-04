@@ -56,6 +56,9 @@ final class JudgeRubric
     public const MAX_PER_SCOPE = 12;
 
     /** Relative, not a percentage — see the class note. */
+    /** `sort_order` is TINYINT UNSIGNED on production — the column's ceiling, not a taste. */
+    public const MAX_SORT = 255;
+
     public const MIN_WEIGHT = 1;
     public const MAX_WEIGHT = 100;
 
@@ -257,7 +260,10 @@ final class JudgeRubric
             'label'        => mb_substr($label, 0, self::MAX_LABEL),
             'description'  => mb_substr(trim((string) ($in['description'] ?? '')), 0, self::MAX_DESC) ?: null,
             'weight'       => $weight,
-            'sort_order'   => max(0, min(999, (int) ($in['sort_order'] ?? 0))),
+            // 255, not 999: `gates_judge_criteria.sort_order` is TINYINT UNSIGNED on
+            // production. SQLite stores 300 happily; strict MySQL refuses it (1264) and the
+            // save below reports "could not be saved" over a value the form had offered.
+            'sort_order'   => max(0, min(self::MAX_SORT, (int) ($in['sort_order'] ?? 0))),
             'is_active'    => empty($in['retired']) ? 1 : 0,
         ];
 

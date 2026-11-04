@@ -67,44 +67,24 @@ class VoteController {
     public function index(Request $req, Response $res): Response {
         $hub = $this->cache->remember('vote:hub', 600, fn() => $this->awards->voteHub());
 
-        // Hero/sidebar meta. Every figure here comes from the SAME phase
-        // view-model the cards render, so the page cannot contradict itself.
-        // It used to derive open/closed from the status column while deriving
-        // the countdown from voting_close, so when those disagreed — the exact
-        // reported failure — the hub simultaneously showed "Voting open",
-        // "0 Days left" and a close date already in the past.
-        $votesTotal = 0; $votingCount = 0; $year = (int) date('Y');
-        $soonest = null;   // the phase view-model of the next thing to close
-        foreach ($hub as $p) {
-            $votesTotal += (int) ($p['total_votes'] ?? 0);
-            $phase = $p['phase'] ?? null;
-            if (!$phase || empty($phase['is_voting_open'])) continue;
-            $votingCount++;
-            $year = (int) ($p['year'] ?? $year);
-            if ($phase['closes_at'] === null) continue;
-            if ($soonest === null || $phase['closes_at'] < $soonest['closes_at']) {
-                $soonest = $phase;
-            }
-        }
+        $front = \AfricaGates\Services\VoteFront::hub($hub, (string) ($req->getQueryParams()['f'] ?? 'all'));
 
+        // Phase 5 (VoteHub.dc.html): one view-model, so the live total, the rows and the
+        // rail cannot contradict each other — the reported failure this method's comment
+        // above records ("Voting open", "0 Days left" and a past close date at once).
         return $this->view->render($res, 'pages/vote.twig', [
-            'page_title'       => 'Vote — Africa GATES | Afrovanguard',
+            // Free voting can be switched off; then "one vote per category" is not the rule.
+            'paid_only'        => PaidVoteService::freeVotingDisabled(),
+            'page_title'       => \AfricaGates\Support\Translator::t('Vote') . ' — Africa GATES',
             'meta_description' => 'Cast your verified vote in the Africa GATES awards. Browse the live programmes and back the African excellence you believe deserves continental recognition.',
             'gates_page'       => 'awards',
-            'hub'              => $hub,
+            'front'            => $front,
             'split'            => $this->splitPct(),
-            'meta'             => [
-                'count'        => count($hub),
-                'votes_total'  => $votesTotal,
-                'voting_count' => $votingCount,
-                'year'         => $year,
-                // One object, or null. The template must not recompute any of it.
-                'soonest'      => $soonest,
-            ],
+            // The vote hub's one ad (Services\Ads). Picked per request, never cached with the
+            // hub: frequency, pacing and the nominee rule are all decided now.
+            'ad'               => \AfricaGates\Services\Ads\AdDelivery::forRequest('vote_hub', $req),
             'breadcrumbs' => [
-                ['label' => 'Afrovanguard', 'url' => '/'],
                 ['label' => 'Africa GATES', 'url' => '/'],
-                ['label' => 'Awards',       'url' => '/awards'],
                 ['label' => 'Vote',         'url' => '/vote'],
             ],
         ]);
@@ -124,6 +104,10 @@ class VoteController {
         }
         $p = $this->awards->getProgrammeBySlug($seg);
         if (!$p) return $res->withHeader('Location', '/vote')->withStatus(302);
+        // A volunteer's voter-drive link (Volunteer\VoterDrive): kept for this browser until a
+        // counted vote spends it. It opens the ballot and names no nominee.
+        $drive = (string) ($req->getQueryParams()['drive'] ?? '');
+        if ($drive !== '') \AfricaGates\Services\Volunteer\VoterDrive::capture($drive);
 
         $year = (int) ($p['cycle']['year'] ?? date('Y'));
         $noms = $this->awards->getNominees((int) $p['id'], 0, $year);
@@ -166,21 +150,19 @@ class VoteController {
             unset($c);
         }
 
+        $q   = $req->getQueryParams();
+        $tab = ($q['tab'] ?? '') === 'about' ? 'about' : 'vote';
+        $catId = isset($q['cat']) && ctype_digit((string) $q['cat']) ? (int) $q['cat'] : null;
+
         return $this->view->render($res, 'pages/vote-program.twig', [
+            'paid_only'        => PaidVoteService::freeVotingDisabled(),
             'page_title'       => $p['title'] . ' — Vote — Africa GATES',
             'meta_description' => 'Vote in ' . $p['title'] . ' — browse the nominees by category and back the African excellence you believe deserves continental recognition.',
             'gates_page'       => 'awards',
             'programme'        => $p,
             'categories'       => $cats,
-            // The computed phase, not the stored column. `voting_open` is kept
-            // as a convenience boolean but is now derived from the same source.
-            'phase'            => $p['phase'] ?? null,
-            'voting_open'      => (bool) ($p['phase']['is_voting_open'] ?? false),
-            'total_nominees'   => count($noms),
-            // Mirrors the trail this page already SHOWS. Every one of these pages had
-            // a visible breadcrumb and no BreadcrumbList, so the SERP printed a bare
-            // URL where it could have printed Vote › programme — and the trail is how
-            // a searcher sees that a nominee page belongs to an awards programme.
+            'front'            => \AfricaGates\Services\VoteFront::programme($p, $cats, $catId),
+            'tab'              => $tab,
             'breadcrumbs'      => [
                 ['label' => 'Vote',      'url' => '/vote'],
                 ['label' => $p['title'], 'url' => null],
@@ -292,7 +274,11 @@ class VoteController {
             ->where('n.id', $id)->whereIn('n.status', self::PUBLIC_STATUSES)
             ->where(fn($q) => \AfricaGates\Services\MergeService::notMerged($q, 'n.merged_into'))
             ->select(['n.id', 'n.name', 'p.slug as programme_slug'])->first();
-        if (!$row) return $res->withHeader('Location', '/vote')->withStatus(302);
+        if (!$row) {
+            $to = \AfricaGates\Services\MergeService::survivorOf($id);
+            if ($to !== null) return $this->nomineeRedirect($res, $to);
+            return $res->withHeader('Location', '/vote')->withStatus(302);
+        }
         return $res->withHeader('Location', $this->nomineeUrl($id, (string) $row->name, (string) $row->programme_slug))->withStatus(302);
     }
 
@@ -323,6 +309,7 @@ class VoteController {
                        . 'Free voting is still open — use the ballot above.',
         'unavailable' => 'That payment method is unavailable right now. Please try another.',
         'email'       => 'Please enter a valid email address for your receipt.',
+        'terms'       => 'Please accept the award terms before contributing. No payment was taken.',
         'start'       => 'We could not start the checkout. No payment was taken — please try again.',
         'error'       => 'Something went wrong starting the checkout. No payment was taken.',
         'failed'      => 'That payment did not complete, so no votes were added.',
@@ -440,7 +427,20 @@ class VoteController {
                 \AfricaGates\Support\OptionalColumn::on('gates_nominees', 'organic_vote_count')
                     ? ['n.organic_vote_count'] : []))
             ->first();
-        if (!$nom) throw new \Slim\Exception\HttpNotFoundException($req);
+        if (!$nom) {
+            // ── A MERGED ENTRY'S LINK GOES TO THE ENTRY IT WAS MERGED INTO ─────────
+            //
+            // A duplicate exists because somebody campaigned on it: its link is on posters,
+            // in WhatsApp groups and in the nominee's own bio, and its votes now count on
+            // the survivor. A 404 there tells every supporter who follows it that the
+            // nominee was removed, on the day their votes were in fact added together.
+            // 302, not 301: a merge can be undone, and a permanent redirect would be
+            // cached by every browser that ever followed it. The survivor's own lookup
+            // (nomineeRedirect) carries the sandbox and status rules, so this opens nothing.
+            $to = \AfricaGates\Services\MergeService::survivorOf($id);
+            if ($to !== null) return $this->nomineeRedirect($res, $to);
+            throw new \Slim\Exception\HttpNotFoundException($req);
+        }
 
         // Canonical URL: the {program} segment must match the nominee's programme.
         if ($programSeg !== '' && $programSeg !== (string) $nom->programme_slug) {
@@ -486,6 +486,12 @@ class VoteController {
         // instead of blank — the difference between one retry and an abandoned sale.
         $retry = $this->takePaidRetry();
         $paidNotice = self::PAID_REASONS[trim((string) ($req->getQueryParams()['paid'] ?? ''))] ?? null;
+        // A wallet purchase says its own sentence (what it cost, the reference, or why
+        // not), kept for exactly the one page load it was written for.
+        if (($req->getQueryParams()['paid'] ?? '') === 'wallet' && isset($_SESSION['wallet_vote_notice'])) {
+            $paidNotice = (string) $_SESSION['wallet_vote_notice'];
+            unset($_SESSION['wallet_vote_notice']);
+        }
         if ($paidNotice !== null && ($retry['detail'] ?? '') !== '') {
             $paidNotice .= ' ' . $retry['detail'] . '.';
         }
@@ -495,7 +501,63 @@ class VoteController {
         $pointsEnabled = PointsService::enabled();
         $memberPoints  = ($memberId > 0 && $pointsEnabled) ? PointsService::balance($memberId) : 0;
 
+        // ── Phase 5 additions (NomineePage + VoteBallot DCs) ────────────────────
+        //
+        // A vote this browser just confirmed: written by ApiController::castVote() only
+        // after the vote counted, read and cleared here, so the inline `vote` celebration
+        // is drawn as CONFIRMED by the server (Services\Celebration) and plays once. Fifteen
+        // minutes, so a stale flag from yesterday's session cannot congratulate anybody.
+        $castAt = (int) ($_SESSION['vote_cast'][$id] ?? 0);
+        if (isset($_SESSION['vote_cast'][$id])) unset($_SESSION['vote_cast'][$id]);
+        $voteConfirmed = $castAt > 0 && (time() - $castAt) < 900;
+
+        // "Bring your people" (VoteRecruit). Arriving through somebody's link keeps their code
+        // for this browser until a vote spends it; having voted here, this browser holds its
+        // own link for this nominee and the count of people it has brought.
+        $via = (string) ($req->getQueryParams()['via'] ?? '');
+        if ($via !== '') \AfricaGates\Services\VoteRecruit::capture($via);
+        $drive = (string) ($req->getQueryParams()['drive'] ?? '');
+        if ($drive !== '') \AfricaGates\Services\Volunteer\VoterDrive::capture($drive);
+        $recruit = null;
+        $myCode  = (string) ($_SESSION['vote_recruit'][$id] ?? '');
+        if ($myCode !== '') {
+            $brought = \AfricaGates\Services\VoteRecruit::broughtByCode($myCode);
+            if ($brought !== null) {
+                // The link is the nominee's own short URL plus the code — short enough for the
+                // QR code and for a person to read off a phone — and the share buttons are the
+                // same kit every nominee gets (ShareKit), carrying this voter's link instead.
+                $link = \AfricaGates\Support\SiteUrl::base($req) . '/vote/' . $nom->programme_slug . '/' . (int) $nom->id . '?via=' . rawurlencode($myCode);
+                $kit  = \AfricaGates\Services\ShareKit::for(['name' => (string) $nom->name, 'category' => (string) $nom->category,
+                    'programme' => (string) $nom->programme_title, 'url' => $link], $link);
+                $recruit = ['code' => $myCode, 'brought' => $brought, 'link' => $link, 'links' => array_slice($kit['links'], 0, 3)];
+            }
+        }
+
+        // The panel's reviewed evidence, as COUNTS by kind and nothing more. The rows are
+        // the judges' dossier (`visible_to_judges`); titles and links can be private, and no
+        // column says a row may be published — so the page says what was reviewed, never
+        // what it said (docs/handoff/PHASE-5.md, blocked question B-3).
+        $evidence = [];
+        try {
+            foreach (DB::table('gates_nominee_evidence')->where('nominee_id', $id)->where('verified', 1)
+                         ->selectRaw('kind, COUNT(*) AS n')->groupBy('kind')->get() as $e) {
+                $evidence[(string) $e->kind] = (int) $e->n;
+            }
+        } catch (\Throwable) {}
+
+        $nomShortlisted = isset(\AfricaGates\Services\ShortlistService::shortlistedIn((int) $nom->cycle_id)[(int) $nom->id]);
+
         return $this->view->render($res, 'pages/vote-nominee.twig', [
+            'terms'            => \AfricaGates\Services\AwardTerms::current((int) $nom->programme_id),
+            'paid_sentence'    => \AfricaGates\Services\PaidVoteCopy::sentence((int) $nom->programme_id, (int) $nom->cycle_id),
+            'vote_confirmed'   => $voteConfirmed,
+            'recruit'          => $recruit,
+            'evidence'         => $evidence,
+            'shortlisted'      => $nomShortlisted,
+            'result_url'       => '/results/' . \AfricaGates\Services\PublicResults::slug((int) $nom->category_id, (string) $nom->category),
+            'tier_prices'      => array_map(static fn (array $t): array => $t + ['price' => PaidVoteService::price((int) $t['qty'])],
+                                            array_values(array_filter(PaidVoteService::tiers(), static fn (array $t): bool => (int) $t['qty'] <= PaidVoteService::maxQtyForOrder()))),
+            'edition_label'    => \AfricaGates\Support\EditionName::label(DB::table('gates_award_cycles')->where('id', (int) $nom->cycle_id)->first() ?? []),
             'page_title'       => 'Vote for ' . $nom->name . ' — Africa GATES',
             'meta_description' => 'Cast your verified vote for ' . $nom->name . ' in ' . $nom->category . ' — Africa GATES, the continental Cultural Power Index.',
             'gates_page'       => 'awards',
@@ -529,6 +591,7 @@ class VoteController {
             'standing_headline'=> \AfricaGates\Services\StandingsService::headline($standing),
             'standing_cta'     => \AfricaGates\Services\StandingsService::callToAction($standing),
             'flier_url'        => $nomPath . '/flier',
+            'video_url'        => $nomPath . '/video',
             'others'           => array_slice($others, 0, 5),
             // Same trail the page prints above the hero. The category has no page of
             // its own, so it is a label with no `item` — a BreadcrumbList entry
@@ -590,6 +653,8 @@ class VoteController {
             // the page can never offer a quantity the next request refuses.
             'max_qty'            => PaidVoteService::maxQtyForOrder(),
             'pay_providers'      => (PaidVoteService::enabled() && $this->payments) ? $this->payments->enabledProviders() : [],
+            // The member's community return, offered as a way to pay (WalletVotes).
+            'wallet_sources'     => \AfricaGates\Services\WalletVotes::sources($memberId),
             // Supporters who ASKED to be named. Empty for every nominee until someone
             // ticks the box — the reader publishes consent, not names it happens to hold.
             'supporters'         => $supporters = \AfricaGates\Services\SupportersService::forNominee((int) $nom->id),

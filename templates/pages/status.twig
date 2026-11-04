@@ -1,358 +1,251 @@
-{% extends "layout/gates.twig" %}
+{% extends 'layout/shell.twig' %}
 
 {#
-  ── THIS PAGE IS A MEASUREMENT, NOT A REASSURANCE ─────────────────────────────
+  ══════════════════════════════════════════════════════════════════════════════
+  IS IT WORKING? — /status · Phase 9 · design/StatusPageV2.dc.html · §8.15
+  ══════════════════════════════════════════════════════════════════════════════
 
-  The version this replaced hard-coded its OWN fallback component list in Twig
-  defaults, so even when the route passed nothing the page still printed six
-  green rows. Two independent places were therefore asserting health that
-  neither of them had checked.
+  Rebuilt from the DC after the destroy (inventory: pages--status.md). Every rule of the
+  old header comment is kept:
 
-  There are no defaults here on purpose. If the route stops passing a report the
-  page says so instead of inventing one.
+  ── THIS PAGE IS A MEASUREMENT, NOT A REASSURANCE ──────────────────────────
+  There are NO defaults here. A version once carried its own fallback component list in
+  Twig, so with no report it still printed six green rows; if the route stops passing a
+  report this page says "We could not check just now" instead of inventing one.
+  · No invented uptime: a percentage only where there are checks to divide, floored so a
+    window with a real outage never rounds up to 100% (SystemStatus::pct()).
+  · No green for anything not measured: "Not checked" is a state here, drawn dashed.
+  · Colour is never the only carrier: every row prints its state as a WORD, and every mark
+    differs in FILL (solid · half · hatched · dashed) as well as hue, so it survives
+    monochrome, colour-blindness and a phone in daylight.
+  · Times carry their zone (`when_zoned`, `tz_abbr()`): read across the continent, a bare
+    time is wrong by exactly one hour for somebody.
+  · A gap in the record is not an incident; the dashed cells say where it has holes.
+  · The board is at /status.json, uncached, for anything that is not a person.
 
-  ── THE ANATOMY IS THE ONE PEOPLE ALREADY KNOW ────────────────────────────────
+  ── WHAT PHASE 9 ADDED (§8.15) ─────────────────────────────────────────────
+  · HAPPENING NOW — each problem still open, with the timeline of what the record SAW
+    (first failing check, every change of state, the latest check). Measured
+    transitions, never a narrative somebody typed (SystemStatus incidents' `steps`).
+  · PLANNED WORK — from PlannedWork, the one reader of the four settings an operator sets in
+    /admin/settings; shown from a week before until it ends, then never.
+  · GET UPDATES — StatusAlert, double opt-in, offered ONLY when mail can leave
+    (StatusAlert::senderReady). The old rule "no subscribe with nothing behind it" stands:
+    this ships with the sweep that sends.
+  · BY COUNTRY — NOT DRAWN. Nothing on this platform checks SMS or mobile money per
+    country; a section of per-country rows would be invented health. PHASE-9.md, blocked B-2.
 
-  Overall verdict, then a component list where each row carries its state, its
-  live measurement and its recent history, then the incidents, then how to read
-  it. That order is what every status page a visitor has ever used looks like,
-  and a status page is not the place to be original: somebody arrives mid-problem
-  and has about ten seconds of patience.
-
-  What it does NOT copy from the genre:
-    · No invented uptime. A percentage is printed only where there are checks to
-      divide, and it is floored so a window containing a real outage can never
-      round up to a clean 100%.
-    · No "subscribe for updates" with nothing behind it.
-    · No green tick for anything that was not actually measured — `Not checked`
-      is a state on this page, not a rounding error.
-
-  Colour is never the only carrier of state: every row prints the state in
-  words, and every mark differs in FILL as well as hue so it survives
-  monochrome, colour-blindness and a bad phone screen in daylight.
+  Colour tier 3: a state board read under pressure spends a family per state.
 #}
-
+{% set colour_tier = '3' %}
+{% set app_bar = {variant: 'child', title: 'Status'|trans, sub: 'Live platform check'|trans, back: '/'} %}
 {% set report_ok = components is defined and components is not empty %}
+{% set v = report_ok ? overall|default('unknown') : 'unknown' %}
+{% set _groups = [] %}
+{% if report_ok %}{% for c in components %}{% if c.group|default('') not in _groups %}{% set _groups = _groups|merge([c.group|default('')]) %}{% endif %}{% endfor %}{% endif %}
+{% set _live = (incidents|default([]))|filter(i => i.ongoing) %}
+{% set _past = (incidents|default([]))|filter(i => not i.ongoing) %}
+
+{% macro mark(state, cls) %}<span class="st-m st-m--{{ state }}{{ cls ? ' ' ~ cls }}" aria-hidden="true"></span>{% endmacro %}
 
 {% block head_styles %}
-<style nonce="{{ csp_nonce }}">
-  body[data-page="status"]{ background:var(--ag-ground); }
-
-  .stx{ max-width:860px; margin:0 auto; padding:clamp(2rem,5vw,3.25rem) var(--ag-gutter,32px) clamp(3rem,6vw,4rem);
-    /* A safety net, not a substitute for the rules below. One unbreakable token — a long
-       provider error, a component name nobody expected — widens the DOCUMENT, and then
-       every block on the page inherits the wider containing width, so a single overflow
-       reads as the whole page being clipped. */
-    overflow-wrap:break-word; }
-
-  .stx-kick{ font-family:var(--ag-font-mono); font-size:var(--ag-fs-label); letter-spacing:var(--ag-tracking-label);
-    text-transform:uppercase; color:var(--ag-ink-soft); margin:0 0 14px; }
-
-  .stx-verdict{ font-family:var(--ag-font-display); font-weight:700; letter-spacing:-.015em;
-    font-size:clamp(1.9rem,4.6vw,2.9rem); line-height:1.1; margin:0; color:var(--ag-ink); }
-  /* The highlight under the verdict carries the state. Gold under the words "not
-     working" reads as a warning about something that is past warning — and the state
-     is the one thing on this page that must not be ambiguous. Same four-colour set as
-     the marks, at wash strength. */
-  .stx-verdict em{ font-style:normal; box-shadow:inset 0 -.34em 0 rgba(243,180,22,.34); }
-  .stx-verdict--operational em{ box-shadow:inset 0 -.34em 0 rgba(35,123,34,.24); }
-  .stx-verdict--down em{ box-shadow:inset 0 -.34em 0 rgba(163,43,28,.20); }
-  .stx-verdict--unknown em{ box-shadow:inset 0 -.34em 0 rgba(98,106,110,.20); }
-
-  .stx-note{ margin:16px 0 0; font-size:1.0125rem; line-height:1.6; color:#3c4649; max-width:56ch; }
-
-  /* The stamp line. Every figure on it is measured, and the time carries its zone —
-     a deadline or a timestamp with no zone on it is the thing people get wrong by
-     exactly one hour, and this page is read across the continent. */
-  .stx-stamp{ margin:22px 0 0; padding-top:16px; border-top:1px solid rgba(16,41,44,.12);
-    font-family:var(--ag-font-mono); font-size:12px; color:var(--ag-ink-soft);
-    display:flex; flex-wrap:wrap; gap:6px 18px; font-variant-numeric:tabular-nums; }
-  .stx-stamp b{ font-weight:600; color:var(--ag-ink); }
-
-  .stx-h2{ margin:44px 0 0; padding-bottom:12px; border-bottom:1px solid rgba(16,41,44,.16);
-    font-family:var(--ag-font-mono); font-size:var(--ag-fs-label); letter-spacing:var(--ag-tracking-label);
-    text-transform:uppercase; color:var(--ag-ink); display:flex; justify-content:space-between;
-    align-items:baseline; gap:14px; }
-  .stx-h2 span{ font-weight:400; text-transform:none; letter-spacing:0; color:var(--ag-ink-soft); }
-
-  /* ── THE FOUR STATES, DEFINED ONCE ────────────────────────────────────────
-     One fill vocabulary shared by the row mark, the history cells and the legend,
-     so a square in the strip and the mark beside its name cannot drift apart.
-     Solid / half / hatched / dashed-outline, so the states are still four things
-     with no colour perception at all. */
-  .stx-f{ border:1.5px solid var(--ag-ink-soft); background:transparent; }
-  .stx-f--operational{ background:#237b22; border-color:#237b22; }
-  .stx-f--degraded{ border-color:#a4761a; background:linear-gradient(180deg,#f3b416 0 50%,transparent 50% 100%); }
-  .stx-f--down{ border-color:#a32b1c; background:repeating-linear-gradient(45deg,#a32b1c 0 2px,transparent 2px 4px); }
-  .stx-f--unknown{ border-style:dashed; border-color:#b3b9ba; }
-
-  .stx-rows{ list-style:none; margin:0; padding:0; }
-  .stx-row{ padding:20px 2px; border-bottom:1px solid rgba(16,41,44,.09); }
-  .stx-row__top{ display:flex; align-items:flex-start; gap:16px; }
-  .stx-mark{ flex:none; width:13px; height:13px; margin-top:4px; border-radius:3px; }
-
-  .stx-row__main{ flex:1; min-width:0; }
-  .stx-row__name{ font-weight:600; font-size:1.0125rem; color:var(--ag-ink); }
-  .stx-row__what{ margin-top:3px; font-size:.875rem; color:var(--ag-ink-soft); }
-  .stx-row__detail{ margin:9px 0 0; font-size:.9125rem; line-height:1.55; color:#3c4649; max-width:54ch; }
-
-  /* Capped as well as floored. Some metrics are a phrase rather than a figure
-     ("nothing sent in the last six hours"), and without a ceiling one of those
-     takes the width the component's NAME needs. */
-  .stx-row__state{ flex:none; text-align:right; min-width:8.5rem; max-width:15rem; }
-  .stx-state{ font-size:.9125rem; font-weight:600; color:#1a6118; }
-  .stx-state--degraded{ color:#7a5600; }
-  .stx-state--down{ color:#a32b1c; }
-  .stx-state--unknown{ color:#5f676a; }
-  .stx-metric{ margin-top:4px; font-family:var(--ag-font-mono); font-size:12px;
-    color:var(--ag-ink-soft); font-variant-numeric:tabular-nums; }
-
-  /* ── PER-COMPONENT HISTORY ────────────────────────────────────────────────
-     One cell per day, worst-state-wins. Worst wins because a day with one broken
-     hour is not a good day, and an average would turn a real outage into a pale
-     shade of green.
-
-     A day with no recorded snapshot is DASHED, not blank and not green: on this
-     deployment that usually means the scheduled task was not running, which is
-     itself the outage — and it is the one outage no self-report can cover,
-     because the thing that would report it is the thing that stopped.
-
-     Indented to the text column so the six bars share one axis and the platform
-     reads as a block rather than as six unrelated charts. */
-  .stx-bar{ display:flex; margin:13px 0 0 29px; align-items:center; }
-  .stx-cells{ display:flex; gap:3px; flex:1; min-width:0; }
-  .stx-cell{ flex:1 1 0; min-width:6px; height:12px; border-radius:2px; }
-  .stx-up{ flex:none; margin-left:14px; font-family:var(--ag-font-mono); font-size:12px;
-    color:var(--ag-ink-soft); font-variant-numeric:tabular-nums; white-space:nowrap; }
-
-  .stx-axis{ display:flex; justify-content:space-between; gap:12px; margin:10px 0 0 29px;
-    font-family:var(--ag-font-mono); font-size:11px; color:var(--ag-ink-soft); }
-  .stx-axisnote{ margin:14px 0 0; font-size:.9125rem; line-height:1.6; color:#3c4649; max-width:58ch; }
-
-  /* ── INCIDENTS ────────────────────────────────────────────────────────────
-     A bar answers "was there a bad day". Somebody here is usually asking
-     something narrower — "my payment failed at nine, was that you" — and a
-     square covering a whole day cannot answer it. */
-  .stx-inc{ list-style:none; margin:0; padding:0; }
-  .stx-inc li{ padding:15px 2px; border-bottom:1px solid rgba(16,41,44,.09);
-    display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; }
-  .stx-inc__mark{ flex:none; width:11px; height:11px; border-radius:2px; }
-  .stx-inc__what{ flex:1 1 16rem; min-width:0; font-size:.9375rem; color:var(--ag-ink); }
-  .stx-inc__what b{ font-weight:600; }
-  /* Shrinkable, because the timestamp is the longest string in the row
-     ("21 Aug, 16:00 → 19:30 WAT · 3 hr 30 min") and `flex:none` gives it its
-     max-content width unconditionally. The wrapping parent saves it at 390px; at 320
-     that width exceeds the column and an item that refuses to shrink overflows rather
-     than folding. `min-width:0` is what lets it actually shrink — without it the flex
-     default of `auto` floors the item at its min-content width and the `flex-shrink`
-     never takes effect. */
-  .stx-inc__when{ flex:0 1 auto; min-width:0; font-family:var(--ag-font-mono); font-size:12px;
-    color:var(--ag-ink-soft); font-variant-numeric:tabular-nums; }
-  .stx-inc__live{ font-family:var(--ag-font-mono); font-size:11px; letter-spacing:.08em;
-    text-transform:uppercase; color:#a32b1c; }
-  .stx-clear{ margin:18px 0 0; font-size:.9375rem; line-height:1.6; color:#3c4649; }
-
-  /* ── LEGEND ───────────────────────────────────────────────────────────────
-     Four states with four fills is only self-explanatory to whoever chose them. */
-  .stx-key{ display:flex; flex-wrap:wrap; gap:10px 24px; margin:18px 0 0; padding:0; list-style:none; }
-  .stx-key li{ display:flex; align-items:center; gap:9px; font-size:.875rem; color:#3c4649; }
-  .stx-key i{ flex:none; width:12px; height:12px; border-radius:2px; }
-
-  .stx-scope{ margin:22px 0 0; padding:20px 22px; background:#fff;
-    border:1px solid rgba(16,41,44,.1); border-radius:var(--ag-r-sm,10px); }
-  .stx-scope p{ margin:0; font-size:.9125rem; line-height:1.65; color:#3c4649; }
-  .stx-scope p + p{ margin-top:11px; }
-  .stx-scope strong{ font-weight:600; color:var(--ag-ink); }
-  .stx-scope code{ font-family:var(--ag-font-mono); font-size:.85em;
-    background:var(--ag-ground); padding:1px 5px; border-radius:4px; }
-
-  .stx-broken{ margin:24px 0 0; padding:20px 22px; border:1px solid rgba(163,43,28,.28);
-    border-radius:var(--ag-r-sm,10px); background:#fff; font-size:.9375rem; line-height:1.6; color:#3c4649; }
-
-  @media (max-width:560px){
-    .stx-row__top{ flex-wrap:wrap; }
-    /* `max-width` has to be released as well as `min-width`. Capping the column at
-       15rem is right beside the name and wrong once it is a full-width row beneath
-       it — the cap won, so the state stayed in a narrow gutter and squeezed the
-       component's name into four lines. */
-    .stx-row__state{ width:100%; text-align:left; padding-left:29px;
-      min-width:0; max-width:none; }
-    .stx-metric{ display:inline; margin-left:10px; }
-    /* The bar keeps its indent but the uptime figure drops beneath it — at this
-       width the two side by side leave the cells too narrow to read as days.
-       `display:block` rather than `flex-wrap`, so the two are simply stacked
-       blocks: a wrapped flex line with a zero-basis sibling is how the figure
-       ended up drawn across the cells instead of under them. */
-    .stx-bar{ display:block; }
-    .stx-cells{ width:100%; }
-    .stx-up{ display:block; margin:8px 0 0; white-space:normal; }
-    /* Stacked, for the same reason as the bar: two flex items on one line where one of
-       them is a 40-character timestamp is a row that decides how wide the page is. */
-    .stx-inc li{ display:block; }
-    .stx-inc__mark{ display:inline-block; margin-right:8px; vertical-align:middle; }
-    .stx-inc__when{ display:block; margin-top:5px; }
-  }
-</style>
+{% include 'partials/seo-head.twig' %}
+<link rel="stylesheet" href="{{ asset('/assets/css/components/status.css') }}">
 {% endblock %}
 
 {% block content %}
-<div class="stx">
-
-  <p class="stx-kick">Live check</p>
-
-  {% if not report_ok %}
-    {# No report reached the page. Saying nothing is the honest output; the old
-       template printed six green rows in exactly this situation. #}
-    <h1 class="stx-verdict">We could not check just now</h1>
-    <p class="stx-note">This page reads the platform directly every time you load it, and that read did not come back. Reload in a moment. If the rest of the site is working for you, it is working.</p>
-  {% else %}
-
-    {% set v = overall|default('unknown') %}
-    {% set headline = v == 'operational' ? 'Everything we can check is <em>working</em>'
-                    : (v == 'degraded'  ? 'Some things are <em>slower than usual</em>'
-                    : (v == 'down'      ? 'Something is <em>not working</em>'
-                    :                     'Some things are <em>not checked</em>')) %}
-
-    <h1 class="stx-verdict stx-verdict--{{ v }}">{{ headline|raw }}</h1>
-    {% if note is defined and note %}<p class="stx-note">{{ note }}</p>{% endif %}
-
-    <div class="stx-stamp">
-      {# The zone is part of the fact. Without it this read as a bare UTC string on a
-         platform whose audience is an hour ahead of it. #}
-      <span>Checked <time datetime="{{ checked_at|date('c') }}"><b>{{ checked_at|when_zoned('j M Y, H:i') }}</b></time></span>
-      {% if uptime is defined and uptime.pct is not null %}
-        <span><b>{{ uptime.pct|number_format(2) }}%</b> of {{ uptime.samples|number_format }} checks over {{ uptime.days }} days</span>
-      {% endif %}
-      <span>Measured on load, never cached</span>
+{% import _self as m %}
+<div class="sx">
+  <section class="sx__top" aria-labelledby="st-h1">
+    <div class="sx__bar">
+      <span class="sx__live"><span class="sx__dot sx__dot--{{ v }}" aria-hidden="true"></span>{{ 'Live check'|trans }}</span>
+      <span class="sx__tools">
+        {% if report_ok and can_subscribe|default(false) %}
+          <a class="sx__pill sx__pill--icon" href="#st-sub" role="button" aria-haspopup="dialog" aria-controls="st-sub-sheet" aria-expanded="false" data-st-sub-open>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg>
+            <span class="sx__pill-t">{{ 'Get updates'|trans }}</span>
+          </a>
+        {% endif %}
+        <a class="sx__pill" href="/status">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg>
+          {{ 'Check again'|trans }}
+        </a>
+      </span>
     </div>
 
-    <h2 class="stx-h2">Current status <span>{{ components|length }} services</span></h2>
-    <ul class="stx-rows">
-      {% for c in components %}
-        {% set s = c.status|default('unknown') %}
-        {% set h = component_history[c.name]|default(null) %}
-        <li class="stx-row">
-          <div class="stx-row__top">
-            <span class="stx-mark stx-f stx-f--{{ s }}" aria-hidden="true"></span>
-            <div class="stx-row__main">
-              <div class="stx-row__name">{{ c.name }}</div>
-              <div class="stx-row__what">{{ c.what }}</div>
-              {% if c.detail %}<p class="stx-row__detail">{{ c.detail }}</p>{% endif %}
-            </div>
-            <div class="stx-row__state">
-              <div class="stx-state stx-state--{{ s }}">{{ c.label }}</div>
-              {% if c.metric %}<div class="stx-metric">{{ c.metric }}</div>{% endif %}
-            </div>
-          </div>
-
-          {# ── THIS COMPONENT'S RECENT HISTORY ─────────────────────────────
-             The per-component state of every snapshot has been recorded since the
-             log existed and only the overall figure was ever read — so the page
-             could say "something was wrong on the 14th" and not which thing,
-             while the answer sat in the next column.
-
-             The squares are aria-hidden and the group's accessible name carries
-             the summary in words: a screen reader reading out fourteen
-             indistinguishable cells conveys nothing, and the sentence conveys
-             the whole point. #}
-          {# A component with NO record still gets a bar, of dashed cells.
-             Skipping the row's bar entirely was tidier and wrong twice over: it breaks
-             the shared axis the six bars are read against, and an absent bar is a
-             silence where "we have never recorded this" is the fact. A newly added
-             service is exactly when somebody is most likely to be looking. #}
-          <div class="stx-bar">
-            <div class="stx-cells" role="img"
-                 aria-label="{{ c.name }} over the last {{ history_days|default(14) }} days: {{ h and h.uptime is not null ? h.uptime|number_format(2) ~ '% of ' ~ h.samples|number_format ~ ' checks came back working' : 'nothing recorded yet' }}">
-              {% for d in h ? h.days : (history|default([])) %}
-                <span class="stx-cell stx-f stx-f--{{ h ? d.status : 'unknown' }}" aria-hidden="true"
-                      title="{{ d.label }} — {{ h ? d.state_label : 'Not recorded' }}"></span>
-              {% endfor %}
-            </div>
-            <span class="stx-up">
-              {%- if h and h.uptime is not null %}{{ h.uptime|number_format(2) }}% · {{ h.samples|number_format }} checks
-              {%- else %}not recorded yet{% endif -%}
-            </span>
-          </div>
-        </li>
-      {% endfor %}
-    </ul>
-
-    {% if history is defined and history is not empty %}
-      <div class="stx-axis">
-        <span>{{ history|first.label }}</span>
-        <span>Today</span>
-      </div>
-      {% if history_note %}<p class="stx-axisnote">{{ history_note }}</p>{% endif %}
+    {% if not report_ok %}
+      <h1 class="sx__h1" id="st-h1">{{ 'We could not check'|trans }} <em class="sx__em sx__em--unknown">{{ 'just now'|trans }}</em></h1>
+      <p class="sx__note">{{ 'The live check did not come back. Try again in a moment.'|trans }}</p>
+    {% else %}
+      <h1 class="sx__h1" id="st-h1">
+        {%- if v == 'operational' %}{{ 'Everything we can check is'|trans }} <em class="sx__em sx__em--operational">{{ 'working'|trans }}</em>
+        {%- elseif v == 'degraded' %}{{ 'Some things are'|trans }} <em class="sx__em sx__em--degraded">{{ 'slower than usual'|trans }}</em>
+        {%- elseif v == 'down' %}{{ 'Something is'|trans }} <em class="sx__em sx__em--down">{{ 'not working'|trans }}</em>
+        {%- else %}{{ 'Some things are'|trans }} <em class="sx__em sx__em--unknown">{{ 'not checked'|trans }}</em>{% endif -%}
+      </h1>
+      {% if note is defined and note %}<p class="sx__note">{{ note }}</p>{% endif %}
+      <ul class="sx__tally" aria-label="{{ 'Services by state'|trans }}">
+        {% for k in ['operational', 'degraded', 'down', 'unknown'] %}
+          {% set n = components|filter(c => c.status == k)|length %}
+          {% if n %}<li class="sx__chip">{{ m.mark(k, 'st-m--sm') }}{{ n }} {{ status_labels[k]|default(k)|lower }}</li>{% endif %}
+        {% endfor %}
+      </ul>
+      <p class="sx__stamp">
+        <span>{{ 'Checked'|trans }} <time datetime="{{ checked_at|date('c') }}"><b>{{ checked_at|when_zoned('j M Y, H:i') }}</b></time></span>
+        {% if uptime is defined and uptime.pct is not null %}<span>{{ '%p%% of %n% checks over %d% days'|trans({'%p%': uptime.pct|number_format(2), '%n%': uptime.samples|number_format, '%d%': uptime.days}) }}</span>{% endif %}
+        <span>{{ 'Measured on load, never cached'|trans }}</span>
+      </p>
     {% endif %}
+  </section>
 
-  {% endif %}
-
-  {# ── WAS IT BROKEN EARLIER? ────────────────────────────────────────────────
-     The live check is honest and blind: it says what is true this second and nothing about
-     the two hours somebody could not check out. Without this, a supporter whose payment
-     failed at nine and who loads a green page at noon concludes the fault was theirs.
-
-     A gap in the record is deliberately NOT listed here. Cron missing a beat is not an
-     outage, and manufacturing incidents out of scheduling jitter would make the one list
-     on this page that names real faults worthless. The dashed cells above say where the
-     record has holes. #}
-  {% if report_ok %}
-  <h2 class="stx-h2">Recent problems
-    <span>{{ history_days|default(14) }} days</span></h2>
-  {% if incidents is defined and incidents is not empty %}
-    <ul class="stx-inc">
-      {% for i in incidents %}
-        <li>
-          <span class="stx-inc__mark stx-f stx-f--{{ i.status }}" aria-hidden="true"></span>
-          <span class="stx-inc__what">
-            {# "still" BEFORE the state. Appended, it read "AI assistance — slower than
-               usual still", which is not a sentence anybody says. #}
-            <b>{{ i.name }}</b> — {% if i.ongoing %}<span class="stx-inc__live">still</span> {% endif %}{{ status_labels[i.status]|default(i.status)|lower }}
-          </span>
-          <span class="stx-inc__when">
-            {# The zone is stated ONCE, on the start. "16:00 WAT → 19:30 WAT" repeats a fact
-               that cannot have changed between the two halves of one sentence.
-
-               The DATE is not the same kind of fact, and dropping it from the end was wrong.
-               A 61-hour incident rendered as "25 Aug, 22:21 → 11:41", which reads as ending
-               eleven hours BEFORE it started — the one number on this line that matters,
-               shown as nonsense, on exactly the incidents worth reading. Same day keeps the
-               terse form; a crossing shows the date it ended on. #}
-            {% set same_day = i.from|when('Y-m-d') == i.to|when('Y-m-d') %}
-            <time datetime="{{ i.from|date('c') }}">{{ i.from|when('j M, H:i') }}</time>
-            {%- if i.minutes > 0 %} → <time datetime="{{ i.to|date('c') }}">{{ i.to|when(same_day ? 'H:i' : 'j M, H:i') }}</time>{% endif %}
-            {{ tz_abbr() }} · {{ i.duration }}
-          </span>
-        </li>
+  {% if report_ok and _live|length %}
+    <section class="sx__sec" aria-labelledby="st-live">
+      <h2 class="sx__h2" id="st-live"><span class="sx__dot sx__dot--down" aria-hidden="true"></span>{{ 'Happening now'|trans }}</h2>
+      {% for i in _live %}
+        <article class="sx-now">
+          <div class="sx-now__head">
+            {{ m.mark(i.status, '') }}
+            <div class="sx-now__w">
+              <h3 class="sx-now__t">{{ i.name }} — {{ status_labels[i.status]|default(i.status)|lower }}</h3>
+              <p class="sx-time">{{ 'Started'|trans }} <time datetime="{{ i.from|date('c') }}">{{ i.from|when('j M, H:i') }}</time> {{ tz_abbr() }} · {{ '%d% so far'|trans({'%d%': i.duration}) }}</p>
+            </div>
+          </div>
+          {% if i.steps|default([])|length %}
+            <ol class="sx-steps" aria-label="{{ 'What the checks saw'|trans }}">
+              {% for st in i.steps %}
+                <li class="sx-steps__i">
+                  <span class="sx-steps__rail" aria-hidden="true"><span class="sx-steps__dot sx-steps__dot--{{ st.status }}"></span></span>
+                  <div class="sx-steps__w">
+                    <p class="sx-steps__h"><b>{{ st.latest|default(false) ? 'Latest check'|trans : (loop.last ? 'First seen'|trans : 'Changed'|trans) }}</b> <time class="sx-time" datetime="{{ st.at|date('c') }}">{{ st.at|when('H:i') }} {{ tz_abbr() }}</time></p>
+                    <p class="sx-steps__p">{{ 'Checked as'|trans }} {{ st.label|trans|lower }}.</p>
+                  </div>
+                </li>
+              {% endfor %}
+            </ol>
+          {% endif %}
+        </article>
       {% endfor %}
+    </section>
+  {% endif %}
+
+  {% if planned|default(null) %}
+    <section class="sx-plan" aria-labelledby="st-plan">
+      <svg class="sx-plan__i" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>
+      <div class="sx-plan__w">
+        <h2 class="sx-plan__t" id="st-plan">{{ planned.started ? 'Planned work, under way:'|trans : 'Planned:'|trans }} {{ planned.title }}</h2>
+        <p class="sx-time"><time datetime="{{ planned.from|date('c') }}">{{ planned.from|when('j M, H:i') }}</time> → <time datetime="{{ planned.to|date('c') }}">{{ planned.to|when(planned.from|when('Y-m-d') == planned.to|when('Y-m-d') ? 'H:i' : 'j M, H:i') }}</time> {{ tz_abbr() }}</p>
+        {% if planned.note %}<p class="sx-plan__p">{{ planned.note }}</p>{% endif %}
+      </div>
+    </section>
+  {% endif %}
+
+  {% if report_ok %}
+    <section class="sx__sec" aria-labelledby="st-now">
+      <h2 class="sx__h2" id="st-now">{{ 'Current status'|trans }} <span class="sx__h2-n">{{ '%n% services'|trans({'%n%': components|length}) }}</span></h2>
+      {% for g in _groups %}
+        <div class="sx-group">
+          {% if g %}<h3 class="sx-group__t">{{ g|trans }}</h3>{% endif %}
+          <ul class="sx-rows">
+            {% for c in components|filter(c => c.group|default('') == g) %}
+              {% set cs = c.status|default('unknown') %}
+              {% set h = component_history[c.name]|default(null) %}
+              <li class="sx-row" data-st-row>
+                <div class="sx-row__top">
+                  {{ m.mark(cs, '') }}
+                  <div class="sx-row__w"><span class="sx-row__n">{{ c.name }}</span><span class="sx-row__what">{{ c.what }}</span></div>
+                  <div class="sx-row__state"><span class="sx-state sx-state--{{ cs }}">{{ c.label }}</span>{% if c.metric %}<span class="sx-row__metric">{{ c.metric }}</span>{% endif %}</div>
+                </div>
+                {% if c.detail %}<p class="sx-row__detail">{{ c.detail }}</p>{% endif %}
+                <div class="sx-row__hist">
+                  <div class="sx-cells" role="img"
+                       aria-label="{{ '%c% over the last %d% days: %s%'|trans({'%c%': c.name, '%d%': history_days|default(14), '%s%': (h and h.uptime is not null) ? ('%p%% of %n% checks came back working'|trans({'%p%': h.uptime|number_format(2), '%n%': h.samples|number_format})) : 'nothing recorded yet'|trans}) }}">
+                    {% for d in h ? h.days : (history|default([])) %}
+                      <span class="sx-cell st-m--{{ h ? d.status : 'unknown' }}" aria-hidden="true" data-st-cell="{{ d.label }} · {{ h ? d.state_label : 'Not recorded'|trans }}"></span>
+                    {% endfor %}
+                  </div>
+                  <p class="sx-row__foot"><span class="sx-row__info" data-st-info data-default="{{ history is defined and history is not empty ? (history|first).label ~ ' → ' ~ 'Today'|trans : '' }}">{{ history is defined and history is not empty ? (history|first).label ~ ' → ' ~ 'Today'|trans : '' }}</span>
+                    <span>{%- if h and h.uptime is not null %}{{ '%p%% · %n% checks'|trans({'%p%': h.uptime|number_format(2), '%n%': h.samples|number_format}) }}{% else %}{{ 'not recorded yet'|trans }}{% endif -%}</span></p>
+                </div>
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endfor %}
+      <p class="sx__key-note">{{ 'One square per day, showing its worst moment. Dashed means no record.'|trans }}</p>
+      {% if history_note|default('') %}<p class="sx__key-note">{{ history_note }}</p>{% endif %}
+    </section>
+
+    <section class="sx__sec" aria-labelledby="st-inc">
+      <h2 class="sx__h2" id="st-inc">{{ 'Past problems'|trans }} <span class="sx__h2-n">{{ 'Last %d% days'|trans({'%d%': history_days|default(14)}) }}</span></h2>
+      {% if _past|length %}
+        <ol class="sx-inc">
+          {% for i in _past %}
+            {% set same_day = i.from|when('Y-m-d') == i.to|when('Y-m-d') %}
+            <li class="sx-inc__i">
+              {{ m.mark(i.status, 'st-m--sm') }}
+              <div class="sx-inc__w">
+                <p class="sx-inc__t"><b>{{ i.name }}</b> — {{ status_labels[i.status]|default(i.status)|lower }}</p>
+                <p class="sx-time"><time datetime="{{ i.from|date('c') }}">{{ i.from|when('j M, H:i') }}</time>{% if i.minutes > 0 %} → <time datetime="{{ i.to|date('c') }}">{{ i.to|when(same_day ? 'H:i' : 'j M, H:i') }}</time>{% endif %} {{ tz_abbr() }} · {{ i.duration }}</p>
+              </div>
+            </li>
+          {% endfor %}
+        </ol>
+      {% elseif not _live|length %}
+        <p class="sx__p">{{ 'Nothing recorded as broken or slow in %d% days. Missed something? Tell us.'|trans({'%d%': history_days|default(14)}) }}</p>
+      {% else %}
+        <p class="sx__p">{{ 'Nothing else was recorded as broken or slow in this window.'|trans }}</p>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  <section class="sx__sec" aria-labelledby="st-read">
+    <h2 class="sx__h2" id="st-read">{{ 'How to read this'|trans }}</h2>
+    <ul class="sx-key">
+      {% for k in ['operational', 'degraded', 'down', 'unknown'] %}<li>{{ m.mark(k, '') }}{{ status_labels[k]|default(k) }}</li>{% endfor %}
     </ul>
-  {% else %}
-    <p class="stx-clear">Nothing was recorded as broken or slow in the last {{ history_days|default(14) }} days. If something went wrong for you in that time and it is not here, we did not catch it — please tell us.</p>
-  {% endif %}
-  {% endif %}
+    <div class="sx-scope">
+      <p>{{ 'Every line is measured live. Nothing says'|trans }} <b>{{ status_labels.operational|default('Working') }}</b> {{ 'just because a setting exists.'|trans }}</p>
+      <p><b>{{ status_labels.unknown|default('Not checked') }}</b> {{ 'means exactly that, not fine. Percentages count known results only, rounded down.'|trans }}</p>
+      <p>{{ 'This page can’t see your network, email, mobile money wallet or bank.'|trans }}</p>
+      <p>{{ 'Checking from a script? The same board is at'|trans }} <code>/status.json</code>{{ ', uncached.'|trans }}</p>
+    </div>
+  </section>
 
-  <h2 class="stx-h2">How to read this</h2>
-  <ul class="stx-key">
-    {% for k, label in {'operational':'Working','degraded':'Slower than usual','down':'Not working','unknown':'Not checked'} %}
-      <li><i class="stx-f stx-f--{{ k }}" aria-hidden="true"></i>{{ label }}</li>
-    {% endfor %}
-  </ul>
-  <div class="stx-scope">
-    <p>Every line above is measured when you load the page — a real query, a real count, a real recent success rate. Nothing here is a setting somebody typed in, and nothing says <strong>Working</strong> because a key exists somewhere in a configuration file.</p>
-    <p><strong>Not checked</strong> means exactly that. It is not a quiet way of saying fine, and we would rather show it than round it up. The percentages count only checks whose result we actually know, and they are rounded <em>down</em> — a fortnight containing a real outage will never show as a clean 100%.</p>
-    <p>This page reports the platform. It cannot see your network, your inbox provider or your bank — so if everything here reads as working and something is still wrong for you, that is worth telling us, not shrugging off.</p>
-    <p>Watching this from something that is not a browser? The same board is at <code>/status.json</code>, uncached.</p>
-  </div>
+  <section class="sx-help" aria-labelledby="st-help">
+    <div class="sx-help__w">
+      <h2 class="sx-help__h" id="st-help">{{ 'Shows as working, but something’s still wrong?'|trans }}</h2>
+      <p class="sx-help__p">{{ 'Gee can check your problem and re-check a stuck payment.'|trans }}</p>
+    </div>
+    <a class="sx-help__a" href="/help?{{ {gee: 'support', topic: 'payment'}|url_encode }}" data-ag-do="open-gee" data-gee-mode="support">{{ 'Get help'|trans }}</a>
+  </section>
 
-  {# This page answers "is it me or is it them". It does not answer "so where is
-     my money", and that is what most people came to ask — a green board and a
-     missing payment is the most frustrating combination on the site. The
-     assistant can check the same services by PROBING them, not by reading a
-     configuration flag, and can repair the payment while it is there. #}
-  {% include 'partials/support-prompt.twig' with {
-    sp_kind: 'general',
-    sp_title: 'Reads as working but something is still wrong?',
-    sp_body: 'This board reports the platform. The assistant can check your specific problem — and re-check a payment against the gateway if that is what is stuck.'
-  } %}
+  <p class="sx__tz">{{ 'Times are shown in %z%.'|trans({'%z%': tz_abbr()}) }}</p>
 </div>
 {% endblock %}
+
+{% block sheets %}
+{{ parent() }}
+{% if report_ok and can_subscribe|default(false) %}
+<div class="sx-sub-layer" id="st-sub">
+  <div class="ag-scrim" data-st-sub-scrim></div>
+  <div class="ag-sheet sx-sub" id="st-sub-sheet" role="dialog" aria-modal="true" aria-labelledby="st-sub-h" data-st-sub>
+    <span class="ag-sheet__grabber" aria-hidden="true"></span>
+    <div class="sx-sub__head">
+      <h2 class="sx-sub__h" id="st-sub-h">{{ 'Get status updates'|trans }}</h2>
+      <a class="sx-sub__x" href="#main" role="button" aria-label="{{ 'Close'|trans }}" data-st-sub-close><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></a>
+    </div>
+    <p class="sx-sub__p">{{ 'We’ll email you when a problem starts and when it’s fixed. Nothing else.'|trans }}</p>
+    {% if subscribe_said|default(null) %}<p class="sx-sub__said" role="status">{{ subscribe_said }}</p>{% endif %}
+    <form class="sx-sub__form" method="post" action="/status/subscribe">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <label class="ag-label" for="stSubEmail">{{ 'Email address'|trans }}</label>
+      <span class="ag-field"><input id="stSubEmail" type="email" name="email" required maxlength="190" inputmode="email" autocomplete="email" enterkeyhint="send" aria-describedby="stSubHint"></span>
+      <p class="ag-hint" id="stSubHint">{{ 'One confirmation email first. Every update has a one-click stop link.'|trans }}</p>
+      <button class="ag-btn ag-btn--primary ag-btn--pill sx-sub__go" type="submit">{{ 'Send me updates'|trans }}</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/status.js') }}" data-nav="rerun"></script>{% endblock %}

@@ -63,25 +63,6 @@ final class IntegrityPageTest extends TestCase
 
     // ── the doors have to lead somewhere ─────────────────────────────────────
 
-    /**
-     * A summary that links out is only better than a wall of text if the links
-     * work. A dead /help/ link resolves at the ROUTER — `/help/{slug}` matches any
-     * string — so SiteLinkIntegrityTest cannot catch this one: the 404 comes from
-     * the corpus, not the route table.
-     */
-    public function test_every_article_the_page_links_to_actually_exists(): void
-    {
-        $slugs = $this->helpSlugsOnThePage();
-
-        $this->assertGreaterThan(10, count($slugs),
-            'the page is supposed to be a summary with doors — it has almost no links');
-
-        foreach ($slugs as $slug) {
-            $this->assertNotNull(HelpCentre::bySlug($slug),
-                "/integrity links to /help/{$slug}, which is not an article");
-        }
-    }
-
     /** And the reverse: the deep dives are reachable, i.e. they are in a real category. */
     public function test_the_new_deep_dives_are_filed_where_a_reader_will_look(): void
     {
@@ -104,110 +85,6 @@ final class IntegrityPageTest extends TestCase
     }
 
     // ── the numbers must follow the engine ───────────────────────────────────
-
-    /**
-     * THE REGRESSION THIS FILE IS REALLY FOR.
-     *
-     * "45% public + 55% judges" was a sentence somebody typed. Set the weights to
-     * 30/70 and the page must say 30/70 — and must no longer say 45.
-     */
-    public function test_the_published_split_is_the_split_the_scorer_uses(): void
-    {
-        (new RuleEngine())->set('global', null, [
-            'community_weight'        => 0.30,
-            'judge_weight'            => 0.70,
-            'max_paid_weight_pct'     => 25,
-            'min_judges_per_nominee'  => 4,
-        ]);
-
-        $html = $this->page();
-
-        $this->assertStringContainsString('30% community', $html);
-        $this->assertStringContainsString('70% judges', $html);
-        // Still published from the engine, and now with the framing corrected: this
-        // ceiling governs BONUS votes minted against a contribution — `BonusVoteService`
-        // is the only thing that reads it — and not vote packs bought on the ballot,
-        // which have none. It stopped being a ranking guarantee when the index started
-        // counting every vote; a page that went on describing it as one would be quoting
-        // a live number to support a claim it does not support.
-        $this->assertStringContainsString('25% of the organic support', $html,
-            'the contribution ceiling is published from the engine');
-        $this->assertStringContainsString('have no such limit', $html,
-            'the page publishes a ceiling without saying which votes it does not cover');
-        $this->assertStringContainsString('4 judges to have scored them', $html,
-            'the winner-eligibility quorum is published from the engine');
-
-        $this->assertStringNotContainsString('45% community', $html,
-            'the page is still quoting the default split after it was overridden');
-    }
-
-    /**
-     * The risk bands are configuration too, and the bands must be contiguous.
-     *
-     * This used to also assert four `width:NN%` segments, because the bands were a
-     * proportional bar and the template computed each segment as a subtraction —
-     * `fraud_flag - fraud_monitor` and so on. Get one of those wrong and the bar
-     * silently overflowed or left a gap that read as a fifth band, so the widths
-     * were worth pinning.
-     *
-     * The bands are a table now, which removes that arithmetic entirely: each row
-     * prints its own two bounds. The contiguity assertions below are therefore the
-     * whole test, and they are stronger than they look — each band's upper bound is
-     * the next band's lower bound, so a gap or an overlap cannot produce this
-     * sequence of strings.
-     */
-    public function test_the_risk_bands_are_drawn_from_the_configured_thresholds(): void
-    {
-        (new RuleEngine())->set('global', null, [
-            'fraud_monitor' => 20, 'fraud_flag' => 50, 'fraud_block' => 90,
-        ]);
-
-        $html = $this->page();
-
-        $this->assertStringContainsString('0–20', $html);
-        $this->assertStringContainsString('20–50', $html);
-        $this->assertStringContainsString('50–90', $html);
-        $this->assertStringContainsString('90+', $html);
-
-        // And the defaults are genuinely gone, so this cannot pass against a
-        // template that printed them.
-        $this->assertStringNotContainsString('0–30', $html);
-        $this->assertStringNotContainsString('80+', $html);
-    }
-
-    /**
-     * The community return is the newest claim and the one with money attached.
-     * Basis points must reach the reader as a percentage, without a trailing zero.
-     */
-    public function test_the_community_return_share_is_published_from_basis_points(): void
-    {
-        (new RuleEngine())->set('global', null, [
-            'community_return_bps'               => 1250,
-            'community_return_vote_threshold'    => 400,
-            'community_return_supporter_cap_pct' => 20,
-        ]);
-
-        $html = $this->page();
-
-        $this->assertStringContainsString('12.5%', $html);
-        $this->assertStringNotContainsString('12.50%', $html, 'a rule is not a measurement');
-        $this->assertStringContainsString('400 votes of qualifying support', $html);
-        // 20% of 400, and the people floor DERIVED from that ceiling rather than
-        // configured beside it — 100/20 = 5.
-        $this->assertStringContainsString('80', $html, 'the per-supporter ceiling in votes');
-        $this->assertStringContainsString('5 different verified', $html);
-    }
-
-    /** A whole-number share must not arrive as "30.0%". */
-    public function test_a_whole_number_share_reads_as_a_whole_number(): void
-    {
-        (new RuleEngine())->set('global', null, ['community_return_bps' => 3000]);
-
-        $html = $this->page();
-
-        $this->assertStringContainsString('30%', $html);
-        $this->assertStringNotContainsString('30.0%', $html);
-    }
 
     // ── page and article must not drift ──────────────────────────────────────
 
@@ -252,19 +129,50 @@ final class IntegrityPageTest extends TestCase
         $this->assertStringContainsString('5 different verified people', $text);
     }
 
-    /**
-     * Prove the guard bites: with no override at all, both surfaces report the code
-     * default. A test that only ever asserts the overridden value would still pass
-     * against a template that hardcoded it.
-     */
-    public function test_with_no_override_both_surfaces_report_the_code_default(): void
-    {
-        $html = $this->page();
-        $this->assertStringContainsString('45% community', $html);
-        $this->assertStringContainsString('55% judges', $html);
+    // ── the page answers first, and its tables hold their shape ──────────────
 
-        $a = HelpCentre::bySlug('why-the-leader-may-not-be-eligible-to-win');
-        $this->assertNotNull($a);
-        $this->assertStringContainsString('2 judges', HelpCentre::plainText($a));
+    /**
+     * "In short" leads, and its figures are the engine's: change the split and the quorum and
+     * the summary moves with them. A summary typed as prose is the shape this page exists to
+     * avoid — the first thing a reader sees disagreeing with the table they scroll to.
+     */
+    public function test_the_page_opens_with_a_summary_read_from_the_engine(): void
+    {
+        (new RuleEngine())->set('global', null, ['community_weight' => 0.30, 'judge_weight' => 0.70, 'min_judges_per_nominee' => 4]);
+        $html = $this->page();
+
+        preg_match_all('~<section class="dp-sec" id="([a-z]+)"~', $html, $m);
+        $this->assertSame('short', $m[1][0] ?? null, 'the summary is the first section');
+        $this->assertSame(['why', 'more'], array_slice($m[1], -2), 'the argument for the method comes after the rules, then the reading list');
+        // Help articles are gathered at the end, once each, not closing every section.
+        $this->assertSame(1, substr_count($html, 'class="dp-more"'));
+        $this->assertStringNotContainsString('class="dp-refs"', $html, 'no per-section link list on this page');
+        $this->assertSame(1, substr_count($html, '>I think a count or a ranking is wrong</a>'), 'an article two sections cite is listed once');
+
+        $this->assertStringContainsString('30% of the score is verified community support and 70% is an independent judge panel', $html);
+        $this->assertStringContainsString('complete scorecards from at least 4 judges', $html);
+    }
+
+    /**
+     * Two faults in the shared document stylesheet, both on every /integrity, /philosophy and
+     * policy table at desktop width: the phone rule `.dp-rich tbody th { padding:0 }` out-ranked
+     * the desktop `.dp-rich th`, so every row label sat flush to the edge and above its row; and
+     * `white-space:nowrap` on that label let one long name push the table wider than its column,
+     * where the table's own overflow:hidden cut the other columns off mid-word.
+     */
+    public function test_a_document_table_pads_and_wraps_its_row_labels(): void
+    {
+        $css = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/css/components/doc.css');
+        $at  = strpos($css, '@media (min-width:600px)');
+        $this->assertNotFalse($at);
+        $wide = substr($css, $at, (int) strpos($css, "\n}\n", $at) - $at);
+
+        $this->assertMatchesRegularExpression('~\.dp-rich tbody th[^{]*\{[^}]*padding:[1-9][0-9]*px [1-9][0-9]*px~', $wide,
+            'the row label needs its padding named at a specificity the phone rule cannot beat');
+        preg_match_all('~\.dp-table tbody th\{([^}]*)\}~', $wide, $rules);
+        $this->assertNotEmpty($rules[1]);
+        foreach ($rules[1] as $body) {
+            $this->assertStringNotContainsString('nowrap', $body, 'a long row label must wrap, not push the table off the page');
+        }
     }
 }

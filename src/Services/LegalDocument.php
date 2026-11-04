@@ -61,7 +61,57 @@ final class LegalDocument
         if (($doc['slug'] ?? '') === 'cookies') {
             $html .= self::cookiesHtml();
         }
+        if (($doc['slug'] ?? '') === 'advertising') {
+            $html .= self::advertisingHtml();
+        }
         return $html;
+    }
+
+    /**
+     * What an ad may not be, and the figures, generated from Services\Ads\AdRules: the same
+     * list the builder makes an advertiser confirm and a reviewer refuses against, so the
+     * published policy cannot drift from the rule that is running.
+     */
+    public static function advertisingHtml(): string
+    {
+        $R = \AfricaGates\Services\Ads\AdRules::class;
+        $e = static fn (string $s): string => htmlspecialchars($s, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $h = ['<h2>What an ad may not be</h2>', '<table><thead><tr><th>Not allowed</th><th>What that means</th></tr></thead><tbody>'];
+        foreach ($R::STANDARDS as [$name, $what]) {
+            $h[] = '<tr><td><strong>' . $e($name) . '</strong></td><td>' . $e($what) . '</td></tr>';
+        }
+        $h[] = '</tbody></table>';
+        $beta = $R::inBeta();
+        $names = static fn (array $keys): string => implode(' and ', array_map(static fn ($k) => $R::APPROVALS[$k][0], $keys));
+        $h[] = '<h2>Approvals by kind of ad</h2>';
+        $h[] = '<p>' . ($beta
+            ? 'Ads are in beta. Until the beta ends these approvals are asked for and checked by the reviewer, but an ad without them is not refused for that reason alone. Once the beta ends, they are required.'
+            : 'These approvals are required. An ad of these kinds without them is refused.') . '</p>';
+        $h[] = '<table><thead><tr><th>Kind of ad</th><th>Covers</th><th>What it must carry</th></tr></thead><tbody>';
+        foreach ($R::CATEGORIES as [$label, $covers, $needs]) {
+            $h[] = '<tr><td><strong>' . $e($label) . '</strong></td><td>' . $e($covers) . '</td><td>'
+                 . ($needs === [] ? 'ARCON approval where the law requires it' : $e($names($needs))) . '</td></tr>';
+        }
+        $h[] = '</tbody></table>';
+        $places = implode(', ', array_map($e, array_values($R::PLACEMENTS)));
+        $h[] = '<h2>The figures</h2><ul>'
+             . '<li>Places ads may appear: ' . $places . '.</li>'
+             . '<li>The free trial: one per account, up to ' . number_format($R::TRIAL_VIEWS) . ' views over '
+             . $R::TRIAL_DAYS . ' days, from when it is approved.</li>'
+             . '<li>One person sees the same ad at most ' . $R::FREQUENCY_CAP . ' times a day.</li>'
+             . '<li>A campaign can be booked for up to ' . $R::MAX_DAYS . ' days.</li>'
+             // How a price is set, from the constants the market runs on (AdMarket), so the
+             // policy cannot describe a different rule from the one charging people.
+             . (\AfricaGates\Services\Ads\AdMarket::dynamic()
+                 ? '<li>Prices are set each day for each place: its starting price, moved by how often people act on ads there against the site average and by how much of the next ' . \AfricaGates\Services\Ads\AdMarket::HORIZON . ' days paid campaigns have booked, never below ' . (int) round(100 * \AfricaGates\Services\Ads\AdMarket::FLOOR) . '% or above ' . (int) round(100 * \AfricaGates\Services\Ads\AdMarket::CEIL) . '% of the starting price. Until a place has ' . number_format(\AfricaGates\Services\Ads\AdMarket::MIN_VIEWS) . ' views to measure, its price is its starting price. Everyone booking on the same day pays the same price, and a campaign keeps the price it was booked at.</li>'
+                 : '<li>Prices are fixed per place, the same every day, and a campaign keeps the price it was booked at.</li>')
+             . '<li>Paid campaigns are shown before free trials.</li>'
+             . (\AfricaGates\Services\Ads\AdCheckout::vatBps() > 0
+                 ? '<li>Prices do not include VAT. VAT at ' . rtrim(rtrim(number_format(\AfricaGates\Services\Ads\AdCheckout::vatBps() / 100, 2), '0'), '.') . '% is added at checkout, shown as its own line, and printed on the receipt.</li>'
+                 : '')
+             . '<li>The smallest budget is ₦' . number_format(\AfricaGates\Services\Ads\AdCheckout::MIN_BUDGET_NAIRA) . '. A paid campaign starts when it is both paid for and approved, and runs the days bought from then. What it does not spend goes back, with its VAT, when it ends or is cancelled.</li>'
+             . '</ul><p>This section is generated from the rules the site runs, so it is always current.</p>';
+        return implode("\n", $h);
     }
 
     /**
@@ -143,29 +193,29 @@ final class LegalDocument
     }
 
     /**
-     * What is actually set, generated from the registry rather than written down.
+     * What is actually set, and what each consent choice controls — generated from the
+     * registry rather than written down.
      *
      * ── THE BUG THIS EXISTS BECAUSE OF ───────────────────────────────────────
      *
-     * The authored cookie policy said, in bold, "We set ONE cookie", and listed it in a
-     * one-row table. There were three: the session, and the shop's `ag_region` and
-     * `ag_currency`, which are written by `document.cookie` and last a year. The same
-     * document said, also in bold, "We run no analytics", while {@see VisitTracker}
-     * recorded every arrival's source, campaign, landing page, device and country into a
-     * table an operator reads every week.
+     * The authored cookie policy said, in bold, "We set ONE cookie" — there were three —
+     * and "We run no analytics", while {@see VisitTracker} recorded every arrival's source,
+     * campaign, landing page, device and country. Both sentences were true when they were
+     * typed and outlived the code by a release. So the factual half of this page is not
+     * wording: it is built from {@see \AfricaGates\Support\CookieRegistry} and
+     * {@see CookiePrefs} on every render, and `CookieRegistryTest` holds the registry to
+     * the code in both directions.
      *
-     * Neither sentence was ever a lie somebody told; both were true when they were typed
-     * and outlived the code by a release. That is this repository's most expensive shape
-     * of fault and it has no fix at the level of "correct the wording", so the factual
-     * half of this page is no longer wording. It is built from
-     * {@see \AfricaGates\Support\CookieRegistry} and {@see CookiePrefs} on every render,
-     * and a cookie added without a registry entry fails `CookieRegistryTest`.
+     * Rebuilt on 3 Oct 2026 for the four-category consent model (GAPS Q11): the section now
+     * opens with the four choices — what each controls, its state on this deployment, and
+     * the exact names under it — because "which of these can I refuse, and what happens if
+     * I do" is the question a reader arrives with. Every name printed in `<code>` is a
+     * registry name and nothing else is; `LegalDocumentTest` compares the two sets.
      *
      * ── AND IT IS HERE, NOT IN THE TEMPLATE ──────────────────────────────────
      *
-     * Same reason as the AI disclosure above: `/cookies.txt` and `/cookies.md` are real
-     * routes, and a downloaded policy that silently omitted the list of cookies would be
-     * missing the one section somebody downloaded it for.
+     * `/cookies.txt` and `/cookies.md` are real routes, and a downloaded policy that
+     * silently omitted the list would be missing the one section somebody downloaded it for.
      *
      * @param list<array<string,mixed>>|null $cookies injectable so the escaping can be
      *        tested with a hostile value rather than with whatever the registry holds today
@@ -176,53 +226,113 @@ final class LegalDocument
         $storage ??= CookieRegistry::storage();
 
         $e = static fn (string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
+        $code = static fn (string $n): string => '<code>' . htmlspecialchars($n, ENT_QUOTES, 'UTF-8') . '</code>';
+        $names = [];
+        foreach (CookieRegistry::categories() as $c) $names[$c['key']] = $c['name'];
+
         $h = [];
 
-        $h[] = '<h2 id="what-is-set">What is set, right now</h2>';
+        $h[] = '<h2 id="what-each-choice-controls">What each choice controls</h2>';
         $h[] = '<p>This section is generated from the platform&rsquo;s own configuration every '
-             . 'time the page is drawn, so it describes what the code actually sets rather than '
+             . 'time the page is drawn, so it describes what the code actually does rather than '
              . 'what somebody wrote down when it was last reviewed.</p>';
+        $h[] = '<p>Everything below belongs to one of four categories. Essential is always on; '
+             . 'the other three are yours to allow or refuse, in the cookie notice or with the '
+             . 'choices on this page. Whichever it is, you can say no, and you can change your '
+             . 'mind at any time. If your browser '
+             . 'sends Global Privacy Control or Do Not Track, we treat that as a no to all three, '
+             . 'and we honour it even over a yes you gave us here &mdash; the specification would '
+             . 'let us do the opposite, and we would rather not.</p>';
+
+        foreach (CookieRegistry::categories() as $c) {
+            $key = $c['key'];
+            $in  = array_values(array_filter(
+                array_merge(
+                    array_map(static fn (array $x): array => ['name' => (string) ($x['name'] ?? ''), 'category' => (string) ($x['category'] ?? '')], $cookies),
+                    array_map(static fn (array $x): array => ['name' => (string) ($x['key'] ?? ''), 'category' => (string) ($x['category'] ?? '')], $storage)
+                ),
+                static fn (array $x): bool => $x['category'] === $key
+            ));
+
+            if ($key === CookiePrefs::ESSENTIAL) {
+                $state = 'Always on.';
+                $why   = 'It cannot be refused: without it nothing here works, and one of these is the record of your answers.';
+            } elseif (!CookiePrefs::offered($key)) {
+                $state = $key === CookiePrefs::ANALYTICS ? 'Switched off for everyone at the moment.' : 'Not used.';
+                $why   = $key === CookiePrefs::ANALYTICS
+                       ? 'An administrator has turned the counting off, so there is nothing to allow or refuse until it is turned back on.'
+                       : 'Nothing on this site does this, so there is nothing to switch on. It is listed because it is one of the four choices, and described rather than given a use.';
+            } elseif ($key === CookiePrefs::ANALYTICS) {
+                $state = CookiePrefs::mode() === CookiePrefs::MODE_CONSENT
+                       ? 'Off until you allow it.'
+                       : 'On unless you say no.';
+                $why   = CookiePrefs::mode() === CookiePrefs::MODE_CONSENT
+                       ? 'We ask first, and nothing is counted until you agree.'
+                       : 'It stores nothing on your device, which is why it is not asked for first; you can refuse it at any time.';
+            } else {
+                $state = 'Off until you allow it.';
+                $why   = 'Refused, your language and display settings still work, until you close your browser.';
+            }
+
+            // Analytics' sentence above already says it stores nothing; said twice, it reads
+            // as a template rather than a policy.
+            $covers = $in === []
+                ? ($key === CookiePrefs::ANALYTICS ? '' : 'Nothing is stored under it.')
+                : 'It covers ' . implode(', ', array_map(static fn (array $x): string => $code($x['name']), $in)) . '.';
+
+            $h[] = '<h3>' . $e($c['name']) . '</h3>';
+            $h[] = '<p>' . $e($c['desc']) . '</p>';
+            $h[] = '<p><strong>' . $e($state) . '</strong> ' . $e($why) . ($covers !== '' ? ' ' . $covers : '') . '</p>';
+        }
+
+        $h[] = '<h2 id="what-is-set">What is set, right now</h2>';
 
         if ($cookies !== []) {
             $h[] = '<table>';
-            $h[] = '<thead><tr><th>Name</th><th>Why</th><th>How long</th><th>Kind</th></tr></thead>';
+            $h[] = '<thead><tr><th>Name</th><th>Why</th><th>How long</th><th>Choice</th></tr></thead>';
             $h[] = '<tbody>';
             foreach ($cookies as $c) {
-                $kind = (string) ($c['category'] ?? '');
-                $word = $kind === CookieRegistry::ESSENTIAL
-                      ? 'Essential'
-                      : ($kind === CookieRegistry::PREFERENCE ? 'Your choice' : 'Counting');
-                // WHO writes it, because a reader who blocks scripts will genuinely not have
-                // the two shop cookies, and a table that implied otherwise would be wrong for
-                // them specifically.
-                $by = ((string) ($c['set_by'] ?? '')) === 'browser'
-                    ? ' It is written by the page itself, only when you use that control.'
-                    : '';
-                // `data-label` so the table can become a stack of records on a phone
-                // rather than a four-column scroll — the same shape the .txt edition
-                // settled on, and for the same reason: the `why` column is a paragraph,
-                // and no column layout survives one at 380px.
+                $word = $names[(string) ($c['category'] ?? '')] ?? 'Essential';
+                // `data-label` so the table can become a stack of records on a phone rather
+                // than a four-column scroll: the `why` column is a paragraph.
                 $h[] = '<tr>'
-                     . '<td data-label="Name"><code>' . $e((string) ($c['name'] ?? '')) . '</code></td>'
-                     . '<td data-label="Why">' . $e((string) ($c['purpose'] ?? '')) . $e($by) . '</td>'
+                     . '<td data-label="Name">' . $code((string) ($c['name'] ?? '')) . '</td>'
+                     . '<td data-label="Why">' . $e((string) ($c['purpose'] ?? '')) . '</td>'
                      . '<td data-label="How long">' . $e((string) ($c['lifetime'] ?? '')) . '</td>'
-                     . '<td data-label="Kind">' . $e($word) . '</td></tr>';
+                     . '<td data-label="Choice">' . $e($word) . '</td></tr>';
             }
             $h[] = '</tbody></table>';
         }
 
-        $h[] = '<p>All of them are marked <code>SameSite=Lax</code>, and <code>Secure</code> on '
-             . 'an encrypted connection. The two set by the server are <code>HttpOnly</code>, '
-             . 'which means scripts on the page cannot read them.</p>';
+        $h[] = '<p>All of them are ours, marked SameSite=Lax, and Secure on an encrypted '
+             . 'connection. All of them are HttpOnly, which means scripts on the page cannot '
+             . 'read them.</p>';
+
+        $retired = CookieRegistry::retired();
+        if ($retired !== []) {
+            $h[] = '<p><strong>No longer set:</strong></p>';
+            $h[] = '<ul>';
+            foreach ($retired as $r) {
+                $h[] = '<li>' . $code((string) $r['name']) . ' &mdash; ' . $e((string) $r['purpose']) . '</li>';
+            }
+            $h[] = '</ul>';
+        }
 
         if ($storage !== []) {
+            $where = [
+                'local'            => 'kept on this device until you clear it',
+                'session'          => 'kept only until you close the tab',
+                'local-or-session' => 'kept on this device between visits if you allow Preferences, otherwise until you close the tab',
+            ];
             $h[] = '<h2 id="browser-storage">Things kept in your browser, which are not cookies</h2>';
             $h[] = '<p>Some pages remember small things using your browser&rsquo;s own storage. It '
                  . 'never leaves your device, and it is never sent to us:</p>';
             $h[] = '<ul>';
             foreach ($storage as $s) {
-                $h[] = '<li><code>' . $e((string) ($s['key'] ?? '')) . '</code> &mdash; '
-                     . $e((string) ($s['purpose'] ?? '')) . '</li>';
+                $h[] = '<li>' . $code((string) ($s['key'] ?? '')) . ' &mdash; '
+                     . $e((string) ($s['purpose'] ?? '')) . ' <em>'
+                     . $e(($names[(string) ($s['category'] ?? '')] ?? 'Essential') . '; '
+                          . ($where[(string) ($s['where'] ?? '')] ?? 'kept on this device')) . '.</em></li>';
             }
             $h[] = '</ul>';
             $h[] = '<p>Clearing your browser&rsquo;s site data removes all of it. Nothing important '
@@ -237,11 +347,10 @@ final class LegalDocument
     /**
      * The counting, described as it is configured — including when it is switched off.
      *
-     * Split out of {@see cookiesHtml()} because it is the part that answers a different
-     * question. The table above says what is STORED on the device; this says what is
-     * OBSERVED about the visit, and those are not the same thing — this platform stores
-     * nothing extra to do the counting, which is precisely why there is no banner and
-     * precisely why saying "we set one cookie" was not a defence of anything.
+     * Split out of {@see cookiesHtml()} because it answers a different question. The table
+     * says what is STORED on the device; this says what is OBSERVED about the visit, and
+     * those are not the same thing — the counting stores nothing extra, which is precisely
+     * why saying "we set one cookie" was never a defence of anything.
      */
     private static function arrivalsHtml(): string
     {
@@ -256,40 +365,66 @@ final class LegalDocument
         }
 
         $h[] = '<p>We keep <strong>one row for each visit</strong> &mdash; not one per page you '
-             . 'open &mdash; so that whoever shared a link can find out whether it worked. It '
+             . 'open &mdash; so that whoever shared a link can find out whether it worked. A visit '
+             . 'ends after ' . intdiv(VisitTracker::IDLE_SECONDS, 60) . ' minutes without a new page. It '
              . 'records where you came from (a campaign tag, or the site that linked here), the '
-             . 'page you landed on, roughly what kind of device it was, and whether the visit '
-             . 'led to a vote, a nomination or a ticket.</p>';
-        $h[] = '<p><strong>It is ours alone.</strong> There is no Google Analytics here, no '
-             . 'advertising pixel, no third-party tag of any kind: nothing on this site reports '
-             . 'your visit to another company. And it stores nothing new on your device &mdash; '
-               . 'it uses the session cookie in the table above, which is already there.</p>';
-        $h[] = '<p><strong>What is never kept:</strong> your IP address (only a hash of it, '
-             . 're-scrambled with a new secret every day, so the same visitor cannot be followed '
-             . 'from one day to the next), the full address of the page that linked here (the '
-             . 'site name only, because a full address carries search terms), the query string of '
-             . 'the page you landed on (links here carry passes and sign-in tokens), and your '
-             . 'browser&rsquo;s identification string. Your country is recorded only when the '
-             . 'network in front of us has already worked it out; we never look it up.</p>';
+             . 'page you landed on, how many pages you opened, roughly what kind of device it was, '
+             . 'whether you had visited before, and whether the visit led to a vote, a nomination or '
+             . 'a ticket.</p>';
+        $h[] = '<p><strong>It is ours alone.</strong> It stores nothing new on your device &mdash; '
+             . 'it uses the session cookie in the table above, which is already there &mdash; and '
+             . 'it reports your visit to nobody.</p>';
+        // Generated from the setting, both ways: this sentence once said "There is no Google
+        // Analytics here" in bold, and the day an operator turned it on that would have been
+        // the /cookies fault again (CLAUDE.md, "A legal page that states a fact").
+        if (GoogleAnalytics::enabled()) {
+            $h[] = '<p><strong>Google Analytics.</strong> We also use Google Analytics to measure '
+                 . 'visits, but <strong>only if you say yes to Analytics</strong>: never by default, '
+                 . 'never when your browser sends Global Privacy Control or Do Not Track. With your '
+                 . 'yes, Google sets the two cookies in the table above and receives your IP address, '
+                 . 'your browser&rsquo;s description and the pages you open. We send it the page '
+                 . 'address with passes and sign-in links removed, and the linking site&rsquo;s name '
+                 . 'only. Google signals and ad personalisation are switched off, so it is not used '
+                 . 'for advertising. Google processes this under its own '
+                 . '<a href="https://policies.google.com/privacy" rel="noopener noreferrer">privacy '
+                 . 'policy</a>. Saying no later deletes the cookies and stops it.</p>';
+        } else {
+            $h[] = '<p><strong>No third parties.</strong> There is no Google Analytics here, no '
+                 . 'advertising pixel and no third-party tag of any kind: nothing on this site '
+                 . 'reports your visit to another company.</p>';
+        }
+        // Ads arrived on 27 Oct 2026, and this page and the notice both said "no ads". The
+        // promise that stays true is narrower and is the one stated: not based on you.
+        $h[] = '<p><strong>Ads.</strong> Some pages carry one ad, labelled Sponsored. It is '
+             . 'chosen by the page alone, never by anything you did here, and it is the same '
+             . 'whether or not you allow Analytics. '
+             . 'So one ad is not shown to you more than '
+             . \AfricaGates\Services\Ads\AdRules::FREQUENCY_CAP . ' times a day, your session counts '
+             . 'how often you have seen it; nothing new is stored on your device. Views and clicks '
+             . 'are counted as totals for the advertiser and say nothing about who you are. If you '
+             . 'hide or report an ad, your session remembers it so you are not shown it again.</p>';
+        // The secret really is one now (VisitTracker::salt()): random, replaced daily. It was
+        // the date until 28 Oct 2026, which this sentence promised it was not.
+        $h[] = '<p><strong>What is never kept:</strong> your IP address and your '
+             . 'browser&rsquo;s identification string (only a scrambled code made from them with '
+             . 'a random secret that is replaced every day and then thrown away, so the same '
+             . 'visitor cannot be followed from one day to the next, not even by us), the full '
+             . 'address of the page that linked here (the site name only, because a full address '
+             . 'carries search terms), and the query string of the page you landed on (links here '
+             . 'carry passes and sign-in tokens). Your country is recorded only when the network in '
+             . 'front of us has already worked it out; we never look it up.</p>';
         $h[] = '<p>Arrivals are deleted after ' . (int) VisitTracker::keepDays() . ' days.</p>';
 
         if (CookiePrefs::mode() === CookiePrefs::MODE_CONSENT) {
-            $h[] = '<p><strong>We ask first.</strong> Nothing is counted until you agree, and you '
-                 . 'are asked once. You can change your mind at any time on this page.</p>';
+            $h[] = '<p><strong>We ask first.</strong> Nothing is counted until you allow '
+                 . 'Analytics in the cookie notice or on this page.</p>';
         } else {
-            $h[] = '<p><strong>You have not been shown a consent banner</strong>, and this is why: '
-                 . 'a banner exists to ask permission to store something on your device, and the '
-                 . 'counting stores nothing. It is first-party, it reaches no one else, it holds '
-                 . 'no identifier that survives the day, and it is reported only as totals. '
-                 . 'We would rather give you a switch that works than an overlay you have to '
-                 . 'dismiss before you can read the page.</p>';
+            $h[] = '<p><strong>We count unless you say no.</strong> The cookie notice says so '
+                 . 'before you answer it, and refusing Analytics there or on this page stops it '
+                 . 'at once. It is not asked for first because it stores nothing on your device: '
+                 . 'it is first-party, it reaches no one else, it holds no identifier that '
+                 . 'survives the day, and it is reported only as totals.</p>';
         }
-
-        $h[] = '<p>Either way, <strong>you can say no</strong>, and the control is at the top of '
-             . 'this page. If your browser sends <code>Do Not Track</code> or Global Privacy '
-             . 'Control we treat that as a no as well, and we honour it even over a yes you gave '
-             . 'us here &mdash; the specification would let us do the opposite, and we would '
-             . 'rather not.</p>';
 
         return implode("\n", $h);
     }
@@ -438,6 +573,67 @@ final class LegalDocument
     public static function bodyWithAnchors(array $doc): string
     {
         return self::walk($doc)['body'];
+    }
+
+    /**
+     * The body cut at its <h2>s, for the page's numbered sections (DocPage.dc.html).
+     *
+     * A view on the same {@see walk()} as the outline and the anchored body, so a section's
+     * id is the contents entry's id by construction. The authored body is free HTML, so
+     * whatever precedes the first heading comes back as `lead` and is drawn unnumbered —
+     * dropping it would lose a paragraph an operator wrote, and numbering it would give the
+     * contents a section with no title.
+     *
+     * @return array{lead:string, sections:list<array{id:string,title:string,html:string}>}
+     */
+    public static function sections(array $doc): array
+    {
+        $w     = self::walk($doc);
+        $parts = preg_split('#(?=<h2\b)#i', $w['body']) ?: [];
+        $lead  = '';
+        $out   = [];
+        $i     = 0;
+
+        foreach ($parts as $part) {
+            if (!preg_match('#^<h2\b[^>]*>(.*?)</h2>#is', $part, $m)) {
+                $lead .= $part;
+                continue;
+            }
+            // The outline came out of the same walk in the same order, so the n-th heading
+            // here IS the n-th entry there; a heading the walk skipped (empty text) stays
+            // with the section before it rather than inventing an untitled one.
+            $o = $w['outline'][$i] ?? null;
+            if ($o === null || trim(DocText::inline($m[1])) === '') {
+                if ($out === []) { $lead .= $part; } else { $out[count($out) - 1]['html'] .= $part; }
+                continue;
+            }
+            $out[] = ['id' => $o['id'], 'title' => $o['title'],
+                      'html' => (string) substr($part, strlen($m[0]))];
+            $i++;
+        }
+
+        return ['lead' => trim($lead), 'sections' => $out];
+    }
+
+    /**
+     * Who answers questions about this document. The two addresses the seeded policies
+     * already publish in their own bodies, so the page's footer cannot name a third.
+     */
+    public static function contact(array $doc): string
+    {
+        return in_array((string) ($doc['slug'] ?? ''), ['privacy', 'cookies'], true)
+            ? 'privacy@afrovanguard.org.ng'
+            : 'legal@afrovanguard.org.ng';
+    }
+
+    /**
+     * Reading time from the words the reader is actually given — the generated sections
+     * included — at the 210 wpm {@see CommunityVotingPhilosophy::readMinutes()} uses, so two
+     * documents filed side by side are timed the same way.
+     */
+    public static function readMinutes(array $doc): int
+    {
+        return max(1, (int) ceil(str_word_count(DocText::toText(self::bodyHtml($doc))) / 210));
     }
 
     /**

@@ -102,6 +102,11 @@ final class AiCapability
         public readonly string $dataSent,
         /** Plain-language description of what it is used for, same audience. */
         public readonly string $dataPurpose,
+        /**
+         * Seconds the gateway may answer a REPEAT of the same request from its own cache
+         * (0 = never). See {@see CACHE_TTL} for which capabilities and why.
+         */
+        public readonly int $cacheTtl = 0,
     ) {}
 
     /**
@@ -146,6 +151,44 @@ final class AiCapability
         'groq'      => 'Groq',
         'openai'    => 'OpenAI',
         'anthropic' => 'Anthropic',
+    ];
+
+    /**
+     * How long the gateway may answer an IDENTICAL request from cache, per capability.
+     *
+     * ── THE QUESTION THAT DECIDES IT ─────────────────────────────────────────
+     *
+     * "Is the same answer to the same input still right?" The key is the whole request —
+     * prompt version, system prompt, the fenced input, model route, temperature — so a
+     * cached answer is only ever served for a request that is byte-for-byte the one that
+     * produced it. That makes it safe for anything that CLASSIFIES or ANALYSES what it is
+     * given: the verdict on a comment does not change because the same comment arrives a
+     * second time, and the spam that arrives forty times in an hour is paid for once.
+     *
+     * Not listed, deliberately: every CONVERSATION (each turn is new), and every DRAFTING
+     * capability, where pressing the button again means "give me another one" — a cache
+     * there would return the draft the operator just rejected.
+     *
+     * @var array<string,int>
+     */
+    public const CACHE_TTL = [
+        'moderation.classify'      => 7 * 86400,
+        'nomination.triage'        => 86400,
+        'nomination.category_fit'  => 7 * 86400,
+        'nomination.suggest_category' => 86400,
+        'nomination.polish'        => 86400,
+        'admin.filter_parse'       => 30 * 86400,
+        'search.interpret'         => 86400,
+        'vendor.category_match'    => 7 * 86400,
+        'nominee.merge_suggest'    => 6 * 3600,
+        'evidence.analyse'         => 7 * 86400,
+        'judge.orientation'        => 86400,
+        'integrity.brief'          => 3600,
+        'community.thread_summary' => 86400,
+        'questionnaire.summary'    => 86400,
+        'interview.brief'          => 86400,
+        'interview.review'         => 86400,
+        'door.name_pronounce'      => 30 * 86400,
     ];
 
     /** Where an operator's choice is kept. `.env` AI_PRIMARY is the fallback. */
@@ -509,6 +552,7 @@ final class AiCapability
             publicContent:  $o['public_content'] ?? false,
             dataSent:       $o['data_sent'] ?? 'Nothing submitted by the public.',
             dataPurpose:    $o['data_purpose'] ?? $o['purpose'],
+            cacheTtl:       (int) ($o['cache_ttl'] ?? (self::CACHE_TTL[$name] ?? 0)),
         );
 
         return self::$memo = [
@@ -521,7 +565,10 @@ final class AiCapability
                 'model'           => self::primary(self::TIER_REASON),
                 'on_failure'      => self::FAIL_ANNOUNCE,
                 'advisory'        => true,
-                'max_tokens'      => 250,
+                // 250 left no room for a model that writes a sentence before the object,
+                // and a truncated object is rejected whole. Two sentences of summary and a
+                // number fit in well under this.
+                'max_tokens'      => 450,
                 'calls_per_day'   => 2000,
                 'tokens_per_day'  => 400_000,
                 'untrusted_input' => true,
@@ -532,6 +579,53 @@ final class AiCapability
                     . 'are never sent.',
                 'data_purpose'    => 'To score how complete and specific the nomination reads, and summarise it '
                     . 'for the reviewer. A person always makes the decision.',
+            ]),
+            // ── WHICH CATEGORY THIS WORK BELONGS IN ─────────────────────────
+            //
+            // Reads the nominator's reasons and the labels of whatever evidence came
+            // with them, against the award's own category list, and scores the fit of
+            // each. For the review desk and the judging panel — the design handoff
+            // §8.16 forbids any of it reaching a public screen, and a sweep holds that.
+            //
+            // TIER_REASON and untrusted_input for the same reasons the triage has them:
+            // this is judgement rather than composition, and every word of the input was
+            // typed by a stranger. The budget is smaller per call than the triage's
+            // because the answer is a short list of numbers, and larger per day because
+            // it runs on every nomination rather than on the ones a reviewer opens.
+            'nomination.category_fit' => $c('nomination.category_fit', [
+                'purpose'         => 'moderation',
+                'tier'            => self::TIER_REASON,
+                'model'           => self::primary(self::TIER_REASON),
+                // FAIL_DEGRADE and not FAIL_ANNOUNCE — "the caller carries on as if the
+                // feature were off", which is literally the state here: a nomination
+                // with no fit rows is exactly what a deployment with no provider has,
+                // and both are a queue an operator reads in arrival order. The triage
+                // beside it announces, and should: a MISSING QUALITY SCORE looks like a
+                // bad nomination, so a reviewer has to be told the difference. A missing
+                // fit looks like nothing, because there is no cell to be empty.
+                'on_failure'      => self::FAIL_DEGRADE,
+                'advisory'        => true,
+                'max_tokens'      => 400,
+                'calls_per_day'   => 5000,
+                'tokens_per_day'  => 600_000,
+                'untrusted_input' => true,
+                // TRUE, and it is not a contradiction with the rule that none of this
+                // reaches a visitor's screen. This flag means "processes content
+                // SUBMITTED BY THE PUBLIC, and so belongs in the published privacy
+                // disclosure" — which is exactly what a nominator's reasons are. It was
+                // written `false` here first, read as "not shown publicly", and the cost
+                // of that misreading is precise: `AiPrivacy::disclosure()` filters on
+                // this flag, so the privacy page would have omitted a capability that
+                // sends a visitor's own words to a third party. Where it is NOT shown is
+                // held separately, by a sweep over every public template.
+                'public_content'  => true,
+                'data_sent'       => 'The award\'s category titles and descriptions, the kind of nominee, '
+                    . 'your reason for each category you chose, and the NAME of any evidence you '
+                    . 'attached — never a file\'s contents, and never the address of a link beyond '
+                    . 'its website name. No contact details are sent.',
+                'data_purpose'    => 'To suggest which category the work described belongs in, so a judging '
+                    . 'panel opens it in the right race. It never changes what you chose, and a '
+                    . 'panel always decides.',
             ]),
             // ── THE COUNTDOWN LETTERS, DRAFTED FOR ONE CEREMONY ─────────────
             //
@@ -821,6 +915,41 @@ final class AiCapability
             ]),
             // Admin plain-English filter parsing. Already whitelist-validates
             // its output — the reference pattern for every other capability.
+            /**
+             * Drafting the WORDS of a challenge, never its numbers.
+             *
+             * It is handed the shape — the action, the target, the mode, the names of
+             * the scopes — and asked for a title, a kicker, a summary and extra rules.
+             * It is never handed the prize, the cap or the dates, and is never asked
+             * for them: those decide who gets money, and a model that could nudge a
+             * cap from 11 to 15 is a model deciding an award.
+             *
+             * The promise sentence is not drafted at all. `ChallengeCopy` generates it
+             * from the stored figures, so an operator who accepts every word of a
+             * draft still cannot end up with a page promising what the rules do not do.
+             *
+             * `advisory`, which `AiGateway` enforces, and `degrade` on failure: the
+             * builder has never needed this and must keep working without it.
+             */
+            'challenge.draft' => $c('challenge.draft', [
+                'purpose'        => 'assist',
+                'tier'           => self::TIER_REASON,
+                'model'          => self::primary(self::TIER_REASON),
+                'on_failure'     => self::FAIL_DEGRADE,
+                'advisory'       => true,
+                'max_tokens'     => 500,
+                'calls_per_day'  => 200,
+                'tokens_per_day' => 60_000,
+                // An operator describing a campaign they are running. Nothing here is
+                // a member's data, so there is nothing to minimise away.
+                'minimise'       => false,
+                'data_sent'      => 'The challenge shape an operator has typed: the action, the target, '
+                    . 'the mode, the names of the awards or events it covers, and a free-text hint. '
+                    . 'No prize amount, no cap, no dates, and no member or nominee data.',
+                'data_purpose'   => 'To draft a title, kicker, summary and extra rules for the operator '
+                    . 'to read, change or discard. Nothing it returns is published without a person '
+                    . 'pressing save, and it never writes a rule that decides who wins.',
+            ]),
             'admin.filter_parse' => $c('admin.filter_parse', [
                 'purpose'        => 'assist',
                 'tier'           => self::TIER_FAST,
@@ -922,6 +1051,86 @@ final class AiCapability
                     . 'on YOUR OWN records — payment status, amounts, dates. Never another person\'s data.',
                 'data_purpose'    => 'To write an answer grounded in your actual records rather than a guess.',
             ]),
+            // ANSWERING, as one agent: the model reads the question, calls the platform's
+            // own tools (re-check a payment, read the live state, find the written answer)
+            // and writes from what they returned — the loop `support.plan` and
+            // `support.answer` approximated in two separate calls, one of which had to
+            // return JSON from a small model. Those two remain, behind it, for the day no
+            // provider here can carry tools.
+            //
+            // CLAUDE LEADS, by the owner's decision: the operator's chosen Claude model when
+            // they have set one, otherwise the current Opus. Then OpenAI, Gemini and Groq,
+            // each on the model the settings screen names, so any one key runs the desk.
+            'support.agent' => $c('support.agent', [
+                'purpose'         => 'assist',
+                'tier'            => self::TIER_WRITE,
+                'model'           => 'anthropic:' . (self::chosenModel('anthropic') ?: 'claude-opus-5-5'),
+                'fallbacks'       => ['openai:' . self::modelIdFor('openai'),
+                                      'gemini:' . self::modelIdFor('gemini'),
+                                      'groq:' . (self::chosenModel('groq') ?: self::TIER_MODELS['groq'][self::TIER_WRITE])],
+                'max_attempts'    => 4,
+                'on_failure'      => self::FAIL_DEGRADE,
+                'advisory'        => true,
+                'max_tokens'      => 1200,
+                'calls_per_day'   => 12000,
+                'tokens_per_day'  => 6_000_000,
+                'timeout'         => 20,
+                'untrusted_input' => true,
+                'public_content'  => false,
+                'data_sent'       => 'Your support message, the conversation so far, and the results of the lookups '
+                    . 'the assistant ran on YOUR OWN records — payment status, amounts, dates. Contact details '
+                    . 'in what you type are replaced by placeholders. Never another person\'s data.',
+                'data_purpose'    => 'To look up and repair what you are asking about, and answer from your actual records.',
+            ]),
+            // THE ADMIN ASSISTANT, as an agent that runs the platform's own checks
+            // (OpsScripts) before it answers, instead of being handed the whole
+            // operational snapshot with every message. Same route, Claude first.
+            'admin.agent' => $c('admin.agent', [
+                'purpose'         => 'assist',
+                'tier'            => self::TIER_WRITE,
+                'model'           => 'anthropic:' . (self::chosenModel('anthropic') ?: 'claude-opus-5-5'),
+                'fallbacks'       => ['openai:' . self::modelIdFor('openai'),
+                                      'gemini:' . self::modelIdFor('gemini'),
+                                      'groq:' . (self::chosenModel('groq') ?: self::TIER_MODELS['groq'][self::TIER_WRITE])],
+                'max_attempts'    => 4,
+                'on_failure'      => self::FAIL_ANNOUNCE,
+                'advisory'        => true,
+                'max_tokens'      => 1200,
+                'calls_per_day'   => 3000,
+                'tokens_per_day'  => 3_000_000,
+                'timeout'         => 25,
+                'untrusted_input' => false,
+                'public_content'  => false,
+                'data_sent'       => 'The operator\'s question and the output of the read-only checks the assistant runs: '
+                    . 'queue counts, payment and vote-delivery reports, error summaries. Staff only.',
+                'data_purpose'    => 'To answer operations questions from the platform\'s own evidence.',
+            ]),
+            // GEE'S GUIDE SIDE, as the same kind of agent: it reads the live state, finds the
+            // nominee or the event, and puts a button in front of the person instead of a
+            // paragraph of directions. Read-only tools and offer_action — see
+            // SupportAgentService::GUIDE_TOOLS. Same route as the desk, Claude first.
+            'guide.agent' => $c('guide.agent', [
+                'purpose'         => 'assist',
+                'tier'            => self::TIER_WRITE,
+                'model'           => 'anthropic:' . (self::chosenModel('anthropic') ?: 'claude-opus-5-5'),
+                'fallbacks'       => ['openai:' . self::modelIdFor('openai'),
+                                      'gemini:' . self::modelIdFor('gemini'),
+                                      'groq:' . (self::chosenModel('groq') ?: self::TIER_MODELS['groq'][self::TIER_WRITE])],
+                'max_attempts'    => 4,
+                'on_failure'      => self::FAIL_DEGRADE,
+                'advisory'        => true,
+                'max_tokens'      => 1000,
+                'calls_per_day'   => 12000,
+                'tokens_per_day'  => 6_000_000,
+                'timeout'         => 20,
+                'untrusted_input' => true,
+                'public_content'  => true,
+                'data_sent'       => 'The question you type into Gee and the page you are on, with contact details replaced '
+                    . 'by placeholders, plus what the assistant looks up: award cycles, nominees, events and the help centre. '
+                    . 'If you are signed in, your own votes and nominations when you ask about them.',
+                'data_purpose'    => 'To answer, look things up and take you to the right page. Falls back to scripted '
+                    . 'answers when unavailable.',
+            ]),
             // Reviewer-to-nominator decision note. Interpolates the nominator's
             // own text, and the output is sent to a real person, so a bad reply
             // must be discardable rather than merely clamped.
@@ -986,6 +1195,78 @@ final class AiCapability
                 'timeout'         => 20,
                 'untrusted_input' => true,
             ]),
+            // ── AN AWARD'S OWN WORDS ─────────────────────────────────────
+            //
+            // Drafts the seven phrases a nomination form uses about the people one
+            // award is for — `Support\AwardWording::FIELDS`. The operator reviews
+            // every one before it is stored; nothing here is written to a public
+            // screen without a person pressing Save.
+            //
+            // `public_content` is FALSE, and that is not the same misreading the
+            // nomination fit capability shipped with. The flag means "processes
+            // content submitted by the PUBLIC" — what goes to the provider here is an
+            // award's own title, subtitle and description, written by an operator in
+            // this console. No visitor's words are in the payload, so this capability
+            // does not belong in the disclosure `AiPrivacy` generates from the flag.
+            //
+            // ANNOUNCE rather than degrade: an operator who pressed Draft and got
+            // silence would retype the seven phrases believing the button does
+            // nothing. A missing draft is visible and must say why.
+            'admin.award_wording' => $c('admin.award_wording', [
+                'purpose'         => 'assist',
+                'tier'            => self::TIER_WRITE,
+                'model'           => self::primary(self::TIER_WRITE),
+                'on_failure'      => self::FAIL_ANNOUNCE,
+                'advisory'        => true,
+                'max_tokens'      => 700,
+                'calls_per_day'   => 300,
+                'tokens_per_day'  => 300_000,
+                'timeout'         => 20,
+                // The award's own description is operator-written, but it is prose
+                // from a database going into a prompt, and the fence costs nothing.
+                'untrusted_input' => true,
+            ]),
+            /**
+             * An event lead's "Suggest a team" (EventPlan\TeamSuggest): teams and roles with ticks
+             * from the fixed permission menu. Advisory and DEGRADE: with no answer the lead gets
+             * the deterministic templates, and nothing suggested is applied until the lead proposes
+             * it and an owner approves it. Whatever comes back is kept to the menu.
+             */
+            'event.team_suggest' => $c('event.team_suggest', [
+                'purpose'         => 'assist',
+                'tier'            => self::TIER_REASON,
+                'model'           => self::primary(self::TIER_REASON),
+                'on_failure'      => self::FAIL_DEGRADE,
+                'advisory'        => true,
+                'max_tokens'      => 1400,
+                'calls_per_day'   => 120,
+                'tokens_per_day'  => 300_000,
+                'timeout'         => 20,
+                // The event's title and description are typed by staff or an organiser.
+                'untrusted_input' => true,
+                'data_sent'       => 'An event\'s title, tagline, a short description, its date and capacity, and counts '
+                    . 'of its planned work and sponsors. No names, addresses or anything about guests.',
+                'data_purpose'    => 'To suggest teams and roles for the event\'s lead to edit and propose.',
+            ]),
+            /**
+             * Notes for an event OWNER on one proposed role's permissions, written once when the
+             * role is proposed (no page waits on it). The fixed risky combinations are always
+             * shown; these only add to them, and an empty answer is a normal one.
+             */
+            'event.role_review' => $c('event.role_review', [
+                'purpose'         => 'assist',
+                'tier'            => self::TIER_REASON,
+                'model'           => self::primary(self::TIER_REASON),
+                'on_failure'      => self::FAIL_DEGRADE,
+                'advisory'        => true,
+                'max_tokens'      => 400,
+                'calls_per_day'   => 300,
+                'tokens_per_day'  => 150_000,
+                'timeout'         => 12,
+                'untrusted_input' => true,
+                'data_sent'       => 'A proposed role\'s name, description and permission list, and the event\'s title. Nothing about people.',
+                'data_purpose'    => 'To point out risky combinations of permissions to the owner deciding the role.',
+            ]),
             'admin.form_design' => $c('admin.form_design', [
                 'purpose'         => 'assist',
                 'tier'            => self::TIER_WRITE,
@@ -997,6 +1278,29 @@ final class AiCapability
                 'tokens_per_day'  => 300_000,
                 'timeout'         => 20,
                 'untrusted_input' => true,
+            ]),
+            /**
+             * "Are these two entries one person?" for the near matches the rules will not
+             * count on their own (Admin\Services\NomineePeople). Advisory twice over: an
+             * answer under the trust bar is shown and not counted, and a person's ruling
+             * always replaces it. The prompt tells it to answer "unsure" whenever the
+             * names cannot settle it, because a wrong "same" joins two strangers.
+             */
+            'nominee.identity_verify' => $c('nominee.identity_verify', [
+                'purpose'         => 'assist',
+                'tier'            => self::TIER_REASON,
+                'model'           => self::primary(self::TIER_REASON),
+                'on_failure'      => self::FAIL_ANNOUNCE,
+                'advisory'        => true,
+                'max_tokens'      => 2400,
+                'calls_per_day'   => 60,
+                'tokens_per_day'  => 300_000,
+                'untrusted_input' => true,
+                'public_content'  => true,
+                'data_sent'       => 'Pairs of nominee names with the country, award category and organisation each '
+                    . 'was entered under — nothing else. No contact details, no nomination text, nothing about voters.',
+                'data_purpose'    => 'To say whether two nominee entries that are close but not identical are the '
+                    . 'same person, so a person count is not inflated. An administrator can overrule every answer.',
             ]),
             'nominee.merge_suggest' => $c('nominee.merge_suggest', [
                 'purpose'         => 'assist',

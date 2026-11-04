@@ -1,168 +1,182 @@
-{% extends "layout/gates.twig" %}
+{% extends 'layout/shell.twig' %}
 
-{% block head_styles %}
-<style nonce="{{ csp_nonce }}">
-  body[data-page="leaderboard"]{ background:#eef0ec; color:var(--ag-ink); }
-  .lb{ max-width:1100px; margin:0 auto; padding:clamp(2rem,5vw,2.6rem) var(--ag-gutter,32px) clamp(3rem,6vw,4rem); }
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  `/leaderboard` — THE CULTURAL POWER INDEX · Phase 6 · Leaderboard.dc.html · §8.19
+  ══════════════════════════════════════════════════════════════════════════════
 
-  .lb-head{ max-width:600px; }
-  .lb-head .lb-eyebrow{ margin:0 0 8px; font:600 12px/1 var(--ag-font-body); letter-spacing:.14em; text-transform:uppercase; color:var(--ag-green); }
-  .lb-head h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(2rem,4.4vw,2.5rem); letter-spacing:-.02em; }
-  .lb-head p{ margin:12px 0 0; font-size:16px; line-height:1.6; color:#4a5256; }
+  Written from the DC after the old page was destroyed (inventory:
+  docs/handoff/inventory/pages--leaderboard.md). Every figure from Services\Leaderboard.
 
-  /* podium */
-  .lb-podium{ display:flex; gap:16px; align-items:flex-end; margin-top:28px; }
-  .lbp{ flex:1; min-width:0; border-radius:20px; padding:24px 18px; text-align:center; border:1px solid rgba(16,41,44,.08); background:var(--ag-surface); }
-  .lbp--1{ order:2; padding-block:34px; border-color:transparent; background:radial-gradient(130% 130% at 50% 0%,#1d5b2a,#10292C 70%); color:#fff; }
-  .lbp--2{ order:1; }
-  .lbp--3{ order:3; }
-  .lbp__medal{ font:700 13px/1 var(--ag-font-mono); color:#7a5600; }
-  .lbp--1 .lbp__medal{ color:#fbc329; }
-  .lbp__av{ width:60px; height:60px; margin:12px auto 0; border-radius:50%; background:#fff8df; color:#7a5600; display:flex; align-items:center; justify-content:center; font-family:var(--ag-font-display); font-weight:700; font-size:24px; border:3px solid #f3e3b8; }
-  .lbp--1 .lbp__av{ width:76px; height:76px; font-size:30px; background:rgba(127,200,124,.18); color:var(--ag-green-light); border-color:rgba(127,200,124,.4); }
-  .lbp__name{ font-weight:700; font-size:16px; margin-top:12px; color:var(--ag-ink); }
-  .lbp--1 .lbp__name{ font-size:18px; color:#fff; }
-  .lbp__cat{ font-size:12px; color:#626a6e; margin-top:3px; }
-  .lbp--1 .lbp__cat{ color:rgba(255,255,255,.7); }
-  .lbp__cpi{ font:700 24px/1 var(--ag-font-mono); color:var(--ag-green); margin-top:12px; }
-  .lbp--1 .lbp__cpi{ font-size:30px; color:var(--ag-green-light); }
-  .lbp__lbl{ font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:#5a6d6f; margin-top:2px; }
-  .lbp--1 .lbp__lbl{ color:rgba(255,255,255,.55); }
-  .lbp a{ text-decoration:none; color:inherit; }
+  · The filters are a GET form and links, so the board works with no script, survives Back
+    and can be sent to somebody: `q`, `cat`, `region`, and `n` for "Show 20 more".
+  · Names WRAP and never truncate (§8.19): `overflow-wrap:anywhere`, no ellipsis anywhere.
+  · Movement is drawn as ▲/▼/– AND said in words inside each row's aria-label — the glyph
+    alone is colour plus a shape a screen reader skips.
+  · The CPI is the stored 0–1000 index, the same number every other screen prints (PHASE-6
+    D-L1); the tier legend is CpiService::TIERS, read rather than typed.
+  · Phone: a child app bar (Leaderboard · Cultural Power Index) and the page's own h1.
+#}
 
-  /* filters */
-  .lb-filters{ display:flex; gap:8px; overflow-x:auto; padding:24px 0 16px; scrollbar-width:none; }
-  .lb-filters::-webkit-scrollbar{ display:none; }
-  .lb-chip{ flex:none; cursor:pointer; font-family:inherit; font-size:13px; font-weight:600; padding:9px 16px; border-radius:999px; border:1px solid rgba(16,41,44,.12); background:var(--ag-surface); color:#4a5256; transition:background .15s,color .15s,border-color .15s; }
-  .lb-chip.is-active{ background:var(--ag-ink); color:#fff; border-color:var(--ag-ink); }
+{% set colour_tier = '2' %}
+{% set _v = lb.view %}
+{% set app_bar = {variant: 'child', title: 'Leaderboard'|trans, sub: lb.live ? 'Cultural Power Index · %y% cycle'|trans({'%y%': lb.live}) : 'Cultural Power Index'|trans, back: '/', share: true} %}
+{% set _qs = {q: _v.q, cat: _v.cat, region: _v.region}|filter(v => v != '') %}
 
-  /* table */
-  .lb-table{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:18px; overflow:hidden; }
-  .lb-thead{ display:flex; align-items:center; gap:16px; padding:13px 22px; border-bottom:1px solid rgba(16,41,44,.07); font:600 11px/1 var(--ag-font-body); letter-spacing:.05em; text-transform:uppercase; color:#5a6d6f; }
-  .lb-row{ display:flex; align-items:center; gap:16px; padding:14px 22px; border-bottom:1px solid rgba(16,41,44,.05); text-decoration:none; color:inherit; transition:background .12s; }
-  .lb-row:last-child{ border-bottom:0; }
-  .lb-row:hover{ background:#f6f8f5; }
-  .lb-c-rank{ width:30px; font:700 14px/1 var(--ag-font-mono); color:#5a6d6f; flex:none; }
-  .lb-row--top .lb-c-rank{ color:#7a5600; }
-  .lb-c-who{ flex:1; display:flex; align-items:center; gap:12px; min-width:0; }
-  .lb-av{ flex:none; width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-family:var(--ag-font-display); font-weight:700; font-size:16px; }
-  .lb-who__name{ display:block; font-weight:600; font-size:14px; color:var(--ag-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .lb-who__tier{ display:block; font-size:12px; color:#5a6d6f; text-transform:capitalize; }
-  .lb-c-cat{ width:130px; font-size:13px; color:#626a6e; flex:none; }
-  .lb-c-cpi{ width:70px; text-align:right; font:700 16px/1 var(--ag-font-mono); color:var(--ag-ink); flex:none; }
-  .lb-note{ margin:16px 2px 0; font-size:12px; color:#5a6d6f; text-align:center; }
-  .lb-note a{ color:var(--ag-green); font-weight:500; text-decoration:none; }
-
-  /* empty */
-  .lb-empty{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:22px; padding:clamp(2rem,5vw,3rem); text-align:center; margin-top:28px; }
-  .lb-empty img{ width:64px; height:64px; opacity:.7; }
-  .lb-empty h3{ margin:1rem 0 .4rem; font-family:var(--ag-font-display); font-weight:700; font-size:1.4rem; }
-  .lb-empty p{ margin:0 auto 1.4rem; max-width:38rem; color:#4a5256; line-height:1.6; }
-  .lb-btns{ display:flex; gap:.75rem; flex-wrap:wrap; justify-content:center; }
-  .lb-btn{ display:inline-flex; align-items:center; gap:.5rem; text-decoration:none; font-weight:600; font-size:14px; padding:13px 24px; border-radius:999px; }
-  .lb-btn--p{ background:var(--ag-green); color:#fff; }
-  .lb-btn--p:hover{ background:var(--ag-green-dark); }
-  .lb-btn--g{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.16); color:var(--ag-ink); }
-
-  @media (max-width:620px){
-    .lbp{ padding:16px 10px; }
-    .lbp__av{ width:48px; height:48px; font-size:20px; }
-    .lbp--1 .lbp__av{ width:60px; height:60px; font-size:24px; }
-    .lbp__name{ font-size:13px; }
-    .lbp--1 .lbp__name{ font-size:16px; }
-    .lb-c-cat{ display:none; }
-    /* Wrap, don't truncate: on a phone the name is the whole point of the row. */
-    .lb-row{ padding:14px 16px; gap:12px; }
-    .lb-who__name{ white-space:normal; overflow-wrap:anywhere; line-height:1.3; }
-    .lb-c-cpi{ width:auto; }
-  }
-</style>
-{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/leaderboard.css') }}">{% endblock %}
 
 {% block content %}
-{% set FLAGS = {
-  'NG':'🇳🇬','GH':'🇬🇭','ZA':'🇿🇦','KE':'🇰🇪','ET':'🇪🇹','EG':'🇪🇬','MA':'🇲🇦','TZ':'🇹🇿','UG':'🇺🇬','CI':'🇨🇮',
-  'CM':'🇨🇲','SN':'🇸🇳','ML':'🇲🇱','AO':'🇦🇴','CD':'🇨🇩','RW':'🇷🇼','ZM':'🇿🇲','ZW':'🇿🇼','BF':'🇧🇫','NE':'🇳🇪','BW':'🇧🇼'
-} %}
-{% set AV = [['#fff8df','#7a5600'],['#effaf0','#1a6118'],['#e9efef','#2b373d'],['#f3eef7','#5b3a8a'],['#fdeaf0','#b03a5b']] %}
-{% set rows = entries|default([]) %}
-{% set has_entries = rows|length > 0 %}
-
 <div class="lb">
-  <header class="lb-head">
-    <p class="lb-eyebrow">{{ has_entries ? '2026 cycle · live' : 'Cultural Power Index' }}</p>
-    <h1>Cultural Power Index</h1>
-    <p>{% if has_entries %}{{ rows|length }} verified profiles, ranked by community votes and an independent judge panel. Recomputed every 6 hours.{% else %}One transparent score across community votes and judge panels — recomputed every 6 hours once the first cycle is live.{% endif %}</p>
-  </header>
-
-  {% if not has_entries %}
-    <div class="lb-empty">
-      <img src="{{ asset('/assets/img/africa-mark.svg') }}" alt="" aria-hidden="true">
-      <h2>The first cycle hasn’t been ranked yet</h2>
-      <p>The Cultural Power Index goes live once nominations are scored and community votes are in. Get involved now and help shape the inaugural board.</p>
-      <div class="lb-btns">
-        <a href="/nominate" class="lb-btn lb-btn--p">Submit a nomination</a>
-        <a href="/vote" class="lb-btn lb-btn--g">Cast your vote</a>
-      </div>
+  <section class="lb-head" aria-labelledby="lb-h1">
+    <div class="lb-head__main">
+      <span class="lb-eyebrow">
+        {% if lb.live and not lb.empty %}<span class="lb-eyebrow__dot" aria-hidden="true"></span>{{ '%y% cycle · live'|trans({'%y%': lb.live}) }}{% else %}{{ 'Cultural Power Index'|trans }}{% endif %}
+      </span>
+      <h1 class="lb-h1" id="lb-h1">{{ 'Cultural Power Index'|trans }}</h1>
+      <p class="lb-lede">
+        {% if lb.empty %}
+          {{ 'One score per verified profile: %c%% public votes, %j%% independent judges.'|trans({'%c%': lb.weights.community, '%j%': lb.weights.judge}) }}
+        {% else %}
+          {{ '%n% verified profiles, ranked by votes and judges. Recomputed every %h% hours.'|trans({'%n%': lb.total|number_format, '%h%': lb.every}) }}
+        {% endif %}
+      </p>
+      {% if not lb.empty and lb.updated %}
+        <span class="lb-updated">{{ 'Updated %ago%'|trans({'%ago%': lb.updated_ago}) }}{% if lb.next_in %} · {{ lb.next_in == 1 ? 'next update within the hour'|trans : 'next update in %h% hours'|trans({'%h%': lb.next_in}) }}{% endif %}</span>
+      {% endif %}
     </div>
+    <a class="lb-how" href="/integrity">
+      <span class="lb-how__t"><b>{{ 'How the index works'|trans }}</b><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></span>
+      <span class="lb-how__bar" aria-hidden="true"><span style="--w:{{ lb.weights.community }}%" title="{{ lb.weights.community }}% {{ 'verified community votes'|trans }}"></span><span style="--w:{{ lb.weights.judge }}%" title="{{ lb.weights.judge }}% {{ 'judge panel'|trans }}"></span></span>
+      <span class="lb-how__key"><span><b>{{ lb.weights.community }}%</b> {{ 'verified community votes'|trans }}</span><span><b>{{ lb.weights.judge }}%</b> {{ 'judge panel'|trans }}</span></span>
+      <span class="lb-how__note">{{ 'Judges score after voting closes, without seeing the tally.'|trans }}</span>
+    </a>
+  </section>
+
+  {% if lb.empty %}
+    <section class="lb-empty" aria-labelledby="lb-first">
+      <h2 class="lb-empty__t" id="lb-first">{{ 'No ranking yet'|trans }}</h2>
+      <p class="lb-empty__p">
+        {% if lb.opens %}
+          {{ 'The first board goes live %h% hours after voting opens on %date%.'|trans({'%h%': lb.every, '%date%': lb.opens|date('j F')}) }}
+        {% else %}
+          {{ 'The first board goes live %h% hours after voting opens.'|trans({'%h%': lb.every}) }}
+        {% endif %}
+      </p>
+      <div class="lb-empty__do">
+        <a class="ag-btn ag-btn--primary lb-empty__go" href="/nominate">{{ 'Nominate someone'|trans }}</a>
+        <a class="ag-btn ag-btn--text" href="/newsletter?from=leaderboard">{{ 'Email me when it’s live'|trans }}</a>
+      </div>
+    </section>
   {% else %}
-
-    {# ── Podium (top 3) ── #}
-    <div class="lb-podium">
-      {% for e in rows|slice(0,3) %}
-        <div class="lbp lbp--{{ loop.index }}">
-          <a href="/registry/{{ e.slug }}">
-            <div class="lbp__medal">{{ loop.index == 1 ? '🥇 #1' : (loop.index == 2 ? '🥈 #2' : '🥉 #3') }}</div>
-            <div class="lbp__av">{{ e.display_name|first|upper }}</div>
-            <div class="lbp__name">{{ FLAGS[e.country_code]|default('🌍') }} {{ e.display_name }}</div>
-            <div class="lbp__cat">{{ e.category }}</div>
-            <div class="lbp__cpi">{{ e.cpi_score }}</div>
-            <div class="lbp__lbl">CPI</div>
-          </a>
-        </div>
+    <section class="lb-pod" aria-label="{{ 'Top three'|trans }}">
+      {% for p in lb.podium %}
+        <a class="lb-pod__c lb-pod__c--{{ p.rank <= 3 ? p.rank : 3 }}{{ loop.first ? ' is-first' }}" href="{{ p.url }}" aria-label="{{ p.aria }}">
+          <span class="lb-pod__img">
+            <span class="lb-pod__ph">{% include 'partials/photo.twig' with {kind: 'person', src: p.photo, name: p.name, size: 96} only %}</span>
+            <span class="lb-pod__medal" aria-hidden="true">{{ p.rank }}</span>
+          </span>
+          <span class="lb-pod__who"><span class="lb-pod__n">{{ p.name }}</span><span class="lb-pod__m">{{ [p.cc, p.cat]|filter(v => v)|join(' · ') }}</span></span>
+          <span class="lb-pod__cpi"><b>{{ p.cpi }}</b><span>{{ 'CPI'|trans }}</span></span>
+        </a>
       {% endfor %}
-    </div>
+    </section>
 
-    {# ── Filters + table (Alpine client-side category filter) ── #}
-    {% set catset = [] %}
-    {% for e in rows %}{% if e.category and e.category not in catset %}{% set catset = catset|merge([e.category]) %}{% endif %}{% endfor %}
-
-    <div x-data="{ cat:'All' }">
-      <div class="lb-filters">
-        <button type="button" class="lb-chip" :class="cat==='All' && 'is-active'" @click="cat='All'" :aria-pressed="cat==='All'">All</button>
-        {% for c in catset %}
-          <button type="button" class="lb-chip" :class="cat==='{{ c|e('js') }}' && 'is-active'" @click="cat='{{ c|e('js') }}'" :aria-pressed="cat==='{{ c|e('js') }}'">{{ c }}</button>
-        {% endfor %}
-      </div>
-
-      <div class="lb-table" role="list" aria-label="Cultural Power Index ranking">
-        <div class="lb-thead" aria-hidden="true">
-          <span class="lb-c-rank">#</span>
-          <span class="lb-c-who">Nominee</span>
-          <span class="lb-c-cat">Category</span>
-          <span class="lb-c-cpi">CPI</span>
+    <div class="lb-body">
+      <div class="lb-main">
+        <div class="lb-tools">
+          <form class="lb-find lb-find--bar" method="get" action="/leaderboard" role="search" aria-label="{{ 'Find a profile'|trans }}">
+            <label class="ag-field ag-field--search">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6" stroke-linecap="round"/></svg>
+              <input type="search" name="q" value="{{ _v.q }}" enterkeyhint="search" autocomplete="off" aria-label="{{ 'Find a profile'|trans }}" placeholder="{{ 'Find a person or organisation'|trans }}">
+            </label>
+            {% if _v.cat %}<input type="hidden" name="cat" value="{{ _v.cat }}">{% endif %}
+            {% if _v.region %}<input type="hidden" name="region" value="{{ _v.region }}">{% endif %}
+          </form>
+          <div class="lb-filter" role="toolbar" aria-label="{{ 'Filter the leaderboard'|trans }}">
+            <form class="lb-region" method="get" action="/leaderboard">
+              {% if _v.q %}<input type="hidden" name="q" value="{{ _v.q }}">{% endif %}
+              {% if _v.cat %}<input type="hidden" name="cat" value="{{ _v.cat }}">{% endif %}
+              <select name="region" aria-label="{{ 'Region'|trans }}" data-lb-submit>
+                <option value="">{{ 'All of Africa'|trans }}</option>
+                {% for k, label in lb.regions %}<option value="{{ k }}"{{ _v.region == k ? ' selected' }}>{{ label|trans }}</option>{% endfor %}
+              </select>
+              <button type="submit" class="lb-region__go">{{ 'Show'|trans }}</button>
+            </form>
+            {% set _base = _qs|filter((v, k) => k != 'cat') %}
+            <a class="ag-chip lb-chip" href="/leaderboard{{ _base ? '?' ~ _base|url_encode }}"{% if not _v.cat %} aria-current="page"{% endif %}>{{ 'All'|trans }}</a>
+            {% for c in lb.cats %}
+              <a class="ag-chip lb-chip" href="/leaderboard?{{ _base|merge({cat: c})|url_encode }}"{% if _v.cat|lower == c|lower %} aria-current="page"{% endif %}>{{ c }}</a>
+            {% endfor %}
+          </div>
         </div>
-        {% for e in rows|slice(0,40) %}
-          {% set pal = AV[loop.index0 % AV|length] %}
-          <a href="/registry/{{ e.slug }}" class="lb-row {{ loop.index <= 3 ? 'lb-row--top' : '' }}"
-             role="listitem"
-             aria-label="Rank {{ loop.index }}: {{ e.display_name }}, {{ e.category }}, CPI {{ e.cpi_score }}, {{ e.cpi_tier }} tier"
-             x-show="cat==='All' || cat==='{{ e.category|e('js') }}'">
-            <span class="lb-c-rank">{{ loop.index }}</span>
-            <span class="lb-c-who">
-              <span class="lb-av" style="background:{{ pal[0] }};color:{{ pal[1] }}">{{ e.display_name|first|upper }}</span>
-              <span style="min-width:0">
-                <span class="lb-who__name">{{ FLAGS[e.country_code]|default('🌍') }} {{ e.display_name }}</span>
-                <span class="lb-who__tier">{{ e.cpi_tier }}</span>
-              </span>
-            </span>
-            <span class="lb-c-cat">{{ e.category }}</span>
-            <span class="lb-c-cpi">{{ e.cpi_score }}</span>
-          </a>
-        {% endfor %}
+
+        {% if lb.rows|length %}
+          <div class="lb-table">
+            <div class="lb-th" aria-hidden="true"><span>{{ 'Rank'|trans }}</span><span>{{ 'Profile'|trans }}</span><span>{{ 'Category'|trans }}</span><span>{{ 'Community · Judges'|trans }}</span><span class="lb-th__end">{{ 'CPI'|trans }}</span></div>
+            <ol class="lb-list" aria-label="{{ 'Cultural Power Index ranking'|trans }}">
+              {% for r in lb.rows %}
+                <li id="r-{{ loop.index + (lb.filtered ? 0 : 3) }}">
+                  <a class="lb-row" href="{{ r.url }}" aria-label="{{ r.aria }}">
+                    <span class="lb-row__rank">
+                      <b class="{{ r.rank <= 3 ? 'is-top' }}">{{ r.rank }}</b>
+                      {% if r.move is null or r.move == 0 %}<span class="lb-mv lb-mv--flat" aria-hidden="true">–</span>
+                      {% elseif r.move > 0 %}<span class="lb-mv lb-mv--up" aria-hidden="true">▲ {{ r.move }}</span>
+                      {% else %}<span class="lb-mv lb-mv--down" aria-hidden="true">▼ {{ -r.move }}</span>{% endif %}
+                    </span>
+                    <span class="lb-row__who">
+                      <span class="lb-row__av">{% include 'partials/photo.twig' with {kind: 'person', src: r.photo, name: r.name} only %}</span>
+                      <span class="lb-row__t"><span class="lb-row__n">{{ r.name }}</span><span class="lb-row__m"><span class="lb-row__m-phone">{{ [r.cc, r.cat, r.tier_name|trans]|filter(v => v)|join(' · ') }}</span><span class="lb-row__m-desk">{{ [r.cc, r.tier_name|trans]|filter(v => v)|join(' · ') }}</span></span></span>
+                    </span>
+                    <span class="lb-row__cat">{{ r.cat }}</span>
+                    <span class="lb-row__split">
+                      {% if r.split %}
+                        <span class="lb-split" aria-hidden="true"><span style="--w:{{ r.split.cw }}%" title="{{ 'Community'|trans }} {{ r.split.community }}"></span><span style="--w:{{ r.split.jw }}%" title="{{ 'Judges'|trans }} {{ r.split.judge }}"></span></span>{{ r.split.community }} · {{ r.split.judge }}
+                      {% elseif r.basis == 'pending' %}{{ 'Awaiting the panel'|trans }}
+                      {% elseif r.basis == 'baseline' %}{{ 'Profile strength'|trans }}
+                      {% else %}{{ 'Judged'|trans }}{% endif %}
+                    </span>
+                    <b class="lb-row__cpi">{{ r.cpi }}</b>
+                  </a>
+                </li>
+              {% endfor %}
+            </ol>
+          </div>
+        {% elseif lb.filtered %}
+          <p class="lb-none">
+            {% if _v.q %}{{ 'No verified profile matches “%q%”'|trans({'%q%': _v.q}) }}{% else %}{{ 'No verified profile matches'|trans }}{% endif %}{% if _v.cat %} {{ 'in %cat%'|trans({'%cat%': _v.cat}) }}{% endif %}{% if _v.region %} {{ 'in %region%'|trans({'%region%': lb.regions[_v.region]|trans}) }}{% endif %}.
+            <a href="/leaderboard">{{ 'Clear filters'|trans }}</a>
+          </p>
+        {% endif %}
+
+        <div class="lb-foot">
+          {% if lb.more %}<a class="ag-btn ag-btn--secondary lb-more" href="/leaderboard?{{ _qs|merge({n: lb.next_n})|url_encode }}#r-{{ lb.view.n + (lb.filtered ? 1 : 4) }}">{{ 'Show %n% more'|trans({'%n%': lb.more}) }}</a>{% endif %}
+          <span class="lb-note">{{ 'Showing %x% of %n% verified profiles'|trans({'%x%': lb.shown|number_format, '%n%': lb.total|number_format}) }} · <a href="/integrity">{{ 'How scoring works'|trans }}</a></span>
+        </div>
       </div>
-      <p class="lb-note">Showing {{ rows|slice(0,40)|length }} of {{ rows|length }} verified profiles · <a href="/integrity">How scoring works →</a></p>
+
+      <aside class="lb-rail" aria-label="{{ 'Leaderboard tools'|trans }}">
+        <form class="lb-find" method="get" action="/leaderboard" role="search" aria-label="{{ 'Find a profile'|trans }}">
+          <label class="ag-field ag-field--search lb-find__f">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6" stroke-linecap="round"/></svg>
+            <input type="search" name="q" value="{{ _v.q }}" autocomplete="off" aria-label="{{ 'Find a profile'|trans }}" placeholder="{{ 'Find a profile'|trans }}">
+          </label>
+          {% if _v.cat %}<input type="hidden" name="cat" value="{{ _v.cat }}">{% endif %}
+          {% if _v.region %}<input type="hidden" name="region" value="{{ _v.region }}">{% endif %}
+        </form>
+        <div class="lb-card">
+          <b class="lb-card__t">{{ 'Tiers'|trans }}</b>
+          {% for t in lb.tiers %}
+            <div class="lb-tier"><span><span class="lb-tier__sw" style="--sw:var(--ag-{{ t.swatch }})" aria-hidden="true"></span>{{ t.name|trans }}</span><span class="lb-tier__r">{{ t.range }}</span></div>
+          {% endfor %}
+        </div>
+        <div class="lb-card lb-card--note">
+          <b class="lb-card__t">{{ 'Only verified profiles rank'|trans }}</b>
+          {{ 'Profiles are human-reviewed before scoring. Equal scores share a place.'|trans }}
+        </div>
+      </aside>
     </div>
   {% endif %}
 </div>
 {% endblock %}
+
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/leaderboard.js') }}" data-nav="rerun"></script>{% endblock %}

@@ -205,6 +205,49 @@ final class TicketCancelRefundTest extends TestCase
     }
 
     /**
+     * A ticket bought on somebody's referral link and refunded through self-service takes the
+     * referral with it — out of the withdrawable balance AND out of the ten-referral gate.
+     *
+     * The credit used to survive every refund path, so a member could have ten tickets bought
+     * on their link, see the gate open and withdraw the commission, and the tickets be
+     * cancelled for a full refund the next morning.
+     */
+    public function test_a_self_service_refund_reverses_the_referral_it_earned(): void
+    {
+        $this->event(['refund_mode' => 'full']);
+        $referrer = (int) DB::table('gates_users')->insertGetId([
+            'email' => 'referrer-' . bin2hex(random_bytes(3)) . '@example.test', 'name' => 'Referrer',
+        ]);
+        DB::table('gates_referral_codes')->insert([
+            'user_id' => $referrer, 'code' => 'AGTCKRF', 'created_at' => '2026-08-01 10:00:00',
+        ]);
+        DB::table('gates_settings')->updateOrInsert(['key_name' => 'referral_threshold'], ['value' => '1']);
+
+        $reg = $this->ticket(20000);
+        DB::table('gates_event_registrations')->where('id', (int) $reg->id)->update(['referral_code' => 'AGTCKRF']);
+        \AfricaGates\Services\ReferralService::credit(
+            DB::table('gates_event_registrations')->where('id', (int) $reg->id)->first());
+
+        $before = \AfricaGates\Services\ReferralPayout::available($referrer);
+        $this->assertTrue($before['ok'], 'fixture: the ₦2,000 commission should be withdrawable');
+
+        $r = TicketSelfService::cancel((string) $reg->reference, $this->codeFor((string) $reg->reference),
+                                       $this->mailer(), $this->gateway('pending'));
+        $this->assertTrue($r['ok'], $r['message']);
+
+        $credit = DB::table('gates_referral_credits')->where('source_type', 'registration')
+            ->where('source_id', (int) $reg->id)->first();
+        $this->assertNotNull($credit, 'stamped, never deleted');
+        $this->assertNotNull($credit->reversed_at);
+
+        $after = \AfricaGates\Services\ReferralPayout::available($referrer);
+        $this->assertFalse($after['ok'], 'a refunded sale\'s commission is still withdrawable');
+        $stats = \AfricaGates\Services\ReferralService::stats($referrer);
+        $this->assertSame(0, $stats['referrals'], 'a refunded ticket still counts toward the gate');
+        $this->assertSame(0, \AfricaGates\Services\ReferralService::liability()['payable_naira']);
+    }
+
+    /**
      * A FULL refund passes no amount, so the gateway refunds what it actually collected.
      *
      * Supplying our own figure asks it to trust our arithmetic over its own record, and it

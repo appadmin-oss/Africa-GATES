@@ -1,92 +1,75 @@
-{# ══════════════════════════════════════════════════════════════════════════
-   SITE-WIDE SEARCH
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE SEARCH PALETTE — REFERENCE §7.1 · design/SiteHeader.dc.html (`searchOpen`)
+  ══════════════════════════════════════════════════════════════════════════════
 
-   One box, reaching every source in ActivityFeedService::SOURCES. It is the
-   /activity engine — the same service, the same AI intent pass — surfaced from
-   the header instead of only from one page.
+  Opened by the header's Search control or by `/` (and ⌘K/Ctrl-K) from anywhere that is
+  not a text field. 680px wide, 84px from the top, a scrim behind. Input → scope chips →
+  grouped results (≤6 per group) → key hints. Data: `GET /search.json?q=&scope=`
+  (SearchController), which GROUPS on the server — this markup and `search.js` never name
+  a source, so there is no second copy of the scope map to drift (SearchScopeTest).
 
-   The sources are NOT listed here. This comment used to name ten of them and was
-   already missing the eleventh; a list of sources in a comment is a list that
-   stops being true the same way the label below it did.
+  ── THE COMBOBOX IS WIRED BY THE SCRIPT, NOT CLAIMED BY THE MARKUP ──────────
 
-   ── THE ACCESSIBILITY IS THE FEATURE, NOT A COATING ──────────────────────────
+  The input is a WAI-ARIA 1.2 combobox: `aria-expanded`, `aria-controls`,
+  `aria-autocomplete="list"`, and the active option moved by `aria-activedescendant`,
+  never `focus()` (focus in the list loses the next keystroke). The palette only opens
+  when the script runs, so these attributes are only ever on a page where something
+  answers them.
 
-   • It is a real <dialog>-shaped modal: focus MOVES into the input on open,
-     is TRAPPED while open, and RETURNS to the button that opened it on close.
-     A search overlay that leaves focus behind it is unusable by keyboard —
-     you tab into a list you cannot see.
-   • The input is a WAI-ARIA 1.2 combobox: aria-expanded, aria-controls,
-     aria-autocomplete=list, aria-activedescendant, role=listbox/option.
-   • The active option moves with aria-activedescendant, never with focus().
-     Moving real focus into the list takes it out of the input, so the next
-     keystroke goes somewhere the user is not looking and typing "vote" after
-     arrowing down loses the "e".
-   • Results arriving is announced on a polite live region that is ALWAYS in
-     the DOM. A live region inserted at the same moment as its text is not
-     reliably announced — the observer has nothing to observe yet.
-   • Escape closes. Enter opens the active result, or submits to /activity when
-     nothing is active, so the box always has a destination.
+  ── WHERE THIS DIFFERS FROM THE DC, AND WHY ────────────────────────────────
 
-   ── AND THE AI IS BOUNDED ────────────────────────────────────────────────────
+  · The chips are OUTLINED — 1px `--ag-line-2`, the chosen one a 2px ink border on the
+    same white. The DC fills the chosen chip with ink; REFERENCE §6.1 and §18.2 forbid a
+    dark-filled chip, and the README outranks a DC (§0).
+  · Group headings are sentence case at 12.5, not uppercase at 11 — no uppercase labels
+    and nothing under 11.5 (§6.2; owner, GAPS Q4/Q5).
+  · The kind label is `--ag-soft`, not `#8b9295` (`--ag-mute`, never a word).
+  · The empty palette has no "Trending people": there is no trending signal to draw it
+    from (GAPS §3.6) — SearchLanding draws only "Open now" and "Coming up".
+  · Results carry no photograph: the index holds none. A person is their initials, a
+    page an arrow on ink, an award or event its icon on a tint.
 
-   The model reads the QUERY for intent ("winners in Ghana last month" → a kind,
-   a country, a date range). It never writes a result. Everything on screen came
-   out of the database; if the model is off, over budget or wrong, the search
-   degrades to plain text matching and still answers. That is why interpretation
-   is a filter and not a generator.
-   ══════════════════════════════════════════════════════════════════════════ #}
-<div class="ags" id="agSearch" hidden data-ag-search>
-  <div class="ags__scrim" data-ag-search-close></div>
+  The form submits to Discover (the full search page, Phase 4) — so Enter with nothing
+  to open still goes somewhere a search happens.
+#}
+{% set _scope_labels = {people: 'People', awards: 'Awards', events: 'Events', pages: 'Pages'} %}
+<div class="ag-ss-scrim" data-ag-search-scrim data-nav-keep="search-scrim" hidden></div>
+<div class="ag-ss" id="ag-search" data-nav-keep="search" role="dialog" aria-modal="true" aria-label="{{ 'Search'|trans }}" data-ag-search hidden
+     data-msg-searching="{{ 'Searching…'|trans }}"
+     data-msg-none="{{ 'Nothing matches “%q%”. Try a name, an award or a country.'|trans }}"
+     data-msg-count="{{ '%n% results'|trans }}"
+     data-msg-one="{{ '1 result'|trans }}"
+     data-msg-start="{{ 'Start typing to search people, awards, events and pages.'|trans }}"
+     data-msg-error="{{ 'We couldn’t reach Africa GATES. Try again.'|trans }}">
 
-  <div class="ags__panel" role="dialog" aria-modal="true" aria-labelledby="agsTitle">
-    <h2 class="sr-only" id="agsTitle">Search Africa GATES</h2>
+  <form class="ag-ss__bar" role="search" action="/discover" method="get" data-ag-search-form>
+    <svg class="ag-ss__glass" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.6-3.6" stroke-linecap="round"></path></svg>
+    <input class="ag-ss__q" id="ag-ss-q" name="q" type="search" autocomplete="off" spellcheck="false"
+           enterkeyhint="search" data-ag-search-input
+           aria-label="{{ 'Search people, awards, events and pages'|trans }}"
+           placeholder="{{ 'Search people, awards, events, pages'|trans }}">
+    <button type="button" class="ag-ss__esc" data-ag-search-close aria-label="{{ 'Close search'|trans }}"><kbd>Esc</kbd></button>
+  </form>
 
-    {# A real GET form: with no JavaScript this still submits to /activity, which
-       renders the same results server-side. The overlay is an enhancement. #}
-    <form class="ags__bar" method="get" action="/activity" role="search">
-      <svg class="ags__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6" stroke-linecap="round"/></svg>
-      {# ── THE LABEL DOES NOT ENUMERATE WHAT IS SEARCHED ──────────────────
-         It used to: "Search nominees, events, posts and pages", with a matching
-         placeholder — four sources named on a box that reads TEN. That is the
-         `/cookies` shape on the one string a screen reader announces as this
-         field's name, and it had already drifted twice (announced results,
-         categories, verified organisations, profiles, discussions and cycle
-         phases were all missing).
-
-         The fix is not to list the other six. A coverage claim belongs in ONE
-         place, generated from ActivityFeedService::SOURCES — the band under
-         "Who are you looking for?", where there is room to state it and a test
-         that regenerates it. Here the label names the box, and the hint below
-         suggests what to TYPE, which is a different kind of sentence and cannot
-         go stale when a source is added. #}
-      <label class="sr-only" for="agsInput">Search Africa GATES</label>
-      <input class="ags__input" id="agsInput" name="q" type="search" autocomplete="off"
-             spellcheck="false" placeholder="A name, an award, a category or a school"
-             aria-describedby="agsHint">
-      <button type="button" class="ags__close" data-ag-search-close aria-label="Close search">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="m6 6 12 12M18 6 6 18" stroke-linecap="round"/></svg>
-      </button>
-    </form>
-
-    <p class="ags__hint" id="agsHint">Try a name, a category, or a question like “how does voting work”.</p>
-
-    {# Always present, so the announcement lands. Empty until there is something
-       true to say — a status line that says "0 results" before you have typed is
-       noise read out on every open. #}
-    <p class="ags__status" id="agsStatus" role="status" aria-live="polite" aria-atomic="true"></p>
-
-    {# No role="listbox" in the markup. ag-search.js adds it, along with the
-       combobox roles on the input, because the two only make sense together: an
-       input that advertises a popup it cannot open, or a list that claims to hold
-       options when nothing will ever put any in it, is a promise to a screen
-       reader that the page cannot keep if the script fails to load. The honest
-       degraded state is a plain search field that submits to /activity.
-       ActivityPageAccessibilityTest enforces this rule for the whole page. #}
-    <ul class="ags__list" id="agsResults"></ul>
-
-    <p class="ags__foot">
-      <kbd>↑</kbd><kbd>↓</kbd> to move · <kbd>Enter</kbd> to open · <kbd>Esc</kbd> to close
-      <a href="/activity">Full search →</a>
-    </p>
+  <div class="ag-ss__scopes" role="tablist" aria-label="{{ 'Search in'|trans }}" data-ag-search-scopes>
+    <button type="button" class="ag-chip ag-ss__chip" role="tab" aria-selected="true" tabindex="0"
+            aria-controls="ag-ss-list" data-ag-scope="">{{ 'All'|trans }}</button>
+    {% for s in search_scopes() %}
+      <button type="button" class="ag-chip ag-ss__chip" role="tab" aria-selected="false" tabindex="-1"
+              aria-controls="ag-ss-list" data-ag-scope="{{ s }}">{{ (_scope_labels[s] ?? s|capitalize)|trans }}</button>
+    {% endfor %}
   </div>
+
+  <div class="ag-ss__body" data-ag-search-body>
+    <div class="ag-ss__list" id="ag-ss-list" role="listbox" aria-label="{{ 'Results'|trans }}" data-ag-search-list></div>
+    <p class="ag-ss__msg" data-ag-search-msg hidden></p>
+  </div>
+
+  <div class="ag-ss__keys" aria-hidden="true">
+    <span>{{ '↑ ↓ to move'|trans }}</span><span>{{ 'Enter to open'|trans }}</span><span>{{ 'Esc to close'|trans }}</span>
+  </div>
+  {# Always in the document, so the first announcement is not lost to a region that was
+     created at the same moment it changed. #}
+  <p class="ag-sr" role="status" aria-live="polite" aria-atomic="true" data-ag-search-status></p>
 </div>

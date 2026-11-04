@@ -374,7 +374,11 @@ final class QuestionnaireInvites
         try {
             return (int) DB::table('gates_jobs')
                 ->where('type', self::JOB_INVITE)
-                ->whereIn('status', ['pending', 'running'])
+                // `pending` alone: gates_jobs.status is ENUM('pending','done','failed') on
+                // MySQL and has never held a `running`, so naming it here was a filter word
+                // for a state that cannot exist — harmless today, and the shape that zeroed
+                // a dashboard elsewhere (CLAUDE.md, "a status filter outside its own ENUM").
+                ->where('status', 'pending')
                 ->where('dedupe_key', 'like', self::JOB_INVITE . ':c' . $cycleId . ':%')
                 ->count();
         } catch (\Throwable) {
@@ -453,12 +457,13 @@ final class QuestionnaireInvites
         // need the app's extensions — and not depending on them keeps it renderable from a
         // console with no HTTP request in flight.
         static $twig = null;
-        $twig ??= new Environment(
+        $twig ??= \AfricaGates\Support\Translator::register(new Environment(
             new FilesystemLoader(\dirname(__DIR__, 2) . '/templates'),
             ['autoescape' => 'html']
-        );
+        ));
 
-        return $twig->render('emails/questionnaire.twig', self::vars($r, $cycleId, $site));
+        // `c`: the palette, by name — mail cannot read var() (Accent::mail()).
+        return $twig->render('emails/questionnaire.twig', self::vars($r, $cycleId, $site) + ['c' => \AfricaGates\Support\Accent::mail()]);
     }
 
     /** @return array<string,mixed> @param array<string,mixed> $r */
@@ -475,8 +480,7 @@ final class QuestionnaireInvites
             'deadline'        => QuestionnairePolicy::humanFor($cycleId),
             'site_url'        => $site,
             'unsubscribe_url' => isset($r['email']) ? EmailOptOut::url($site, (string) $r['email']) : '',
-            'postal_address'  => (string) \AfricaGates\Support\Env::get(
-                'MAIL_POSTAL_ADDRESS', 'Afrovanguard, Lagos, Nigeria'),
+            'postal_address'  => \AfricaGates\Services\Mail\MailConfig::postal(),
         ];
     }
 

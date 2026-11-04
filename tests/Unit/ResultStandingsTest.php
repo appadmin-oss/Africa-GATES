@@ -341,8 +341,10 @@ final class ResultStandingsTest extends TestCase
         ]);
         $cat = $this->category($cy, 'Best New Voice');
         $a   = $this->nominee($cat, 'Marked', 100);
-        $this->nominee($cat, 'Unmarked', 90);
-        $this->nominee($cat, 'Also unmarked', 80);
+        $b   = $this->nominee($cat, 'Unmarked', 90);
+        $c   = $this->nominee($cat, 'Also unmarked', 80);
+        // The panel is asked for the published shortlist, so that is what the bar counts.
+        $this->publishShortlist($cy, $cat, [$a, $b, $c]);
         $this->panel($cat, $a, 8);          // two complete cards, for one of three nominees
 
         $open = PublicResults::openEdition(PublicResults::editionSlug($this->slug, 2028));
@@ -367,5 +369,51 @@ final class ResultStandingsTest extends TestCase
             'the bar is not floored — rounded up, a panel one scorecard short of a '
           . 'hundred reads as finished, and the page contradicts its own status');
         $this->assertLessThan(100, $p['pct']);
+    }
+
+    /**
+     * A FINISHED PANEL READS 100%, AND ONLY CARDS THAT COUNT MOVE THE BAR.
+     *
+     * The denominator was every non-merged nominee in the category — pending, rejected and
+     * the unshortlisted field included — so a panel that had marked every finalist read a
+     * fraction of the way there for ever. And the numerator was a SQL count of complete
+     * cards, so a recused judge's card moved the bar the scorer ignores. Both halves are
+     * the award's own now: the shortlist, and panelDetailFor()'s `counts`.
+     */
+    public function test_a_finished_panel_reads_complete_and_a_recused_card_does_not_count(): void
+    {
+        $cy = $this->cycle(2029, 'judging', [
+            'voting_open'  => Carbon::now()->subDays(40)->toDateTimeString(),
+            'voting_close' => Carbon::now()->subDays(4)->toDateTimeString(),
+            'results_date' => Carbon::now()->addDays(21)->toDateTimeString(),
+        ]);
+        $cat = $this->category($cy, 'Finalists only');
+        $a   = $this->nominee($cat, 'Finalist A', 100);
+        $b   = $this->nominee($cat, 'Finalist B', 90);
+        $this->nominee($cat, 'Left off the list', 80);
+        DB::table('gates_nominees')->insert([
+            'category_id' => $cat, 'name' => 'Still pending', 'status' => 'pending', 'vote_count' => 0,
+        ]);
+        $this->publishShortlist($cy, $cat, [$a, $b]);
+        $this->panel($cat, $a, 8);
+        $this->panel($cat, $b, 7);
+
+        $p = PublicResults::openEdition(PublicResults::editionSlug($this->slug, 2029))['categories'][0]['progress'];
+        $this->assertSame(4, $p['needed'],
+            'the denominator still counts nominees the panel was never asked for');
+        $this->assertSame(4, $p['done']);
+        $this->assertSame(100, $p['pct'], 'a panel that has finished does not read finished');
+
+        // One of B's judges recuses. Their card stops counting toward the award, so it
+        // must stop counting toward the bar the public reads about the award.
+        $judge = (int) DB::table('gates_judge_criteria_scores')->where('nominee_id', $b)->value('judge_id');
+        DB::table('gates_judge_coi')->insert([
+            'judge_id' => $judge, 'programme_id' => $this->programmeId,
+            'created_at' => Carbon::now()->toDateTimeString(),
+        ]);
+
+        $p = PublicResults::openEdition(PublicResults::editionSlug($this->slug, 2029))['categories'][0]['progress'];
+        $this->assertSame(3, $p['done'], 'a recused judge\'s card still moves the public bar');
+        $this->assertSame(75, $p['pct']);
     }
 }

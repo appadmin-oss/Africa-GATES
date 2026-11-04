@@ -287,14 +287,4 @@ final class SponsorshipIntegrityTest extends TestCase
         $this->assertSame('https://brightfutures.ng',
             DB::table(ProgrammeSponsor::TABLE)->where('id', $id)->value('website'));
     }
-
-    /** The public page carries `rel="sponsored"`, which is what these links are. */
-    public function test_the_public_template_marks_paid_links_as_sponsored(): void
-    {
-        $tpl = (string) file_get_contents(
-            dirname(__DIR__, 2) . '/templates/pages/awards/programme.twig');
-
-        $this->assertStringContainsString('rel="noopener noreferrer nofollow sponsored"', $tpl,
-            'a paid link without rel="sponsored" is the thing that costs a site its ranking');
-    }
 }

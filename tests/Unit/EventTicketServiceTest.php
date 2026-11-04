@@ -352,6 +352,9 @@ final class EventTicketServiceTest extends TestCase
         $this->assertMatchesRegularExpression('/^[A-Z0-9]{4}-[A-Z0-9]{4}$/', (string) $r['ticket_code']);
         $this->assertSame('confirmed', (string) DB::table('gates_event_registrations')
             ->where('id', (int) $r['id'])->value('status'));
+        // Said under a heading reading "You're registered", so it says what is next instead.
+        $this->assertStringNotContainsString('registered', (string) $r['message']);
+        $this->assertStringContainsString('email', (string) $r['message']);
     }
 
     public function test_a_paid_tier_has_no_ticket_until_the_gateway_confirms_it(): void

@@ -77,6 +77,19 @@ class PaymentService
 
     public function __construct(private readonly ?LoggerInterface $log = null) {}
 
+    /**
+     * The name a person knows a provider by, from the one table of labels.
+     *
+     * Static because the caller is often describing a payment rather than making one —
+     * the help desk's "Asking Paystack about the payment" — and that sentence must not
+     * need a live gateway object to spell a word. An id this class does not know is
+     * returned as null rather than ucfirst()-ed into something that reads like a brand.
+     */
+    public static function label(string $provider): ?string
+    {
+        return self::LABELS[$provider] ?? null;
+    }
+
     /** Whether $provider is a provider we know how to talk to. */
     public function isKnownProvider(string $provider): bool
     {
@@ -120,8 +133,19 @@ class PaymentService
 
     private function secret(string $provider): string
     {
+        return self::secretKey($provider);
+    }
+
+    /**
+     * The secret key payments use for a provider — the one reader of it. Public so the
+     * provider probe asks about the key a payment would actually be made with, rather than a
+     * setting nothing writes (`paystack_secret_key`) or an env name nothing else reads
+     * (`FLW_SECRET_KEY`), either of which had the probe reporting on a different key.
+     */
+    public static function secretKey(string $provider): string
+    {
         $keys = self::PROVIDERS[$provider] ?? null;
-        return $keys ? (string) Env::get($keys['secret'], '') : '';
+        return $keys ? trim((string) Env::get($keys['secret'], '')) : '';
     }
 
     /**
@@ -556,6 +580,9 @@ class PaymentService
 
     private function initializePaystack(int $amountNaira, string $email, string $reference, string $callbackUrl, array $meta, string $planCode = ''): array
     {
+        // Finance reads the kind and the sharing labels out of this metadata (CfisTags).
+        $meta += CfisTags::for($reference, $meta);
+
         // Paystack transacts in KOBO.
         $payload = [
             'amount'       => $amountNaira * 100,
@@ -609,7 +636,9 @@ class PaymentService
                 // org id trustworthy here. A tip a client could pass to this method is a
                 // number a browser chose for somebody else's settlement.
                 $route = PaymentDestination::initFieldsForPartner(
-                    $orgId, PaymentDestination::platformTipForReference($reference));
+                    $orgId, PaymentDestination::platformTipForReference($reference),
+                    PaymentDestination::platformShareForReference($reference),
+                    PaymentDestination::coverForReference($reference));
                 // Only claim the partner stream if the routing actually resolved. A suspended
                 // partner falls through to an empty route and the payment settles to the main
                 // account, where it is visible and refundable.
@@ -982,12 +1011,24 @@ class PaymentService
      */
     public function initiateTransfer(int $amountNaira, string $recipientCode, string $reference, string $reason = ''): array
     {
+        return $this->initiateTransferKobo($amountNaira * 100, $recipientCode, $reference, $reason);
+    }
+
+    /**
+     * The same, in kobo. A member's withdrawal is the amount less a fee and need not be a
+     * whole naira; rounding it to send would pay somebody a figure their receipt does not
+     * show. Everything said above initiateTransfer() holds here.
+     *
+     * @return array{ok:bool,status:string,transfer_code:string,transfer_id:?string,message:string}
+     */
+    public function initiateTransferKobo(int $amountKobo, string $recipientCode, string $reference, string $reason = ''): array
+    {
         $blank = ['ok' => false, 'status' => '', 'transfer_code' => '', 'transfer_id' => null];
 
         if (!$this->isEnabled('paystack')) {
             return $blank + ['message' => 'Paystack is not configured in this environment.'];
         }
-        if ($amountNaira < 1) {
+        if ($amountKobo < 100) {
             return $blank + ['message' => 'Invalid amount.'];
         }
         if (!preg_match('/^[a-z0-9._-]+$/', $reference)) {
@@ -997,7 +1038,7 @@ class PaymentService
         try {
             $res = $this->request('POST', 'https://api.paystack.co/transfer', [
                 'source'    => 'balance',
-                'amount'    => $amountNaira * 100,      // kobo
+                'amount'    => $amountKobo,
                 'recipient' => $recipientCode,
                 'reference' => $reference,
                 'reason'    => $reason !== '' ? $reason : 'Partner payout',
@@ -1047,10 +1088,15 @@ class PaymentService
         $body = $res['json'];
         $st   = strtolower(trim((string) ($body['data']['status'] ?? '')));
         if (!$res['ok'] || ($body['status'] ?? false) !== true || $st === '') {
-            return ['ok' => false, 'status' => '', 'reachable' => true,
-                    'message' => (string) ($body['message'] ?? 'Paystack did not recognise that transfer.')];
+            $msg = (string) ($body['message'] ?? 'Paystack did not recognise that transfer.');
+            // `absent`: Paystack ANSWERED that it holds no such transfer — a 4xx saying so,
+            // not a 5xx or a body we could not read. Only this licenses a person to pay the
+            // same withdrawal by hand (WalletAutoPay::busy()); anything vaguer might be a
+            // transfer that went through.
+            $absent = in_array((int) $res['code'], [400, 404], true) && stripos($msg, 'not found') !== false;
+            return ['ok' => false, 'status' => '', 'reachable' => true, 'absent' => $absent, 'message' => $msg];
         }
-        return ['ok' => true, 'status' => $st, 'reachable' => true, 'message' => ''];
+        return ['ok' => true, 'status' => $st, 'reachable' => true, 'absent' => false, 'message' => ''];
     }
 
     /**

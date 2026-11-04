@@ -54,11 +54,56 @@ final class PaymentDestination
      * Keyed by a stable slug, because the key is written onto payment rows and a renamed key
      * would orphan every historical attribution.
      */
-    public const STREAMS = [
-        'events' => 'Event tickets',
-        'shop'   => 'Shop orders',
-        'votes'  => 'Votes and donations',
-    ];
+    /**
+     * code => label, for every kind of money this platform may take.
+     *
+     * This was a `const` of three — events, shop, votes — and it was right until the
+     * organisation started taking membership fees, fines, dues and training fees. None of them
+     * could be routed, because the list that decides what is routable was in a file only a
+     * deployment can change, and the four new ones settle to four different places.
+     *
+     * Finance owns the list now: finance is who decides what a kind of money IS, and a code
+     * this platform invents on its own is refused at settlement — days after the money was
+     * taken, when nobody remembers which checkout wrote it. See {@see CfisCatalogue} for how it
+     * degrades when finance cannot be reached, which it must, because this is read while a
+     * checkout is being rendered.
+     *
+     * @return array<string,string>
+     */
+    public static function streams(): array
+    {
+        return CfisCatalogue::streams();
+    }
+
+    /**
+     * The streams a checkout on THIS platform actually charges — exactly the ones
+     * {@see streamForReference()} can return.
+     *
+     * Finance's list is the whole organisation's (membership, dues, fines, training fees…), and
+     * most of it is taken on other sites. A subaccount set here for one of those was drawn as
+     * "routed" while no payment on this platform could ever reach it: a mechanism with no route
+     * in, saying the opposite on the one screen an operator checks. Those rows now say plainly
+     * that nothing here takes that money, and are never counted as routed.
+     */
+    public const CHECKOUT_STREAMS = ['events', 'shop', 'votes', 'ads'];
+
+    /** Does any checkout on this platform take this kind of money? */
+    public static function usedHere(string $stream): bool
+    {
+        return in_array($stream, self::CHECKOUT_STREAMS, true);
+    }
+
+    /** True when finance recognises this code. Replaces `isset(self::STREAMS[$s])`. */
+    public static function knowsStream(string $stream): bool
+    {
+        return CfisCatalogue::knows($stream);
+    }
+
+    /** The label finance gives this stream, or the code itself when it has none. */
+    public static function labelFor(string $stream): string
+    {
+        return self::streams()[$stream] ?? $stream;
+    }
 
     /** Who pays Paystack's cut. */
     public const BEARERS = [
@@ -91,7 +136,7 @@ final class PaymentDestination
      */
     public static function forStream(string $stream): string
     {
-        if (!isset(self::STREAMS[$stream])) {
+        if (!self::knowsStream($stream)) {
             return '';
         }
         return self::code(self::setting(self::KEY_PREFIX . $stream));
@@ -100,7 +145,7 @@ final class PaymentDestination
     /** Who bears the transaction charge for this stream. Defaults to the main account. */
     public static function bearerFor(string $stream): string
     {
-        if (!isset(self::STREAMS[$stream])) {
+        if (!self::knowsStream($stream)) {
             return 'account';
         }
         $v = trim(self::setting(self::BEARER_PREFIX . $stream));
@@ -203,6 +248,36 @@ final class PaymentDestination
     }
 
     /**
+     * Everything the platform keeps from a partner gift — the agreed fee plus the donor's tip —
+     * as written on the donation row when it was made. Read off the row for the same reason as
+     * the tip: a figure a caller passed would be a number a browser chose.
+     */
+    public static function platformShareForReference(string $reference): int
+    {
+        $reference = trim($reference);
+        if ($reference === '' || !str_starts_with(strtoupper($reference), 'AFG-GIVE')) return 0;
+        try {
+            return max(0, (int) (DB::table('gates_donations')->where('payment_ref', $reference)
+                ->value('platform_fee_naira') ?? 0));
+        } catch (\Throwable) {
+            return 0;
+        }
+    }
+
+    /** The donor's fee cover on a gift, as written on its row. */
+    public static function coverForReference(string $reference): int
+    {
+        $reference = trim($reference);
+        if ($reference === '' || !str_starts_with(strtoupper($reference), 'AFG-GIVE')) return 0;
+        try {
+            if (!\AfricaGates\Support\SchemaHas::column('gates_donations', 'fee_cover_naira')) return 0;
+            return max(0, (int) (DB::table('gates_donations')->where('payment_ref', $reference)->value('fee_cover_naira') ?? 0));
+        } catch (\Throwable) {
+            return 0;
+        }
+    }
+
+    /**
      * Route a partner donation to the organisation's OWN subaccount.
      *
      * ── THE ORGANISATION'S ELIGIBILITY IS CHECKED HERE, NOT ONLY ON THE PAGE ──
@@ -217,7 +292,7 @@ final class PaymentDestination
      *
      * @return array<string,string>
      */
-    public static function initFieldsForPartner(int $orgId, int $platformTipNaira = 0): array
+    public static function initFieldsForPartner(int $orgId, int $platformTipNaira = 0, int $platformShareNaira = 0, int $coverNaira = 0): array
     {
         if (!self::enabled() || $orgId < 1) return [];
 
@@ -228,10 +303,20 @@ final class PaymentDestination
         }
         if (!\AfricaGates\Services\PartnerOrg::canReceive($org)) return [];
 
-        // No `bearer` here. Who absorbs Paystack's cut on a partner donation is set by the
-        // subaccount's own percentage_charge at creation, and sending a conflicting bearer
-        // is how a partner discovers their share is not what they agreed to.
         $out = ['subaccount' => (string) $org->subaccount_code];
+
+        // ── WHO PAYS THE GATEWAY'S FEE: THE RECIPIENT, AS EVERYWHERE ─────────
+        // Owner, 3 Nov 2026: "do the modern standards". With no `bearer` Paystack charges its
+        // fee to the MAIN account, so this platform paid the processing on every gift to
+        // every organisation — including to the many whose agreed platform share is 0%,
+        // where each gift cost us money. GoFundMe, JustGiving and Givebutter all deduct the
+        // processing fee from the gift and let the donor cover it; so does this now, and the
+        // donor's cover (GatewayFee::cover) is exactly what keeps the organisation whole.
+        // A setting (`partner_fee_bearer = platform`) keeps the old arrangement for an
+        // operator who has promised it.
+        if (\AfricaGates\Services\GatewayFee::organisationBears()) {
+            $out['bearer'] = 'subaccount';
+        }
 
         // ── A DONOR'S VOLUNTARY GIFT TO THE PLATFORM RIDES AS A FLAT CHARGE ──
         //
@@ -249,8 +334,24 @@ final class PaymentDestination
         // Kobo, and clamped: a value in naira here silently settles a hundredth of the
         // intended amount, and a charge above the transaction is refused by the gateway,
         // which would turn a generous donor into a failed checkout.
-        if ($platformTipNaira > 0) {
-            $out['transaction_charge'] = (string) ($platformTipNaira * 100);
+        //
+        // And it carries the agreed FEE as well as the tip. Paystack documents
+        // `transaction_charge` as overriding the split for that payment, so the subaccount's
+        // percentage_charge does not ALSO apply: a charge of the tip alone settled the tip to
+        // us and the whole gift — fee included — to the organisation, while the donation row
+        // recorded `platform_fee_naira` as ours. Every tipped gift to a fee-charging partner
+        // under-settled the platform by exactly its fee, and the ledger said otherwise.
+        // `$platformShareNaira` is that row's figure (fee + tip, {@see DonationController}).
+        //
+        // And it is sent whenever the charge holds money that is NOT the gift — a tip or a
+        // fee cover — because the subaccount's percentage would otherwise apply to the whole
+        // charge: a cover meant for the gateway would be part-paid to us as a fee on it.
+        // Only when our share is above zero: at a 0% share with no tip the subaccount's own
+        // percentage is already zero, and a zero charge is a value not worth testing on a
+        // gateway whose refusal sends the gift out unrouted.
+        $ours = max($platformTipNaira, $platformShareNaira);
+        if (($platformTipNaira > 0 || $coverNaira > 0) && $ours > 0) {
+            $out['transaction_charge'] = (string) ($ours * 100);
         }
 
         return $out;
@@ -340,11 +441,20 @@ final class PaymentDestination
         $refused = [];
         $checked = [];
 
-        foreach (self::STREAMS as $stream => $label) {
+        foreach (self::streams() as $stream => $label) {
             if (!array_key_exists($stream, $codes)) {
                 continue;                       // not on the submitted form; leave it alone
             }
             $raw = trim((string) $codes[$stream]);
+
+            // Clearing is always allowed (it is how a stale code from before this rule goes);
+            // setting one is not, for money no checkout here takes — see CHECKOUT_STREAMS.
+            if ($raw !== '' && !self::usedHere($stream)) {
+                $refused[$stream] = 'No checkout on Africa GATES takes ' . $label . ', so a '
+                                  . 'subaccount here would never receive a payment. Route it on '
+                                  . 'the site that takes it.';
+                continue;
+            }
 
             if ($raw === '') {
                 self::put(self::KEY_PREFIX . $stream, '');
@@ -400,13 +510,23 @@ final class PaymentDestination
     public static function all(): array
     {
         $out = [];
-        foreach (self::STREAMS as $stream => $label) {
+        foreach (self::streams() as $stream => $label) {
             $code = self::forStream($stream);
+            $about = CfisCatalogue::describe($stream);
+            $here = self::usedHere($stream);
             $out[] = ['stream' => $stream, 'label' => $label, 'code' => $code,
-                      'bearer' => self::bearerFor($stream), 'routed' => $code !== '',
+                      'bearer' => self::bearerFor($stream), 'routed' => $here && $code !== '',
+                      'used_here' => $here,
                       // A live refusal, shown beside the field that caused it. Without this the
                       // only symptom of a bad code is money quietly settling somewhere else.
-                      'refusal' => self::refusal($stream)];
+                      'refusal' => self::refusal($stream),
+                      // What finance says about this stream. `expects` is the one that earns
+                      // its place on the screen: with a dynamic list an operator cannot tell
+                      // which of fourteen rows finance is actually waiting on, and a row they
+                      // are not meant to fill in looks identical to one they have forgotten.
+                      'expects' => (bool) ($about['expects_subaccount'] ?? false),
+                      'about' => (string) ($about['description'] ?? ''),
+                      'settles_to' => (string) ($about['posts_to'] ?? '')];
         }
         return $out;
     }
@@ -414,7 +534,7 @@ final class PaymentDestination
     /** Whether any stream is routed at all — what the screen keys its explanation on. */
     public static function anyRouted(): bool
     {
-        foreach (array_keys(self::STREAMS) as $s) {
+        foreach (self::CHECKOUT_STREAMS as $s) {
             if (self::forStream($s) !== '') return true;
         }
         return false;
@@ -453,7 +573,7 @@ final class PaymentDestination
      */
     public static function reportRefusal(string $stream, string $code, string $why): void
     {
-        if (!isset(self::STREAMS[$stream])) return;
+        if (!self::knowsStream($stream)) return;
 
         $now  = time();
         $key  = self::REFUSED_PREFIX . $stream;
@@ -468,9 +588,9 @@ final class PaymentDestination
         if ($now - $last < 3600) return;                 // already shouted about this recently
 
         Notifier::adminAlert(null,
-            'Paystack refused the subaccount for ' . (self::STREAMS[$stream] ?? $stream),
+            'Paystack refused the subaccount for ' . self::labelFor($stream),
             "Paystack would not accept the subaccount configured for "
-            . (self::STREAMS[$stream] ?? $stream) . ".\n\n"
+            . self::labelFor($stream) . ".\n\n"
             . "Subaccount: {$code}\n"
             . "Paystack said: {$why}\n\n"
             . "The payment was retried WITHOUT the subaccount and went through, so nobody has "
@@ -507,8 +627,10 @@ final class PaymentDestination
     public static function streamForReference(string $reference): string
     {
         $r = strtoupper(trim($reference));
+        // Every value returned here must be in CHECKOUT_STREAMS — a test holds the two together.
         if (str_starts_with($r, 'AFG-EVT')) return 'events';
         if (str_starts_with($r, 'AFG-SHP')) return 'shop';
+        if (str_starts_with($r, 'AFG-ADS')) return 'ads';      // Ads\AdCheckout::REF_PREFIX
         if (str_starts_with($r, 'AFG-'))    return 'votes';
         return '';
     }

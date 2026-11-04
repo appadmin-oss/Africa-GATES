@@ -385,14 +385,14 @@ final class HelpCentre
             'audience' => ['supporter', 'nominee'],
             'cat'  => 'payments',
             'title' => 'What do paid votes actually do?',
-            'summary' => 'They count toward the tally exactly like a free vote, and cannot buy the '
-                       . 'larger part of the community half — every result shows both.',
+            'summary' => 'They add to the tally at full weight, and cannot buy the larger part of '
+                       . 'the community half — every result shows both.',
             'keywords' => ['buy votes', 'paid votes', 'price', 'cost', 'how much', 'bulk votes',
                            'do paid votes count', 'is it fair'],
             'body' => [
                 ['p' => 'A paid vote adds to a nominee\'s <strong>vote tally</strong>, and that tally is '
-                      . 'what the community share of the Cultural Power Index is built from. So yes: a '
-                      . 'paid vote counts toward the ranking, exactly as much as a free one.'],
+                      . 'what the community share of the Cultural Power Index is partly built from. So yes: a '
+                      . 'paid vote counts toward the ranking, at full weight in the tally.'],
                 ['p' => 'There is no ceiling on how many a campaign may buy, so a well-funded nominee can '
                       . 'hold the largest tally in the cycle. We would rather say that here than have '
                       . 'you work it out from the numbers. What buying cannot do is move the seventy '
@@ -413,8 +413,8 @@ final class HelpCentre
                 ['note' => 'One vote costs ₦{price}, with discounts on larger bundles, and a single order '
                          . 'can carry up to {max_qty} votes. Current prices are always on the ballot.'],
             ],
-            'related' => ['how-cpi-works', 'how-free-voting-works', 'what-happens-if-two-nominees-tie',
-                          'the-community-return'],
+            'related' => ['how-cpi-works', 'how-free-voting-works', 'why-is-voting-paid',
+                          'what-happens-if-two-nominees-tie', 'the-community-return'],
         ],
 
         // ── VOTING ───────────────────────────────────────────────────────────
@@ -438,7 +438,55 @@ final class HelpCentre
                 ['note' => 'One free vote per person per category, per cycle. You can vote in as many '
                          . 'different categories as you like.'],
             ],
-            'related' => ['code-did-not-arrive', 'vote-not-showing', 'already-voted'],
+            'related' => ['code-did-not-arrive', 'vote-not-showing', 'already-voted', 'why-is-voting-paid'],
+        ],
+        // ── THE OWNER'S OWN ANSWER (8 Oct 2026) ─────────────────────────────
+        //
+        // The owner's words, verbatim but for three things the house rules decide and
+        // PHASE-9.md lists for the owner to confirm: the price is {price}, read from the
+        // setting the ballot charges (never a typed naira figure — HelpCentreTest), the two
+        // all-caps lines are sentence case (no capitals anywhere), and the platform's name is
+        // Africa GATES — the draft's other name was retired by the owner (16 Oct 2026,
+        // Support\Brand).
+        [
+            'slug' => 'why-is-voting-paid',
+            'audience' => ['supporter', 'nominee'],
+            'cat'  => 'voting',
+            'kicker' => 'Africa GATES community voting',
+            'title' => 'Why is voting paid?',
+            'summary' => 'Because Africa GATES is community-driven.',
+            'keywords' => ['why is voting paid', 'why is it paid', 'why not free', 'where does the money go',
+                           'where do the funds go', 'what is the money for', 'paid voting', 'sponsor',
+                           'community voting', 'contribution'],
+            'body' => [
+                ['p' => 'We do not want recognition of the people creating value in our communities to '
+                      . 'depend entirely on waiting for a sponsor, corporation, or government to fund it.'],
+                ['p' => 'That is why community members can participate through ₦{price} votes.'],
+                ['p' => 'Your vote is not a payment to buy an award. It is a voluntary contribution that '
+                      . 'helps the community sustain the recognition platform.'],
+                ['h' => 'Where do the funds go?'],
+                ['p' => 'Funds generated through community voting support:'],
+                ['list' => [
+                    '<strong>Voting &amp; Technology</strong> — maintaining the voting, payment and digital systems.',
+                    '<strong>Award Administration</strong> — nominations, verification, judging coordination and administration.',
+                    '<strong>Media &amp; Publicity</strong> — promoting nominees, winners and their stories.',
+                    '<strong>Awards &amp; Event Production</strong> — organizing and delivering the recognition experience.',
+                    '<strong>Community Development</strong> — supporting initiatives and activities that create tangible community value.',
+                    '<strong>Future Community Recognition</strong> — helping sustain subsequent editions and expand the platform.',
+                ]],
+                ['h' => 'So, what does the community get in return?'],
+                ['p' => 'Recognition. Visibility. Participation. Opportunity. Community development.'],
+                ['p' => 'The goal is to create a cycle:'],
+                ['quote' => 'Nominate → vote → recognize → celebrate → reinvest → repeat'],
+                ['p' => 'We believe a community should not always wait for someone else to fund what matters to it.'],
+                ['quote' => 'We don’t wait for sponsors to value our community. We participate in funding what we value.'],
+                ['p' => 'Your ₦{price} may look small, but thousands of people participating can turn small '
+                      . 'contributions into meaningful community resources.'],
+                ['p' => 'This is community voting.<br>This is community participation.<br>This is community ownership.'],
+                ['p' => 'Vote for who you believe deserves to be recognized.'],
+                ['p' => 'And know that your participation helps keep the platform moving.'],
+            ],
+            'related' => ['what-paid-votes-do', 'how-free-voting-works', 'how-cpi-works'],
         ],
         [
             'slug' => 'code-did-not-arrive',
@@ -657,8 +705,13 @@ final class HelpCentre
             'cat'  => 'results',
             'title' => 'I think a count or a ranking is wrong',
             'summary' => 'Ask for an audit. We will replay the arithmetic from source.',
+            // "A result looks wrong" is Gee's own quick button, word for word. Without it the
+            // sealing article won on "result", and somebody querying a standing was told
+            // about hash chains rather than how to ask for an audit.
             'keywords' => ['wrong count', 'dispute', 'appeal', 'unfair', 'cheating', 'rigged',
-                           'votes disappeared', 'someone is buying votes'],
+                           'votes disappeared', 'someone is buying votes', 'result looks wrong',
+                           'result is wrong', 'wrong result', 'ranking is wrong', 'score looks wrong',
+                           'score is wrong'],
             'body' => [
                 ['p' => 'Ask, and we will check. Every recomputation is logged, so a count can be replayed '
                       . 'from the underlying votes and the working shown to you.'],
@@ -956,7 +1009,7 @@ final class HelpCentre
             'audience' => ['nominee'],
             'cat'  => 'results',
             'title' => 'The community return: a share of what your supporters raised',
-            'summary' => 'A nominee keeps a share of the contributions made in their name — win or lose.',
+            'summary' => 'How a share of what supporters contribute comes back to nominees, under each edition’s rule.',
             'keywords' => ['community return', 'do nominees get paid', 'my share', 'earnings', 'payout',
                            'withdraw', 'money back to nominee', 'supporters raised', 'what do i earn',
                            'nominee earnings'],
@@ -974,7 +1027,7 @@ final class HelpCentre
                 ['when' => 'rate_zero',
                  'note' => 'The share is currently set to <strong>0%</strong>, so no new contribution is '
                          . 'accruing anything. Shares already recorded are unaffected.'],
-                ['p' => 'When supporters contribute in a nominee\'s name, a share of that money is set '
+                ['p' => 'Under the house rule, when supporters contribute in a nominee\'s name, a share of that money is set '
                       . 'aside <strong>for the nominee</strong>. It is not a prize and it does not depend '
                       . 'on winning — they raised it either way, and a nominee who mobilised a community '
                       . 'and came second mobilised a community.'],
@@ -1002,8 +1055,24 @@ final class HelpCentre
                         . 'any figure can be explained line by line.',
                     'If a contribution is refunded or charged back, the share accrued on it is reversed — '
                         . 'and the reversal stays on the record beside the original.',
-                    'Nothing is payable until that cycle has ended and its results have been announced.',
+                    'Under this rule, nothing is payable until that cycle has ended and its results have been announced.',
                 ]],
+                ['p' => 'Some editions run a <strong>different rule</strong>, chosen before the edition opens '
+                      . 'and fixed once anything is earned under it: a <strong>target pool</strong> (every '
+                      . 'nominee has the same vote target; when voting closes, those who reached it share the '
+                      . 'edition\'s pool by their votes, and below it nothing is paid), a <strong>two-stage</strong> rule (a '
+                      . 'smaller share held locked until the edition\'s collective milestone is confirmed '
+                      . 'by a person, then the full share), a <strong>flat</strong> share on every '
+                      . 'contribution, or a <strong>tiered</strong> or <strong>custom</strong> ladder whose '
+                      . 'share rises with how much has been raised. Each edition\'s rule, its milestone and '
+                      . 'how far it has got are on <a href="/integrity#return">the integrity page</a>.'],
+                ['p' => 'To be paid, open your <strong>Wallet</strong> and choose Withdraw. A request is '
+                      . 'checked before anything is sent — the money is released, you hold the page\'s '
+                      . 'verified claim, your account\'s email address is verified, your bank confirms the '
+                      . 'account is in your own name, every share traces to a valid contribution, and you '
+                      . 'accepted the published terms. {payout_speed} The smallest amount, the fee, the timeline, '
+                      . 'appeals and the tax position are published on the integrity page; withdrawals '
+                      . 'open once they are.'],
                 ['note' => 'The share, the threshold and the per-supporter ceiling are all per-cycle '
                          . 'settings, and this page always states the ones currently in force. It is '
                          . '{return_pct}% today.'],
@@ -1285,23 +1354,32 @@ final class HelpCentre
             'audience' => ['organisation'],
             'cat'  => 'organisations',
             'title' => 'When your money arrives, and what Africa GATES takes',
-            'summary' => 'Gifts settle to your own account. Our fee is agreed in advance and comes out of the gift; a donor tip is added on top and never comes out of yours.',
+            'summary' => 'Gifts settle to your own account. Our fee is agreed in advance; the payment processing fee comes out of the gift unless the donor covers it; a donor tip is added on top and never comes out of yours.',
             'keywords' => ['payout', 'settlement', 'when do we get paid', 'platform fee', 'our cut',
                            'commission', 'withdraw', 'minimum payout', 'subaccount', 'tip'],
             'body' => [
                 ['p' => 'Gifts to your appeal settle into <strong>your own account</strong>, not ours. '
                       . 'We hold a settlement destination for your organisation with the payment '
                       . 'provider, resolved against your CAC name when you were verified.'],
-                ['p' => 'Two separate amounts get confused constantly, so here they are apart:'],
+                ['p' => 'Three separate amounts get confused constantly, so here they are apart:'],
                 ['steps' => [
                     '<strong>The platform fee</strong> is the cut agreed with you before you went live. '
                         . 'It comes <em>out of</em> the gift, and it is the same percentage on every '
-                        . 'gift until it is renegotiated. Your console shows it on each donation.',
+                        . 'gift. It is set when your account is attached; changing it is a new agreement '
+                        . 'with us, and never alters a gift already made. Your console shows it on each donation.',
+                    '<strong>The payment processing fee</strong> is the payment provider’s, not ours: '
+                        . '{processing_fee}. {processing_fee_payer} Every donor is offered the exact '
+                        . 'amount that covers it, and when they tick it you receive their gift to the '
+                        . 'naira. It is never ticked for them.',
                     '<strong>A donor’s tip to Africa GATES</strong> is <em>added on top</em> of what '
                         . 'they gave you, never taken from it. It is off by default, the donor has to '
                         . 'choose it, and it is capped. You receive exactly the number the donor typed '
                         . 'for you whether the tip is zero or the largest we allow.',
                 ]],
+                ['p' => 'Most gifts need nothing from you: the provider settles them straight to your '
+                      . 'bank. A gift made before your account was attached, or one the provider could '
+                      . 'not route, reaches our account instead, and that is what your console offers '
+                      . 'to request. We pay it by bank transfer and record the reference.'],
                 ['p' => 'You request a payout from the payouts section of your console. The smallest '
                       . 'payout is <strong>₦{min_payout}</strong>, and only an account owner can '
                       . 'request one — not every user you have added.'],
@@ -1316,21 +1394,57 @@ final class HelpCentre
             'audience' => ['organisation'],
             'cat'  => 'organisations',
             'title' => 'Getting into your organisation console',
-            'summary' => 'It is a separate sign-in from a member account, on purpose.',
+            'summary' => 'Sign in to your Africa GATES account with the address your organisation registered.',
             'keywords' => ['org login', 'partner login', 'organisation sign in', 'vendor dashboard',
                            'cannot find dashboard', 'console', 'where do i log in'],
             'body' => [
-                ['p' => 'Your console is at <a href="/org">africagates.org/org</a>. Sign in there with '
-                      . 'the address you gave us when you applied.'],
-                ['p' => 'It is a <strong>different sign-in from a personal member account</strong>, and '
-                      . 'deliberately so: an organisation console can move money, and a shared front '
-                      . 'door is the thing that makes one of these a target. Having a member account '
-                      . 'does not sign you into your organisation, and it should not.'],
+                ['p' => 'There is one sign-in, at <a href="/account/login">africagates.org/account/login</a>. '
+                      . 'Your console opens from the Africa GATES account that has <strong>verified</strong> '
+                      . 'the address your organisation was registered with; nobody links or adds anything. '
+                      . 'Your console is then at <a href="/org">africagates.org/org</a>.'],
+                ['p' => 'Moving money asks again: a payout needs <strong>the organisation’s own '
+                      . 'password</strong>, not only the account’s, because an email alone must never '
+                      . 'move a charity’s money.'],
                 ['p' => 'The console holds your documents, your applications, your donations, your '
                       . 'appeals, your payouts and the fee on each gift.'],
                 ['note' => 'Only an account owner can request a payout. Add colleagues as users so they '
                          . 'can see the money and run the appeals without being able to move it.'],
             ],
+        ],
+        [
+            // Owner, 28 Oct 2026: people need to know they can advertise here. Gee answers
+            // "can I advertise?" from this article, so the figures are placeholders read
+            // from AdRules, never typed.
+            'slug' => 'how-to-advertise',
+            'audience' => ['organisation', 'supporter', 'nominee'],
+            'cat'  => 'organisations',
+            'title' => 'How to advertise your business on Africa GATES',
+            'summary' => 'Make an ad from your account. Your first campaign is free; a person reviews every ad.',
+            'keywords' => ['advertise', 'advert', 'ads', 'promote my business', 'sponsored',
+                           'promotion', 'marketing', 'free trial', 'boost', 'reach customers'],
+            'body' => [
+                ['p' => 'Anyone with a member account can advertise a business, a service, an event or '
+                      . 'a cause. Your <strong>first campaign is free</strong>: up to {ad_trial_views} '
+                      . 'views over {ad_trial_days} days, starting the day it is approved.'],
+                ['steps' => [
+                    'Sign in, or <a href="/account/register">register</a>. An organisation advertises '
+                        . 'from a member account too; the organisation console is for money and documents.',
+                    'Open <a href="/account/ads">Ads</a> in your account and choose '
+                        . '<strong>Create campaign</strong>.',
+                    'Write the ad and watch the preview: who it is from, your text, a square image, '
+                        . 'a headline and a button. You can add an offer for our readers.',
+                    'Send it for review. A person checks it against the '
+                        . '<a href="/legal/advertising">Advertising Policy</a>, and you are told the '
+                        . 'reason if it is not approved, so you can fix it and send it again.',
+                ]],
+                ['p' => 'Ads appear on the vote hub, Discover and the events pages, labelled '
+                      . '<strong>Sponsored</strong>. Everyone on a page sees the same ads: nothing is '
+                      . 'chosen from what a reader did, and nobody\'s data is sold.'],
+                ['note' => 'Some kinds of ad need an approval from a regulator, such as NAFDAC for food '
+                         . 'and health products. The Advertising Policy lists them. Paid prices are on '
+                         . '<a href="/advertise">the advertising page</a>.'],
+            ],
+            'related' => ['your-organisation-console'],
         ],
 
         // ── PRIVACY ──────────────────────────────────────────────────────────
@@ -1496,15 +1610,45 @@ final class HelpCentre
         // The first substantive paragraph. The article page has the steps and the
         // caveats; this is enough to know whether to go and read them.
         foreach ((array) ($top['body'] ?? []) as $block) {
-            if (!empty($block['p'])) { $lines[] = (string) $block['p']; break; }
+            if (!empty($block['p'])) { $lines[] = self::chatText((string) $block['p']); break; }
         }
         // Worded so a linkified label reads as part of the sentence: Gee's widget
         // renders an article URL as "the Help Centre answer", so "Full answer:
         // /help/x" would have come out as "Full answer: the Help Centre answer".
-        $lines[] = 'Read it here: ' . self::url((string) $top['slug'])
-                 . ' — if that is not your case, say so and I will pass it to the team at /support.';
+        //
+        // ONE offer of a person, and it is this one. The support agent used to append its own
+        // "say “talk to a human”" under this line, so the reply offered the team twice in two
+        // different phrasings — the thing a reader takes for a bot that does not know what it
+        // just said.
+        $lines[] = 'Read the rest in ' . self::url((string) $top['slug']) . '. If that is not what is '
+                 . 'happening to you, tell me what you see — or say “talk to a human” and I will pass '
+                 . 'it to the team.';
 
         return implode("\n\n", $lines);
+    }
+
+    /**
+     * An article paragraph as chat text.
+     *
+     * ── THE BUBBLE IS NOT A PAGE ─────────────────────────────────────────────
+     *
+     * Article bodies are HTML, written for the article page. The chat widget escapes
+     * everything and understands three marks only — `**bold**`, `[label](/path)` and a
+     * bare `/help/…` path — so quoting a paragraph verbatim printed
+     * `Ours begins with <code>AFG-</code>` and `<strong>sealed</strong>` into the bubble,
+     * on the fallback that runs exactly when the assistant is having a bad day.
+     * Translated here, once, for both assistants.
+     */
+    public static function chatText(string $html): string
+    {
+        $t = (string) preg_replace('~<(code|strong|b)>(.*?)</\1>~is', '**$2**', $html);
+        $t = (string) preg_replace_callback('~<a\s[^>]*href="([^"]*)"[^>]*>(.*?)</a>~is', static function (array $m): string {
+            $label = trim(strip_tags($m[2]));
+            // The widget's link mark takes a site path of its own shape and nothing else.
+            return preg_match('~^/[a-z0-9/-]{1,80}$~', $m[1]) && mb_strlen($label) <= 80
+                ? '[' . $label . '](' . $m[1] . ')' : $label;
+        }, $t);
+        return trim(html_entity_decode(strip_tags($t), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
     }
 
     /**
@@ -1614,10 +1758,11 @@ final class HelpCentre
         foreach ((array) ($a['body'] ?? []) as $block) {
             $when = (string) ($block['when'] ?? '');
             if ($when !== '' && $when !== $state) continue;
-            foreach (['p', 'note'] as $k) {
+            foreach (['p', 'note', 'h', 'quote'] as $k) {
                 if (isset($block[$k])) $out[] = (string) $block[$k];
             }
             foreach ((array) ($block['steps'] ?? []) as $s) $out[] = (string) $s;
+            foreach ((array) ($block['list'] ?? []) as $s) $out[] = (string) $s;
         }
         return trim(strip_tags(implode(' ', array_filter($out))));
     }
@@ -1670,11 +1815,13 @@ final class HelpCentre
         $a['body'] = $body;
 
         foreach ($a['body'] as $i => $block) {
-            foreach (['p', 'note'] as $k) {
+            foreach (['p', 'note', 'h', 'quote'] as $k) {
                 if (isset($block[$k])) $a['body'][$i][$k] = $swap((string) $block[$k]);
             }
-            foreach ((array) ($block['steps'] ?? []) as $j => $s) {
-                $a['body'][$i]['steps'][$j] = $swap((string) $s);
+            foreach (['steps', 'list'] as $k) {
+                foreach ((array) ($block[$k] ?? []) as $j => $s) {
+                    $a['body'][$i][$k][$j] = $swap((string) $s);
+                }
             }
         }
         return $a;
@@ -1754,6 +1901,19 @@ final class HelpCentre
             // around, and a number in prose outlives the rule it describes — which is why
             // HelpCentreTest refuses a naira figure written into an article at all.
             '{min_payout}' => number_format(\AfricaGates\Services\OrgPayout::MIN_NAIRA),
+            // The gateway's schedule and who bears it, read from the one place the charge is
+            // worked out (GatewayFee), so the article cannot quote a fee nobody is charged.
+            '{processing_fee}' => (static function (): string {
+                $f = \AfricaGates\Services\GatewayFee::schedule();
+                return rtrim(rtrim(number_format($f['pct'], 2), '0'), '.') . '%'
+                    . ($f['flat'] > 0 ? ' plus ₦' . number_format($f['flat']) . ($f['flat_from'] > 0 ? ' (the ₦' . number_format($f['flat']) . ' is waived under ₦' . number_format($f['flat_from']) . ')' : '') : '')
+                    . ($f['cap'] > 0 ? ', never more than ₦' . number_format($f['cap']) . ' a gift' : '');
+            })(),
+            '{processing_fee_payer}' => \AfricaGates\Services\GatewayFee::organisationBears()
+                ? 'It comes out of the gift, as on every giving platform.'
+                : 'Africa GATES pays it for you, so it does not come out of the gift.',
+            '{ad_trial_views}' => number_format(\AfricaGates\Services\Ads\AdRules::TRIAL_VIEWS),
+            '{ad_trial_days}'  => (string) \AfricaGates\Services\Ads\AdRules::TRIAL_DAYS,
 
             '{price}'   => $price,
             '{max_qty}' => $maxQty,
@@ -1770,6 +1930,12 @@ final class HelpCentre
             '{return_cap_pct}'    => (string) $ret['cap_pct'],
             '{return_cap_votes}'  => number_format($ret['cap_votes']),
             '{return_people}'     => (string) $ret['min_supporters'],
+            // Said as it is running, never as it might: the article told every nominee their
+            // withdrawal is "sent automatically, usually within minutes" while automatic
+            // payouts are off by default and every request waits for a person.
+            '{payout_speed}'      => \AfricaGates\Services\WalletAutoPay::enabled()
+                ? 'Where nothing needs a closer look it is sent automatically, usually within minutes; otherwise a person checks it first.'
+                : 'A person checks every request before it is paid.',
         ];
     }
 }

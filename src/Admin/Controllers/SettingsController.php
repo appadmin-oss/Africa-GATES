@@ -22,13 +22,21 @@ class SettingsController
 
     public function form(Request $req, Response $res): Response
     {
-        $adminSettings = [];
-        try {
-            if (\Illuminate\Database\Capsule\Manager::getSchemaBuilder()->hasTable('gates_admin_settings')) {
-                $rows = \Illuminate\Database\Capsule\Manager::table('gates_admin_settings')->get();
-                foreach ($rows as $r) $adminSettings[$r->setting_key] = $r->setting_value;
-            }
-        } catch (\Throwable) {}
+        /* A stream added in finance this morning should be usable this morning.
+           The catalogue is cached for the TTL finance nominates, which is right for
+           every checkout and wrong for the one operator who has just been told to
+           route a new kind of money and is looking at a screen that does not list
+           it yet. This is the way to say "ask again now" without waiting it out. */
+        if ((string) ($req->getQueryParams()['streams'] ?? '') === 'refresh') {
+            \AfricaGates\Services\CfisCatalogue::refresh();
+        }
+
+        // `gates_admin_settings` used to be read in full here and passed as
+        // `admin_settings`, which no template has ever mentioned — a table scan and a
+        // schema probe on every render of the settings screen, for a variable Twig
+        // discarded. `strict_variables` cannot see this direction: it catches a
+        // template reading what a controller stopped passing, and has nothing to say
+        // about a controller passing what nothing reads. `TemplateContextTest` asks it.
 
         return $this->view->render($res, 'admin/settings.twig', [
             'page_title'     => 'Settings — Admin',
@@ -47,8 +55,16 @@ class SettingsController
             'tz_choices'     => \AfricaGates\Support\DisplayTime::choices(),
             'tz_current'     => \AfricaGates\Support\DisplayTime::zone(),
             'tz_abbr'        => \AfricaGates\Support\DisplayTime::abbr(),
-            'admin_settings' => $adminSettings,
-            'smtp_configured'=> $this->mailer?->smtpConfigured() ?? false,
+            'smtp_configured'=> $this->mailer?->canSend() ?? false,
+            'planned_work'   => \AfricaGates\Services\PlannedWork::stored(),
+            'mail_config'    => (static function (): array {
+                $c = \AfricaGates\Services\Mail\MailConfig::load();
+                return $c->describe() + ['login_source' => match ($c->source('username')) {
+                    'settings' => 'saved on Email health',
+                    'env'      => 'from the server’s .env file',
+                    default    => 'not set',
+                }];
+            })(),
             // Whether a password is resolvable at all, from either source — the field
             // itself is WRITE-ONLY, like every provider key, so this only picks the
             // placeholder. Same shape as ai_mod_dedicated below.
@@ -56,7 +72,6 @@ class SettingsController
             // placeholder promises that leaving the box blank KEEPS what is there, and
             // what blank keeps is the stored row. An .env password is the fallback
             // underneath, not something this form is holding on to.
-            'smtp_pass_set'  => trim((string) (\Illuminate\Database\Capsule\Manager::table('gates_settings')->where('key_name', 'mail_smtp_pass')->value('value') ?? '')) !== '',
             // Image hosting. Read through the resolver, so what the card reports is
             // what an upload will actually do rather than what one source of two says.
             'cloudinary_on'     => \AfricaGates\Services\CloudinaryService::enabled(),
@@ -201,9 +216,22 @@ class SettingsController
             // Both arcs. Nominees and judges are honoured for different things, so the
             // letters are written twice and edited separately.
             'invite_seq_audiences' => \AfricaGates\Services\InviteAudience::all(),
+            // The ads rate card (naira per 1,000 views, per placement). Read and saved through
+            // AdRateCard, the same resolver /advertise and the builder read.
+            // The base prices the form edits, and the market they turn into (AdMarket).
+            'ad_rates'          => \AfricaGates\Services\Ads\AdRateCard::bases(),
+            'ad_market'         => \AfricaGates\Services\Ads\AdMarket::card(),
+            'ad_revenue'        => \AfricaGates\Services\Ads\AdMarket::revenue(),
+            'ad_advice'         => \AfricaGates\Services\Ads\AdMarket::advice(),
+            'ad_dynamic'        => \AfricaGates\Services\Ads\AdMarket::dynamic(),
+            'ad_vat_pct'        => \AfricaGates\Services\Ads\AdCheckout::vatBps() / 100,
+            'ad_target'         => (int) ($this->settings->get(\AfricaGates\Services\Ads\AdMarket::TARGET_KEY) ?? 0) ?: null,
+            'ad_placements'     => \AfricaGates\Services\Ads\AdRules::PLACEMENTS,
+            'ad_beta'           => \AfricaGates\Services\Ads\AdRules::inBeta(),
             'visits_on'         => \AfricaGates\Services\VisitTracker::enabled(),
             'visits_days_value' => \AfricaGates\Services\VisitTracker::keepDays(),
             'visits_mode'       => \AfricaGates\Services\CookiePrefs::mode(),
+            'ga_id'             => \AfricaGates\Services\GoogleAnalytics::measurementId(),
             'invite_seq_tokens'  => \AfricaGates\Services\InviteSequence::TOKENS,
             'invite_seq_values_default'  => \AfricaGates\Services\InviteSequence::values(),
             'invite_seq_outcome_default' => \AfricaGates\Services\InviteSequence::DEFAULT_OUTCOME,
@@ -214,6 +242,12 @@ class SettingsController
             'invite_reminder_line_judge_default'   => \AfricaGates\Services\InviteReminders::copy(
                 \AfricaGates\Services\InviteAudience::JUDGE)['line_default'],
             'cloudinary_secret_set' => trim((string) (\Illuminate\Database\Capsule\Manager::table('gates_settings')->where('key_name', 'cloudinary_api_secret')->value('value') ?? '')) !== '',
+            // Whether finance's signing key is stored — never the key. `values` is the
+            // whole settings table, so anything echoed from it lands in the page source;
+            // a credential gets a boolean and a placeholder, like Cloudinary's above.
+            // Through the catalogue's own resolver (Settings, then .env), so the badge reads
+            // "connected" whenever finance actually is — it used to read only the table.
+            'cfis_secret_set' => \AfricaGates\Services\CfisCatalogue::secretSet(),
             // Flash renders from the Twig globals via the layout — do not shadow them.
             // Where each revenue stream settles. Resolved, so the screen shows the code that
             // WILL be used rather than a raw setting somebody has to interpret.
@@ -245,6 +279,11 @@ class SettingsController
             // produce: nothing recorded token usage, and nothing recorded whether
             // a reviewer agreed with a suggestion.
             'ai_enabled_flag' => \AfricaGates\Services\AiGateway::globallyEnabled(),
+            // How operators rated the console assistant's answers, 30 days — the one measure
+            // of whether it helps that is not the assistant's own opinion of itself.
+            'assistant_ratings' => \AfricaGates\Admin\Services\AssistantThreads::ratings(),
+            // And the same question asked of Gee by the public, with the pages it answers worst.
+            'gee_ratings'     => \AfricaGates\Services\GeeRatings::summary(),
             'ai_spend'        => \AfricaGates\Services\AiGateway::spendReport(),
             // WHY the failures in that report happened. The count beside each capability was
             // the end of the trail on a host with no shell: "3 failures", with the provider's
@@ -262,6 +301,8 @@ class SettingsController
                     'calls'      => $c->callsPerDay,
                     'tokens'     => $c->tokensPerDay,
                     'enabled'    => \AfricaGates\Services\AiGateway::capabilityEnabled($c->name),
+                    // Hours a repeated, identical request is answered from cache (0 = never).
+                    'cache_hours' => (int) round($c->cacheTtl / 3600),
                 ],
                 \AfricaGates\Services\AiCapability::all()
             ),
@@ -294,6 +335,11 @@ class SettingsController
             // The secret is write-only, like every other credential on this page.
             'gas_url'        => \AfricaGates\Services\GoogleMeetService::gasUrl(),
             'gas_secret_set' => \AfricaGates\Services\GoogleMeetService::gasSecret() !== '',
+            // The CACENTRE CRM: where this platform's subscribers and enquiries are sent. Read
+            // through the one resolver; the secret is write-only like every other credential.
+            'crm_url'        => \AfricaGates\Services\CrmAudiencePush::base(),
+            'crm_secret_set' => \AfricaGates\Services\CrmAudiencePush::ready(),
+            'crm_last'       => \AfricaGates\Services\CrmAudiencePush::lastResult(),
             // Consumed once, for the same reason as the AI probe above: a verdict about a
             // deployment that has since been re-published is the one an operator would act on.
             'sync_probe' => (static function (): array {
@@ -329,6 +375,14 @@ class SettingsController
             'community_return' => \AfricaGates\Services\CommunityReturnService::displayRules(
                 (new \AfricaGates\Services\RuleEngine())->effective()
             ),
+            // The withdrawal terms, through the resolver the withdrawals and /integrity read.
+            'community_return_terms' => \AfricaGates\Services\CommunityReturnWithdrawals::terms(),
+            'wallet_fee_text'        => \AfricaGates\Services\WalletFee::format(),
+            // Automatic withdrawals: the switch, whether Paystack can actually send, and the
+            // limits WalletRisk holds anything above.
+            'wallet_auto'            => self::walletAuto(),
+            // The nominee's voting letter: on or off, and who signs it.
+            'voting_letter'          => \AfricaGates\Services\NomineeVotingNotice::settings(),
             // The scoring curves, so the form can show what is actually in force rather
             // than the defaults. Whole ruleset rather than five picked keys: the template
             // reads them by name and a missing one under strict_variables is a 500.
@@ -516,14 +570,15 @@ class SettingsController
         // Core site settings + email sender identity (gates_settings table)
         foreach (['announce_text','announce_url','announce_cta','site_title','contact_email',
                   'mail_from_name','mail_from_address','mail_reply_to','admin_alert_email',
+                  // The postal address every bulk mail's footer prints. It was .env only,
+                  // read by six senders, on a host with no shell. See MailConfig::postal().
+                  'mail_postal_address',
                   // Public-facing support address. Distinct from admin_alert_email:
                   // that one is internal plumbing, this one is printed on pages and
                   // quoted by the assistant, so a stranger must be able to write to it.
                   'support_email',
-                  // SMTP transport. The host, port and login are echoed back like any
-                  // other field; the PASSWORD is handled below and never rendered.
-                  // These used to be readable only from .env, on a host with no shell.
-                  'mail_smtp_host','mail_smtp_port','mail_smtp_user',
+                  // NOT the SMTP transport: see MailSetup. Re-posting the login on every
+                  // save of this page let an autofilled field replace a working one.
                   // Image hosting. Cloud name, key and folder are identifiers, not
                   // secrets — the API secret and the combined URL are handled below.
                   'cloudinary_cloud_name','cloudinary_api_key','cloudinary_folder',
@@ -594,10 +649,12 @@ class SettingsController
         // `cloudinary_url` is in this list rather than the echoed one above because
         // `cloudinary://key:secret@cloud` carries the secret inside it; echoing it back
         // would put the credential in the page source of every settings render.
-        foreach (['mail_smtp_pass' => 'smtp_pass',
-                  'cloudinary_api_secret' => 'cloudinary_secret',
+        foreach (['cloudinary_api_secret' => 'cloudinary_secret',
                   'cloudinary_url' => 'cloudinary_url',
-                  'azure_speech_key' => 'azure_key'] as $settingKey => $clearName) {
+                  'azure_speech_key' => 'azure_key',
+                  // The CFIS signing key. Write-only like every other credential here:
+                  // it is what proves to finance which property is reporting money.
+                  'cfis_secret' => 'cfis_secret'] as $settingKey => $clearName) {
             $clear = (array) ($b['secret_clear'] ?? []);
             if (!empty($clear[$clearName])) { $this->settings->set($settingKey, '', $adminId); continue; }
             $val = trim((string) ($b[$settingKey] ?? ''));
@@ -621,6 +678,30 @@ class SettingsController
             }
         }
 
+        // The ads rate card. Marker-gated like the arrivals block below: a blank price is how
+        // a placement is taken off sale, so anything else that posts here (a test send, a
+        // probe) must not be read as "every price is now blank".
+        if (array_key_exists('ads_rates', $b)) {
+            $rates = (array) ($b['ads_cpm'] ?? []);
+            \AfricaGates\Services\Ads\AdRateCard::save($rates);
+            // The checkbox posts nothing when unticked, which is why this sits behind the
+            // card's own marker: unticked means the beta is over.
+            $this->settings->set('ads_beta', !empty($b['ads_beta']) ? '1' : '0', $adminId);
+            $mode = (string) ($b['ads_pricing_mode'] ?? 'dynamic') === 'fixed' ? 'fixed' : 'dynamic';
+            $this->settings->set(\AfricaGates\Services\Ads\AdMarket::MODE_KEY, $mode, $adminId);
+            $target = max(0, min(1_000_000_000, (int) preg_replace('/[^0-9]/', '', (string) ($b['ads_revenue_target'] ?? ''))));
+            $this->settings->set(\AfricaGates\Services\Ads\AdMarket::TARGET_KEY, $target > 0 ? (string) $target : '', $adminId);
+            if (array_key_exists('ads_vat_pct', $b) && is_numeric($b['ads_vat_pct'])) {
+                // Basis points, so 7.5% is stored exactly (AdCheckout::vatBps()).
+                $this->settings->set(\AfricaGates\Services\Ads\AdCheckout::VAT_KEY,
+                    (string) max(0, min(2500, (int) round((float) $b['ads_vat_pct'] * 100))), $adminId);
+            }
+            \AfricaGates\Services\Ads\AdMarket::forget();
+            $this->audit->record($adminId, 'settings.ads_rates', null, null,
+                ['bases' => \AfricaGates\Services\Ads\AdRateCard::bases(), 'mode' => $mode, 'target_naira' => $target,
+                 'beta' => !empty($b['ads_beta'])]);
+        }
+
         // Arrival tracking. Marker-gated like the others: an unchecked box posts nothing,
         // so a plain allowlist entry could turn it on and never off. `visits_days` always
         // posts, so its presence marks the section as submitted.
@@ -637,6 +718,19 @@ class SettingsController
             // unrecognised value reads as `exempt` when CookiePrefs loads it, so a typo
             // here would silently switch consent OFF — which is the one direction this
             // setting must never move by accident.
+            // Google Analytics 4: a measurement ID switches it on, a blank switches it off. A
+            // value that is not one is refused rather than saved, because a malformed ID would
+            // load Google's tag for nothing and still put Google in the cookie policy.
+            if (array_key_exists(\AfricaGates\Services\GoogleAnalytics::SETTING, $b)) {
+                $raw = trim((string) $b[\AfricaGates\Services\GoogleAnalytics::SETTING]);
+                $ga  = \AfricaGates\Services\GoogleAnalytics::clean($raw);
+                if ($raw === '' || $ga !== null) {
+                    $this->settings->set(\AfricaGates\Services\GoogleAnalytics::SETTING, $ga ?? '', $adminId);
+                } else {
+                    $_SESSION['flash_error'] = 'Google Analytics not changed: a measurement ID looks like G-ABC123XYZ.';
+                }
+            }
+
             $mode = strtolower(trim((string) ($b['visits_consent_mode'] ?? '')));
             $this->settings->set(\AfricaGates\Services\CookiePrefs::MODE_KEY,
                 $mode === \AfricaGates\Services\CookiePrefs::MODE_CONSENT
@@ -718,10 +812,20 @@ class SettingsController
         // rejects an initialise with a bad subaccount, so a typo here would take that stream's
         // payments offline with no visible cause. Refusing to route is recoverable; refusing to
         // sell is not.
+        // Where finance is, and who we are to it. Not secrets — the key beside them is —
+        // so they save on the plain path and are echoed back, which is what lets an
+        // operator SEE the address a refused catalogue was asked for.
+        foreach (['cfis_url', 'cfis_source'] as $k) {
+            if (array_key_exists($k, $b)) {
+                $this->settings->set($k, trim((string) $b[$k]), $adminId);
+                \AfricaGates\Services\CfisCatalogue::refresh();
+            }
+        }
+
         if (array_key_exists('payout_settings', $b)) {
             $codes = [];
             $bearers = [];
-            foreach (array_keys(\AfricaGates\Services\PaymentDestination::STREAMS) as $stream) {
+            foreach (array_keys(\AfricaGates\Services\PaymentDestination::streams()) as $stream) {
                 if (array_key_exists('sub_' . $stream, $b)) {
                     $codes[$stream] = (string) $b['sub_' . $stream];
                 }
@@ -738,7 +842,7 @@ class SettingsController
             if ($r['refused'] !== []) {
                 $lines = [];
                 foreach ($r['refused'] as $stream => $why) {
-                    $lines[] = (\AfricaGates\Services\PaymentDestination::STREAMS[$stream] ?? $stream)
+                    $lines[] = \AfricaGates\Services\PaymentDestination::labelFor($stream)
                              . ': ' . $why;
                 }
                 // Paystack's own words, per stream, and the old value kept. "Subaccount not
@@ -751,7 +855,7 @@ class SettingsController
                 // wrong one recognises the wrong name far faster than the wrong code.
                 $ok = [];
                 foreach ($r['checked'] as $stream => $who) {
-                    $ok[] = (\AfricaGates\Services\PaymentDestination::STREAMS[$stream] ?? $stream)
+                    $ok[] = \AfricaGates\Services\PaymentDestination::labelFor($stream)
                           . ' → ' . $who;
                 }
                 $verified = 'Verified with Paystack: ' . implode(' · ', $ok);
@@ -919,6 +1023,12 @@ class SettingsController
             $_SESSION['flash_error'] = $why;
         }
 
+        // ── THE CACENTRE CRM ──────────────────────────────────────────────────
+        // Marker-gated like the rest, and the secret write-only: a blank field keeps it.
+        if (($why = $this->saveCrm($b, $adminId)) !== null) {
+            $_SESSION['flash_error'] = $why;
+        }
+
         // Messaging (SMS / WhatsApp) — Twilio + WhatsApp Business Cloud API.
         // Secrets are WRITE-ONLY (never rendered back); a blank field leaves the
         // stored value untouched, the matching "clear" box removes it. Master
@@ -995,6 +1105,61 @@ class SettingsController
                 // nominee out of qualifying forever, and >100 would stop being a cap.
                 'community_return_supporter_cap_pct' => max(1, min(100, (int) ($b['community_return_supporter_cap_pct'] ?? 10))),
             ]);
+
+            // ── The withdrawal terms ─────────────────────────────────────────
+            //
+            // Published on /integrity from these values, and withdrawals stay closed until
+            // they are marked published. "Published" is refused without a tax position:
+            // it is the one term no default can supply, and the brief requires every term
+            // to be public before anybody can ask for money. Floors at the read too, in
+            // CommunityReturnWithdrawals::terms(), so a hand-edited rule set cannot publish
+            // "paid within 0 days".
+            $tax = mb_substr(trim((string) ($b['community_return_tax_note'] ?? '')), 0, 1000);
+            $engine->merge('global', null, [
+                'community_return_min_withdrawal_naira' => max(0, (int) ($b['community_return_min_withdrawal_naira'] ?? 1000)),
+                'community_return_payout_days'          => max(1, (int) ($b['community_return_payout_days'] ?? 10)),
+                'community_return_appeal_days'          => max(1, (int) ($b['community_return_appeal_days'] ?? 14)),
+                'community_return_unclaimed_days'       => max(1, (int) ($b['community_return_unclaimed_days'] ?? 365)),
+                'community_return_tax_note'             => $tax,
+                'community_return_terms_published'      => ($b['community_return_terms_published'] ?? '') === '1' && $tax !== '',
+            ]);
+
+            // The wallet's withdrawal fee schedule. Refused whole rather than half-read: a
+            // fee is money taken from somebody, and a line the parser guessed at is a fee
+            // nobody chose. The schedule in force stays until a valid one is saved.
+            if (array_key_exists('wallet_fee_bands', $b)) {
+                $fees = \AfricaGates\Services\WalletFee::parse((string) $b['wallet_fee_bands']);
+                if ($fees['ok']) {
+                    $engine->merge('global', null, ['wallet_fee_bands' => $fees['bands']]);
+                } else {
+                    $_SESSION['flash_error'] = 'Withdrawal fee not saved: ' . $fees['message'];
+                }
+            }
+
+            // Automatic withdrawals. A checkbox posts nothing when it is off, so the form
+            // says it was drawn (`wallet_auto_form`) — otherwise saving any OTHER part of
+            // Settings would switch automatic payouts off without anybody choosing to.
+            if (($b['wallet_auto_form'] ?? '') === '1') {
+                $auto = ['wallet_auto_payout' => ($b['wallet_auto_payout'] ?? '') === '1'];
+                foreach (array_keys(\AfricaGates\Services\WalletRisk::DEFAULTS) as $k) {
+                    if (array_key_exists($k, $b)) $auto[$k] = max(0, (int) $b[$k]);
+                }
+                $engine->merge('global', null, $auto);
+            }
+        }
+
+        // ── The nominee's voting letter ──────────────────────────────────────
+        //
+        // A checkbox posts nothing when it is off, so the card says it was drawn
+        // (`voting_letter_form`); otherwise saving any other card would switch the letters
+        // off without anybody choosing to.
+        if (($b['voting_letter_form'] ?? '') === '1') {
+            (new \AfricaGates\Services\RuleEngine())->merge('global', null, [
+                'voting_letter_auto'            => ($b['voting_letter_auto'] ?? '') === '1',
+                'voting_letter_signatory'       => mb_substr(trim((string) ($b['voting_letter_signatory'] ?? '')), 0, 80),
+                'voting_letter_signatory_title' => mb_substr(trim((string) ($b['voting_letter_signatory_title'] ?? '')), 0, 80),
+                'voting_letter_audience'        => ($b['voting_letter_audience'] ?? '') === 'verified' ? 'verified' : 'ballot',
+            ]);
         }
 
         // ── The scoring curves ───────────────────────────────────────────────
@@ -1061,6 +1226,13 @@ class SettingsController
         if (array_key_exists('nomination_settings', $b)) {
             $this->settings->set('nomination_eligibility_enabled', isset($b['nomination_eligibility_enabled']) ? '1' : '', $adminId);
             $this->settings->set('nomination_min_locations', (string) max(1, (int) ($b['nomination_min_locations'] ?? 5)), $adminId);
+            // Stored as the resolver will read it, so the form shows what is in force.
+            if (array_key_exists(\AfricaGates\Services\NominationRules::DAILY_LIMIT_KEY, $b)) {
+                $this->settings->set(\AfricaGates\Services\NominationRules::DAILY_LIMIT_KEY,
+                    (string) \AfricaGates\Services\NominationRules::dailyLimit([
+                        \AfricaGates\Services\NominationRules::DAILY_LIMIT_KEY => $b[\AfricaGates\Services\NominationRules::DAILY_LIMIT_KEY],
+                    ]), $adminId);
+            }
         }
 
         // Display constants — values that used to be hardcoded in copy across the site.
@@ -1087,6 +1259,23 @@ class SettingsController
             if (array_key_exists('processing_fee_pct', $b)) {
                 $this->settings->set('processing_fee_pct', (string) max(0, (float) $b['processing_fee_pct']), $adminId);
             }
+            // The rest of the gateway's schedule, and who bears it on a partner gift
+            // (GatewayFee): one schedule the cover, the page's total and the ledger share.
+            foreach (['processing_fee_flat', 'processing_fee_flat_from', 'processing_fee_cap'] as $k) {
+                if (array_key_exists($k, $b)) $this->settings->set($k, (string) max(0, (int) $b[$k]), $adminId);
+            }
+            if (array_key_exists(\AfricaGates\Services\GatewayFee::BEARER_KEY, $b)) {
+                $this->settings->set(\AfricaGates\Services\GatewayFee::BEARER_KEY,
+                    (string) $b[\AfricaGates\Services\GatewayFee::BEARER_KEY] === 'platform' ? 'platform' : 'organisation', $adminId);
+            }
+            \AfricaGates\Services\GatewayFee::forget();
+        }
+
+        // Planned work on /status (Phase 9) — normalised by its one reader's own writer.
+        if (array_key_exists('planned_work_settings', $b)) {
+            foreach (\AfricaGates\Services\PlannedWork::fromPost($b) as $k => $v) {
+                $this->settings->set($k, $v, $adminId);
+            }
         }
 
         $this->audit->record($adminId, 'settings.update', null, null);
@@ -1104,7 +1293,9 @@ class SettingsController
         // Allowlisted, not echoed: this value reaches a Location header, and a posted
         // string is not somewhere to take a URL fragment from on trust.
         $section = (string) ($b['st_section'] ?? '');
-        $anchor  = in_array($section, ['site', 'mail', 'money', 'integrity', 'ai', 'ops'], true)
+        // `media` was missing, so saving from the Media group landed on Site with the
+        // change out of sight; `nominations` is the group the daily limit lives in.
+        $anchor  = in_array($section, ['site', 'nominations', 'mail', 'media', 'money', 'integrity', 'ai', 'ops'], true)
             ? '#' . $section
             : '';
 
@@ -1203,16 +1394,39 @@ class SettingsController
     public function runCron(Request $req, Response $res): Response
     {
         $adminId = (int)($_SESSION['admin_id'] ?? 0);
+        // The SAME single-instance lock the CLI cron and /__cron/run take. Without it this
+        // button was a third, unguarded door into one orchestrator: pressed during a tick,
+        // two passes ran side by side over every sweep that reads "not yet done" and then
+        // acts — refunds, payouts, the reminders, the acknowledgements — which is how one
+        // person receives the same email twice, or one refund is asked for twice.
+        if (!self::acquireMaintenanceLock()) {
+            $_SESSION['flash_error'] = 'Maintenance is already running (the scheduled tick, or another press of this button). '
+                . 'Nothing was started — try again in a minute.';
+            return $res->withHeader('Location', '/admin/settings')->withStatus(302);
+        }
         try {
             $r = (new \AfricaGates\Support\Maintenance(null, false))->run('auto');
-            $done = array_sum(array_map(static fn($x) => (int)($x[1] ?? 0), $r['ran'] ?? []));
-            $_SESSION['flash_ok'] = sprintf('Maintenance ran (%d task groups, %dms). Queue delivery + integrations run on the automatic tick.', count($r['ran'] ?? []), (int)($r['runtime_ms'] ?? 0));
+            $failed = array_keys((array) ($r['failures'] ?? []));
+            if ($failed !== []) {
+                $_SESSION['flash_error'] = sprintf('Maintenance ran (%d task groups, %dms) but %d failed: %s. The reasons are in the cron log.',
+                    count($r['ran'] ?? []), (int)($r['runtime_ms'] ?? 0), count($failed), implode(', ', $failed));
+            } else {
+                $_SESSION['flash_ok'] = sprintf('Maintenance ran (%d task groups, %dms). Queue delivery + integrations run on the automatic tick.', count($r['ran'] ?? []), (int)($r['runtime_ms'] ?? 0));
+            }
         } catch (\Throwable $e) {
             error_log('[settings run-cron] ' . $e->getMessage());
             $_SESSION['flash_error'] = 'Maintenance run failed — check the logs.';
+        } finally {
+            \AfricaGates\Support\CronGuard::releaseAll();
         }
         try { $this->audit->record($adminId, 'settings.run_cron', null, null); } catch (\Throwable) {}
         return $res->withHeader('Location', '/admin/settings')->withStatus(302);
+    }
+
+    /** The lock {@see \AfricaGates\Support\CronGuard} names `maintenance`, in the directory the webcron uses. */
+    private static function acquireMaintenanceLock(): bool
+    {
+        return \AfricaGates\Support\CronGuard::acquire('maintenance', dirname(__DIR__, 3) . '/var/data');
     }
 
     /**
@@ -1237,6 +1451,13 @@ class SettingsController
     public function reconcilePayments(Request $req, Response $res): Response
     {
         $adminId = (int) ($_SESSION['admin_id'] ?? 0);
+        // Same lock as runCron() and the scheduler. The reconciliation's own UPDATE is
+        // idempotent, but the recovery and receipt mail around it is not.
+        if (!self::acquireMaintenanceLock()) {
+            $_SESSION['flash_error'] = 'Maintenance is running right now, and it reconciles payments itself. '
+                . 'Nothing was started — try again in a minute.';
+            return $res->withHeader('Location', '/admin/settings')->withStatus(302);
+        }
         try {
             $r = (new \AfricaGates\Support\Maintenance(null, false))->run('payments');
             $failed = ($r['failures'] ?? []) !== [];
@@ -1248,6 +1469,8 @@ class SettingsController
         } catch (\Throwable $e) {
             error_log('[settings reconcile] ' . $e->getMessage());
             $_SESSION['flash_error'] = 'Could not reconcile: ' . $e->getMessage();
+        } finally {
+            \AfricaGates\Support\CronGuard::releaseAll();
         }
         try { $this->audit->record($adminId, 'settings.reconcile_payments', null, null); } catch (\Throwable) {}
         return $res->withHeader('Location', '/admin/settings')->withStatus(302);
@@ -1323,6 +1546,24 @@ class SettingsController
     }
 
     /**
+     * Automatic withdrawals as the form draws them: the rules in force, and whether the
+     * gateway can send at all — a switch that is on over an unconfigured Paystack pays
+     * nobody, and the screen has to say so rather than look switched on.
+     *
+     * @return array<string,mixed>
+     */
+    private static function walletAuto(): array
+    {
+        $eff = (new \AfricaGates\Services\RuleEngine())->effective();
+        $out = ['on' => !empty($eff['wallet_auto_payout']),
+                'paystack' => (new \AfricaGates\Services\PaymentService())->isEnabled('paystack')];
+        foreach (array_keys(\AfricaGates\Services\WalletRisk::DEFAULTS) as $k) {
+            $out[$k] = \AfricaGates\Services\WalletRisk::limit($eff, $k);
+        }
+        return $out;
+    }
+
+    /**
      * Store the two Apps Script values, from whichever button posted them.
      *
      * Shared with {@see probeSync()} deliberately. The probe button posts the same form, so
@@ -1364,6 +1605,39 @@ class SettingsController
             if ($sec !== '') $this->settings->set('gas_secret', $sec, $adminId);
         }
 
+        return $why;
+    }
+
+    /**
+     * The CACENTRE CRM's address and the secret CACENTRE generated for this platform.
+     *
+     * The address is REFUSED rather than stored when it is anything but an origin — a path
+     * or a query would be appended to, and the push would go to a page that answers 404
+     * while this screen said it was set.
+     *
+     * @param array<string,mixed> $b
+     */
+    private function saveCrm(array $b, int $adminId): ?string
+    {
+        if (!array_key_exists('crm_settings', $b)) return null;
+        $why = null;
+        if (array_key_exists('crm_intake_url', $b)) {
+            $url = rtrim(trim((string) $b['crm_intake_url']), '/');
+            $p = $url !== '' ? parse_url($url) : null;
+            if ($url === '' || (is_array($p) && in_array(strtolower((string) ($p['scheme'] ?? '')), ['http', 'https'], true)
+                                && !empty($p['host']) && empty($p['path']) && empty($p['query']) && empty($p['user']))) {
+                $this->settings->set('crm_intake_url', $url, $adminId);
+            } else {
+                $why = 'The CACENTRE address was not saved — use the site address alone, such as '
+                     . 'https://cacentre.afrovanguard.org.ng, with nothing after it. Everything else on this page was saved.';
+            }
+        }
+        if (!empty($b['crm_clear']['secret'])) {
+            $this->settings->set('crm_intake_secret', '', $adminId);
+        } else {
+            $sec = trim((string) ($b['crm_intake_secret'] ?? ''));
+            if ($sec !== '') $this->settings->set('crm_intake_secret', $sec, $adminId);
+        }
         return $why;
     }
 

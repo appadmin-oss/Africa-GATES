@@ -291,6 +291,21 @@ final class ShopCatalogueTest extends TestCase
         $this->assertSame([], $this->slugs(['q' => '_ee']));
     }
 
+    /**
+     * An underscore the shopper TYPED is a letter, and it has to match on both drivers.
+     * The escape was a backslash with no ESCAPE clause — MySQL's default, and SQLite has
+     * none — so on SQLite `\_` meant a literal backslash and this search found nothing.
+     */
+    public function test_a_search_containing_an_underscore_finds_it(): void
+    {
+        $this->product(['slug' => 'tee', 'name' => 'AG_Heritage Tee']);
+        $this->product(['slug' => 'mug', 'name' => 'AGxHeritage Mug']);
+
+        $this->assertSame(['tee'], $this->slugs(['q' => 'ag_heritage']),
+            'an underscore search matched nothing, or matched any character');
+        $this->assertSame(['tee'], $this->slugs(['q' => '_']));
+    }
+
     public function test_a_category_filter_is_exact(): void
     {
         $this->product(['slug' => 'tee', 'category' => 'Apparel']);

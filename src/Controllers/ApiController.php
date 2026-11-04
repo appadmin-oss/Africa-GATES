@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 namespace AfricaGates\Controllers;
+
+use AfricaGates\Services\Newsletter\NewsletterAudience;
 use AfricaGates\Support\Env;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -80,7 +82,25 @@ class ApiController {
         $fp=hash('sha256',$email);
         if(!$this->rateLimit->check($fp,'otp_request',3,600)){ $w=$this->rateLimit->retryAfter($fp,'otp_request',600); return $this->err($res,"Too many requests. Try again in {$w}s.",'RATE_LIMITED',429); }
         $nId=(int)($b['nominee_id']??0); $aId=(int)($b['award_id']??0);
+        // Ask the ballot's own gate BEFORE a code is minted and mailed. castVote() refuses
+        // a closed category or a sandbox nominee, but only after this endpoint has already
+        // sent a real email to whatever address was typed — a code nothing can spend, for
+        // a nominee anybody can enumerate by id. Same nominee lookup as VoteService.
+        $nominee=\AfricaGates\Services\MergeService::notMerged(
+            DB::table('gates_nominees')->where('id',$nId)->where('status','approved'))->first();
+        if(!$nominee) return $this->err($res,'Nominee not found.','INVALID_NOMINEE',404);
+        try { \AfricaGates\Services\BallotGuard::assertVotable((int)$nominee->category_id); }
+        catch(\AfricaGates\Services\PhaseError $e) { return $this->err($res,\AfricaGates\Support\PublicFault::line($e,'Voting is not open for this nominee.','api.otp'),$e->errorCode,403); }
+        // ── THE AWARD'S TERMS, WHERE IT HAS PUBLISHED ANY (Phase 5, §8.3) ────────
+        // Asked before a code is minted and mailed, for the reason the gate above is: a
+        // refusal that arrives after the email is a code nothing can spend. Only where the
+        // programme has terms — an award with none has nothing to accept (AwardTerms).
+        if(($tp=self::programmeOfCategory((int)$nominee->category_id))>0 && \AfricaGates\Services\AwardTerms::required($tp) && empty($b['accept_terms']))
+            return $this->err($res,'Please accept the award terms to vote.','TERMS_REQUIRED',422);
         $r=$this->otp->generate($email,$nId,$aId,'vote');
+        // The address this browser asked a vote code for: the one the help desk may then
+        // answer "did my vote register" about for a guest (Support\TypedEmails).
+        if(!empty($r['success'])) \AfricaGates\Support\TypedEmails::remember($email);
         if($r['success']) {
             $this->events?->otpRequested($fp,$nId,$ipFp);
             $this->events?->funnelStep($b['session_id']??$fp,'otp_requested',$nId,$aId,null,$ipFp);
@@ -125,8 +145,29 @@ class ApiController {
         // above), so giving one is not a choice to be published. Only the paid ballot,
         // where the field is optional, treats filling it in as consent. See
         // \AfricaGates\Services\SupportersService.
+        $termsProgramme=self::programmeOfCategory((int)(DB::table('gates_nominees')->where('id',$nId)->value('category_id') ?? 0));
+        if($termsProgramme>0 && \AfricaGates\Services\AwardTerms::required($termsProgramme) && empty($b['accept_terms']))
+            return $this->err($res,'Please accept the award terms to vote.','TERMS_REQUIRED',422);
         $r=$this->votes->castVote($email,$otp,$nId,$aId,$ip,$deviceHash,$idemKey?:null,$name,$phone);
         if(!$r['success']) return $this->err($res,$r['message'],$r['code']);
+
+        // Recorded only once the vote counted, and never at the cost of it (AwardTerms::accept
+        // does not throw). The session line is what lets the ballot page draw the `vote`
+        // celebration as CONFIRMED by the server rather than by the script that asked
+        // (Services\Celebration: money and votes celebrate only once the record says so).
+        if($termsProgramme>0) \AfricaGates\Services\AwardTerms::accept($termsProgramme,\AfricaGates\Services\AwardTerms::KIND_VOTE,$email,$nId);
+        if(isset($_SESSION)&&is_array($_SESSION)) $_SESSION['vote_cast'][$nId]=time();
+        // "Bring your people" (VoteRecruit): the link this vote arrived through is credited
+        // with one more person, and this voter gets a link of their own for the same nominee.
+        // Both after the vote counted, and neither can touch it.
+        $voterHash=\AfricaGates\Services\VoteService::voterHash($email);
+        $via=\AfricaGates\Services\VoteRecruit::fromSession();
+        if($via!=='') \AfricaGates\Services\VoteRecruit::credit($via,$nId,$voterHash,'vote:'.(int)($r['vote_id']??0));
+        // And a volunteer's voter drive, the same way: one person, once, after the vote counted.
+        $drive=\AfricaGates\Services\Volunteer\VoterDrive::fromSession();
+        if($drive!=='') \AfricaGates\Services\Volunteer\VoterDrive::credit($drive,$nId,$voterHash);
+        $mine=\AfricaGates\Services\VoteRecruit::forVoter($voterHash,$nId);
+        if($mine&&isset($_SESSION)&&is_array($_SESSION)) $_SESSION['vote_recruit'][$nId]=$mine['code'];
 
         // Post-vote: record fraud score, events, milestones, cache invalidation
         if($this->fraud && isset($fs)) {
@@ -247,6 +288,15 @@ HTML;
         ] + ($msg ?? []));
     }
 
+    /** The programme a category belongs to, through its cycle; 0 when unresolvable. */
+    private static function programmeOfCategory(int $categoryId): int {
+        if($categoryId<1) return 0;
+        try {
+            return (int) (DB::table('gates_award_categories as c')->join('gates_award_cycles as cy','cy.id','=','c.cycle_id')
+                ->where('c.id',$categoryId)->value('cy.programme_id') ?? 0);
+        } catch(\Throwable) { return 0; }
+    }
+
     public function trackFunnel(Request $req,Response $res):Response {
         $b=(array)$req->getParsedBody();
         $step=$b['step']??''; $sid=$b['session_id']??'';
@@ -358,8 +408,10 @@ HTML;
     public function dashboard(Request $req,Response $res):Response {
         $data=$this->cache->remember('api:dashboard',14400,function(){
             $tp=DB::table('gates_profiles')->where('status','approved')->count();
-            $tv=DB::table('gates_votes')->count();
-            $ag=\AfricaGates\Services\MergeService::notMerged(DB::table('gates_nominees')->whereIn('status',['winner','runner_up']))->count();
+            // The sandbox's seeded ballots and crowned nominees are real rows (DemoSeeder) and
+            // must never reach a public figure; liveAwardOnly() is the one clause that excludes them.
+            $tv=\AfricaGates\Services\DemoSeeder::liveAwardOnly(DB::table('gates_votes'),'gates_votes.nominee_id')->count();
+            $ag=\AfricaGates\Services\DemoSeeder::liveAwardOnly(\AfricaGates\Services\MergeService::notMerged(DB::table('gates_nominees')->whereIn('status',['winner','runner_up'])))->count();
             $rd=DB::table('gates_profiles')->where('status','approved')->selectRaw('region,COUNT(*) as count')->groupBy('region')->orderByDesc('count')->get()->map(fn($r)=>['region'=>$r->region,'count'=>(int)$r->count])->toArray();
             $td=DB::table('gates_profiles')->where('status','approved')->whereNotIn('cpi_tier',['unranked'])->selectRaw('cpi_tier as tier,COUNT(*) as count')->groupBy('cpi_tier')->get()->map(fn($r)=>['tier'=>$r->tier,'count'=>(int)$r->count])->toArray();
             $cats=DB::table('gates_profiles')->where('status','approved')->selectRaw('category,COUNT(*) as count')->groupBy('category')->orderByDesc('count')->limit(10)->get()->map(fn($r)=>['category'=>$r->category,'count'=>(int)$r->count])->toArray();
@@ -381,13 +433,19 @@ HTML;
     }
     public function submitNomination(Request $req,Response $res):Response {
         $b=(array)$req->getParsedBody(); $ip=$this->ip($req); $fp=hash('sha256',$ip.strtolower(trim($b['nominator_email']??'')));
-        if(!$this->rateLimit->check($fp,'nominate',5,86400)) return $this->err($res,'Daily nomination limit reached.','RATE_LIMITED',429);
+        $daily = \AfricaGates\Services\NominationRules::dailyLimit();
+        if(!$this->rateLimit->check($fp,'nominate',$daily,86400)) return $this->err($res,"Daily nomination limit reached ({$daily} per day).",'RATE_LIMITED',429);
         // (string) cast before trim(). Without it this endpoint returned a 500 for the
         // most natural JSON body there is: `{"programme_id": 1, …}`. trim() rejects an
         // int under PHP 8, so a caller who sent the id as a number — as JSON encodes
         // numbers — got "An internal error occurred" instead of a nomination, while a
         // caller who quoted it as a string succeeded. Found by POSTing to it.
-        foreach(['programme_id','nominee_name','country_code','reason','nominator_name','nominator_email'] as $f) if(empty(trim((string)($b[$f]??'')))) return $this->err($res,"Field '$f' is required.");
+        // The fields this door can check by itself. `nominee_name`, the categories and
+        // the evidence are NOT here: they belong to NominationRules, which AwardService
+        // runs for BOTH doors — because this endpoint and the web form had drifted to
+        // six required fields against thirteen, so an API nomination landed with no
+        // state, no LGA, no nominator phone and a one-word name the form refused.
+        foreach(['programme_id','country_code','nominator_name','nominator_email'] as $f) if(empty(trim((string)($b[$f]??'')))) return $this->err($res,"Field '$f' is required.");
         if(!filter_var($b['nominator_email'],FILTER_VALIDATE_EMAIL)) return $this->err($res,'Invalid nominator email.');
         // Nominee contact: email OR phone — at least one; anything provided must validate.
         $ne=trim((string)($b['nominee_email']??'')); $np=trim((string)($b['nominee_phone']??''));
@@ -432,9 +490,12 @@ HTML;
     }
 
     /**
-     * Minimal newsletter subscribe — idempotent on email_hash (UNIQUE),
-     * IP-throttled, same-origin enforced upstream by CsrfMiddleware. We
-     * deliberately return success on duplicate to avoid revealing membership.
+     * Newsletter signup — IP-throttled, same-origin enforced upstream by CsrfMiddleware.
+     *
+     * The row is written and a CONFIRMATION is sent; nothing else reaches the address until
+     * its owner presses the button in it ({@see NewsletterAudience}). The answer is the same
+     * whatever happened — new, already confirmed, throttled per address — because a form
+     * that answers differently is a membership lookup.
      */
     public function newsletterSubscribe(Request $req, Response $res): Response {
         $b = (array)$req->getParsedBody();
@@ -446,32 +507,14 @@ HTML;
         if (!$this->rateLimit->check(hash('sha256', $ip), 'newsletter_subscribe', 5, 3600)) {
             return $this->err($res, 'Too many requests. Try again later.', 'RATE_LIMITED', 429);
         }
-        $hash = hash('sha256', $email);
-        $isNew = false;
         try {
-            DB::table('gates_newsletter')->insert([
-                'email_hash' => $hash, 'email' => $email,
-                'ip_hash' => hash('sha256', $ip),
-                'source' => substr((string)($b['source'] ?? 'homepage'), 0, 50),
-                'subscribed_at' => date('Y-m-d H:i:s'),
-            ]);
-            $isNew = true;
+            NewsletterAudience::join($email, (string)($b['source'] ?? 'homepage'), hash('sha256', $ip),
+                \AfricaGates\Support\SiteUrl::base($req),
+                $this->otp ? NewsletterAudience::transport($this->otp) : null);
         } catch (\Throwable $e) {
-            // UNIQUE violation on re-subscribe is fine — idempotent + non-leaky.
+            // Before the migration, or a database hiccup: the person is told the same thing,
+            // and the next attempt will write the row.
         }
-        // Welcome only a genuinely-new subscriber (re-subscribe sends nothing → no mail-bomb).
-        if ($isNew && $this->otp) {
-            try {
-                $base = \AfricaGates\Support\SiteUrl::base($req);
-                $whtml = "<h1 style=\"margin:0;font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:24px;color:#10292C\">You're on the list</h1>"
-                    . "<p style=\"margin:13px 0 0;font-size:15px;line-height:1.6;color:#4a5256\">Thanks for subscribing to Africa GATES. We'll let you know when nominations open, voting goes live, and each cycle's winners are crowned.</p>"
-                    . "<p style=\"text-align:center;margin:22px 0\"><a href=\"{$base}/leaderboard\" style=\"display:inline-block;padding:12px 28px;background:#10292C;color:#fff;border-radius:999px;font-weight:600;text-decoration:none;font-size:15px\">Explore the leaderboard &rarr;</a></p>"
-                    . "<p style=\"margin:0;font-size:12.5px;color:#92a6a7\">Didn't subscribe? You can ignore this email and you won't hear from us again.</p>";
-                $this->otp->sendBranded($email, "You're subscribed — Africa GATES", $whtml,
-                    "Thanks for subscribing to Africa GATES. We'll let you know when nominations open and voting goes live.\n\n{$base}/leaderboard\n\nDidn't subscribe? Ignore this email.",
-                    'Newsletter');
-            } catch (\Throwable $e) {}
-        }
-        return $this->ok($res, ['message' => 'Subscribed.']);
+        return $this->ok($res, ['message' => 'Check your inbox to confirm your subscription.']);
     }
 }

@@ -129,9 +129,9 @@ class JudgeAnomalyServiceTest extends TestCase
         DB::table('gates_judge_criteria')->delete();
         DB::table('gates_judge_criteria')->insert([['id' => 1, 'slug' => 'a', 'label' => 'A', 'weight' => 100, 'is_active' => 1]]);
         DB::table('gates_judges')->insert([
-            ['id' => 1, 'name' => 'Fair One', 'email' => 'j1@e.com'],
-            ['id' => 2, 'name' => 'Fair Two', 'email' => 'j2@e.com'],
-            ['id' => 3, 'name' => 'Harsh Judge', 'email' => 'j3@e.com'],
+            ['id' => 1, 'name' => 'Fair One', 'email' => 'j1@e.com', 'programme_ids' => '[1]'],
+            ['id' => 2, 'name' => 'Fair Two', 'email' => 'j2@e.com', 'programme_ids' => '[1]'],
+            ['id' => 3, 'name' => 'Harsh Judge', 'email' => 'j3@e.com', 'programme_ids' => '[1]'],
         ]);
         // Panel 9, 9, 3 → mean 7, the 3 is 4 points out → harsh flag.
         DB::table('gates_judge_criteria_scores')->insert([

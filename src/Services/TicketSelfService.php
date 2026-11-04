@@ -426,6 +426,15 @@ final class TicketSelfService
 
         // The seat is genuinely free now, so the queue can have it.
         try { EventTicketService::releaseDiscountFor($reg); } catch (\Throwable) {}
+
+        // Money is going back, so the referral this ticket earned stops counting — at the
+        // moment the refund is DECIDED, not when the gateway settles it, because from here
+        // the platform owes the buyer and a commission on that sum is a share of nothing.
+        // A cancellation that refunds nothing (a non-refundable tier) leaves the sale
+        // standing: the organiser kept the money and the referrer brought it in.
+        if ($owed > 0) {
+            ReferralService::reverseSale('registration', (int) $reg->id, 'ticket cancelled and refunded by the attendee');
+        }
         try { EventWaitlist::promote((int) ($reg->tier_id ?? 0), 1, $mailer); } catch (\Throwable) {}
 
         // ── 2 · the money ────────────────────────────────────────────────────

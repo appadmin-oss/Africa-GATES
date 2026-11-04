@@ -178,8 +178,18 @@ final class PointsService
                 if ((int) $u->points < $cost) {
                     return ['ok' => false, 'message' => 'You need ' . number_format($cost) . ' points to redeem a vote — you have ' . number_format((int) $u->points) . '.'];
                 }
-                $nom = MergeService::notMerged(DB::table('gates_nominees')->where('id', $nomineeId)->where('status', 'approved'))->first();
+                // Locked for the per-nominee cap below — see BonusVoteService::redeem(),
+                // which takes the same lock for the same reason: the user lock above stops
+                // one member double-spending, and does nothing about two members (or a
+                // donor) redeeming onto one nominee in the same instant, each reading the
+                // ceiling as unspent.
+                $nom = MergeService::notMerged(DB::table('gates_nominees')->where('id', $nomineeId)->where('status', 'approved'))
+                    ->lockForUpdate()->first();
                 if (!$nom) return ['ok' => false, 'message' => 'That nominee is not open for voting.'];
+                // A volunteer does not vote with points in an award they help run (Volunteer\Rewards).
+                if (\AfricaGates\Services\Volunteer\Rewards::helpsRun($userId, $nomineeId)) {
+                    return ['ok' => false, 'message' => 'You help run this award as a volunteer, so your points can’t vote in it.'];
+                }
 
                 $cycle = DB::table('gates_award_cycles AS cy')
                     ->join('gates_award_categories AS c', 'c.cycle_id', '=', 'cy.id')

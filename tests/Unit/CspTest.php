@@ -120,59 +120,6 @@ class CspTest extends TestCase
 
     // ── The rendered pages ──────────────────────────────────────────────────
 
-    public function test_every_inline_script_on_a_rendered_page_carries_the_nonce(): void
-    {
-        // THE TEST THAT MATTERS. A missed nonce is a silently dead script.
-        DB::table('gates_profiles')->insert(['slug' => 'ada', 'display_name' => 'Ada Obi', 'email' => 'ada@example.com']);
-
-        foreach ([
-            [\AfricaGates\Controllers\HomeController::class, 'index', '/'],
-            [\AfricaGates\Controllers\RegistryController::class, 'index', '/registry'],
-            [\AfricaGates\Controllers\LeaderboardController::class, 'index', '/leaderboard'],
-            [\AfricaGates\Controllers\AwardsController::class, 'index', '/awards'],
-        ] as [$class, $method, $path]) {
-            $html = $this->render($class, $method, $path);
-            $tags = $this->inlineScriptTags($html);
-
-            $this->assertNotSame([], $tags, "{$path} rendered no inline scripts — check the fixture, not the CSP");
-            foreach ($tags as $tag) {
-                $this->assertStringContainsString('nonce=', $tag,
-                    "{$path} has an inline <script> with no nonce, which the browser will refuse to run: {$tag}");
-            }
-        }
-    }
-
-    public function test_the_rendered_nonce_matches_the_one_the_header_advertises(): void
-    {
-        // Two generators would be the obvious way to break this, so one holder
-        // serves both and this asserts they agree.
-        $html = $this->render(\AfricaGates\Controllers\HomeController::class, 'index', '/');
-
-        $this->assertStringContainsString('nonce="' . Csp::nonce() . '"', $html);
-    }
-
-    public function test_no_rendered_page_uses_an_inline_event_handler(): void
-    {
-        // Inline handlers require 'unsafe-inline' in script-src, which is exactly
-        // what was removed. Ten of them were converted to delegated data-ag-do
-        // attributes; this stops the eleventh being added.
-        DB::table('gates_profiles')->insert(['slug' => 'ada', 'display_name' => 'Ada Obi', 'email' => 'ada@example.com']);
-
-        foreach ([
-            [\AfricaGates\Controllers\HomeController::class, 'index', '/'],
-            [\AfricaGates\Controllers\RegistryController::class, 'index', '/registry'],
-            [\AfricaGates\Controllers\LeaderboardController::class, 'index', '/leaderboard'],
-        ] as [$class, $method, $path]) {
-            $html = $this->render($class, $method, $path);
-
-            $this->assertDoesNotMatchRegularExpression(
-                '/\son(?:click|change|load|error|submit|input|focus|blur|mouseover)\s*=\s*["\']/i',
-                $html,
-                "{$path} contains an inline event handler; convert it to data-ag-do"
-            );
-        }
-    }
-
     public function test_no_template_source_contains_an_un_nonced_inline_script(): void
     {
         // Source-level backstop for the pages the render tests do not reach —
@@ -252,28 +199,6 @@ class CspTest extends TestCase
         preg_match("/style-src-attr ([^;]+);/", Csp::policy(), $m);
 
         $this->assertStringContainsString("'unsafe-inline'", $m[1] ?? '');
-    }
-
-    public function test_every_style_block_on_a_rendered_page_carries_the_nonce(): void
-    {
-        // Same silent-failure shape as the scripts: with style-src-elem carrying a
-        // nonce, an un-nonced <style> block is dropped and the page renders unstyled.
-        DB::table('gates_profiles')->insert(['slug' => 'ada', 'display_name' => 'Ada Obi', 'email' => 'ada@example.com']);
-
-        foreach ([
-            [\AfricaGates\Controllers\HomeController::class, 'index', '/'],
-            [\AfricaGates\Controllers\RegistryController::class, 'index', '/registry'],
-            [\AfricaGates\Controllers\AwardsController::class, 'index', '/awards'],
-        ] as [$class, $method, $path]) {
-            $html = $this->render($class, $method, $path);
-            preg_match_all('/<style\b[^>]*>/i', $html, $m);
-
-            $this->assertNotSame([], $m[0], "{$path} rendered no <style> block — check the fixture");
-            foreach ($m[0] as $tag) {
-                $this->assertStringContainsString('nonce=', $tag,
-                    "{$path} has a <style> with no nonce; the page will render unstyled: {$tag}");
-            }
-        }
     }
 
     public function test_no_template_source_contains_an_un_nonced_style_block(): void

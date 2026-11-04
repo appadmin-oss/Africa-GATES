@@ -97,6 +97,21 @@ class AiGatewayTest extends TestCase
             'silent failures are how AI quality drifts unnoticed');
     }
 
+    /**
+     * The provider fits the column it is written to. `gates_ai_calls.provider` is
+     * VARCHAR(20) on MySQL and the value was cut at 40, so a long provider string was
+     * refused in strict mode and the insert's own catch swallowed it: no audit row at all.
+     * SQLite ignores the width, so this asserts the stored LENGTH, which it does keep.
+     */
+    public function test_a_long_provider_name_still_fits_its_column(): void
+    {
+        AiGateway::record('integrity.brief', 'OK', ['provider' => str_repeat('p', 35)]);
+
+        $p = (string) DB::table('gates_ai_calls')->orderByDesc('id')->value('provider');
+        $this->assertNotSame('', $p, 'the call was not logged at all');
+        $this->assertLessThanOrEqual(20, mb_strlen($p), 'a value MySQL VARCHAR(20) refuses in strict mode');
+    }
+
     // ── Switches ─────────────────────────────────────────────────────────────
 
     public function test_the_global_kill_switch_stops_every_capability(): void
@@ -186,7 +201,9 @@ class AiGatewayTest extends TestCase
     {
         // The figure that was previously impossible to produce at all.
         (new AiGateway($this->fakeAi('x', 10, 5)))->run('integrity.brief', ['system' => 's', 'user' => 'u']);
-        (new AiGateway($this->fakeAi(null)))->run('integrity.brief', ['system' => 's', 'user' => 'u']);
+        // `fresh`: the same request would otherwise be answered from cache, and this one is
+        // meant to reach a provider that fails.
+        (new AiGateway($this->fakeAi(null)))->run('integrity.brief', ['system' => 's', 'user' => 'u', 'fresh' => true]);
 
         $report = AiGateway::spendReport();
 

@@ -758,6 +758,29 @@ final class PublicResults
     }
 
     /**
+     * What each cycle calls its edition, for the life of the request.
+     *
+     * A class property rather than a `static` inside {@see self::edition_()}, because a
+     * function-scoped static cannot be reset by anything — and this one has to be. A static
+     * lives for the PROCESS, which in production is one request (a cycle cannot be renamed
+     * underneath the page drawing it, so memoising is free), and in the suite is every test
+     * at once. The harness rebuilds the schema and rewinds the auto-increment counters
+     * between tests, so two tests routinely hold DIFFERENT cycles under the same id — and
+     * the second was served the first one's edition name. It fails far from its cause and
+     * reads as the page naming the wrong year: three guards were failing on "1st Edition ·
+     * 2019" under a fixture that says 2026, and each passed on its own.
+     *
+     * The same trap, one class over, as {@see ReleasedStanding::forget()}.
+     */
+    private static array $editionMemo = [];
+
+    /** Drop the memo. {@see self::$editionMemo} for why anything needs to. */
+    public static function forget(): void
+    {
+        self::$editionMemo = [];
+    }
+
+    /**
      * The edition as the award calls itself.
      *
      * The cycle's own label, else its year — never `date('Y')`. The congratulations mail
@@ -766,6 +789,19 @@ final class PublicResults
      */
     private static function edition_(object $ctx): string
     {
+        // Through Support\EditionName (Phase 5): the operator's label, else "3rd Edition ·
+        // 2025" from the stored edition number, else the year. The rows reaching here are
+        // narrow selects, so the cycle is read whole once per id — memoised for the request.
+        $id = (int) ($ctx->cycle_id ?? $ctx->id ?? 0);
+        if ($id > 0 && !isset(self::$editionMemo[$id])) {
+            try {
+                $row = DB::table('gates_award_cycles')->where('id', $id)->first();
+                self::$editionMemo[$id] = $row ? \AfricaGates\Support\EditionName::full($row) : '';
+            } catch (\Throwable) {
+                self::$editionMemo[$id] = '';
+            }
+        }
+        if ($id > 0 && self::$editionMemo[$id] !== '') return self::$editionMemo[$id];
         $label = trim((string) ($ctx->edition_label ?? ''));
         return $label !== '' ? $label : (string) ((int) ($ctx->year ?? 0) ?: '');
     }
@@ -878,6 +914,20 @@ final class PublicResults
 
             $n = $catCount[$cid] ?? 0;
             if ($n === 0) continue;
+
+            // ── A LATE CYCLE IS STILL WITH THE PANEL, WHATEVER THE CALENDAR SAYS ──
+            //
+            // Past its results date the computed phase reads `results`, and forAward()
+            // answers that with "Decided" — over an edition nobody has announced, with no
+            // result a reader can open. The calendar is right that the date has passed; it
+            // is not evidence that anything was decided. Only a released status is (it is
+            // written in the transaction that crowns and seals), so an unreleased cycle
+            // past its date is drawn as what it is — with the panel — and the delay is
+            // stated above the list by delayed().
+            if (in_array($phase, [CyclePhase::Results, CyclePhase::Archived], true)
+                && !in_array((string) ($cy->status ?? ''), self::RELEASED, true)) {
+                $phase = CyclePhase::Judging;
+            }
 
             $status = ResultStatus::forAward($phase);
 
@@ -1184,7 +1234,7 @@ final class PublicResults
         }
 
         $progress = $phase === CyclePhase::Judging
-            ? self::judgingProgress($cycleId) : [];
+            ? self::judgingProgress($cycleId, $scoring) : [];
 
         $out = [];
         foreach ($catIds as $raw) {
@@ -1252,64 +1302,87 @@ final class PublicResults
      * added. The denominator is nominees × quorum: the number of complete cards the rules
      * of this programme require before anybody can be crowned.
      *
+     * ══════════════════════════════════════════════════════════════════════════
+     * AND BOTH HALVES ARE NOW THE ONES THE AWARD USES
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * The denominator counted every non-merged nominee in the category — pending,
+     * rejected and the whole unshortlisted field included — while the panel is only ever
+     * handed the published shortlist. So a panel that had finished read 4% on a category
+     * of two hundred entries and eight finalists, and could never reach 100: the bar was
+     * measuring work nobody was asked to do. It is the shortlist now, through
+     * {@see ResultRelease::shortlistedIn()} — the resolver the ballot uses — and a
+     * category with no published shortlist has NO bar, because nothing in it can be
+     * marked yet and 0% reads as a panel sitting idle.
+     *
+     * The numerator counted complete cards in SQL, so a recused judge's, a removed
+     * judge's and an unassigned judge's cards all moved it — the bar could read finished
+     * on a panel the scorer would hold below quorum. It reads
+     * {@see NomineeScoringService::panelDetailFor()} now, the traversal the award is
+     * decided from, so "done" is a card that COUNTS. And it is capped per nominee at the
+     * quorum: a fifth judge on one finalist is not progress on another.
+     *
      * @return array<int,array{done:int,needed:int,pct:int}> keyed by category id
      */
-    private static function judgingProgress(int $cycleId): array
+    private static function judgingProgress(int $cycleId, ?NomineeScoringService $scoring = null): array
     {
         try {
             $ctx = DB::table('gates_award_cycles')->where('id', $cycleId)
                 ->first(['programme_id']);
-
-            $criteria = array_map(
-                static fn (object $r): int => (int) $r->id,
-                array_filter(JudgeRubric::effective((int) ($ctx->programme_id ?? 0)),
-                             static fn (object $r): bool => (int) $r->is_active === 1));
-            $required = count($criteria);
-            if ($required < 1) return [];
 
             $quorum = (int) ((new RuleEngine())->effective(
                 (int) ($ctx->programme_id ?? 0), $cycleId)['min_judges_per_nominee']
                 ?? RuleEngine::DEFAULTS['min_judges_per_nominee']);
             if ($quorum < 1) return [];
 
-            // Nominees per category, which is the denominator's other half. A merged-away
-            // nominee is nobody's work: counting one would hold a panel permanently short
-            // of a total it can never reach.
-            $nominees = DB::table('gates_nominees as n')
+            // The nominees the panel was actually asked for: on the published shortlist,
+            // still standing (a merged-away or withdrawn entry is nobody's work — counting
+            // one holds a panel permanently short of a total it can never reach).
+            $q = DB::table('gates_nominees as n')
                 ->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')
                 ->where('c.cycle_id', $cycleId)
-                ->whereNull('n.merged_into')
-                ->groupBy('n.category_id')
-                ->get(['n.category_id', DB::raw('COUNT(*) as n')]);
-
-            // COMPLETE cards only, counted in SQL — on a full panel this is tens of
-            // thousands of rows and walking them in PHP to draw a bar is not a trade.
-            $cards = DB::table('gates_judge_criteria_scores as s')
-                ->join('gates_award_categories as c', 'c.id', '=', 's.category_id')
-                ->where('c.cycle_id', $cycleId)
-                ->whereIn('s.criterion_id', $criteria)
-                ->groupBy('s.category_id', 's.judge_id', 's.nominee_id')
-                ->havingRaw('COUNT(DISTINCT s.criterion_id) = ?', [$required])
-                ->get(['s.category_id']);
+                ->whereIn('n.status', ['approved', 'winner', 'runner_up'])
+                ->select('n.id', 'n.category_id');
+            MergeService::notMerged($q, 'n.merged_into');
+            $standing = $q->get();
         } catch (\Throwable) {
-            // No rubric, no judges table on this deployment, a column not migrated yet.
+            // No judges table on this deployment, a column not migrated yet.
             // A row without a bar still says "with the panel", which is the fact.
             return [];
         }
 
-        $done = [];
-        foreach ($cards as $c) {
-            $id = (int) $c->category_id;
-            $done[$id] = ($done[$id] ?? 0) + 1;
+        $byCat = [];
+        foreach ($standing as $r) $byCat[(int) $r->category_id][] = (int) $r->id;
+
+        $panel = [];
+        foreach (array_keys($byCat) as $catId) {
+            $listed = ResultRelease::shortlistedIn($catId);
+            if ($listed === null) { unset($byCat[$catId]); continue; }
+            $byCat[$catId] = array_values(array_intersect($byCat[$catId], $listed));
+            $panel = [...$panel, ...$byCat[$catId]];
+        }
+        if ($panel === []) return [];
+
+        try {
+            $detail = ($scoring ?? new NomineeScoringService())->panelDetailFor($panel);
+        } catch (\Throwable) {
+            return [];
         }
 
         $out = [];
-        foreach ($nominees as $r) {
-            $id     = (int) $r->category_id;
-            $needed = (int) $r->n * $quorum;
+        foreach ($byCat as $id => $nomineeIds) {
+            $needed = count($nomineeIds) * $quorum;
             if ($needed < 1) continue;
 
-            $got = min($done[$id] ?? 0, $needed);
+            $got = 0;
+            foreach ($nomineeIds as $nid) {
+                $counting = 0;
+                foreach (($detail[$nid]['judges'] ?? []) as $j) {
+                    if (!empty($j['counts'])) $counting++;
+                }
+                $got += min($counting, $quorum);
+            }
+
             $out[$id] = ['done' => $got, 'needed' => $needed,
                          // Floored, never rounded up: a bar that reads 100% beside a panel
                          // that has one card left is the page contradicting its own status.

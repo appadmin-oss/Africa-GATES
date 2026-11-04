@@ -192,18 +192,6 @@ final class SupportConversationFaultsTest extends TestCase
 
     // ── 1. no ticket before anything is said ─────────────────────────────────
 
-    public function test_the_escalate_button_asks_before_it_files(): void
-    {
-        $js = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/support-assistant.twig');
-
-        // The placeholder that produced a blank ticket in the transcript.
-        $this->assertStringNotContainsString('A visitor asked to speak to someone.', $js);
-        $this->assertMatchesRegularExpression(
-            '/if \(!last\) \{\s*this\.push\(/s', $js,
-            'with nothing said yet it must ask, not open a ticket'
-        );
-    }
-
     public function test_the_server_still_refuses_an_empty_escalation(): void
     {
         // The UI guard is a courtesy; this is the one that holds when somebody

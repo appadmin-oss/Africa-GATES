@@ -1,0 +1,39 @@
+{#
+  The giving page's figures (the rail, and the card on a phone) — included IN CONTEXT by pages/donate.twig, which sets every value read here at
+  template scope. A partial, not a {% block %}: a block the layout does not render is thrown
+  away at render time (TemplateSyntaxTest), and the page draws this in two places.
+
+  GivingPage V2 (16 Oct 2026) and LOW-DATA-RULES: the ring only from 5% of the goal (below
+  it, "Be one of the first to give" and the goal); the gift count only from 25; days left
+  only when 30 or fewer, otherwise the end date.
+#}
+{%- set _ring = _target > 0 and display_met('campaign_pct_ring', _pct) -%}
+{%- set _ends = campaign and campaign.closes_on|default('') ? campaign.closes_on : '' -%}
+{%- if _ring -%}
+  <div class="gv-ring-row">
+    <span class="gv-ring" role="img" aria-label="{{ '%p%% of the goal'|trans({'%p%': min(100, _pct)}) }}">
+      <svg width="72" height="72" viewBox="0 0 72 72" aria-hidden="true"><circle cx="36" cy="36" r="26" fill="none" stroke-width="7" class="gv-ring__t"/><circle cx="36" cy="36" r="26" fill="none" stroke-width="7" class="gv-ring__f" stroke-linecap="round" stroke-dasharray="{{ (163.36 * min(100, _pct) / 100)|round(2) }} 163.36" transform="rotate(-90 36 36)"/></svg>
+      <span class="gv-ring__n">{{ min(100, _pct) }}%</span>
+    </span>
+    <span class="gv-ring__t2">
+      <b class="gv-prog__raised">{{ '%r% raised'|trans({'%r%': '₦' ~ _raised|number_format}) }}</b>
+      <span class="gv-prog__meta">
+        <span>{{ 'of %t%'|trans({'%t%': '₦' ~ _target|number_format}) }}</span>
+        {%- if display_met('gifts_count', _gifts) %}<span>{{ '%n% gifts'|trans({'%n%': _gifts|number_format}) }}</span>{% endif -%}
+        {%- if campaign and days_left is not null and days_left <= display_min('days_left_show') %}<span>{{ days_left == 1 ? '1 day left'|trans : '%n% days left'|trans({'%n%': days_left}) }}</span>
+        {%- elseif _ends %}<span>{{ 'Ends %d%'|trans({'%d%': _ends|date('j M')}) }}</span>{% endif -%}
+      </span>
+    </span>
+  </div>
+{%- elseif _target > 0 -%}
+  <span class="gv-prog__first">{{ 'Be one of the first to give'|trans }}</span>
+  <span class="gv-prog__meta"><span>{{ 'Goal %t%'|trans({'%t%': '₦' ~ _target|number_format}) }}</span>
+    {%- if _ends %}<span>{{ 'Ends %d%'|trans({'%d%': _ends|date('j M')}) }}</span>{% endif -%}
+  </span>
+{%- elseif _gifts > 0 -%}
+  <span class="gv-prog__sum"><b>{{ '₦' ~ _raised|number_format }}</b> {{ 'raised'|trans }}</span>
+  {%- if display_met('gifts_count', _gifts) %}<span class="gv-prog__meta"><span>{{ '%n% gifts'|trans({'%n%': _gifts|number_format}) }}</span></span>{% endif -%}
+  {%- if fund_goal and fund_goal.met %}<span class="gv-prog__meta"><span>{{ 'Target reached, and still open'|trans }}</span></span>{% endif -%}
+{%- else -%}
+  <span class="gv-prog__first">{{ 'Be one of the first to give — receipted, and straight to the cause.'|trans }}</span>
+{%- endif -%}

@@ -1,0 +1,25 @@
+{#- Gift thank-you · Giving. Sender: CheckoutMailer::receipt (gift).
+    Variables: first_name, amount, to_name, impact_line, reference, stop_url (monthly only),
+    progress (null or {raised, goal, pct, caption}), campaign_url.
+    Design: Email Templates.dc.html → "Gift", corrected to the live site (owner, 19 Oct 2026):
+    the progress bar is drawn only above the low-data thresholds (DisplayThreshold, the same
+    rules as the campaign page), and "fees covered by you" is not a line this receipt can
+    state, so the receipt is the gift. A monthly gift states that it is monthly and where its
+    stop link is, in the same breath as the amount (RecurringGiving::stopLink()). -#}
+{% extends 'emails/_layout.html.twig' %}
+{% block category %}Giving{% endblock %}
+{% block hero %}illo-gift{% endblock %}
+{% block why %}You gave {{ to_name ? 'to ' ~ to_name : '' }} through Africa GATES.{% endblock %}
+{% block subject %}Thank you for your gift to {{ to_name }}{% endblock %}
+{% block preheader %}{{ amount }} received{{ stop_url ? ' · a monthly gift you can stop at any time' : '' }}.{% endblock %}
+{% block body %}
+{%- import 'emails/_blocks.html.twig' as b -%}
+{{ b.h1("Thank you, #{first_name}") }}
+{{ b.p("Your #{amount} is now with #{to_name}. #{impact_line}") }}
+{% if progress %}{{ b.progress(progress.raised, "of #{progress.goal}", progress.caption, progress.pct ~ '%') }}{% endif %}
+{{ b.receipt([[stop_url ? 'Gift · monthly' : 'Gift', amount]], amount) }}
+{{ b.ref('Receipt reference', reference) }}
+{% if stop_url %}{{ b.warn("This is a monthly gift of #{amount}, and you can stop it at any time — no sign-in needed. Keep this email; the link stays valid.", 'Monthly') }}
+{{ b.link('Stop my monthly gift', stop_url) }}{% endif %}
+{% if campaign_url %}{{ b.button('Share the campaign', campaign_url) }}{% endif %}
+{% endblock %}

@@ -165,7 +165,10 @@ final class JudgePracticeRunTest extends TestCase
         DemoSeeder::seed(1);
         DB::table('gates_judges')->where('id', $this->judge)->update(['is_active' => 0]);
 
-        $this->assertCount(1, $this->svc->programmes($this->judge));
+        // Not even their own appointment any more: programmes() is the gate every portal
+        // check reads, and a judge taken off the panel resolving their whole assignment
+        // is how a deactivated judge kept a working ballot behind a live session.
+        $this->assertCount(0, $this->svc->programmes($this->judge));
     }
 
     /**

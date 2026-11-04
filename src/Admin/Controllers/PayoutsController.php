@@ -72,7 +72,35 @@ final class PayoutsController
             // What is owed overall, so this screen and the Finance panel cannot disagree.
             'liability'  => ReferralService::liability(1),
             'min_naira'  => ReferralPayout::MIN_NAIRA,
+            // Whether requests that pass every check are sent without a person.
+            'auto_on'    => \AfricaGates\Services\WalletAutoPay::enabled(),
+            // Organisations' requests had no reader at all: recorded, shown to the
+            // organisation as "requested", and on no screen anybody here opens.
+            'org_rows'   => \AfricaGates\Services\OrgPayout::awaitingHand(),
+            'org_mode'   => \AfricaGates\Services\OrgPayout::mode(),
         ]);
+    }
+
+    public function orgPay(Request $req, Response $res, array $args): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+        $id = (int) ($args['id'] ?? 0);
+        $r  = \AfricaGates\Services\OrgPayout::settleByHand($id,
+            (string) (((array) $req->getParsedBody())['reference'] ?? ''), (int) ($_SESSION['admin_id'] ?? 0));
+        $_SESSION[$r['ok'] ? 'flash' : 'flash_error'] = $r['message'];
+        if ($r['ok']) $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'org.payout_paid', 'org_payout', $id);
+        return $this->back($res);
+    }
+
+    public function orgRefuse(Request $req, Response $res, array $args): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+        $id = (int) ($args['id'] ?? 0);
+        $r  = \AfricaGates\Services\OrgPayout::refuse($id,
+            (string) (((array) $req->getParsedBody())['why'] ?? ''), (int) ($_SESSION['admin_id'] ?? 0));
+        $_SESSION[$r['ok'] ? 'flash' : 'flash_error'] = $r['message'];
+        if ($r['ok']) $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'org.payout_refused', 'org_payout', $id);
+        return $this->back($res);
     }
 
     public function pay(Request $req, Response $res, array $args): Response
@@ -88,6 +116,27 @@ final class PayoutsController
         $_SESSION[$r['ok'] ? 'flash' : 'flash_error'] = $r['message'];
         if ($r['ok']) {
             $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'referral.payout_paid', 'payout', $id);
+        }
+        return $this->back($res);
+    }
+
+    /**
+     * POST /admin/payouts/{id}/send — a person releases a request the automatic checks
+     * held, to be paid by transfer (WalletAutoPay::release). The person is the check; the
+     * bank is still asked who holds the account, because a transfer needs it.
+     */
+    public function send(Request $req, Response $res, array $args): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+
+        $id = (int) ($args['id'] ?? 0);
+        $r  = \AfricaGates\Services\WalletAutoPay::release(new \AfricaGates\Services\PaymentService(),
+            \AfricaGates\Services\WalletAutoPay::KIND_REFERRAL, $id, (int) ($_SESSION['admin_id'] ?? 0));
+        $ok = in_array($r['state'], [\AfricaGates\Services\WalletAutoPay::A_SENDING, \AfricaGates\Services\WalletAutoPay::A_DONE], true);
+
+        $_SESSION[$ok ? 'flash' : 'flash_error'] = $r['message'];
+        if ($ok) {
+            $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'referral.payout_released', 'payout', $id);
         }
         return $this->back($res);
     }

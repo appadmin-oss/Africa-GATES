@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace AfricaGates\Admin\Middleware;
 
 use AfricaGates\Admin\Services\AuthService;
+use AfricaGates\Admin\Support\Permissions;
 use AfricaGates\Support\Session;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -12,7 +13,8 @@ use Slim\Psr7\Response as Psr7Response;
 
 /**
  * Enforces an authenticated admin session for protected /admin routes.
- * If unauthenticated and the path is HTML, redirects to /admin/login.
+ * If unauthenticated and the path is HTML, opens the console from the signed-in account that
+ * holds it (Account\Roles::derive), or sends the person to the one sign-in, /account/login.
  * If unauthenticated and the path is JSON (admin API), returns 401 JSON.
  *
  * ── THE SESSION IS NOT THE ACCOUNT ───────────────────────────────────────────
@@ -36,11 +38,20 @@ use Slim\Psr7\Response as Psr7Response;
 class AdminAuthMiddleware
 {
     /**
-     * Roles permitted to perform state-changing (non-GET) admin requests.
-     * Moderators write within their section (approve/reject); the per-section
-     * SectionGuardMiddleware constrains WHERE each writer role may act.
+     * POSTs that change nothing on the platform, so a read-only role may make them.
+     *
+     * The writer allowlist ({@see Permissions::WRITERS}) refuses every non-GET for a
+     * viewer, which is right for the platform's data and wrong for two things that are
+     * not data: the admin's OWN console preferences (a pinned view, whether the sidebar
+     * is open — `/admin/me/…`), and asking the assistant a question. The assistant is in
+     * the `overview` section, documented as "every role may use the assistant", and the
+     * allowlist had quietly made it answer every viewer with "Read-only role" — the
+     * drawer the console handoff draws on every page would have been a dead control for
+     * exactly the role it describes as "reads everything it can see". Exact paths and
+     * one prefix, nothing broader.
      */
-    private const WRITER_ROLES = ['superadmin', 'admin', 'editor', 'moderator'];
+    private const READ_ONLY_SAFE_POSTS = ['/admin/assistant/chat'];
+    private const READ_ONLY_SAFE_PREFIX = '/admin/me/';
 
     /**
      * @param AuthService $auth the one reader of the live admin row — see the class note
@@ -61,6 +72,17 @@ class AdminAuthMiddleware
         foreach ($this->exempt as $p) {
             if ($path === $p) return $handler->handle($req);
         }
+        // ── ONE LOGIN (owner, 29 Oct 2026) ──────────────────────────────────
+        //
+        // There is no console sign-in page any more. The console is a role GIVEN to an email
+        // address, and the signed-in Africa GATES account holding that address opens it here,
+        // on the way in (Account\Roles::derive) — or is sent for an emailed code first, or told
+        // plainly that this account has no staff access, rather than shown a login it cannot use.
+        $d = \AfricaGates\Services\Account\Roles::derive('admin', $path . ($req->getUri()->getQuery() !== '' ? '?' . $req->getUri()->getQuery() : ''));
+        if ($d['state'] === 'confirm' || $d['state'] === 'refused') {
+            if ($d['state'] === 'refused') $_SESSION['flash_error'] = $d['error'];
+            return (new Psr7Response(302))->withHeader('Location', (string) $d['to']);
+        }
         if (!isset($_SESSION['admin_id']) || empty($_SESSION['admin_id'])) {
             $isJson = str_contains($req->getHeaderLine('Accept'), 'application/json')
                    || str_starts_with($path, '/admin/api/');
@@ -69,9 +91,7 @@ class AdminAuthMiddleware
                 $res->getBody()->write(json_encode(['success' => false, 'message' => 'Login required.']));
                 return $res->withHeader('Content-Type', 'application/json');
             }
-            $next = '?next=' . urlencode($path);
-            $res = new Psr7Response(302);
-            return $res->withHeader('Location', '/admin/login' . $next);
+            return (new Psr7Response(302))->withHeader('Location', (string) ($d['to'] ?? '/account/login?next=' . urlencode($path)));
         }
         // ── RE-READ THE ACCOUNT, NOT THE COPY OF IT ─────────────────────────
         //
@@ -99,8 +119,8 @@ class AdminAuthMiddleware
                     'message' => 'This account is no longer active. Please sign in again.']));
                 return $res->withHeader('Content-Type', 'application/json');
             }
-            $_SESSION['flash_error'] = 'This account is no longer active. Please sign in again.';
-            return (new Psr7Response(302))->withHeader('Location', '/admin/login');
+            $_SESSION['flash_error'] = 'Your staff access has been switched off. Ask an administrator if this is unexpected.';
+            return (new Psr7Response(302))->withHeader('Location', '/account');
         }
 
         // The live role, written back so the guards below — and every screen that
@@ -129,7 +149,9 @@ class AdminAuthMiddleware
         // role — is read-only here. Superadmin-only areas keep their own
         // RoleMiddleware('superadmin') gate layered on top of this.
         $isWrite = !in_array(strtoupper($req->getMethod()), ['GET', 'HEAD', 'OPTIONS'], true);
-        if ($isWrite && !in_array($role, self::WRITER_ROLES, true)) {
+        $safe = in_array($path, self::READ_ONLY_SAFE_POSTS, true)
+             || str_starts_with($path, self::READ_ONLY_SAFE_PREFIX);
+        if ($isWrite && !$safe && !Permissions::canWrite($role)) {
             $isJson = str_contains($req->getHeaderLine('Accept'), 'application/json')
                    || str_starts_with($path, '/admin/api/');
             if ($isJson) {

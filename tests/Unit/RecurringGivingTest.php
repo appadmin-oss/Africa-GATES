@@ -251,21 +251,24 @@ final class RecurringGivingTest extends TestCase
      */
     public function test_the_donation_receipt_actually_carries_the_stop_link(): void
     {
+        // The receipt moved from DonationController::receipt() to CheckoutMailer, because
+        // the controller's copy was sent only when the browser callback flipped the row —
+        // a donor whose webhook won the race got no receipt and so no stop link. That it is
+        // SENT, on every confirming path, is held behaviourally by DonationReceiptTest; this
+        // holds that the body it sends is the one that resolves the link.
         $src = (string) preg_replace(['~/\*.*?\*/~s', '~(?<!:)//[^\n]*~'], ' ',
-            (string) file_get_contents(dirname(__DIR__, 2) . '/src/Controllers/DonationController.php'));
+            (string) file_get_contents(dirname(__DIR__, 2) . '/src/Services/CheckoutMailer.php'));
 
         // Bounded at the method's end, so this cannot pass on a mention somewhere else in
-        // a 900-line controller.
-        $at   = (int) strpos($src, 'function receipt(');
+        // the file.
+        $at   = (int) strpos($src, 'function giftBody(');
         $next = (int) strpos($src, 'function ', $at + 20);
         $body = substr($src, $at, max(0, $next - $at));
 
-        $this->assertNotSame('', $body, 'DonationController::receipt() was renamed or removed');
+        $this->assertNotSame('', $body, 'CheckoutMailer::giftBody() was renamed or removed');
         $this->assertStringContainsString('RecurringGiving::stopLink', $body,
             'the only receipt a recurring donor gets carries no way to stop the gift, so '
             . 'the stop page is reachable only by somebody who already has the token');
-        $this->assertStringContainsString('sendBranded', $body,
-            'the link is resolved and never sent');
     }
 
     /**

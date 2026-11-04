@@ -1,0 +1,23 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   THE PHOTO SLOT · partials/photo.twig · GAPS §8 Q8 (owner, 4 Oct 2026)
+   ══════════════════════════════════════════════════════════════════════════════
+   Its own sheet, not components.css (that file is the Phase 1 base and DevUiTest holds it
+   to that). Every page that includes the partial links this sheet — PhotoSlotTest holds it.
+
+   Fills the box its caller sized. A real image covers it; with none, a person gets the
+   default avatar and a thing the default cover (see below). */
+.ag-photo{
+  position:relative; display:block; width:100%; height:100%;
+  overflow:hidden; background:var(--ag-tint); border-radius:inherit;
+  container-type:size;
+}
+.ag-photo__img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover }
+.ag-photo--person{ border-radius:inherit }
+/* No image: the default graphics (DEFAULT-GRAPHICS, 5 Oct 2026) — partials/avatar.twig for a
+   person, partials/cover.twig for a thing, both styled in components/cover.css. Here they
+   only fill the box the caller sized and keep its shape: the caller decides whether a slot
+   is round, and a filled avatar or cover takes that radius rather than imposing its own. */
+.ag-photo--mono, .ag-photo--cover{ background:none }
+.ag-photo--mono .ag-avatar{ width:100%; height:100%; border-radius:inherit }
+.ag-photo--mono .ag-avatar__face{ border-radius:inherit }
+.ag-photo--cover .ag-cover{ height:100%; border-radius:inherit }

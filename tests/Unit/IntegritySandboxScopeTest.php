@@ -51,6 +51,14 @@ final class IntegritySandboxScopeTest extends TestCase
 
         $this->sandboxCycle = $this->cycleUnder(DemoSeeder::PROGRAMME_SLUG, 0, 2025, 90);
         $this->realCycle    = $this->cycleUnder('real-awards', 1, 2026, 190);
+
+        // Appointed to the real programme, as the admin form writes it. A mark from a judge
+        // assigned to nothing does not count (NomineeScoringService::disqualifiedJudges),
+        // so a panel with no appointment is not a panel. The sandbox needs no entry: it is
+        // the practice programme every active judge is handed.
+        DB::table('gates_judges')->update(['programme_ids' => json_encode([
+            (int) DB::table('gates_award_cycles')->where('id', $this->realCycle)->value('programme_id'),
+        ])]);
     }
 
     /**

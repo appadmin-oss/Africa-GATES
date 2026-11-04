@@ -240,7 +240,9 @@ final class AttentionBoard
                     '/admin/support', 'Answer', '');
             },
             static function (): ?array {
-                $n = (int) DB::table('gates_nominations')->where('status', 'pending')->count();
+                $pq = DB::table('gates_nominations')->where('status', 'pending');
+                \AfricaGates\Services\NominationCombine::excludeCombined($pq);
+                $n = (int) $pq->count();
                 return self::item('nominations', $n,
                     $n === 1 ? 'nomination waiting on a decision' : 'nominations waiting on a decision',
                     'Nobody can be voted for, interviewed or asked about their own work until '

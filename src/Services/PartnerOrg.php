@@ -647,20 +647,20 @@ final class PartnerOrg
         $pass  = (string) ($in['password'] ?? '');
         $cac   = trim((string) ($in['cac_number'] ?? ''));
 
-        if ($name === '')  return $fail + ['message' => 'Give the name supporters will recognise you by.'];
-        if ($legal === '') return $fail + ['message' => 'Give the registered name exactly as it appears at the CAC.'];
+        if ($name === '')  return $fail + ['field' => 'name', 'message' => 'Give the name supporters will recognise you by.'];
+        if ($legal === '') return $fail + ['field' => 'legal_name', 'message' => 'Give the registered name exactly as it appears at the CAC.'];
         if ($cac === '') {
             // Not negotiable, and not the same rule as a vendor's. A body collecting
             // charitable gifts in Nigeria has to be incorporated — an unregistered group
             // asking the public for money is the thing this platform must never launder.
-            return $fail + ['message' => 'A CAC registration number is required. Only an '
+            return $fail + ['field' => 'cac_number', 'message' => 'A CAC registration number is required. Only an '
                                        . 'incorporated body may collect charitable gifts in Nigeria.'];
         }
         // Shape, and shape only. A non-IT number is a NOTE and not a refusal here: a
         // non-profit limited by guarantee is an RC, and turning one away at a form it cannot
         // argue with would be both wrong and unappealable. The note reaches the reviewer.
         $cacIn = self::checkCacInput($cac, true);
-        if (!$cacIn['ok']) return $fail + ['message' => $cacIn['message']];
+        if (!$cacIn['ok']) return $fail + ['field' => 'cac_number', 'message' => $cacIn['message']];
         $cac = $cacIn['stored'];
 
         // ── ONE REGISTERED BODY, ONE RECORD ─────────────────────────────────
@@ -685,17 +685,17 @@ final class PartnerOrg
             // Deliberately does not name the organisation holding it. A form that answers
             // "which body is registered under this number" is a register lookup anybody can
             // run, and this one is not ours to publish.
-            return $fail + ['message' => 'An organisation is already registered here under that '
+            return $fail + ['field' => 'cac_number', 'message' => 'An organisation is already registered here under that '
                                        . 'CAC number. If it is yours, sign in instead — and if '
                                        . 'you think somebody else has used your number, write to '
                                        . 'us and we will look into it.'];
         }
 
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            return $fail + ['message' => 'That is not a valid email address.'];
+            return $fail + ['field' => 'contact_email', 'message' => 'That is not a valid email address.'];
         }
         if (\AfricaGates\Services\OrgAuth::findByEmail($email)) {
-            return $fail + ['message' => 'That email address already has a sign-in. '
+            return $fail + ['field' => 'contact_email', 'message' => 'That email address already has a sign-in. '
                                        . 'Sign in and continue from your dashboard.'];
         }
         if (strlen($pass) < 12) {
@@ -775,10 +775,12 @@ final class PartnerOrg
         }
 
         try {
+            // Less the donors' tips to the platform: those are ours, and this is the figure
+            // for what organisations raised. See tipSumSql().
             $row = self::countableDonations()
-                ->selectRaw('COALESCE(SUM(amount_naira),0) g, COUNT(*) c')
+                ->selectRaw('COALESCE(SUM(amount_naira),0) g, COUNT(*) c, ' . self::tipSumSql() . ' t')
                 ->first();
-            $out['raised'] = (int) ($row->g ?? 0);
+            $out['raised'] = max(0, (int) ($row->g ?? 0) - (int) ($row->t ?? 0));
             $out['gifts']  = (int) ($row->c ?? 0);
         } catch (\Throwable) {
         }
@@ -1214,21 +1216,112 @@ final class PartnerOrg
      */
     public static function countableDonations(?int $orgId = null): object
     {
-        $q = DB::table('gates_donations')->where('status', 'confirmed');
+        $q = self::countable();
         $orgId === null ? $q->whereNotNull('recipient_org_id') : $q->where('recipient_org_id', $orgId);
+        return $q;
+    }
 
+    /**
+     * The same scope for Africa GATES' OWN fund — the figure `/donate` prints as raised.
+     *
+     * ── IT WAS SUMMING EVERY PAYMENT THE PLATFORM HAS EVER TAKEN ─────────────
+     *
+     * `gates_donations` is not a table of donations. It holds paid votes, vote packs,
+     * sponsorships and partner gifts that settled into OTHER organisations' subaccounts,
+     * and the fund page summed `amount_naira` over all of it with `status = 'confirmed'`
+     * spelled by hand — refunds included. So the number on the page asking people to fund
+     * programmes counted money that bought votes, money that belonged to somebody else, and
+     * money that had been given back. A gift to the fund is the `donation` tier with no
+     * recipient organisation; a monthly instalment is one too, and the older instalments
+     * carry no tier at all, so the subscription link counts them in.
+     *
+     * @return \Illuminate\Database\Query\Builder
+     */
+    public static function countableFundDonations(): object
+    {
+        $q = self::countable();
+        if (\AfricaGates\Support\SchemaHas::column('gates_donations', 'recipient_org_id')) {
+            $q->whereNull('recipient_org_id');
+        }
+        $recurring = \AfricaGates\Support\SchemaHas::column('gates_donations', 'subscription_id');
+        $q->where(static function ($w) use ($recurring): void {
+            $w->where('tier', 'donation');
+            if ($recurring) $w->orWhereNotNull('subscription_id');
+        });
+        return $q;
+    }
+
+    /** Confirmed and not given back — the clause both scopes above compose on. */
+    private static function countable(): object
+    {
+        $q = DB::table('gates_donations')->where('status', 'confirmed');
         if (\AfricaGates\Support\SchemaHas::column('gates_donations', 'refunded_at')) {
             $q->whereNull('refunded_at');
         }
         return $q;
     }
 
+    /**
+     * The SQL for "how much of these rows was the donor's voluntary tip to the platform".
+     *
+     * `amount_naira` on a partner gift is what left the donor's bank: the gift PLUS the
+     * tip {@see PlatformTip} adds on top. The tip is Africa GATES' money — it is folded
+     * into `platform_fee_naira` precisely so `net` never hands it to the organisation — but
+     * `gross` was printed as the organisation's "raised" and the campaign bar measured
+     * `gross` against the target, so every tip a donor gave US was shown publicly as money
+     * raised for THEM. `0` on a database that has not taken the tip migration, where no tip
+     * was ever recorded.
+     */
+    /** The donors' fee covers, summed: the gateway's money, never "raised". */
+    public static function coverSumSql(): string
+    {
+        return \AfricaGates\Support\SchemaHas::column('gates_donations', 'fee_cover_naira')
+            ? 'COALESCE(SUM(fee_cover_naira),0)' : '0';
+    }
+
+    /** The gateway's fees the organisation bore, summed: off what they are owed. */
+    public static function gatewaySumSql(): string
+    {
+        return \AfricaGates\Support\SchemaHas::column('gates_donations', 'gateway_fee_naira')
+            ? 'COALESCE(SUM(gateway_fee_naira),0)' : '0';
+    }
+
+    /** One gift's share for its organisation, per row: the charge less our fee and the gateway's. */
+    public static function netRowSql(): string
+    {
+        return 'amount_naira - COALESCE(platform_fee_naira,0)'
+            . (\AfricaGates\Support\SchemaHas::column('gates_donations', 'gateway_fee_naira') ? ' - COALESCE(gateway_fee_naira,0)' : '');
+    }
+
+    /** One gift as given to its organisation, per row: the charge less the tip and the cover. */
+    public static function raisedRowSql(): string
+    {
+        return 'amount_naira'
+            . (\AfricaGates\Support\SchemaHas::column('gates_donations', 'platform_tip_naira') ? ' - COALESCE(platform_tip_naira,0)' : '')
+            . (\AfricaGates\Support\SchemaHas::column('gates_donations', 'fee_cover_naira') ? ' - COALESCE(fee_cover_naira,0)' : '');
+    }
+
+    public static function tipSumSql(): string
+    {
+        return \AfricaGates\Support\SchemaHas::column('gates_donations', 'platform_tip_naira')
+            ? 'COALESCE(SUM(platform_tip_naira),0)' : '0';
+    }
+
+    /**
+     * @return array{gross:int, platform_fee:int, net:int, count:int, tip:int, raised:int}
+     *
+     * `gross` is what donors paid and `net` what the organisation is owed (the payout
+     * balance reads it, and it already excludes the tip, which sits inside the fee).
+     * `raised` is the PUBLIC figure: what donors gave the organisation, which is `gross`
+     * without the tip they gave the platform beside it.
+     */
     public static function totals(int $orgId): array
     {
-        $zero = ['gross' => 0, 'platform_fee' => 0, 'net' => 0, 'count' => 0];
+        $zero = ['gross' => 0, 'platform_fee' => 0, 'gateway_fee' => 0, 'net' => 0, 'count' => 0, 'tip' => 0, 'cover' => 0, 'raised' => 0];
         try {
             $row = self::countableDonations($orgId)
-                ->selectRaw('COALESCE(SUM(amount_naira),0) g, COALESCE(SUM(platform_fee_naira),0) f, COUNT(*) c')
+                ->selectRaw('COALESCE(SUM(amount_naira),0) g, COALESCE(SUM(platform_fee_naira),0) f, COUNT(*) c, '
+                          . self::tipSumSql() . ' t, ' . self::coverSumSql() . ' cv, ' . self::gatewaySumSql() . ' gw')
                 ->first();
         } catch (\Throwable) {
             return $zero;
@@ -1237,6 +1330,12 @@ final class PartnerOrg
 
         $g = (int) ($row->g ?? 0);
         $f = (int) ($row->f ?? 0);
-        return ['gross' => $g, 'platform_fee' => $f, 'net' => max(0, $g - $f), 'count' => (int) ($row->c ?? 0)];
+        $t = max(0, (int) ($row->t ?? 0));
+        $cv = max(0, (int) ($row->cv ?? 0));
+        $gw = max(0, (int) ($row->gw ?? 0));
+        // `net` is what reaches them: less our fee AND the gateway's where they bear it.
+        // `raised` is what donors GAVE them: less the tip to us and the cover to the gateway.
+        return ['gross' => $g, 'platform_fee' => $f, 'gateway_fee' => $gw, 'net' => max(0, $g - $f - $gw), 'count' => (int) ($row->c ?? 0),
+                'tip' => $t, 'cover' => $cv, 'raised' => max(0, $g - $t - $cv)];
     }
 }

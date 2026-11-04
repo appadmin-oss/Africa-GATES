@@ -18,18 +18,17 @@ class PartnerController {
         private readonly ?StatsService $stats = null
     ){}
 
-    /** Common render vars — real DB stats + enabled providers on every render path. */
+    /** Common render vars — real DB stats on every render path. */
     private function vars(array $extra): array {
         return array_merge([
             'gates_page'      => 'partner',
             'stats'           => $this->stats?->summary() ?? [],
-            'payment_providers' => $this->payments ? $this->payments->enabledProviders() : [],
         ], $extra);
     }
 
     public function form(Request $req,Response $res):Response {
         return $this->view->render($res,'pages/partner.twig',$this->vars([
-            'page_title'       => 'Partner With Us — Africa GATES',
+            'page_title'       => 'Partner with us — Africa GATES',
             'meta_description' => 'Partner with Africa GATES to power continental cultural recognition. Sponsor award programmes, reach the verified registry community and champion African excellence.',
         ]));
     }

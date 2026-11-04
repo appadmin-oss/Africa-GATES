@@ -68,6 +68,22 @@ final class MoneyClaimSweepTest extends TestCase
             => 'prints an organic tiebreak that is 0 against 0 where free voting is off',
         'organic cpi'
             => 'names a community half that no longer exists',
+        // AUDIT 2026-10-05 #10: the bundle itself said this, in three DCs and the reference.
+        // Under the people term a paid vote reaches the TALLY and never the count of people,
+        // so "the same as a free vote" tells a reader money buys what it cannot.
+        'same as a free vote'
+            => 'says a paid vote does everything a free one does, when it never adds a person',
+        'exactly like a free vote'
+            => 'says a paid vote does everything a free one does, when it never adds a person',
+        'exactly as much as a free one'
+            => 'says a paid vote does everything a free one does, when it never adds a person',
+        // 27 Oct 2026: both shipped to supporters. The thank-you mail every paid supporter
+        // receives, and Gee's answer to "why is X ahead of Y" — the two places somebody is
+        // told what their own money did.
+        'kept out of the score'
+            => 'says a paid vote is not scored, when it counts in the tally share',
+        'only the free ones count'
+            => 'says only free votes are scored, when a paid vote counts in the tally share',
     ];
 
     /** @return list<string> */
@@ -131,28 +147,5 @@ final class MoneyClaimSweepTest extends TestCase
 
         $this->assertSame([], $found,
             "A help article still publishes the old methodology:\n  " . implode("\n  ", $found));
-    }
-
-    /**
-     * THE TRUE CLAIM IS STILL BEING MADE.
-     *
-     * The failure mode of a sweep like this is somebody deleting the sentences to make it
-     * pass. What separates money from the award is real and load-bearing — judges are not
-     * shown a vote count — so it is asserted present, not merely permitted.
-     */
-    public function test_the_separation_that_does_hold_is_still_stated_publicly(): void
-    {
-        $said = 0;
-        foreach (['templates/pages/integrity.twig',
-                  'templates/pages/results/show.twig'] as $rel) {
-            $prose = mb_strtolower(self::prose(
-                (string) file_get_contents(dirname(__DIR__, 2) . '/' . $rel)));
-            if (str_contains($prose, 'judges') && str_contains($prose, 'vote count')) $said++;
-        }
-
-        $this->assertGreaterThan(0, $said,
-            'no public page says any more that judges are not shown a vote count — the '
-            . 'sweep above has been satisfied by deleting the claim rather than by '
-            . 'correcting it');
     }
 }

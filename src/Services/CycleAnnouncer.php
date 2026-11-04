@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace AfricaGates\Services;
 
-use AfricaGates\Support\Env;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
 
@@ -132,9 +131,10 @@ final class CycleAnnouncer
                 ->leftJoin('gates_profiles as p', 'p.id', '=', 'n.profile_id')
                 ->leftJoin('gates_award_categories as c', 'c.id', '=', 'n.category_id')
                 ->leftJoin('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
+                ->leftJoin('gates_award_programmes as pr', 'pr.id', '=', 'cy.programme_id')
                 ->where('n.id', $nomineeId)
                 ->select(['n.name', 'n.category_id', 'c.title as category',
-                          'cy.year as cycle_year', 'cy.edition_label', 'cy.programme_id',
+                          'cy.year as cycle_year', 'cy.edition_label', 'cy.programme_id', 'pr.title as programme',
                           'p.email as profile_email', 'p.display_name as profile_name'])
                 ->first();
         } catch (\Throwable) {
@@ -164,17 +164,13 @@ final class CycleAnnouncer
             // Was the only sender with no gates_settings lookup at all, so it and
             // CheckoutMailer disagreed about where configuration comes from.
             $mailer = OtpService::boot();
-            $base     = rtrim((string) Env::get('APP_URL', 'https://afg.afrovanguard.org.ng'), '/');
-            $headline = $kind === 'winner' ? 'Congratulations — you won.' : 'Congratulations — you are a runner-up.';
-            $nm       = htmlspecialchars((string) $n->profile_name, ENT_QUOTES, 'UTF-8');
-            $catN     = htmlspecialchars((string) $n->category, ENT_QUOTES, 'UTF-8');
+            $base     = rtrim(\AfricaGates\Support\SiteUrl::base(), '/');
             // The cycle's own edition, never the wall clock. Falls back to the current
             // year only when the join found nothing, which means the category has no
             // cycle and the result should not have existed in the first place.
             $edition  = trim((string) ($n->edition_label ?? '')) !== ''
                 ? (string) $n->edition_label
                 : (string) ((int) ($n->cycle_year ?? 0) ?: date('Y'));
-            $year     = htmlspecialchars($edition, ENT_QUOTES, 'UTF-8');
 
             // ── THE AWARD'S OWN PAGE, NOT THE PROFILE RANKING ────────────
             //
@@ -190,17 +186,16 @@ final class CycleAnnouncer
                 ? $base . '/results/' . \AfricaGates\Support\Slug::idSegment($catId, (string) $n->category)
                 : $base . '/leaderboard';
 
-            $html = "<p>Hi <strong>{$nm}</strong>,</p>"
-                . "<p style=\"font-size:17px;font-weight:700;color:#10292C\">{$headline}</p>"
-                . "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"margin:14px 0;background:#f0fdf4;border-left:4px solid #22c55e;border-radius:0 8px 8px 0;padding:12px 16px\">"
-                . "<tr><td style=\"font-size:14px;color:#166534;line-height:1.7\">Category: <strong>{$catN}</strong><br>Cycle: <strong>{$year}</strong></td></tr></table>"
-                . "<p>The full standing is now public — every nominee who scored, both halves of every index, and the denominator each community share was measured against.</p>"
-                . "<p style=\"text-align:center;margin:22px 0\"><a href=\"{$result}\" style=\"display:inline-block;padding:12px 28px;background:#10292C;color:#fff;border-radius:999px;font-weight:600;text-decoration:none;font-size:15px\">See the result &rarr;</a></p>";
-            $plain = "Hi {$n->profile_name},\n\n{$headline}\n\nCategory: {$n->category}\nCycle: {$edition}\n\n"
-                . "The full standing is now public — every nominee who scored, and both halves of every index: {$result}\n\n— Africa GATES";
-
-            $mailer->sendBranded((string) $n->profile_email, $headline . ' — Africa GATES', $html, $plain,
-                'Results', $base . '/assets/img/illustrations/illo-trophy.jpg');
+            // emails/winner.html.twig — sent in the same pass that publishes the result,
+            // so it says the result is public rather than asking anybody to keep it quiet.
+            \AfricaGates\Services\Mail\Emails::send($mailer, (string) $n->profile_email, 'winner', [
+                'first_name' => DoorWelcome::firstName((string) ($n->profile_name ?: $n->name)) ?: 'there',
+                'kind'       => $kind === 'winner' ? 'winner' : 'runner_up',
+                'award'      => trim((string) ($n->programme ?? '')),
+                'category'   => (string) $n->category,
+                'edition'    => $edition,
+                'result_url' => $result,
+            ]);
         } catch (\Throwable) { /* best-effort */ }
     }
 }

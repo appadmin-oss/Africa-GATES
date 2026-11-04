@@ -1,143 +1,112 @@
-{% extends "layout/gates.twig" %}
-{% import "partials/article.twig" as art %}
-
-{# ── COLOUR BUDGET: 0 for a document, 1 for the one that carries a control ──────
-   A policy that is loud reads as one that is selling something, so terms, privacy
-   and refunds spend nothing at all — links included, which are ink with an
-   underline and not an accent.
-   /cookies is the exception and it is a real one rather than a convenience: it is
-   the only document here that ASKS the reader to decide something, and the budget
-   is denominated in exactly that ("one event for each thing a page asks the reader
-   to do"). The one event is the consent button in partials/cookie-choice.twig.
-   The tier is gated on the same variable as the spend, so neither can appear
-   without the other, and the sweep holds this template to the higher of the two —
-   see ColourBudgetTest::tier(), which explains why it may not read a flat 1. #}
-{% set colour_tier = cookie_control ? '1' : '0' %}
+{% extends 'layout/shell.twig' %}
+{% import 'partials/article.twig' as art %}
 
 {#
   ══════════════════════════════════════════════════════════════════════════════
-  LEGAL — the terms, the privacy policy, and anything else filed beside them
+  LEGAL — /privacy · /terms · /cookies · /refunds · /vendor-terms · /legal/{slug}
+  (the directory of all of them is /legal, pages/legal-index.twig)
+  Phase 9 · design/DocPage.dc.html (doc = terms · privacy · cookies) · §8.20
   ══════════════════════════════════════════════════════════════════════════════
 
-  Same article design as /philosophy and /integrity, and for the same reason: these
-  are documents people are asked to accept and occasionally need to keep a copy of.
-  A policy in a white card with 14.5px text reads as small print. A policy set as an
-  article reads as something written to be read, which is the honest signal when the
-  content is genuinely meant to be understood.
+  Rebuilt from the DC after the destroy (inventory: pages--legal.md). One template for
+  every policy in `gates_legal_docs`, through the document macros in partials/article.twig.
 
   ── WHERE THE CONTENT COMES FROM ────────────────────────────────────────────
 
-  `legal_body` is {@see LegalDocument::bodyWithAnchors()} — the admin-authored HTML
-  from `gates_legal_docs`, already sanitized, with an id injected into every <h2> so
-  the contents can link to it, PLUS anything generated.
+  `doc_sections` is LegalDocument::sections(): the admin-authored body (sanitised by
+  Html::sanitize) PLUS what is generated — the automated-processing and voice sections on
+  /privacy, the cookie list on /cookies — cut at its <h2>s by the same walk that anchors
+  them. The .txt and .md editions are built from the same body, so a download cannot
+  omit the section somebody downloaded it to keep. Nothing on this page states a fact
+  about the platform in Twig: the facts are generated (CLAUDE.md, "A legal page that
+  states a fact is a fact that will go stale").
 
-  The generated part matters: on /privacy the automated-processing disclosure is
-  built from the AI capability registry rather than written into the editable body,
-  because hand-writing "we send nomination text to a third-party model" would go
-  stale the first time a capability changed. It used to be assembled in this
-  template. It moved into LegalDocument so the .txt and .md editions carry it too —
-  a privacy download that silently omitted the AI section would be missing the one
-  section somebody most plausibly downloaded the document to keep.
+  ── COLOUR TIER 0 — /cookies INCLUDED ──────────────────────────────────────
 
-  So there is no disclosure loop here any more. One variable, one source, three
-  renderings.
+  A policy that is loud reads as one selling something. The DC draws /cookies' control
+  card in ink too (switches ink when on), so it spends no colour either: the one page
+  that asks the reader to decide asks in the document's own voice.
 #}
-
+{% set colour_tier = '0' %}
 {% set cur = legal_doc %}
+{% set _is_cookies = cur.slug == 'cookies' %}
+{% set app_bar = {variant: 'child', title: cur.title, sub: 'Legal'|trans, back: '/legal'} %}
 
-{% block structured_data %}
-{{ art.cite_meta({
-  title: cur.title, author: doc_author, publisher: doc_publisher,
-  published: doc_effective, updated: doc_effective, url: doc_url
-}) }}
-{{ art.article_ld({
-  title: cur.title, description: meta_description,
-  author: doc_author, publisher: doc_publisher,
-  published: doc_effective, updated: doc_effective,
-  version: doc_effective, url: doc_url
-}, csp_nonce) }}
+{# Hoisted: the head, the content and the sheets block all read it. #}
+{% set _sibs = [{label: 'All legal documents'|trans, href: '/legal', current: false}] %}
+{% for t in legal_tabs %}
+  {% set _sibs = _sibs|merge([{label: t.title, href: t.url|default('/' ~ t.slug), current: t.slug == cur.slug}]) %}
+{% endfor %}
+{% set _sibs = _sibs|merge([
+  {label: 'How a winner is decided'|trans, href: '/integrity', current: false},
+  {label: 'The philosophy'|trans, href: '/philosophy', current: false}
+]) %}
+{% set d = {
+  key: 'legal',
+  eyebrow: 'Legal · Africa GATES'|trans,
+  title: cur.title,
+  standfirst: _is_cookies
+    ? 'Which cookies we set, what each one does, and a switch for each optional kind, right here at the top.'|trans
+    : 'Written to be read — if any part of it is unclear, that is a fault worth reporting.'|trans,
+  byline: [doc_author, 'In effect from %d%'|trans({'%d%': doc_effective|date('j M Y')}), '%n% min read'|trans({'%n%': doc_read_minutes})],
+  listen: true,
+  download: {txt: doc_txt_url, md: doc_md_url, stem: doc_file_stem},
+  cite_tool: false,
+  toc: doc_sections,
+  siblings: _sibs,
+  aside: {
+    label: 'This document'|trans,
+    rows: [
+      {k: 'In effect from'|trans, v: doc_effective|date('j M Y')},
+      {k: 'Sections'|trans, v: doc_sections|length},
+      {k: 'Reading time'|trans, v: '%n% min'|trans({'%n%': doc_read_minutes})},
+      {k: 'Copies'|trans, v: 'Text and Markdown'|trans}
+    ]
+  },
+  cite: {
+    word: 'document'|trans,
+    citations: doc_citations,
+    note: 'Policies are cited by effective date. Please cite the date you read — the copy you were shown is the one that applied to you.'|trans,
+    action: 'download', url: doc_url, txt: doc_txt_url, md: doc_md_url, stem: doc_file_stem
+  },
+  contact: doc_contact,
+  end: 'Questions about this document? Write to'|trans,
+  end_note: 'Governed by the laws of the Federal Republic of Nigeria. Provided for transparency — this document does not constitute legal advice.'|trans
+} %}
+
+{% block head_styles %}
+<link rel="stylesheet" href="{{ asset('/assets/css/components/doc.css') }}">
+{{ art.cite_meta({title: cur.title, author: doc_author, publisher: doc_publisher, published: doc_effective, updated: doc_effective, url: doc_url}) }}
+{{ art.article_ld({title: cur.title, description: meta_description, author: doc_author, publisher: doc_publisher,
+                   published: doc_effective, updated: doc_effective, version: doc_effective, url: doc_url}, csp_nonce) }}
 {% endblock %}
 
-{% block head_styles %}{{ art.styles() }}{% endblock %}
-
 {% block content %}
-{{ art.script({ txt_url: doc_txt_url, url: doc_url, tab_ids: doc_citations|column('id') }, csp_nonce) }}
+<div class="ag-doc dp" data-doc>
+  {{ art.top(d) }}
+  <div class="dp-shell">
+    {{ art.rail(d) }}
+    <article class="dp-doc" data-doc-article>
+      {{ art.masthead(d) }}
 
-{# Contents from the document's own <h2>s, plus the sibling policies. A legal page
-   is one of a set and a reader arriving at the terms often wants the privacy
-   policy, so the set is part of the navigation rather than a footnote. #}
-{% set groups = [] %}
-{% if doc_outline is not empty %}
-  {% set groups = groups|merge([{ label: 'In this document', items: doc_outline }]) %}
-{% endif %}
+      {# /cookies only: "Your choices, right now", ABOVE the body — somebody who came here
+         to turn something off should not have to read a policy first to find out that
+         they can. #}
+      {% if _is_cookies %}{% include 'partials/cookie-choices.twig' %}{% endif %}
 
-<div class="ar" x-data="agArticleDoc()">
-  <div class="ar-shell">
-
-    <aside class="ar-rail">
-      {{ art.contents(groups, true) }}
-      <nav class="ar-refs" aria-label="Other policies" style="margin-top:1.6rem">
-        <span>Also filed here</span>
-        <ul>
-          {% for t in legal_tabs %}
-            {% if t.slug != cur.slug %}
-              <li><a href="/{{ t.slug }}">{{ t.title }}</a></li>
-            {% endif %}
-          {% endfor %}
-          <li><a href="/integrity">How a winner is decided</a></li>
-          <li><a href="/philosophy">The philosophy behind community voting</a></li>
-        </ul>
-      </nav>
-    </aside>
-
-    <article class="ar-body">
-      <header class="ar-head">
-        {{ art.masthead({
-          eyebrow: 'Legal · Africa GATES',
-          title: cur.title,
-          standfirst: doc_standfirst,
-          author: doc_author,
-          version: '',
-          updated: doc_effective
-        }) }}
-        {{ art.tools({ txt_url: doc_txt_url, md_url: doc_md_url, file_stem: doc_file_stem, id: 'top' }) }}
-      </header>
-
-      {{ art.contents(groups, false) }}
-
-      {# /cookies only. The switch the page had promised for years and did not carry —
-         see partials/cookie-choice.twig. Above the body rather than below it, because
-         somebody who came here to turn something off should not have to read a policy
-         first to find out that they can. #}
-      {% if cookie_control %}{% include 'partials/cookie-choice.twig' %}{% endif %}
-
-      {# The authored body. `|raw` is safe here and only here: LegalDocument has
-         already put it through Html::sanitize(), and re-escaping it would print the
-         markup instead of rendering it. #}
-      <div class="ar-rich ar-sec">
-        {{ legal_body|raw }}
+      <div data-doc-read>
+        {% if doc_lead %}<div class="dp-lead dp-rich">{{ doc_lead|raw }}</div>{% endif %}
+        {% for s in doc_sections %}{{ art.section(s.id, loop.index, s.title, s.html) }}{% endfor %}
       </div>
 
-      {{ art.cite({
-        citations: doc_citations, version: '', published: doc_effective,
-        updated: doc_effective, accessed: doc_accessed, url: doc_url,
-        txt_url: doc_txt_url, md_url: doc_md_url, file_stem: doc_file_stem,
-        note: 'Policy documents are cited by effective date rather than by version number, so every
-               format below quotes the date this document took effect. Please cite the date you read
-               &mdash; these documents are revised, and the copy you were shown is the one that
-               applied to you.'
-      }) }}
-
-      <div class="ar-end">
-        <p>Questions about this document? Write to
-           <a href="mailto:legal@afrovanguard.org.ng">legal@afrovanguard.org.ng</a>. For anything
-           about how a result was reached, the
-           <a href="/integrity">Integrity Centre</a> sets out the method.</p>
-        <p>An initiative of <a href="https://afrovanguard.org.ng">Afrovanguard</a>, Lagos, Nigeria,
-           and governed by the laws of the Federal Republic of Nigeria. Provided for transparency
-           &mdash; this document does not constitute legal advice.</p>
-      </div>
+      {{ art.cite(d) }}
+      {{ art.foot(d) }}
     </article>
+    {{ art.aside(d, 'rail') }}
   </div>
 </div>
 {% endblock %}
+
+{% block sheets %}{{ parent() }}{{ art.sheet(d) }}{% endblock %}
+
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/doc.js') }}" data-nav="rerun"></script>{% endblock %}

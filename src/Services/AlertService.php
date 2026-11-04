@@ -68,6 +68,8 @@ final class AlertService
             $this->saves($mine, $userId),
             $this->follows($email),
             $this->milestones($email),
+            $this->wallet($userId),
+            $this->ads($userId),
         );
 
         // Newest first BEFORE grouping, so each group keeps its most recent
@@ -157,6 +159,8 @@ final class AlertService
             'save'      => $lead . ' saved your post',
             'follow'    => $lead . ' started following you',
             'milestone' => $g['label'],
+            'wallet'    => $g['label'],
+            'ad'        => $g['label'],
             default     => $lead,
         };
     }
@@ -334,6 +338,122 @@ final class AlertService
             'at' => (string) $r->achieved_at,
             'href' => '/registry/' . (string) ($r->slug ?? ''),
         ])->all();
+    }
+
+    /**
+     * The wallet's news, derived from the same rows the wallet draws (MemberWallet), so a
+     * notification can never name money the wallet does not show.
+     *
+     * Credits are summed per pocket per day — a nominee with forty supporters on a busy
+     * evening gets "₦4,000 came in from 40 contributions", not forty lines. A withdrawal is
+     * one item that moves: its time is its latest change, so "paid" arrives as news even
+     * though "in review" was read days ago.
+     *
+     * @return list<array<string,mixed>>
+     */
+    /**
+     * What happened to this member's ads: each review decision, from the stamp the reviewer
+     * left (Ads\AdReview), and a free trial that has finished. Derived, like every source
+     * here, so the email (Ads\AdNotice) and this list cannot tell two different stories.
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function ads(int $userId): array
+    {
+        if (!\AfricaGates\Services\Ads\AdCampaigns::ready()) return [];
+        try {
+            $rows = DB::table('gates_ads as a')
+                ->join('gates_ad_sets as s', 's.id', '=', 'a.ad_set_id')
+                ->join('gates_ad_campaigns as c', 'c.id', '=', 's.campaign_id')
+                ->where('c.user_id', $userId)->whereNotNull('a.reviewed_at')
+                ->whereIn('a.review', ['approved', 'rejected'])
+                ->orderByDesc('a.reviewed_at')->limit(self::PER_SOURCE)
+                ->get(['a.id', 'a.headline', 'a.review', 'a.reviewed_at', 'c.id as cid'])->all();
+            $trial = DB::table('gates_ad_campaigns')->where('user_id', $userId)->where('trial', 1)->first();
+        } catch (\Throwable $e) {
+            error_log('[alerts] ads unavailable: ' . $e->getMessage());
+            return [];
+        }
+        $out = [];
+        foreach ($rows as $r) {
+            $ok = (string) $r->review === 'approved';
+            $out[] = ['kind' => 'ad', 'subject_id' => 'r:' . (int) $r->id . ':' . (string) $r->reviewed_at, 'actor' => '',
+                      'label' => ($ok ? 'Your ad was approved: ' : 'Your ad needs a change: ') . (string) $r->headline,
+                      'at' => (string) $r->reviewed_at,
+                      'href' => '/account/ads/' . (int) $r->cid . ($ok ? '' : '#ad-' . (int) $r->id)];
+        }
+        if ($trial) {
+            $sum = \AfricaGates\Services\Ads\AdCampaigns::summary($trial);
+            if ($sum['delivery'] === 'completed') {
+                $set = $sum['_set'];
+                $at = $set && $set->ends_at && (string) $set->ends_at < date('Y-m-d H:i:s') ? (string) $set->ends_at : (string) ($trial->updated_at ?? $trial->created_at);
+                $out[] = ['kind' => 'ad', 'subject_id' => 't:' . (int) $trial->id, 'actor' => '',
+                          'label' => 'Your free ad trial has finished: ' . number_format($sum['views']) . ' views, ' . number_format($sum['clicks']) . ' clicks',
+                          'at' => $at, 'href' => '/account/ads/' . (int) $trial->id];
+            }
+        }
+        return $out;
+    }
+
+    private function wallet(int $userId): array
+    {
+        try {
+            $tx = MemberWallet::transactions($userId, 150);
+        } catch (\Throwable $e) {
+            error_log('[alerts] wallet unavailable: ' . $e->getMessage());
+            return [];
+        }
+        $out = [];
+        $credits = [];
+        foreach ($tx as $t) {
+            $pts = ($t['unit'] ?? 'naira') === 'pts';
+            if ($t['dir'] === 'in') {
+                $k = $t['pocket'] . ':' . substr((string) $t['at'], 0, 10) . ':' . $t['status'];
+                $credits[$k] ??= ['n' => 0, 'sum' => 0, 'at' => '', 'pts' => $pts, 'pocket' => $t['pocket'],
+                                  'status' => $t['status'], 'href' => '/account/wallet/tx/' . $t['key']];
+                $credits[$k]['n']++;
+                $credits[$k]['sum'] += (int) $t['amount_kobo'];
+                if (strcmp((string) $t['at'], $credits[$k]['at']) > 0) $credits[$k]['at'] = (string) $t['at'];
+                continue;
+            }
+            if ($pts || !in_array($t['pocket'], ['return', 'referral'], true)) continue;
+            $amt = '₦' . number_format(intdiv((int) $t['amount_kobo'], 100));
+            $label = match ($t['status']) {
+                MemberWallet::ST_PENDING    => 'Your ' . $amt . ' withdrawal is being reviewed',
+                MemberWallet::ST_PROCESSING => 'Your ' . $amt . ' withdrawal is on its way to your bank',
+                MemberWallet::ST_PAID       => 'Your ' . $amt . ' withdrawal was paid — check your bank',
+                default                     => 'Your ' . $amt . ' withdrawal was refused — see why',
+            };
+            $out[] = ['kind' => 'wallet', 'subject_id' => $t['key'] . ':' . $t['status'], 'actor' => '',
+                      'label' => $label, 'at' => (string) $t['at'], 'href' => '/account/wallet/tx/' . $t['key']];
+        }
+        foreach ($credits as $k => $c) {
+            $what = $c['pts'] ? '+' . number_format($c['sum']) . ' points'
+                              : '₦' . number_format($c['sum'] / 100, 2);
+            $from = match ($c['pocket']) {
+                'return'   => $c['n'] === 1 ? ' from a supporter' : ' from ' . $c['n'] . ' supporters’ contributions',
+                'referral' => $c['n'] === 1 ? ' in referral commission' : ' in referral commission from ' . $c['n'] . ' purchases',
+                default    => '',
+            };
+            $tail = match ($c['status']) {
+                MemberWallet::ST_LOCKED   => ' — locked until your edition’s milestone',
+                MemberWallet::ST_AWAITING => ' — released when results are announced',
+                default                   => '',
+            };
+            $out[] = ['kind' => 'wallet', 'subject_id' => 'in:' . $k, 'actor' => '',
+                      'label' => ($c['pts'] ? $what . ' added to your wallet' : $what . ' came into your wallet' . $from) . $tail,
+                      'at' => $c['at'], 'href' => $c['n'] === 1 ? $c['href'] : '/account/wallet'];
+        }
+        try {
+            foreach (MemberWallet::pockets($userId) as $p) {
+                $ms = $p['milestone'] ?? null;
+                if (!$ms || empty($ms['uses_milestone']) || empty($ms['confirmed_at'])) continue;
+                $out[] = ['kind' => 'wallet', 'subject_id' => 'ms:' . (int) $ms['cycle_id'], 'actor' => '',
+                          'label' => 'Your edition’s milestone was confirmed — your community return is released',
+                          'at' => (string) $ms['confirmed_at'], 'href' => '/account/wallet'];
+            }
+        } catch (\Throwable) {}
+        return $out;
     }
 
     // ── names ────────────────────────────────────────────────────────────────

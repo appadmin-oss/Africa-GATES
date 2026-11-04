@@ -22,6 +22,9 @@ class JudgeDashboardTest extends TestCase
         ]);
         DB::table('gates_award_cycles')->insertOrIgnore([
             'id' => $cycleId, 'programme_id' => $progId, 'year' => 2026, 'status' => $status,
+            // Windows that AGREE with the status: the judging lock reads the computed phase
+            // (CyclePolicy::phaseFor), and a results date alone computes as Upcoming.
+            'voting_close' => $status === 'judging' ? Carbon::now()->subDays(5)->toDateTimeString() : null,
             'results_date' => Carbon::now()->addDays(10)->toDateTimeString(),
         ]);
         DB::table('gates_award_categories')->insertOrIgnore([

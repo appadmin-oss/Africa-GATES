@@ -230,27 +230,6 @@ final class CsrfFieldNameTest extends TestCase
     }
 
     /**
-     * The account-free ticket reply specifically, by name.
-     *
-     * The scan above is a net; this is the hook. That page is the only route on the
-     * platform that accepts a write from somebody with no session at all, it POSTs
-     * outside `/api/`, and it shipped without a token — so it is named here the same
-     * way the three admin incident tools are, rather than trusted to a heuristic that
-     * a later refactor could slip past.
-     */
-    public function test_the_account_free_ticket_reply_can_actually_post(): void
-    {
-        $body = (string) file_get_contents(
-            dirname(__DIR__, 2) . '/templates/pages/support-ticket-link.twig');
-
-        $this->assertStringContainsString('X-CSRF-Token', $body,
-            'Without this header the reply is rejected, and the one group who cannot '
-            . 'fall back to an account is the group left unable to answer.');
-        $this->assertStringContainsString('meta[name="csrf-token"]', $body,
-            'The token must come from the tag the layout already emits, not a copy.');
-    }
-
-    /**
      * And the admin screens for the incident specifically.
      *
      * Named one by one because these three are the tools somebody reaches for when

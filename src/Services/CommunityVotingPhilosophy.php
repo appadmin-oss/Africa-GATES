@@ -61,8 +61,8 @@ final class CommunityVotingPhilosophy
     /** First publication. Citations need both this and UPDATED. */
     public const PUBLISHED = '2026-08-08';
 
-    public const TITLE = 'The Philosophy Behind Africa GATES Community Voting';
-    public const SUBTITLE = 'Reimagining Recognition Through Communal Spirit';
+    public const TITLE = 'The philosophy behind Africa GATES community voting';
+    public const SUBTITLE = 'Reimagining recognition through communal spirit';
     public const AUTHOR = 'Africa GATES Integrity Centre';
     public const PUBLISHER = 'Africa GATES — An Afrovanguard Initiative';
 
@@ -172,10 +172,7 @@ final class CommunityVotingPhilosophy
                   . 'come from communities with the fewest digital and financial resources. The '
                   . 'remaining <strong>{judge_pct}%</strong> is independent assessment, which is '
                   . 'what stops the process being decided by whoever can raise the most.'],
-            ['p' => 'And because the community raises it, a share comes back: a nominee keeps '
-                  . '<strong>{return_pct}%</strong> of what supporters contribute in their name, '
-                  . 'win or lose, once they have gathered {return_threshold} votes of qualifying '
-                  . 'support from at least {return_people} different verified people. The rest of '
+            ['p' => 'And because the community raises it, {return_sentence} The rest of '
                   . 'this page is how all of that is enforced in code.'],
         ];
 
@@ -369,12 +366,8 @@ final class CommunityVotingPhilosophy
                     ['p' => 'Africa GATES goes beyond simply collecting votes. One of the distinctive '
                           . 'principles of the programme is our commitment to <strong>community '
                           . 'return</strong>.'],
-                    ['p' => 'Subject to the applicable programme rules and financial conditions, a nominee '
-                          . 'keeps <strong>{return_pct}% of what supporters contribute in their name</strong> '
-                          . '&mdash; win or lose &mdash; once they have gathered {return_threshold} votes of '
-                          . 'qualifying support. No single supporter may supply more than {return_cap_pct}% '
-                          . 'of that threshold, so qualifying takes at least {return_people} different '
-                          . 'verified people. The figures on this page are read from the live programme '
+                    ['p' => 'Subject to the applicable programme rules and financial conditions, '
+                          . '{return_sentence} The figures on this page are read from the live programme '
                           . 'settings rather than typed, so they cannot fall out of date.'],
                     ['p' => 'This creates a different philosophy: the community supports the nominee, and '
                           . 'the success of the programme creates an opportunity for value to return to '
@@ -494,8 +487,10 @@ final class CommunityVotingPhilosophy
                             . 'multi-level marketing (MLM) programme, investment scheme, get-rich-quick '
                             . 'scheme or fraudulent fundraising operation.',
                             'Participants are not promised financial returns for recruiting other '
-                            . 'participants. No participant earns money simply by introducing another '
-                            . 'person into the programme. There is no requirement for nominees or '
+                            . 'participants. Nobody is paid because somebody else registered, was '
+                            . 'nominated or voted; the one referral reward is a published retail '
+                            . 'commission on tickets and shop orders bought through a member&rsquo;s own '
+                            . 'link, paid on what those buyers paid. There is no requirement for nominees or '
                             . 'supporters to recruit people into a chain in order to receive a financial '
                             . 'return.',
                             'Payments made through the official Africa GATES voting system are '
@@ -580,7 +575,9 @@ final class CommunityVotingPhilosophy
     {
         if ($figures === []) return $s;
         $map = [];
-        foreach ($figures as $k => $v) $map['{' . $k . '}'] = (string) $v;
+        // Scalars only: the figures array is shared with /integrity, which also carries
+        // lists (the editions with their own return rule), and no token names a list.
+        foreach ($figures as $k => $v) { if (is_scalar($v)) $map['{' . $k . '}'] = (string) $v; }
         return strtr($s, $map);
     }
 

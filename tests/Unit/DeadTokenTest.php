@@ -80,6 +80,22 @@ final class DeadTokenTest extends TestCase
                 }
             }
         }
+        // ── COLOUR IS DECLARED IN PHP, AND IS STILL A DECLARATION ────────────
+        //
+        // Support\Accent emits the palette and the shadows into the layout's <style>;
+        // no stylesheet declares them. Reading only CSS would have exempted every
+        // colour token from this rule the moment colour moved there — a sweep going
+        // quiet over exactly the file that holds what it was written for.
+        foreach (array_merge(array_keys(\AfricaGates\Support\Accent::palette()),
+                             array_keys(\AfricaGates\Support\Accent::shadows())) as $name) {
+            $decls['--ag-' . $name][] = 'src/Support/Accent.php';
+        }
+        // And the admin console's set, emitted as `--cn-*` by css('console') (4 Oct 2026).
+        foreach (array_merge(array_keys(\AfricaGates\Support\Accent::console()),
+                             array_keys(\AfricaGates\Support\Accent::consoleShadows())) as $name) {
+            $decls['--cn-' . $name][] = 'src/Support/Accent.php (console)';
+        }
+
         return [$decls, $reads];
     }
 
@@ -93,6 +109,25 @@ final class DeadTokenTest extends TestCase
         $out   = [];
         $stack = [];   // one frame per open block, innermost last
         $line  = 1;
+
+        // ── A TRAILING COMMENT HID THE NEXT DECLARATION, AND THAT IS LIE (4) ──
+        //
+        // A declaration is recognised as the first thing in its `;`-separated segment.
+        // A comment is not stripped, so `--a:red; /* why */` leaves the NEXT segment
+        // beginning with `/* why */` — and `--b` after it is skipped entirely.
+        //
+        // In a token file where almost every line carries an explanatory comment, that
+        // is most of the file: `--ag-stock-low` sat dead behind `--ag-error`'s comment
+        // and this sweep reported a clean pass over it. It surfaced only because an
+        // unrelated token was inserted between the two, which is the worst way for a
+        // guard to be wrong — it goes quiet exactly in the files somebody documented,
+        // which in this repo is all of them.
+        //
+        // Comments are replaced by a space rather than removed, so the line numbers the
+        // findings carry stay true. `str_repeat` keeps every newline for the same reason.
+        $text = (string) preg_replace_callback('~/\*.*?\*/~s', static function (array $m): string {
+            return str_repeat("\n", substr_count($m[0], "\n")) . ' ';
+        }, $text);
 
         foreach (str_split($text) as $ch) {
             if ($ch === "\n") $line++;
@@ -136,12 +171,63 @@ final class DeadTokenTest extends TestCase
         return $out;
     }
 
+    /**
+     * DECLARED, UNREAD, AND NOT OURS TO DELETE — A LIST THAT ONLY SHRINKS.
+     *
+     * On 3 Oct 2026 the old public pages were destroyed (docs/handoff/DESTROYED.md) and
+     * these lost their last reader; the orphans those pages left behind were destroyed
+     * the same day and took the second half of the list with them. Every entry is the
+     * handoff's palette or shadows, which the owner decided ship ±0 under the handoff's
+     * names (GAPS §8 Q1) and which AccentTest pins name for name — so deleting one is an
+     * owner decision, not a tidy-up. The non-palette tokens that went dead the same way
+     * were simply removed: tokens.css's spacing and layer steps (restored at the
+     * handoff's value by the phase that rebuilds a reader), and two legacy main.css
+     * tokens whose readers were the destroyed legacy sheets.
+     *
+     *  - the first seven lost their readers with the pages;
+     *  - `--ag-gold`, `-gold-edge`, `-gold-ink`, `-green-light`, `-green-wash` and `--ag-info`
+     *    lost theirs with the orphans (`components/awards.css`, `components/promo.css`,
+     *    `js/favicon.js`).
+     *
+     * The `--ob-accent*` three that used to close this list were written by
+     * `partials/org-page.twig`; with their writer destroyed they are declared nowhere, so
+     * they left it rather than being carried as a name nothing holds.
+     *
+     * Each entry leaves the moment a rebuilt page reads it — the test below fails on an
+     * entry that has a reader, or one nothing declares any more.
+     */
+    // Phase 2 (the shared chrome, 3 Oct 2026) gave eight of these their reader back in
+    // components/chrome.css — the mega and Menu tile tones (gold-wash-2, gold-ink,
+    // green-wash, live-wash, live-ink), the status dot (gold), the flash mark (info) and
+    // the mega panel's shadow (sh-mega) — and they left the list as it requires.
+    private const AWAITING_REBUILD = [
+        // Phase 3 (Gee) gave green-edge, info-wash and green-light their readers; Phase 4
+        // (Discover) gave gold-wash its reader back — the winner's chip and avatar; Phase 7
+        // (Events) gave gold-edge its reader — the early-bird banner's rule.
+        // The admin console's v2 palette (AdminConsole v2, 20 Oct 2026): tokens the v2
+        // shell, pills, banners and Home draw, declared with the palette and read as each
+        // of those lands. Each leaves this list the moment a rebuilt piece reads it.
+        '--cn-green-edge-2',
+    ];
+
+    public function test_the_awaiting_rebuild_list_only_shrinks(): void
+    {
+        [$decls, $reads] = $this->tokens();
+        $stale = [];
+        foreach (self::AWAITING_REBUILD as $name) {
+            if (!isset($decls[$name])) $stale[] = "$name: no longer declared — delete its line";
+            elseif (isset($reads[$name])) $stale[] = "$name: has a reader now — delete its line";
+        }
+        $this->assertSame([], $stale, implode("\n", $stale));
+    }
+
     public function test_no_custom_property_is_declared_without_a_reader(): void
     {
         [$decls, $reads] = $this->tokens();
 
         $dead = [];
         foreach ($decls as $name => $at) {
+            if (in_array($name, self::AWAITING_REBUILD, true)) continue;
             if (!isset($reads[$name])) $dead[] = $name . '  ' . $at[0];
         }
         sort($dead);

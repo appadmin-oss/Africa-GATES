@@ -206,13 +206,27 @@ final class OperationalCredentialsTest extends TestCase
      */
     public function test_the_settings_form_can_set_every_one_of_them(): void
     {
-        $form = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/admin/settings.twig');
+        $root = dirname(__DIR__, 2);
+        $form = (string) file_get_contents($root . '/templates/admin/settings.twig');
 
-        foreach (['mail_smtp_host', 'mail_smtp_port', 'mail_smtp_user', 'mail_smtp_pass',
-                  'cloudinary_cloud_name', 'cloudinary_api_key', 'cloudinary_api_secret',
+        foreach (['cloudinary_cloud_name', 'cloudinary_api_key', 'cloudinary_api_secret',
                   'cloudinary_url', 'cloudinary_folder'] as $field) {
             $this->assertStringContainsString('name="' . $field . '"', $form,
                 "$field is resolvable but there is no field that sets it");
+        }
+
+        // The mail transport is set on Email health, by a form whose every field
+        // `MailSetup::save()` reads — and NOT on the settings page, whose every save used
+        // to re-post the SMTP login and so let an autofilled box replace a working one.
+        $mail  = (string) file_get_contents($root . '/templates/admin/mail-health.twig');
+        $setup = (string) file_get_contents($root . '/src/Services/Mail/MailSetup.php');
+        foreach (['transport', 'host', 'port', 'secure', 'username', 'password', 'api_key'] as $field) {
+            $this->assertStringContainsString('name="' . $field . '"', $mail, "Email health has no field for $field");
+            $this->assertStringContainsString("\$in['" . $field . "']", $setup, "MailSetup never reads the $field the form posts");
+        }
+        foreach (['mail_smtp_host', 'mail_smtp_port', 'mail_smtp_user', 'mail_smtp_pass', 'mail_smtp_secure'] as $field) {
+            $this->assertStringNotContainsString('name="' . $field . '"', $form,
+                "$field is back on the settings page, which re-posts it on every save");
         }
     }
 

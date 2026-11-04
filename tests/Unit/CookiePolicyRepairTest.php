@@ -121,4 +121,50 @@ final class CookiePolicyRepairTest extends TestCase
         // would read the stamp as somebody's edit and leave a stale document alone.
         $this->assertNull(DB::table('gates_legal_docs')->where('slug', 'cookies')->value('updated_by'));
     }
+
+    // ══ 2027_02_27: the four choices (GAPS Q11) ═══════════════════════════════
+
+    /** The authored text as it shipped for the single-switch model, word for word. */
+    private const SINGLE_SWITCH = '<h2>Turning cookies off</h2><p>Blocking cookies is not the same as '
+        . 'switching off the counting, and neither one needs the other. The counting can be refused '
+        . 'on its own with the control at the top of this page.</p>';
+
+    private function runConsentRepair(): void
+    {
+        ob_start();
+        require dirname(__DIR__, 2) . '/database/migrations/2027_02_27_cookie_consent_policy_repair.php';
+        ob_end_clean();
+    }
+
+    public function test_the_single_switch_wording_is_replaced_where_nobody_edited_it(): void
+    {
+        $this->plant('cookies', self::SINGLE_SWITCH, null);
+        $this->runConsentRepair();
+
+        $now = $this->body('cookies');
+        $this->assertStringNotContainsString('The counting can be refused on its own', $now,
+            'production would still describe one switch while the notice offers three choices');
+        $this->assertSame(trim(LegalSeeder::documents()['cookies']['body']), trim($now));
+        $this->assertStringContainsString('you choose', strtolower(strip_tags($now)));
+        $this->assertNull(DB::table('gates_legal_docs')->where('slug', 'cookies')->value('updated_by'),
+            'the repair claimed an administrator wrote it, so the next repair would leave it alone');
+
+        // Idempotent: a second run changes nothing.
+        $at = DB::table('gates_legal_docs')->where('slug', 'cookies')->value('updated_at');
+        $this->runConsentRepair();
+        $this->assertSame($at, DB::table('gates_legal_docs')->where('slug', 'cookies')->value('updated_at'));
+    }
+
+    public function test_the_consent_repair_leaves_an_edited_policy_and_creates_none(): void
+    {
+        $mine = '<h2>Our cookies</h2><p>Words an operator wrote and meant.</p>';
+        $this->plant('cookies', $mine, 7);
+        $this->runConsentRepair();
+        $this->assertSame($mine, $this->body('cookies'));
+
+        DB::table('gates_legal_docs')->where('slug', 'cookies')->delete();
+        $this->runConsentRepair();
+        $this->assertNull(DB::table('gates_legal_docs')->where('slug', 'cookies')->first(),
+            'absence of a record is not a record of absence');
+    }
 }

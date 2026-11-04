@@ -1,5 +1,8 @@
 # Africa GATES — Sitewide Redesign (from approved design) — Plan
 
+> **8 Oct 2026:** `docs/redesign-ref/` was deleted as superseded by `handoff-2026-10-05/design/` (owner, AUDIT Q15). The paths below are historical; the files are in git history.
+
+
 **Date:** 2026-06-20
 
 ## ▶ START HERE (new session)

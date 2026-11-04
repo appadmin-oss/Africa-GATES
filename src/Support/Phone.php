@@ -91,6 +91,41 @@ final class Phone
         return (strlen($digits) >= 11 && self::validLength($digits)) ? '+' . $digits : null;
     }
 
+    /**
+     * The countries a number may be typed against, for the sign-in screen's country picker
+     * (SignIn.dc.html's "NG +234"). Read from the SAME table normalize() resolves with, so a
+     * country the picker offers is always one a typed number can be resolved against.
+     *
+     * @return list<array{code:string,dial:string}>  ISO alpha-2 and dial code, Nigeria first
+     */
+    public static function dialCodes(): array
+    {
+        $out = [];
+        foreach (self::DIAL as $iso => $dial) $out[] = ['code' => $iso, 'dial' => $dial];
+        usort($out, static fn ($a, $b) => [$a['code'] !== 'NG', $a['code']] <=> [$b['code'] !== 'NG', $b['code']]);
+        return $out;
+    }
+
+    /**
+     * The country an E.164 number belongs to, from the same dial-code table normalize() uses:
+     * the longest code that prefixes it. Null when no code matches or when one code is shared
+     * (+1 is the United States and Canada) — a guess is not an answer.
+     */
+    public static function country(string $e164): ?string
+    {
+        if (!preg_match('/^\+(\d{8,15})$/', trim($e164), $m)) return null;
+        $digits = $m[1];
+        $best = null; $len = 0; $shared = false;
+        foreach (self::DIAL as $iso => $dial) {
+            if (!str_starts_with($digits, $dial)) continue;
+            $l = strlen($dial);
+            if ($l > $len) { $best = $iso; $len = $l; $shared = false; }
+            elseif ($l === $len) { $shared = true; }
+        }
+
+        return $shared ? null : $best;
+    }
+
     /** True when the value normalises to E.164 as-is. */
     public static function isValid(?string $raw, ?string $country = null): bool
     {

@@ -767,10 +767,15 @@ final class JudgingAudit
      */
     private static function conflicts(int $programmeId, array $scores): array
     {
+        // EVERY declaration, standing or withdrawn. A withdrawal used to DELETE the row, so
+        // "declared a conflict, scored, withdrew it" vanished from the one screen built to
+        // compare what a judge declared with what they did. It is a stamp now, read here.
+        $soft = \AfricaGates\Support\SchemaHas::column('gates_judge_coi', 'withdrawn_at');
         $declared = DB::table('gates_judge_coi as coi')
             ->leftJoin('gates_judges as j', 'j.id', '=', 'coi.judge_id')
             ->where('coi.programme_id', $programmeId)
-            ->select('coi.judge_id', 'coi.reason', 'coi.created_at', 'j.name')
+            ->select(array_merge(['coi.judge_id', 'coi.reason', 'coi.created_at', 'j.name'],
+                                 $soft ? ['coi.withdrawn_at'] : []))
             ->get();
         if ($declared->isEmpty()) return [];
 
@@ -802,6 +807,10 @@ final class JudgingAudit
                 // Declaring then scoring is a control that did not hold.
                 'declared_first' => $scored[$jid]['first'] !== ''
                                  && strtotime((string) $d->created_at) < strtotime($scored[$jid]['first']),
+                // Declared and then withdrawn: the marks COUNT again (a withdrawal is for a
+                // declaration made in error), and that is exactly why it is shown — the
+                // recusal and its reversal are both the judge's own say-so.
+                'withdrawn_at' => ($w = (string) ($d->withdrawn_at ?? '')) !== '' ? $w : null,
             ];
         }
 

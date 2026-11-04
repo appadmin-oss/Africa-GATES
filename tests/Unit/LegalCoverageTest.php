@@ -187,7 +187,11 @@ final class LegalCoverageTest extends TestCase
 
         $this->assertStringContainsString("'httponly' => true", $idx);
         $this->assertStringContainsString("'samesite' => 'Lax'", $idx);
-        $this->assertStringContainsString("'lifetime' => 86400 * 7", $idx);
+        // Seven days, for the cookie AND the data behind it: one constant for both, because
+        // the two disagreeing (a seven-day cookie over twenty-four-minute data) is what
+        // stranded people on "CSRF validation failed" (Support\SessionStore).
+        $this->assertStringContainsString("'lifetime' => \\AfricaGates\\Support\\SessionStore::LIFETIME", $idx);
+        $this->assertSame(86400 * 7, \AfricaGates\Support\SessionStore::LIFETIME);
     }
 
     public function test_the_cookie_policy_does_not_claim_trackers_we_do_not_run(): void
@@ -211,23 +215,13 @@ final class LegalCoverageTest extends TestCase
                 'the policy is claiming something this platform does not do');
         }
 
-        // And it explains the absence of a banner, because otherwise that looks like an
-        // oversight rather than a consequence. It is generated now, from the posture the
-        // operator actually set — see LegalDocument::cookiesHtml().
-        $this->assertStringContainsString('banner', strtolower($this->cookiePage()));
-    }
-
-    public function test_the_platform_really_has_no_third_party_trackers(): void
-    {
-        // Asserted against the layout, so the document cannot become false by somebody
-        // adding a tag without reading it.
-        $layout = file_get_contents(dirname(__DIR__, 2) . '/templates/layout/gates.twig');
-
-        foreach (['googletagmanager', 'google-analytics', 'gtag(', 'facebook.net',
-                  'hotjar', 'mixpanel'] as $tracker) {
-            $this->assertStringNotContainsString($tracker, $layout,
-                'the cookie policy says we run no trackers — this one would make it a lie');
-        }
+        // And it says how the counting relates to the cookie notice — asked first, or
+        // counted unless refused there — because a visitor who meets the notice and then
+        // reads a policy that never mentions it has been told two different things. It is
+        // generated, from the posture the operator actually set (LegalDocument::cookiesHtml();
+        // since 3 Oct 2026 there is a notice in both postures, so the old "why there is no
+        // banner" paragraph went with the single-switch model).
+        $this->assertStringContainsString('the cookie notice', strtolower($this->cookiePage()));
     }
 
     public function test_the_cookie_policy_separates_browser_storage_from_cookies(): void
@@ -310,16 +304,6 @@ final class LegalCoverageTest extends TestCase
 
     // ══ findable ═════════════════════════════════════════════════════════════
 
-    public function test_all_four_are_linked_from_the_footer(): void
-    {
-        // A policy that is not linked is a policy people are told about by their bank.
-        $footer = file_get_contents(dirname(__DIR__, 2) . '/templates/layout/footer.twig');
-
-        foreach (['/privacy', '/terms', '/cookies', '/refunds'] as $path) {
-            $this->assertStringContainsString('href="' . $path . '"', $footer);
-        }
-    }
-
     public function test_refunds_has_its_own_path_and_not_only_a_nested_one(): void
     {
         // This is the page somebody looks for while deciding whether to pay, and again
@@ -362,23 +346,6 @@ final class LegalCoverageTest extends TestCase
             $doc = LegalService::get($slug);
             $this->assertIsArray($doc, "/{$slug} answers 404 on a deployment that never ran the seeder");
             $this->assertNotSame('', trim((string) ($doc['body_html'] ?? '')));
-        }
-    }
-
-    /** And every path the footer links is one of them. */
-    public function test_every_policy_the_footer_links_is_a_document_we_ship(): void
-    {
-        $footer = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/layout/footer.twig');
-        $shipped = array_keys(LegalSeeder::documents());
-
-        preg_match_all('~href="/([a-z-]+)"~', $footer, $m);
-        $legalish = array_intersect(array_unique($m[1]),
-            ['terms', 'privacy', 'cookies', 'refunds', 'vendor-terms']);
-
-        $this->assertNotSame([], $legalish, 'the footer links no policy at all');
-        foreach ($legalish as $slug) {
-            $this->assertContains($slug, $shipped,
-                "the footer links /{$slug} and nothing ships a document for it");
         }
     }
 

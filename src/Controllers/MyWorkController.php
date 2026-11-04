@@ -75,14 +75,25 @@ final class MyWorkController
 
         // The draft is stored on BOTH paths. A submit that fails validation must not throw
         // away what was typed on the way to failing.
-        $saved = QuestionnaireService::saveDraft($token, $answers, $works);
-        if (!($saved['ok'] ?? false)) {
-            $_SESSION['mywork_error'] = (string) $saved['message'];
-            return $res->withHeader('Location', $to)->withStatus(302);
+        //
+        // ── BUT ONLY WHEN THE FORM CARRIED A DRAFT ───────────────────────────
+        //
+        // saveDraft() REPLACES both lists with what it is given. The guided form always posts
+        // them (every question, every work row, a blank one included); the interview's Send
+        // form posts a name and nothing else, because its answers live in the ledger. Storing
+        // a "draft" from that post wrote two empty lists over the nominee's works — every
+        // link and file they had attached — in the instant before it went to the panel.
+        $carried = array_key_exists('a', $body) || array_key_exists('w', $body);
+        if ($carried) {
+            $saved = QuestionnaireService::saveDraft($token, $answers, $works);
+            if (!($saved['ok'] ?? false)) {
+                $_SESSION['mywork_error'] = (string) $saved['message'];
+                return $res->withHeader('Location', $to)->withStatus(302);
+            }
         }
 
         if ((string) ($body['action'] ?? '') !== 'submit') {
-            $_SESSION['mywork_notice'] = (string) $saved['message'];
+            $_SESSION['mywork_notice'] = $carried ? (string) $saved['message'] : 'Nothing to save.';
             return $res->withHeader('Location', $to)->withStatus(302);
         }
 
@@ -470,21 +481,68 @@ final class MyWorkController
             ->withHeader('X-Robots-Tag', 'noindex, nofollow');
     }
 
-    /** One file, attached to one listed work. */
+    /**
+     * One file, attached to one listed work.
+     *
+     * Two callers. The form posts it as a page and is redirected back. The interview posts it
+     * from inside the conversation (`Accept: application/json`) and gets the conversation's
+     * state back, with a notice on the transcript so the interviewer can respond to the file
+     * — the page then asks for that response with `/interview/react`.
+     *
+     * `request` names the interviewer's request this answers, so the file arrives titled with
+     * what was asked for and the button is closed.
+     */
     public function upload(Request $req, Response $res, array $args = []): Response
     {
         $token = (string) ($args['token'] ?? '');
         $body  = (array) $req->getParsedBody();
         $file  = $req->getUploadedFiles()['file'] ?? null;
+        $json  = str_contains($req->getHeaderLine('Accept'), 'application/json');
 
-        if ($file === null) {
-            $_SESSION['mywork_error'] = 'No file was chosen.';
-            return $res->withHeader('Location', '/my-work/' . $token)->withStatus(302);
+        $rid   = preg_replace('/[^a-z0-9]/i', '', (string) ($body['request'] ?? '')) ?: '';
+        $title = '';
+        if ($rid !== '') {
+            foreach ((array) (\AfricaGates\Services\QuestionnaireInterview::state($token)['requests'] ?? []) as $r) {
+                if ($r['id'] === $rid) $title = $r['title'];
+            }
         }
 
-        $r = QuestionnaireService::attachFile($token, (string) ($body['uid'] ?? ''), $file);
+        if ($file === null || $file->getError() === UPLOAD_ERR_NO_FILE) {
+            $r = ['ok' => false, 'message' => 'No file was chosen.'];
+        } else {
+            // A request's file gets a row of its own, keyed on the request, so asking for two
+            // things and receiving two files never attaches the second over the first.
+            $uid = (string) ($body['uid'] ?? '') ?: ($rid !== '' ? $rid : '');
+            $r = QuestionnaireService::attachFile($token, $uid, $file, $title);
+            if (($r['ok'] ?? false)) {
+                \AfricaGates\Services\QuestionnaireInterview::fileArrived($token, $rid, $title,
+                    mb_substr((string) $file->getClientFilename(), 0, 200));
+            }
+        }
+
+        if ($json) {
+            return $this->json($res, $r + \AfricaGates\Services\QuestionnaireInterview::state($token)
+                                       + ['works' => QuestionnaireService::formFor($token)['works'] ?? []],
+                               ($r['ok'] ?? false) ? 200 : 422);
+        }
         $_SESSION[($r['ok'] ?? false) ? 'mywork_notice' : 'mywork_error'] = (string) $r['message'];
         return $res->withHeader('Location', '/my-work/' . $token)->withStatus(302);
+    }
+
+    /** The interviewer answering a platform notice — a file arrived, a request was declined. */
+    public function interviewReact(Request $req, Response $res, array $args = []): Response
+    {
+        $r = \AfricaGates\Services\QuestionnaireInterview::react((string) ($args['token'] ?? ''));
+        return $this->json($res, $r, ($r['ok'] ?? false) ? 200 : 422);
+    }
+
+    /** "I can't share this" on one of the interviewer's upload buttons. */
+    public function interviewDecline(Request $req, Response $res, array $args = []): Response
+    {
+        $body = (array) $req->getParsedBody();
+        $r = \AfricaGates\Services\QuestionnaireInterview::declineFile((string) ($args['token'] ?? ''),
+                                                                      (string) ($body['request'] ?? ''));
+        return $this->json($res, $r, ($r['ok'] ?? false) ? 200 : 422);
     }
 
     /**

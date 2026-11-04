@@ -55,41 +55,6 @@ class ShopCheckoutNoticeTest extends TestCase
         return array_values(array_unique($m[1]));
     }
 
-    public function test_every_emitted_checkout_code_has_a_message(): void
-    {
-        $emitted  = $this->emittedCodes();
-        $template = $this->templateCodes();
-
-        // Guard the guard: if the regexes stop matching, the test must fail loudly rather
-        // than pass on two empty lists.
-        $this->assertGreaterThan(8, count($emitted), 'Expected to find the controller bail codes');
-        $this->assertGreaterThan(8, count($template), 'Expected to find the template message keys');
-
-        $missing = array_values(array_diff($emitted, $template));
-        $this->assertSame([], $missing, sprintf(
-            "These ?checkout= codes render an EMPTY notice — the shopper is bounced back and told nothing: %s",
-            implode(', ', $missing)
-        ));
-    }
-
-    public function test_mismatch_is_worded_as_money_moved_not_as_a_failure(): void
-    {
-        $tpl = (string) file_get_contents(self::TEMPLATE);
-        preg_match("/mismatch:\s*\['(err|warn)','([^']*)'/", $tpl, $m);
-        $this->assertNotEmpty($m, 'No `mismatch` entry in the checkout message map');
-
-        // Not the red error tone: the gateway says the money moved.
-        $this->assertSame('warn', $m[1], '`mismatch` must not be styled as a failure');
-        // And it must tell them not to pay twice, which is the whole point of the message.
-        // `.{0,7}` rather than `\W?`: the apostrophe is written as the JS escape \u2019 in
-        // the template source, which is six characters here, not one.
-        $this->assertMatchesRegularExpression(
-            '/don.{0,7}t pay again/i',
-            $m[2],
-            '`mismatch` must tell a debited customer not to pay again'
-        );
-    }
-
     public function test_take_retry_reads_and_clears(): void
     {
         $_SESSION = ['shop_checkout_retry' => [

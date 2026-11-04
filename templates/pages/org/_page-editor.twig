@@ -1,0 +1,219 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  YOUR PAGE — the organisation's own donation page, edited · /org?tab=page
+  ══════════════════════════════════════════════════════════════════════════════
+
+  The editor for `/giving/{slug}`. Everything it writes is `OrgBrand`'s, and that service
+  shipped COMPLETE AND UNREACHABLE: a validated writer, a route, an uploader, a provider
+  allowlist, contrast refusal, fourteen switchable sections, twelve links, six videos and
+  nine two-field blocks — with no form anywhere that posted to it, and (since 3 Oct) no
+  console to put one in. §17 and §18 in one feature: every piece correct in isolation and
+  nobody ever handed it.
+
+  ── EVERY FIELD NAME IS DERIVED, NEVER TYPED ────────────────────────────────
+
+  `OrgBrand::save()` reads `link_label[]`/`link_url[]`, `video_url[]`/`video_title[]`,
+  `section_{key}` for each `SECTIONS` key, and `{block}_{spec.a}[]`/`{block}_{spec.b}[]` for
+  each `BLOCKS` entry — and `blockFrom()` derives those last two from the same table this
+  template loops. So the names come from `brand_blocks` and `brand_sections`, passed by the
+  controller for exactly this reason (its own comment says so).
+
+  Typing them here would be two lists claiming the same thing in the same words, and the
+  failure is SILENT: a field named `impact_figures` posts happily, is never read, and the
+  organisation saves, sees no error, and finds the block empty.
+
+  ── IT WORKS WITH NO JAVASCRIPT, WHICH IS WHY THE ROWS ARE BLANK ────────────
+
+  Repeating rows arrive as parallel arrays, zipped by index, and a row left half-filled is
+  dropped rather than saved as a fragment. So each list draws what is saved plus two empty
+  rows: with scripting off that is how an organisation adds one. `OrgBrand` caps each list
+  and refuses past it with a sentence, so the cap is stated here rather than discovered.
+
+  ── AND EMBEDS ARE CLICK-TO-LOAD, WHICH IS A LEGAL LINE AND NOT A PREFERENCE ─
+
+  An iframe present in the markup sends the visitor's IP to YouTube or Vimeo and lets them
+  set storage on page VIEW, before the visitor has done anything — which under the GDPR
+  joint-controller line and the NDPA 2023 needs a lawful basis, and "the page contained a
+  video" is not one. The organisation pastes an address, only the video ID is kept, and
+  `OrgBrand::embedUrl()` builds ours from a fixed per-provider prefix. Nothing typed here
+  ever reaches an `src`. That is also why the provider list is closed: anything else would
+  mean running somebody else's code on a page that takes money.
+#}
+
+{% if not can_edit %}
+  <p class="org-empty__b">{{ 'Only an account owner can edit this page.'|trans }}</p>
+{% endif %}
+
+<form class="org-ed" method="post" action="/org/brand" enctype="multipart/form-data">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+
+  {# ── WHERE IT LIVES ──────────────────────────────────────────────────── #}
+  <p class="org-ed__where">
+    {{ 'Your page is at'|trans }}
+    <a href="/giving/{{ org.slug }}">africagates.org/giving/{{ org.slug }}</a>
+  </p>
+
+  {# ── THE LOOK ────────────────────────────────────────────────────────── #}
+  <fieldset class="org-fs">
+    <legend class="org-fs__l">{{ 'The look'|trans }}</legend>
+
+    <div class="org-row">
+      <label class="org-lab" for="brand-accent">{{ 'Your colour'|trans }}</label>
+      <input class="org-swatch" type="color" id="brand-accent" name="accent"
+             value="{{ brand.accent }}"{% if not can_edit %} disabled{% endif %}>
+      {#
+        It is refused if it cannot be read on white, with the measured ratio in the message.
+        Said here rather than only on rejection: this colour paints the donate button and
+        every link, so a pale one leaves a donor unable to see them.
+      #}
+      <p class="org-hint">{{ 'Colours your donate button and links. It must be readable on white.'|trans }}</p>
+    </div>
+
+    <div class="org-row">
+      <label class="org-lab" for="brand-logo">{{ 'Your logo'|trans }}</label>
+      {% if brand.logo %}
+        <img class="org-logo" src="{{ asset('/' ~ brand.logo) }}" alt="" width="120" height="48">
+      {% endif %}
+      {% if uploads_on %}
+        <input class="org-file" type="file" id="brand-logo" name="logo"
+               accept="image/png,image/jpeg,image/webp"{% if not can_edit %} disabled{% endif %}>
+      {% else %}
+        <p class="org-hint">{{ 'Uploads are unavailable here, so the logo cannot be changed.'|trans }}</p>
+      {% endif %}
+    </div>
+  </fieldset>
+
+  {# ── THE WORDS ───────────────────────────────────────────────────────── #}
+  <fieldset class="org-fs">
+    <legend class="org-fs__l">{{ 'What you say'|trans }}</legend>
+
+    <div class="org-row">
+      <label class="org-lab" for="brand-tagline">{{ 'One line about the work'|trans }}</label>
+      <input class="org-in" type="text" id="brand-tagline" name="tagline"
+             value="{{ brand.tagline }}" maxlength="{{ brand_max_tagline }}"
+             placeholder="{{ 'Books and a reading room for every child in Ọ̀wọ̀'|trans }}"
+             {% if not can_edit %}disabled{% endif %}>
+      <p class="org-hint">{{ 'Up to %n% characters. It sits under your name, above the form.'|trans({'%n%': brand_max_tagline}) }}</p>
+    </div>
+
+    <div class="org-row">
+      <label class="org-lab" for="brand-story">{{ 'Your story'|trans }}</label>
+      <textarea class="org-in org-in--tall" id="brand-story" name="story" rows="8"
+                maxlength="{{ brand_max_story }}"
+                {% if not can_edit %}disabled{% endif %}>{{ brand.story }}</textarea>
+      <p class="org-hint">{{ 'Separate paragraphs with a blank line. Switch the story block on below.'|trans }}</p>
+    </div>
+
+    <div class="org-row">
+      <label class="org-lab" for="brand-website">{{ 'Your website'|trans }}</label>
+      <input class="org-in" type="url" id="brand-website" name="website" inputmode="url"
+             value="{{ brand.website }}" placeholder="https://"
+             {% if not can_edit %}disabled{% endif %}>
+      {#
+        The address they typed into a field labelled as public — never `contact_email`,
+        which is the compliance contact given to verify a CAC registration and is not a
+        press office.
+      #}
+      <p class="org-hint">{{ 'Published on your page. Switch the contact block on below.'|trans }}</p>
+    </div>
+  </fieldset>
+
+  {# ── WHAT APPEARS ────────────────────────────────────────────────────────
+     Every one of the fourteen, as a checkbox, in the service's own order. A block with
+     nothing in it draws nothing even when it is switched on, so the switch is about intent
+     and the content below decides whether there is anything to show. #}
+  <fieldset class="org-fs">
+    <legend class="org-fs__l">{{ 'What appears on the page'|trans }}</legend>
+    <ul class="org-switches">
+      {% for key, what in brand_sections %}
+        <li class="org-switch">
+          <input type="checkbox" id="sec-{{ key }}" name="section_{{ key }}" value="1"
+                 {% if brand.sections[key]|default(false) %}checked{% endif %}
+                 {% if not can_edit %}disabled{% endif %}>
+          <label for="sec-{{ key }}">{{ what|trans }}</label>
+        </li>
+      {% endfor %}
+    </ul>
+  </fieldset>
+
+  {# ── LINKS ───────────────────────────────────────────────────────────── #}
+  <fieldset class="org-fs">
+    <legend class="org-fs__l">{{ 'Links'|trans }}</legend>
+    <p class="org-hint">{{ 'Up to %n%. Give every link a few words saying what it is.'|trans({'%n%': brand_max_links}) }}</p>
+
+    {% set lrows = brand.links|default([]) %}
+    {% for i in 0..(lrows|length + 1) %}
+      {% set row = lrows[i]|default(null) %}
+      <div class="org-pair">
+        <input class="org-in" type="text" name="link_label[]" maxlength="{{ 90 }}"
+               value="{{ row ? row.label : '' }}"
+               aria-label="{{ 'What the link is'|trans }}"
+               placeholder="{{ 'Our 2026 annual report'|trans }}"
+               {% if not can_edit %}disabled{% endif %}>
+        <input class="org-in" type="url" name="link_url[]" inputmode="url"
+               value="{{ row ? row.url : '' }}"
+               aria-label="{{ 'The web address'|trans }}" placeholder="https://"
+               {% if not can_edit %}disabled{% endif %}>
+      </div>
+    {% endfor %}
+  </fieldset>
+
+  {# ── VIDEO ───────────────────────────────────────────────────────────── #}
+  <fieldset class="org-fs">
+    <legend class="org-fs__l">{{ 'Video'|trans }}</legend>
+    <p class="org-hint">
+      {{ 'Paste the address from %p%. Up to %n%. Nothing loads until a visitor presses play.'|trans({
+        '%p%': brand_video_names|join(' ' ~ 'or'|trans ~ ' '),
+        '%n%': brand_max_videos}) }}
+    </p>
+
+    {% set vrows = brand.videos|default([]) %}
+    {% for i in 0..(vrows|length + 1) %}
+      {% set row = vrows[i]|default(null) %}
+      <div class="org-pair">
+        <input class="org-in" type="text" name="video_url[]" inputmode="url"
+               value="{{ row ? org_watch_url(row) : '' }}"
+               aria-label="{{ 'The video address'|trans }}"
+               placeholder="https://www.youtube.com/watch?v=…"
+               {% if not can_edit %}disabled{% endif %}>
+        <input class="org-in" type="text" name="video_title[]" maxlength="90"
+               value="{{ row ? row.title|default('') : '' }}"
+               aria-label="{{ 'What the video is'|trans }}"
+               placeholder="{{ 'The day the borehole arrived'|trans }}"
+               {% if not can_edit %}disabled{% endif %}>
+      </div>
+    {% endfor %}
+  </fieldset>
+
+  {# ── THE NINE BLOCKS ─────────────────────────────────────────────────────
+     Impact figures, the gift ladder, quotes, the FAQ, the team, the history, the partners —
+     whatever `OrgBrand::BLOCKS` holds, with its own labels, hints, caps and row limit. Add
+     a block to that table and it appears here; nothing in this file names one. #}
+  {% for name, spec in brand_blocks %}
+    <fieldset class="org-fs">
+      <legend class="org-fs__l">{{ brand_sections[name]|default(name)|trans }}</legend>
+      <p class="org-hint">{{ 'Up to %n% rows. A row missing either part is left out.'|trans({'%n%': spec.max}) }}</p>
+
+      {% set rows = brand.blocks[name]|default([]) %}
+      {% for i in 0..(rows|length < spec.max ? rows|length + 1 : spec.max - 1) %}
+        {% set row = rows[i]|default(null) %}
+        <div class="org-pair">
+          <input class="org-in org-in--a" type="text"
+                 name="{{ name }}_{{ spec.a }}[]" maxlength="{{ spec.a_max }}"
+                 value="{{ row ? row[spec.a]|default('') : '' }}"
+                 aria-label="{{ spec.a_label|trans }}" placeholder="{{ spec.a_hint }}"
+                 {% if not can_edit %}disabled{% endif %}>
+          <input class="org-in" type="text"
+                 name="{{ name }}_{{ spec.b }}[]" maxlength="{{ spec.b_max }}"
+                 value="{{ row ? row[spec.b]|default('') : '' }}"
+                 aria-label="{{ spec.b_label|trans }}" placeholder="{{ spec.b_hint }}"
+                 {% if not can_edit %}disabled{% endif %}>
+        </div>
+      {% endfor %}
+    </fieldset>
+  {% endfor %}
+
+  {% if can_edit %}
+    <button class="org-go org-go--wide" type="submit">{{ 'Save your page'|trans }}</button>
+  {% endif %}
+</form>

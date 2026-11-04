@@ -126,7 +126,16 @@ class BonusVoteService
                 return ['ok' => false, 'message' => "Only {$remaining} bonus vote(s) remain on this donation."];
             }
 
-            $nominee = MergeService::notMerged(DB::table('gates_nominees')->where('id', $nomineeId)->where('status', 'approved'))->first();
+            // LOCKED, and it is the cap's lock rather than the nominee's. The donation lock
+            // above serialises one donor against themselves; the ceiling below is per
+            // NOMINEE, so two donors (or a donor and a points redeemer — PointsService
+            // takes this same lock) redeeming onto one nominee at once each read `used`
+            // under the cap and both granted, overshooting it by a whole redemption. With
+            // the row held, the second waits, then reads the first's grant in capFor()
+            // and the incremented vote_count here. Taken after the donation lock, the
+            // same order mint() writes them in, so the two cannot deadlock each other.
+            $nominee = MergeService::notMerged(DB::table('gates_nominees')->where('id', $nomineeId)->where('status', 'approved'))
+                ->lockForUpdate()->first();
             if (!$nominee) {
                 return ['ok' => false, 'message' => 'Nominee is not open for voting.'];
             }
@@ -264,6 +273,20 @@ class BonusVoteService
                 ['reason' => $reason, 'cleared' => $out['cleared'], 'weight' => $out['weight'], 'nominees' => $out['nominees']]
             );
         } catch (\Throwable) {}
+
+        // The community return this contribution set aside goes with it. RefundService
+        // reverses it on the refunds it issues; this is the OTHER way money comes back — a
+        // gateway refund or a chargeback arriving by webhook, and the console clawback —
+        // and it never did, so the share stayed where it was: on the nominee's balance under
+        // a threshold rule, and inside the edition's pool under the target pool, which then
+        // paid money the payer already had back to whoever reached the target. reverse() is
+        // idempotent (one reversal per contribution) and refuses a settled pool, whose
+        // shares are final and whose refunds the platform absorbs.
+        try {
+            CommunityReturnService::reverse($donationId, 'payment reversed: ' . mb_substr($reason, 0, 200), $adminId);
+        } catch (\Throwable $e) {
+            error_log('[bonus-vote clawback] community return not reversed for donation ' . $donationId . ': ' . $e->getMessage());
+        }
 
         return ['ok' => true] + $out;
     }

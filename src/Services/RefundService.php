@@ -553,7 +553,10 @@ final class RefundService
         } catch (\Throwable) { $don = null; }
         if (!$don) return ['ok' => false, 'outcome' => 'NOT_FOUND', 'say' => 'No payment with that reference.'];
 
-        if (!$this->refundOne($don)) {
+        // An override may refund an order whose votes ARE on the tally — that is what
+        // overriding a DELIVERED verdict means — so only the override drops the
+        // undelivered clause from the claim.
+        if (!$this->refundOne($don, requireUndelivered: !$override)) {
             return ['ok' => false, 'outcome' => 'NOT_SENT',
                     'say' => 'The refund was not sent. Either another worker already has it, or the gateway '
                            . 'refused — the order\'s refund state and reason say which.'];
@@ -584,17 +587,27 @@ final class RefundService
      * ticket path uses for a different reason: claim first, act second, record
      * third. A crash anywhere leaves a state that is visible and conservative.
      */
-    private function refundOne(object $don): bool
+    private function refundOne(object $don, bool $requireUndelivered = true): bool
     {
         $ref  = (string) $don->payment_ref;
         $now  = date('Y-m-d H:i:s');
 
         // ── 1. claim ─────────────────────────────────────────────────────────
-        $claimed = DB::table('gates_donations')
+        //
+        // `votes_used = 0` is IN the claim, not only in owed()'s SELECT, and the two are
+        // not the same check. The row this method was handed was read before the claim;
+        // between that read and this UPDATE a reconciler retry or a late webhook can run
+        // PaidVoteService::mint(), whose own claim flips votes_used. Without the clause
+        // here both claims succeed — the votes go on the tally AND the money goes back,
+        // free votes paid for by us. mint()'s claim carries the mirror clause
+        // (refund_requested_at IS NULL), so whichever UPDATE lands first owns the order
+        // and the other sees 0 rows. 0 rows means the gateway is never asked.
+        $claim = DB::table('gates_donations')
             ->where('id', $don->id)
-            ->whereNull('refund_requested_at')
-            ->update(['refund_requested_at' => $now, 'refund_state' => 'requested']);
-        if ($claimed === 0) return false;   // another worker has it
+            ->whereNull('refund_requested_at');
+        if ($requireUndelivered) $claim->where('votes_used', 0);
+        $claimed = $claim->update(['refund_requested_at' => $now, 'refund_state' => 'requested']);
+        if ($claimed === 0) return false;   // another worker has it, or the votes were minted
 
         // ── 2. ask the gateway ───────────────────────────────────────────────
         $provider = $this->providerFor($don);
@@ -927,36 +940,19 @@ final class RefundService
         $to = strtolower(trim((string) ($don->donor_email ?? '')));
         if ($this->mailer === null || !filter_var($to, FILTER_VALIDATE_EMAIL)) return;
 
-        $naira   = static fn(int $n): string => '₦' . number_format($n);
-        $charged = $naira((int) $don->amount_naira);
-        $name    = trim((string) ($don->donor_name ?? '')) ?: 'there';
-
-        // The amount SENT BACK, phrased from whichever fact we actually hold.
-        if ($sentNaira !== null) {
-            $back = $settled
-                ? $naira($sentNaira) . ' has been refunded to the card or account you paid with.'
-                : $naira($sentNaira) . ' is on its way back to the card or account you paid with. '
-                  . 'Banks usually take 5–10 working days to show it.';
-        } else {
-            // No figure from the gateway, so no figure here. "Your payment" is true
-            // without asserting a number we have not confirmed.
-            $back = $settled
-                ? 'Your payment has been refunded in full to the card or account you paid with.'
-                : 'Your payment is on its way back in full to the card or account you paid with. '
-                  . 'Banks usually take 5–10 working days to show it.';
-        }
-
-        $text = "Hi {$name},\n\n"
-            . "Your payment of {$charged} went through, but voting in that category had already closed by the "
-            . "time it reached us — so no votes were added. We do not keep money for votes we did not count.\n\n"
-            . $back
-            . "\n\nNothing is needed from you. Reference: " . (string) $don->payment_ref . "\n\n"
-            . "If you would rather have the votes than the money and the category reopens, reply to this "
-            . "email and we will sort it out.";
-
+        $naira = static fn(int $n): string => '₦' . number_format($n);
+        // The amount SENT BACK is quoted only when the gateway reported it: a figure we
+        // have not confirmed invites somebody to reconcile it against their statement and
+        // find us wrong. "In full" is true without asserting a number.
         try {
-            $this->mailer->sendBranded($to, 'Your Africa GATES payment has been refunded',
-                nl2br(htmlspecialchars($text, ENT_QUOTES, 'UTF-8')), $text, 'Refund');
+            \AfricaGates\Services\Mail\Emails::send($this->mailer, $to, 'refund', [
+                'first_name' => DoorWelcome::firstName((string) ($don->donor_name ?? '')) ?: 'there',
+                'charged'    => $naira((int) $don->amount_naira),
+                'back'       => $sentNaira !== null ? $naira($sentNaira) : '',
+                'settled'    => $settled,
+                'reference'  => (string) $don->payment_ref,
+                'help_url'   => \AfricaGates\Support\SiteUrl::base() . '/support',
+            ]);
         } catch (\Throwable $e) {
             error_log('[refund] could not email the buyer for ' . $don->payment_ref . ': ' . $e->getMessage());
         }

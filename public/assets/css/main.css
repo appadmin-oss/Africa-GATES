@@ -16,7 +16,6 @@
   --z-drawer-backdrop:  96;   /* dim behind the mobile drawer           */
   --z-drawer:           98;   /* full-screen mobile drawer              */
   --z-header:          100;   /* sticky top nav + its mega menu         */
-  --z-ai:              110;   /* AI assistant fab + panel               */
   --z-scroll-progress: 150;   /* top reading-progress bar               */
   --z-modal:          1000;   /* blocking dialogs                       */
   --z-toast:          1100;   /* transient toasts (always above modals) */
@@ -31,7 +30,6 @@
   --emerald-500: #338632;
   --emerald-600: #237b22;
   --emerald-700: #1a6118;
-  --emerald-800: #144a13;
 
   --kale-600: #1a2629;
   --kale-700: #10292C;   /* primary dark text */
@@ -68,7 +66,6 @@
   /* Semantic */
   --color-text: var(--kale-700);
    /* AA on white: 6.4:1 */
-  --color-text-muted: var(--neutral-500);  /* AA on white: 4.7:1 */
   --color-bg: #ffffff;
   --color-border: rgba(16, 41, 44, 0.08);
 
@@ -85,7 +82,6 @@
   --wrap-px: clamp(1.25rem, 4vw, 2.5rem);
 
   /* Radii — small to medium */
-  --r-xs: 4px;
   --r-sm: 8px;
   --r-md: 12px;
   --r-lg: 16px;
@@ -94,13 +90,11 @@
   --r-pill: 999px;
 
   /* Spacing scale */
-  --s-1: 0.25rem;
 
   /* Shadows — soft, layered */
 
   /* Motion */
   --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
-  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --dur-fast: 200ms;
   --dur-med: 350ms;
   --dur-slow: 700ms;
@@ -1686,7 +1680,6 @@ p { color: var(--neutral-500); line-height: 1.6; }
 }
 .p-hero h1 {
   font-size: clamp(2.25rem, 4.5vw, 3.5rem);
-  margin-bottom: 1rem;
 }
 .p-hero p {
   font-size: 1.0625rem;
@@ -2281,7 +2274,6 @@ p { color: var(--neutral-500); line-height: 1.6; }
   font-family: var(--font-display);
   font-weight: 700;
   font-size: clamp(2.125rem, 5.5vw, 4rem);
-  margin-bottom: 1rem;
   letter-spacing: -0.022em;
   line-height: 1.04;
   text-wrap: balance;
@@ -3262,7 +3254,6 @@ html { scroll-behavior: smooth; }
   transform: scale(0.6);
   opacity: 0;
   transition: transform 0.7s cubic-bezier(0.22,1,0.36,1), opacity 0.5s ease, box-shadow 0.3s ease;
-  transition-delay: var(--d, 0ms);
 }
 .face-tile.is-in { transform: scale(1); opacity: 1; }
 .face-tile img {
@@ -3543,7 +3534,6 @@ html { scroll-behavior: smooth; }
   letter-spacing: -0.02em;
   line-height: 1;
   color: #fff;
-  margin-bottom: 1.25rem;
   text-wrap: balance;
 }
 .p-hero h1 em {
@@ -3710,7 +3700,6 @@ html { scroll-behavior: smooth; }
     opacity 0.7s ease,
     box-shadow 0.3s ease,
     border-color 0.3s ease;
-  transition-delay: var(--d, 0ms);
   will-change: transform, opacity;
 }
 .face-tile.is-in {

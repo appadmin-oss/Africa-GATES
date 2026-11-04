@@ -51,6 +51,8 @@ class AliasRedirectTest extends TestCase
     /** Is $path something the router actually declares? */
     private static function isDeclared(string $path, string $src): bool
     {
+        // The router matches the path; a query string (`/discover?tab=people`) only picks a tab.
+        $path = (string) strtok($path, '?');
         // A literal top-level declaration.
         if (str_contains($src, "->get('" . $path . "'")) return true;
 

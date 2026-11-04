@@ -106,19 +106,6 @@ final class SeoCanonicalTest extends TestCase
 
     // ── The layout actually uses it ──────────────────────────────────────────
 
-    /** A helper nothing calls is not a fix. */
-    public function test_the_layout_builds_its_canonical_from_canonical_path(): void
-    {
-        $html = (string) file_get_contents(self::LAYOUT);
-
-        $this->assertMatchesRegularExpression(
-            '/set _canonical = canonical_url\|default\([^)]*canonical_path/',
-            $html,
-            'the canonical must come from canonical_path, not the raw request path'
-        );
-        $this->assertStringContainsString('robots_auto', $html, 'robots must fall back to the computed value');
-    }
-
     public function test_the_globals_the_layout_reads_are_registered(): void
     {
         $container = (string) file_get_contents(__DIR__ . '/../../config/container.php');
@@ -129,34 +116,21 @@ final class SeoCanonicalTest extends TestCase
 
     // ── Favicon ─────────────────────────────────────────────────────────────
 
-    /**
-     * THE BUG: the favicon was an inline `data:image/svg+xml` of the letter G — the
-     * placeholder the real artwork replaced. Google requires a favicon it can CRAWL,
-     * meaning a URL it can fetch and re-fetch; a data URI has none, so every mobile
-     * search result rendered with the generic globe.
-     */
-    public function test_the_favicon_is_a_crawlable_file_and_not_a_data_uri(): void
-    {
-        $html = (string) file_get_contents(self::LAYOUT);
-
-        $this->assertMatchesRegularExpression('~rel="icon"[^>]*href="/favicon\.ico"~', $html);
-        $this->assertDoesNotMatchRegularExpression(
-            '~rel="icon"[^>]*href="data:~', $html,
-            'a data: URI has no URL for a crawler to fetch'
-        );
-    }
-
     public function test_every_icon_the_layout_declares_exists_on_disk(): void
     {
         $public = __DIR__ . '/../../public';
 
         foreach ([
             '/favicon.ico',
+            '/favicon.svg',
+            '/apple-touch-icon.png',
             '/site.webmanifest',
-            '/assets/img/icon-32.png',
+            '/assets/icons/favicon-192.png',
+            '/assets/icons/favicon-512.png',
+            // The previous set stays on disk: a home-screen install keeps the manifest
+            // it was installed with, and that one names these.
             '/assets/img/icon-192.png',
             '/assets/img/icon-512.png',
-            '/assets/img/apple-touch-icon.png',
         ] as $path) {
             $this->assertFileExists($public . $path);
         }

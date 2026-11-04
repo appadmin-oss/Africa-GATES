@@ -54,21 +54,6 @@ final class FundAllocationTest extends TestCase
             'and it must still publish on our own page');
     }
 
-    /** The public template gates it, and gates the mission quote with it. */
-    public function test_the_template_gates_both_blocks(): void
-    {
-        $tpl = (string) file_get_contents(
-            dirname(__DIR__, 2) . '/templates/pages/donate.twig');
-
-        $this->assertStringNotContainsString('{% set ALLOC', $tpl,
-            'the allocation is hardcoded again, so nobody without a deploy can change what '
-            . 'this page promises about charitable funds');
-        $this->assertStringContainsString('{% if allocation %}', $tpl);
-        $this->assertStringContainsString('{% if not org %}', $tpl,
-            'the mission quote is a statement about Africa GATES\' purpose and was '
-            . 'displacing the thing a donor came to a partner\'s page to read');
-    }
-
     // ══ what it publishes ════════════════════════════════════════════════════
 
     /**

@@ -145,6 +145,48 @@ final class ActivityFeedService
     }
 
     /**
+     * The search palette's scope chips, and which sources each one asks.
+     *
+     * REFERENCE §7.1 fixes the five chips: All, People, Awards, Events, Pages. What it
+     * does not fix is which of {@see SOURCES} answers each, and that mapping is exactly
+     * the kind of thing that gets written into a controller and then drifts — a source
+     * added later would answer under "All" and under nothing else, so it would be
+     * findable only by somebody who never touched a chip. `SearchScopeTest` requires
+     * every source to appear in exactly one scope, so adding one to SOURCES and not
+     * here fails rather than quietly halving its reach.
+     *
+     * `org` sits under People and that is a deliberate compromise: an organisation is
+     * not a person, and the chip set the design fixed has nowhere else to put one.
+     * Dropping it would make a partner that went through CAC and SCUML vetting
+     * unfindable from the palette, which is the worse of the two wrongs.
+     *
+     * `phase` — voting opening or closing — sits under Awards because that is what it
+     * is about, not under Pages where its lack of a person would otherwise put it.
+     */
+    public const SCOPES = [
+        'people' => ['nominee', 'profile', 'org'],
+        'awards' => ['award', 'result', 'phase'],
+        'events' => ['event'],
+        'pages'  => ['page', 'post', 'thread'],
+    ];
+
+    /**
+     * The sources a scope asks, or [] for "all of them".
+     *
+     * An unknown scope is [] and not an error: it arrives in a query string, so the
+     * failure a stranger can cause is at worst a search that ignores their chip. A
+     * filter nobody can see returning zero rows reads as the feature being broken.
+     *
+     * @return list<string>
+     */
+    public static function scopeSources(?string $scope): array
+    {
+        $s = strtolower(trim((string) $scope));
+
+        return self::SCOPES[$s] ?? [];
+    }
+
+    /**
      * What this search covers, in the words the public reads, in declaration order.
      *
      * @return list<string>
@@ -179,10 +221,15 @@ final class ActivityFeedService
      *                        degraded path.
      * @return array{items: list<array>, query:string, live:bool, sources:int, understood:?array}
      */
-    public function search(?string $query = null, int $limit = 20, bool $interpret = false): array
-    {
+    public function search(
+        ?string $query = null,
+        int $limit = 20,
+        bool $interpret = false,
+        ?string $scope = null
+    ): array {
         $q     = trim((string) $query);
         $limit = max(1, min(self::MAX_LIMIT, $limit));
+        $only  = self::scopeSources($scope);
 
         // A one-character query matches most of the register, so it is treated as no
         // query at all rather than as a very expensive way to get the latest feed.
@@ -196,9 +243,118 @@ final class ActivityFeedService
         // the worst case is that a filter is ignored, not that results vanish.
         $understood = $interpret ? $this->interpret($q) : null;
 
-        $result = $this->collect($understood['terms'] ?? $q, $limit, $understood);
+        // A CHIP THE PERSON PRESSED BEATS A GUESS THE MODEL MADE, and the two are
+        // intersected rather than one replacing the other — somebody who typed
+        // "winners in Ghana" and then pressed People wants people, not the model's
+        // reading of the whole phrase. An empty intersection means the chip and the
+        // interpretation disagree completely, and the chip wins outright: the
+        // alternative is a search that silently ignores the only control the person
+        // actually touched.
+        $narrow = $understood;
+        if ($only !== []) {
+            $both   = array_values(array_intersect($narrow['kinds'] ?? [], $only));
+            $narrow = ($narrow ?? []) + ['terms' => $q, 'country' => null, 'days' => null, 'note' => ''];
+            $narrow['kinds'] = $both !== [] ? $both : $only;
+        }
+
+        $result = $this->collect($understood['terms'] ?? $q, $limit, $narrow);
 
         return $result + ['query' => $q, 'live' => true, 'understood' => $understood];
+    }
+
+    /** Rows per page of the timeline, and how deep "Show older updates" may go. */
+    public const TIMELINE_PER  = 20;
+    public const TIMELINE_DEPTH = 10;
+
+    /**
+     * The sources that carry a real timestamp — the only ones a TIMELINE may hold.
+     *
+     * Derived from {@see SOURCES}' `dated`, never listed again. An award programme, an
+     * organisation and a page are destinations; a timeline row has to say WHEN, in a
+     * `<time datetime>`, and a destination has no honest answer.
+     *
+     * @return list<string>
+     */
+    public static function datedKinds(): array
+    {
+        return array_keys(array_filter(self::SOURCES, static fn (array $s): bool => $s['dated'] === true));
+    }
+
+    /**
+     * One page of the timeline — Discover's Live tab (Phase 4; `/activity` retired into it).
+     *
+     * The same index as {@see search()}, so the palette and the timeline can never disagree
+     * about what happened. Three differences, each for a reason:
+     *
+     *  · ONLY DATED SOURCES ({@see datedKinds()}). `$kinds` narrows within them.
+     *  · `$phases` narrows the phase source IN ITS QUERY — "Voting" is the voting rows of the
+     *    transitions ledger, not every phase change filtered afterwards.
+     *  · PAGED (cumulatively) over the merged order. Each source is asked for its newest
+     *    `page × per + 1` rows, which always covers the global newest `page × per`, so the
+     *    page is exact; the `+ 1` says whether an older page exists without a count query.
+     *    The cost grows with depth, so depth is capped ({@see TIMELINE_DEPTH}) and the page
+     *    says where it stops rather than reaching further. Offset, not a timestamp cursor:
+     *    two rows with the same second would straddle a cursor and one would be lost.
+     *
+     * The interpretation, when asked for, may narrow the kinds further but never past the
+     * caller's: a chip the person pressed beats a guess the model made (as in search()).
+     *
+     * @param list<string>      $kinds  subset of datedKinds(); [] = all of them
+     * @param list<string>|null $phases transitions' `to_status` values, or null for any
+     * @return array{items:list<array>, more:bool, page:int, sources:int, asked:int,
+     *               query:string, understood:?array, deepest:bool}
+     */
+    public function timeline(?string $query, bool $interpret, array $kinds, ?array $phases,
+                             int $page = 1, int $per = self::TIMELINE_PER): array
+    {
+        $q     = trim((string) $query);
+        $q     = mb_strlen($q) < self::MIN_QUERY ? '' : $q;
+        $page  = max(1, min(self::TIMELINE_DEPTH, $page));
+        $per   = max(1, min(self::MAX_LIMIT, $per));
+        $dated = self::datedKinds();
+        $only  = $kinds === [] ? $dated : array_values(array_intersect($dated, $kinds));
+
+        $understood = ($interpret && $q !== '') ? $this->interpret($q) : null;
+        $narrow = ($understood ?? []) + ['terms' => $q, 'country' => null, 'days' => null, 'note' => ''];
+        $both   = array_values(array_intersect($narrow['kinds'] ?? [], $only));
+        $narrow['kinds'] = $both !== [] ? $both : $only;
+
+        if ($narrow['kinds'] === []) {
+            return ['items' => [], 'more' => false, 'page' => $page, 'sources' => 0, 'asked' => 0,
+                    'query' => $q, 'understood' => $understood, 'deepest' => false];
+        }
+
+        $limit = $page * $per + 1;
+        $read  = fn (): array => $this->collect($q === '' ? null : ($understood['terms'] ?? $q), $limit, $narrow, $phases);
+        // The UNFILTERED pages are identical for every visitor, so they share the
+        // LATEST_TTL cache the latest feed has always had; a search never touches it.
+        if ($q === '') {
+            try {
+                $result = (new CacheService())->remember(
+                    'activity:timeline:' . md5(json_encode([$narrow['kinds'], $phases, $limit])),
+                    self::LATEST_TTL, $read, ['registry', 'leaderboard']);
+            } catch (\Throwable) {
+                $result = $read();
+            }
+        } else {
+            $result = $read();
+        }
+        $items = array_values(array_filter($result['items'],
+            static fn (array $i): bool => in_array($i['kind'], $dated, true)));
+
+        return [
+            // CUMULATIVE: page 2 is the newest 2 × per, not rows 21–40. "Show older updates"
+            // reached without a script reloads the page, and a page that then showed only
+            // the older rows would have dropped everything the reader had just been looking at.
+            'items'      => array_slice($items, 0, $page * $per),
+            'more'       => count($items) > $page * $per && $page < self::TIMELINE_DEPTH,
+            'deepest'    => count($items) > $page * $per && $page >= self::TIMELINE_DEPTH,
+            'page'       => $page,
+            'sources'    => (int) ($result['sources'] ?? 0),
+            'asked'      => (int) ($result['asked'] ?? 0),
+            'query'      => $q,
+            'understood' => $understood,
+        ];
     }
 
     /**
@@ -301,7 +457,7 @@ final class ActivityFeedService
      * answered, so "no activity" and "six of seven sources are unavailable" are
      * distinguishable.
      */
-    private function collect(?string $q, int $limit, ?array $understood = null): array
+    private function collect(?string $q, int $limit, ?array $understood = null, ?array $phases = null): array
     {
         $q = ($q === null || trim($q) === '') ? null : trim($q);
 
@@ -318,7 +474,7 @@ final class ActivityFeedService
             'org'     => fn (): array => $this->organisations($q, $limit),
             'nominee' => fn (): array => $this->nominees($q, $limit),
             'profile' => fn (): array => $this->profiles($q, $limit),
-            'phase'   => fn (): array => $this->transitions($q, $limit),
+            'phase'   => fn (): array => $this->transitions($q, $limit, $phases),
             'post'    => fn (): array => $this->posts($q, $limit),
             'event'   => fn (): array => $this->events($q, $limit),
             'thread'  => fn (): array => $this->threads($q, $limit),
@@ -336,6 +492,7 @@ final class ActivityFeedService
 
         $items = [];
         $ok    = 0;
+        $asked = count($sources);
         foreach ($sources as $source) {
             try {
                 foreach ($source() as $item) $items[] = $item;
@@ -353,7 +510,10 @@ final class ActivityFeedService
 
         usort($items, static fn (array $a, array $b): int => strcmp($b['at'], $a['at']));
 
-        return ['items' => self::withSignposts($items, $limit), 'sources' => $ok];
+        // `asked` travels with `sources` so a page can say "{n} of {asked} responded"
+        // without typing the denominator. The old activity page printed "of 7" while ten
+        // sources ran — the §19 shape on the one sentence that admits a partial read.
+        return ['items' => self::withSignposts($items, $limit), 'sources' => $ok, 'asked' => $asked];
     }
 
     /**
@@ -662,14 +822,19 @@ final class ActivityFeedService
      * the transitions ledger rather than computed from the cycle's current phase, so
      * the timeline shows when it actually changed.
      */
-    private function transitions(?string $q, int $limit): array
+    private function transitions(?string $q, int $limit, ?array $phases = null): array
     {
+        $base = DemoSeeder::notSandbox(
+            DB::table('gates_cycle_transitions as t')
+                ->leftJoin('gates_award_cycles as cy', 'cy.id', '=', 't.cycle_id')
+                ->leftJoin('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id'),
+            'cy.programme_id');
+        // Narrowed IN THE QUERY, never after it: a paged timeline asks each source for
+        // its newest N rows, and a filter applied afterwards would make "Show older
+        // updates" stop early while older matching rows still existed.
+        if ($phases !== null) $base->whereIn('t.to_status', $phases === [] ? [''] : $phases);
         $rows = $this->filter(
-            DemoSeeder::notSandbox(
-                DB::table('gates_cycle_transitions as t')
-                    ->leftJoin('gates_award_cycles as cy', 'cy.id', '=', 't.cycle_id')
-                    ->leftJoin('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id'),
-                'cy.programme_id'),
+            $base,
             $q,
             ['p.title', 't.to_status', 'cy.edition_label'],
         )
@@ -683,7 +848,7 @@ final class ActivityFeedService
             detail: (string) ($r->edition_label ?? ''),
             url:    '/awards',
             at:     (string) ($r->observed_at ?? ''),
-        ), $rows);
+        ) + ['phase' => (string) $r->to_status], $rows);
     }
 
     /** Phase name a visitor recognises, not the internal status token. */
@@ -846,8 +1011,8 @@ final class ActivityFeedService
             ['Nominate someone',  '/nominate',          'nomination submit put forward entry enter'],
             ['Results',           '/results',           'winner winners who won award awards decided standing outcome announcement'],
             ['Leaderboard',       '/leaderboard',       'rankings standings cpi cultural power index scores top'],
-            ['The Registry',      '/registry',          'profiles directory people search nominees browse'],
-            ['Integrity Center',  '/integrity',         'how voting works fraud audit methodology scoring rules trust'],
+            ['The Registry',      '/discover?tab=people', 'profiles directory people search nominees browse'],
+            ['Integrity Centre',  '/integrity',         'how voting works fraud audit methodology scoring rules trust'],
             ['Pulse',             '/pulse',             'feed posts community latest news updates'],
             ['Community',         '/community',         'forum threads discussion channels talk'],
             ['Events',            '/events',            'ceremony webinar sessions calendar dates'],
@@ -857,7 +1022,7 @@ final class ActivityFeedService
             ['Legacy Vault',      '/legacy',            'archive past editions history winners previous'],
             ['Giving',            \AfricaGates\Support\GivingUrl::BASE, 'give donate support fund contribute money programmes'],
             ['Shop',              '/shop',              'merch store buy t-shirt wear'],
-            ['Partner with us',   '/partners',          'sponsor sponsorship partnership brands collaborate'],
+            ['Partner with us',   '/partner',           'sponsor sponsorship partnership brands collaborate'],
             ['Opportunities',     '/opportunities',     'jobs roles calls apply grants'],
             ['Create an account', '/account/register',  'sign up register join membership free'],
             ['Sign in',           '/account/login',     'log in login account access'],

@@ -60,6 +60,18 @@ final class SupportAttachmentService
     public const MAX_BYTES = 8 * 1024 * 1024;
     public const MAX_PER_MESSAGE = 4;
 
+    /**
+     * Gee's attach button: a SCREENSHOT, so images only and a smaller ceiling.
+     *
+     * REFERENCE §8.22 — "images only, ≤5MB". The ticket page's own form keeps PDFs and
+     * the 8MB ceiling (a bank statement arrives as a PDF there); the chat composer is a
+     * paperclip beside a sentence, and what goes through it is a photo of a screen. The
+     * same {@see store()} enforces both, on the detected bytes, so the narrower rule is a
+     * narrower argument rather than a second validator.
+     */
+    public const SCREENSHOT_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    public const SCREENSHOT_MAX_BYTES = 5 * 1024 * 1024;
+
     /** Outside the web root. Nothing under public/ ever holds one of these. */
     public static function root(): string
     {
@@ -113,7 +125,10 @@ final class SupportAttachmentService
         ?int $messageId = null,
         string $uploaderType = 'member',
         ?int $uploaderId = null,
+        bool $screenshot = false,
     ): array {
+        $limit = $screenshot ? min(self::SCREENSHOT_MAX_BYTES, self::limitBytes()) : self::limitBytes();
+        $human = round($limit / 1048576, 1) . 'MB';
         $err = $file->getError();
         if ($err === UPLOAD_ERR_NO_FILE) return ['ok' => false, 'message' => 'No file was received.'];
         if ($err === UPLOAD_ERR_INI_SIZE || $err === UPLOAD_ERR_FORM_SIZE) {
@@ -123,7 +138,7 @@ final class SupportAttachmentService
 
         $size = (int) $file->getSize();
         if ($size <= 0)                    return ['ok' => false, 'message' => 'That file is empty.'];
-        if ($size > self::limitBytes())    return ['ok' => false, 'message' => 'Please keep attachments under ' . self::humanLimit() . '.'];
+        if ($size > $limit)                return ['ok' => false, 'message' => 'Please keep attachments under ' . $human . '.'];
 
         $dir = self::root() . '/' . date('Y-m');
         if (!is_dir($dir) && !@mkdir($dir, 0750, true) && !is_dir($dir)) {
@@ -138,9 +153,12 @@ final class SupportAttachmentService
 
         $mime = (string) (new \finfo(FILEINFO_MIME_TYPE))->file($tmp);
         $ext  = self::TYPES[$mime] ?? null;
+        if ($ext !== null && $screenshot && !in_array($mime, self::SCREENSHOT_TYPES, true)) $ext = null;
         if ($ext === null) {
             @unlink($tmp);
-            return ['ok' => false, 'message' => 'Attach a photo (JPEG, PNG, WebP, GIF) or a PDF.'];
+            return ['ok' => false, 'message' => $screenshot
+                ? 'Attach a screenshot or photo (JPEG, PNG, WebP or GIF).'
+                : 'Attach a photo (JPEG, PNG, WebP, GIF) or a PDF.'];
         }
 
         $w = null; $h = null;
@@ -195,6 +213,7 @@ final class SupportAttachmentService
         ?int $messageId,
         string $uploaderType = 'member',
         ?int $uploaderId = null,
+        bool $screenshot = false,
     ): array {
         if ($files === null) return ['stored' => 0, 'problems' => []];
         if ($files instanceof UploadedFileInterface) $files = [$files];
@@ -209,7 +228,7 @@ final class SupportAttachmentService
                 $problems[] = 'Only ' . self::MAX_PER_MESSAGE . ' attachments per message were kept.';
                 break;
             }
-            $r = self::store($f, $ticketId, $messageId, $uploaderType, $uploaderId);
+            $r = self::store($f, $ticketId, $messageId, $uploaderType, $uploaderId, $screenshot);
             if (!empty($r['ok'])) $stored++;
             else $problems[] = (string) ($r['message'] ?? 'One attachment could not be saved.');
         }

@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace AfricaGates\Admin\Controllers;
 
-use AfricaGates\Support\Env;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
@@ -247,21 +246,9 @@ class JudgesController
             }
             $this->audit->record($adminId, 'judge.create', 'judge', $id);
 
-            // Email the new judge their assignment details
-            $judgeEmail = strtolower(trim((string)($b['email'] ?? '')));
-            if ($this->mailer && filter_var($judgeEmail, FILTER_VALIDATE_EMAIL) && !empty($progIds)) {
-                $progTitles = DB::table('gates_award_programmes')
-                    ->whereIn('id', $progIds)->pluck('title')->implode(', ');
-                $loginUrl = rtrim(Env::get('APP_URL', 'https://afg.afrovanguard.org.ng'), '/') . '/judge/login';
-                $this->mailer->sendJudgeAssignment(
-                    $judgeEmail,
-                    trim((string)($b['name'] ?? 'Judge')),
-                    $progTitles ?: 'Africa GATES Awards',
-                    $loginUrl
-                );
-            }
-            // Single-use gated onboarding form link (separate from the login invite).
-            $this->sendJudgeForm($id, $judgeEmail, trim((string)($b['name'] ?? '')));
+            // One welcome: the single-use profile form, the way into the panel, and the dates.
+            // It used to be two emails, the first carrying a typed year and typed weights.
+            $this->sendJudgeForm($id, strtolower(trim((string)($b['email'] ?? ''))), trim((string)($b['name'] ?? '')), $progIds);
         }
         $_SESSION['flash_ok'] = 'Judge saved.';
         return $res->withHeader('Location', '/admin/judges')->withStatus(302);
@@ -273,34 +260,126 @@ class JudgesController
         $id = (int)$args['id'];
         $j = DB::table('gates_judges')->where('id', $id)->first();
         if (!$j) throw new \Slim\Exception\HttpNotFoundException($req);
-        $this->sendJudgeForm($id, (string)$j->email, (string)$j->name);
+        $this->sendJudgeForm($id, (string)$j->email, (string)$j->name,
+            array_values(array_filter(array_map('intval', (array) (json_decode((string) ($j->programme_ids ?? '[]'), true) ?: [])))));
         $this->audit->record((int)$_SESSION['admin_id'], 'judge.regenerate_form', 'judge', $id);
         $_SESSION['flash_ok'] = 'A fresh single-use judge form link was emailed (any previous link is now void).';
         return $res->withHeader('Location', '/admin/judges')->withStatus(302);
     }
 
-    /** Issue a single-use judge form token + email the judge a link to complete their profile. */
-    private function sendJudgeForm(int $judgeId, string $email, string $name): void
+    /** The judge's form link lives this many days (GatedFormService::issue). */
+    private const FORM_DAYS = 30;
+
+    /**
+     * Issue a single-use judge form token and send the judge welcome (emails/judge.html.twig).
+     *
+     * The dates are the programme's own — scoring opens when its voting closes and closes on
+     * its results date (CyclePolicy::phaseFor) — and are printed only for a judge on ONE
+     * programme: on several, any one cycle's dates would be wrong for the rest.
+     *
+     * @param list<int> $programmeIds
+     */
+    private function sendJudgeForm(int $judgeId, string $email, string $name, array $programmeIds = []): void
     {
         $email = strtolower(trim($email));
         if (!$this->mailer || $judgeId < 1 || !filter_var($email, FILTER_VALIDATE_EMAIL)) return;
-        $raw  = GatedFormService::issue('judge', $judgeId, $email);
-        $link = GatedFormService::link($raw);
-        $nn   = htmlspecialchars($name !== '' ? $name : 'there', ENT_QUOTES, 'UTF-8');
-        $html = "<p>Hi <strong>{$nn}</strong>,</p>"
-            . "<p>Welcome to the Africa GATES judging panel. Please complete your judge profile using your private form below.</p>"
-            . "<p style=\"text-align:center;margin:24px 0\"><a href=\"{$link}\" style=\"display:inline-block;padding:12px 28px;background:#10292C;color:#fff;border-radius:999px;font-weight:600;text-decoration:none;font-size:15px\">Complete your judge profile →</a></p>"
-            . "<p style=\"font-size:12.5px;color:#6b7674\">This is a private, single-use link just for you — it works once.</p>";
-        $plain = "Hi {$name},\n\nWelcome to the Africa GATES judging panel. Complete your judge profile using your private, single-use form:\n{$link}\n\n— Africa GATES";
-        try { $this->mailer->sendBranded($email, 'Complete your Africa GATES judge profile', $html, $plain, 'Judges'); } catch (\Throwable $e) {}
+        $raw  = GatedFormService::issue('judge', $judgeId, $email, self::FORM_DAYS);
+        $base = rtrim(\AfricaGates\Support\SiteUrl::base(), '/');
+
+        $programme = '';
+        $opens = $closes = '';
+        if ($programmeIds) {
+            $programme = DB::table('gates_award_programmes')->whereIn('id', $programmeIds)->pluck('title')->implode(' · ');
+            if (count($programmeIds) === 1) {
+                $cy = DB::table('gates_award_cycles')->where('programme_id', $programmeIds[0])->orderByDesc('year')->first();
+                if ($cy) {
+                    $opens  = !empty($cy->voting_close) ? \AfricaGates\Support\DisplayTime::showZoned((string) $cy->voting_close, 'j F Y, H:i') : '';
+                    $closes = !empty($cy->results_date) ? \AfricaGates\Support\DisplayTime::showZoned((string) $cy->results_date, 'j F Y, H:i') : '';
+                }
+            }
+        }
+        try {
+            \AfricaGates\Services\Mail\Emails::send($this->mailer, $email, 'judge', [
+                'first_name'     => \AfricaGates\Services\DoorWelcome::firstName($name) ?: 'there',
+                'programme'      => $programme,
+                'form_url'       => GatedFormService::link($raw),
+                'login_url'      => $base . '/judge/login',
+                'scoring_opens'  => $opens,
+                'scoring_closes' => $closes,
+                'form_days'      => self::FORM_DAYS,
+                'help_url'       => $base . '/support',
+            ]);
+        } catch (\Throwable) { /* the judge is saved; the form can be re-sent from the list */ }
     }
 
+    /**
+     * POST /admin/judges/{id}/delete — take a judge off the panel.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * A JUDGE WHO HAS MARKED ANYTHING IS RETIRED, NEVER DELETED
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * This was a hard DELETE under a confirm reading "scores they have already submitted
+     * stay on the nominees". On production that sentence was false in the worst direction:
+     * `gates_judge_criteria_scores` and `gates_judge_notes` carry `ON DELETE CASCADE` to
+     * this table, so one click silently destroyed every mark the judge had ever given —
+     * across every cycle, released ones included — and with it the quorum of every nominee
+     * they had sat on. On SQLite (dev, the suite) the foreign keys are not enforced, so the
+     * marks SURVIVED and kept COUNTING, because the scorer bars only `is_active = 0`. The
+     * same button did opposite things on the two databases, and neither was "removed".
+     *
+     * So removal is what `is_active = 0` already means everywhere else: the sign-in, the
+     * live session ({@see \AfricaGates\Judge\Middleware\JudgeAuthMiddleware}) and the
+     * scorer ({@see \AfricaGates\Services\NomineeScoringService::disqualifiedJudges()},
+     * which keeps the marks visible on the scorecard as "off the panel") all honour it. A
+     * true delete is offered only to a judge with no record at all — the mistyped invite —
+     * which is the rule {@see \AfricaGates\Services\JudgeRubric::retire()} applies to a
+     * criterion, for the same reason: a row other records point at is history.
+     */
     public function delete(Request $req, Response $res, array $args): Response
     {
         $id = (int)$args['id'];
-        DB::table('gates_judges')->where('id', $id)->delete();
-        $this->audit->record((int)$_SESSION['admin_id'], 'judge.delete', 'judge', $id);
-        $_SESSION['flash_ok'] = 'Judge removed.';
+        $j = DB::table('gates_judges')->where('id', $id)->first();
+        if (!$j) throw new \Slim\Exception\HttpNotFoundException($req);
+
+        $record = self::recordCount($id);
+        if ($record > 0) {
+            DB::table('gates_judges')->where('id', $id)->update(['is_active' => 0]);
+            $this->audit->record((int)($_SESSION['admin_id'] ?? 0), 'judge.retire', 'judge', $id,
+                ['records' => $record]);
+            $_SESSION['flash_ok'] = 'Judge taken off the panel. They have ' . number_format($record)
+                . ' judging record' . ($record === 1 ? '' : 's') . ', so they are kept as inactive rather '
+                . 'than deleted: they can no longer sign in, and their marks no longer count towards '
+                . 'any result. Reactivate them from Edit if this was a mistake.';
+        } else {
+            DB::table('gates_judges')->where('id', $id)->delete();
+            $this->audit->record((int)($_SESSION['admin_id'] ?? 0), 'judge.delete', 'judge', $id);
+            $_SESSION['flash_ok'] = 'Judge removed. They had not judged anything, so nothing else changed.';
+        }
         return $res->withHeader('Location', '/admin/judges')->withStatus(302);
+    }
+
+    /**
+     * How many rows elsewhere point at this judge. Any at all makes the judge history.
+     *
+     * Every table is asked through SchemaHas, because the score log, the map flags and the
+     * conflict table each arrived in a migration and an unmigrated deployment must still be
+     * able to remove a judge — counting a table that does not exist is zero, not a 500.
+     */
+    public static function recordCount(int $judgeId): int
+    {
+        $n = 0;
+        foreach (['gates_judge_criteria_scores', 'gates_judge_notes', 'gates_judge_score_log',
+                  'gates_judge_coi', 'gates_judge_map_flags'] as $table) {
+            if (!\AfricaGates\Support\SchemaHas::table($table)) continue;
+            try {
+                $n += (int) DB::table($table)->where('judge_id', $judgeId)->count();
+            } catch (\Throwable $e) {
+                // Unknown is not none: refuse the delete rather than guess.
+                error_log('[judges] record count on ' . $table . ': ' . $e->getMessage());
+                $n += 1;
+            }
+        }
+        return $n;
     }
 }

@@ -106,6 +106,7 @@ final class RubricController
             'exposure'    => JudgeRubric::exposure($scope),
             'may_edit'    => $this->mayEdit(),
             'max_weight'  => JudgeRubric::MAX_WEIGHT,
+            'max_sort'    => JudgeRubric::MAX_SORT,
             'max_per_scope' => JudgeRubric::MAX_PER_SCOPE,
             // The published doctrine, shown beside the criteria rather than in a document
             // somewhere else. Four criteria listed without the question they answer read as

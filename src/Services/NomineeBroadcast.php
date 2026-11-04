@@ -3,12 +3,9 @@ declare(strict_types=1);
 
 namespace AfricaGates\Services;
 
-use AfricaGates\Support\Env;
 use AfricaGates\Support\Slug;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
-use Twig\Environment;
-use Twig\Loader\FilesystemLoader;
 
 /**
  * Who receives the nominee broadcast, and what each of them is sent.
@@ -154,15 +151,6 @@ final class NomineeBroadcast
     /** @param array{nominee:object,cycle:object,email:string} $r */
     public function html(array $r, string $site): string
     {
-        // A bare Twig environment: this template uses plain variables only — no asset()
-        // or csp_nonce — so it does not need the app's extensions, and not depending on
-        // them keeps it renderable from a console with no HTTP request in flight.
-        static $twig = null;
-        $twig ??= new Environment(
-            new FilesystemLoader(\dirname(__DIR__, 2) . '/templates'),
-            ['autoescape' => 'html']
-        );
-
         $vars = $this->vars($r, $site);
 
         // An editable campaign renders through EmailCampaign, which owns the block
@@ -172,7 +160,11 @@ final class NomineeBroadcast
             return EmailCampaign::renderFor($this->campaign, $vars);
         }
 
-        return $twig->render('emails/final-hours.twig', $vars);
+        // The fixed message: emails/final.html.twig in the house shell, wrapped here because
+        // this path sends through sendRawHtml() with its own List-Unsubscribe.
+        $m = \AfricaGates\Services\Mail\Emails::compose('final', $vars);
+        return OtpService::boot()->brandWrap($m['subject'], $m['html'], $m['category'], $m['hero'],
+            (string) $vars['unsubscribe_url'], $m['preheader'], 0, $m['why']);
     }
 
     /** @return array<string,mixed> @param array{nominee:object,cycle:object,email:string} $r */
@@ -195,7 +187,7 @@ final class NomineeBroadcast
             'events_url'      => $site . '/events',
             'site_url'        => $site,
             'unsubscribe_url' => EmailOptOut::url($site, $r['email']),
-            'postal_address'  => (string) Env::get('MAIL_POSTAL_ADDRESS', 'Afrovanguard, Lagos, Nigeria'),
+            'postal_address'  => \AfricaGates\Services\Mail\MailConfig::postal(),
         ];
     }
 
@@ -226,26 +218,8 @@ final class NomineeBroadcast
             return EmailCampaign::plainFor($this->campaign, $this->vars($r, $site));
         }
 
-        $n     = $r['nominee'];
-        $close = Carbon::parse((string) $r['cycle']->voting_close)->format('D j M Y, H:i T');
-        $first = trim(explode(' ', trim((string) $n->name))[0] ?? '');
-
-        // Written, not strip_tags'd: a stripped campaign is style rules and link text with
-        // no sentences in it, and that is the version a plain-text client shows.
-        return implode("\n", [
-            $first !== '' ? "$first," : 'Hello,',
-            '',
-            'You are in the final stretch of Africa GATES voting'
-                . (($n->category_title ?? '') !== '' ? ' in ' . $n->category_title : '') . '.',
-            "Voting closes $close.",
-            '',
-            'Two things we are asking of you:',
-            '1. Mobilise your supporters — share your voting link: ' . $this->votePage($site, $n),
-            '2. Be there on the night — ' . $site . '/events',
-            '',
-            '— Africa GATES',
-            'Unsubscribe: ' . EmailOptOut::url($site, $r['email']),
-        ]);
+        // Written, not strip_tags'd: emails/final.txt.twig.
+        return \AfricaGates\Services\Mail\Emails::compose('final', $this->vars($r, $site))['text'];
     }
 
     /** @return list<object> cycles in voting with a usable close date */

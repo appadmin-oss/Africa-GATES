@@ -269,7 +269,10 @@ final class ReferralSourceTest extends TestCase
         $this->assertTrue(DB::schema()->hasColumn('gates_orders', 'referral_code'));
 
         $co = file_get_contents(dirname(__DIR__, 2) . '/src/Controllers/ShopCheckoutController.php');
-        $this->assertStringContainsString("'referral_code'  => \\AfricaGates\\Services\\ReferralService::fromSession()", $co);
+        // Stamped through referralFor(), which reads the session's code and passes it
+        // through the self-referral rule before it reaches the row.
+        $this->assertStringContainsString("'referral_code'  => self::referralFor(\$email)", $co);
+        $this->assertStringContainsString("ReferralService::fromSession()", $co);
 
         $svc = file_get_contents(dirname(__DIR__, 2) . '/src/Services/ShopOrderService.php');
         $this->assertStringContainsString("ReferralService::creditSale(", $svc);

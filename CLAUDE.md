@@ -4,6 +4,11 @@ Start with `docs/CODEBASE-INDEX.md`. This file is only the handful of facts that
 caused a real, shipped bug — the ones worth knowing *before* you write the first line
 rather than after the review.
 
+**On 3 Oct 2026 the old public pages were destroyed** — every template on `layout/gates.twig`
+(and that layout), their partials and page stylesheets; see `docs/handoff/DESTROYED.md`. Where
+a section below names one of those files, it describes the rule the rebuild owes, not a file
+you will find; each page's rules are in `docs/handoff/inventory/`.
+
 ## The stack, and the two shapes of it
 
 PHP 8.4 · Slim 4 · Twig 3 · Eloquent's Capsule used as a **query builder only** (no models,
@@ -125,7 +130,58 @@ time. Hoist anything used by more than one block to template scope.
 
 So no `onclick=`, no inline `<script>` without a nonce. The convention is
 `data-ag-do="..."` with a delegated listener in `public/assets/js/admin.js`; `data-confirm`
-on a form routes it through `agConfirm`.
+on a form routes it through `agConfirm` — since the console rebuild a confirm-with-reason
+dialog: a POSTing form cannot be confirmed without a reason, which travels as `_reason` and
+`AuditService::record()` attaches to the audit row (one place, not 124 call sites).
+
+## The admin console swaps pages; a page script must say whether it may run twice
+
+`public/assets/js/console-nav.js` (21 Oct 2026) fetches the next console page and swaps in
+`#cnMain`'s contents, the rail's tree, the top bar and the tab bar — no reload, links fetched
+ahead on hover. `#cnMain` itself is never replaced, so listeners on it survive; anything that
+SCANS the page runs again on `cn:load` (admin.js, console-ux.js, richtext), and scripts can
+clean up on `cn:unload`.
+
+**A page's own `<script>` is the hazard.** Re-executed on every visit, a listener it put on
+the document or window outlives its page — the review list's A key approves the open
+nomination, and a stale one pressed on the next page would approve one from the last. So:
+`data-nav="rerun"` lets it be swapped, and `ConsoleNavTest` only allows that while it binds
+nothing outside its own elements directly — no document/window/`#cnMain` listener, no
+uncleared `setInterval`, no top-level `const`/`let`. **Bind those through `cnPage`** (defined
+inline in the layout head, so it exists before any page script): `cnPage.on(target, type, fn)`,
+`cnPage.every(fn, ms)`, `cnPage.leave(fn)` — all undone at `cn:unload`. Since 21 Oct 2026
+every console page takes part, and the test fails on an unmarked page script, because one
+unmarked script means the whole console reloads every time that page is opened or left. Shell scripts say `data-nav="shell"` — one left
+unmarked turns the swap off on EVERY page, silently. Navigation listens on `window`, so a
+page script's document listener always gets a click first, whenever it was added.
+
+A swapped page's nonce is not this document's: console-nav re-signs the fetched HTML BEFORE
+parsing, because Chromium checks a `<style>` against the policy even in an inert parsed
+document. A prefetch carries `X-Console-Prefetch: 1`, and `ConsoleShell::prefetch()` keeps it
+out of Recent and Presence — a link hovered over is not a page viewed.
+
+## The public site swaps pages too; a page script must say whether it may run again
+
+`public/assets/js/site-nav.js` (2 Nov 2026) does for the public shell what console-nav does
+for the console: a link or a GET form fetches the next page and swaps the inside of `<main>`,
+the header, the app bar and the bottom bars, with prefetch on hover or touch. Every POST is a
+full navigation, always (a vote, a payment). A page swaps only when each script of its own
+says `data-nav="rerun"` (safe on every visit), `once` (a third party's loader, Turnstile) or
+is the layout's (`shell`); `reload` or anything unmarked is a full load. A `rerun` script
+binds no document, window or `<main>` listener and starts no interval except through
+`agPage.on/every/leave` (layout/shell.twig head), which are undone on `ag:unload`.
+`<main>` itself survives a swap, so a scroll listener on it piles up. Overlays that stay
+carry `data-nav-keep`; a kept element's per-page attributes are listed in `data-nav-sync`.
+Shell scripts re-scan on `ag:load`. `SiteNavTest` holds it, and fails on an unmarked script.
+
+**A tab bar says so: `data-tabs="name"` on the element holding its links** (3 Nov 2026).
+Both site-nav and console-nav then fetch that bar's links once the page is idle and keep them
+a minute, so a tab swaps from memory (950ms → ~30ms on a 150ms link; the organisation
+console was a 2.3s full reload per tab). `data-tabs-top` is for a section rail: the new
+section opens at its top rather than holding the rail in place. `/org` is swapped but never
+fetched ahead from outside it — a GET there opens the organisation's session. A page fetched
+ahead neither shows nor spends a flash or a form replay (`$ahead` in `config/container.php`).
+`TabSwitchTest` fails on a `?tab=` link marked current in a template with no `data-tabs`.
 
 ## A header can switch a feature off in a way nothing on the page can see
 
@@ -198,14 +254,21 @@ use `requestSubmit(submitter)`.
 
 ## The admin console's shape, and the two directions a nav can be wrong
 
-The rail is **seven headings, and seven is a floor rather than a taste call**: there are
-exactly seven `admin_sections` gates and a section can carry only one, so fewer sections
-means moving a page to a different gate. That is an access change and **must never ride
-along inside a navigation change** — `AdminNav` records `gate` per section and
-`AdminNavTest` asserts it against the original mapping. Sections are uneven by design
-(three items in Programmes, eleven in Content); one opens at a time, the tail is in the
-in-page sub-nav and the `⌘K` palette, which is the documented hybrid resolution to NN/g's
-finding that hidden navigation roughly halves discoverability.
+**Access is per PAGE, and the nav reads the guard rather than typing a gate** (admin
+handoff rule 7; rebuilt 4 Oct 2026, superseding the old "seven sections is a floor" rule).
+The rail is Home plus seven groups named for the job — Daily work, Programmes, Entries,
+Money, Publishing, Monitoring, Settings (README §2.2, exact order and labels) — and a group
+carries NO gate. Each page's gate is `Permissions::sectionForPath()` of its own href, and
+every surface (rail, `⌘K` palette, Home's shortcuts and "needs a person", the alert pill,
+pins) asks `Permissions::canOpen()`, the guard's own function. So moving a page between
+groups changes nobody's access, by construction. **An access change must still never ride
+along inside a navigation change:** `AdminNavTest` diffs every page's gate against the
+GUARD's mapping recorded before the rebuild (the old test pinned the RAIL's mapping, which
+disagreed with the guard on fifteen pages — Handbook, Support tickets, Audit log, Integrity,
+Payouts and others were offered to roles the guard then bounced) and only the owner-approved
+`health` pages (Integrations, Email health, Alerts) may differ; it also runs
+`SectionGuardMiddleware` over every href for every role. A group with more than five pages
+shows four and a "··· N more" row, forced open when the current page is past the fourth.
 
 **And a nav can be wrong in two directions.** `AdminNavTest`'s fourteen tests all read
 NAV → ROUTES — every entry is a real route, no page twice, every item has a sprite icon.
@@ -238,12 +301,15 @@ whole roles. Raise it as a product decision; never do it inside a navigation cha
 ### Admin documentation lives in the console, not in `docs/`
 
 There is no SSH on production, so an administrator cannot open a Markdown file — `docs/` is
-for whoever changes the code. The handbook is `/admin/handbook`, in the always-visible
-section so every role can read it, because somebody whose permissions do not reach Money
-still needs to know Money exists and why their rail is shorter than a colleague's.
+for whoever changes the code. The handbook is `/admin/handbook`, reached from the
+account menu, and it is MEANT for every role — somebody whose permissions do not reach Money
+still needs to know Money exists and why their rail is shorter than a colleague's. **It is
+not yet:** `/admin/handbook` has no path mapping, so the guard fails it closed to superadmin,
+and the old rail offering it to everyone was the bug. Mapping it to `overview` is an access
+change awaiting the owner (`docs/handoff/PHASE-ADMIN.md`, open questions).
 
 **Its structural facts are LOOPED FROM THE CODE, and that rule is the whole design.** Areas
-from `AdminNav::sections()`, roles from `Permissions::MATRIX`, weights and quorum from
+from `AdminNav::groups()`, roles from `Permissions::MATRIX`, weights and quorum from
 `RuleEngine`, verification words from `RegistryCheck::STATES`, the grace window from
 `ANNOUNCE_GRACE_DAYS`. This repo has paid four times for prose outliving the rule it
 describes, and a handbook is that hazard with people actively told to trust it — the
@@ -296,24 +362,74 @@ generated section is the fact. `2027_01_23_cookie_policy_repair.php` corrects pr
 stored copy **only where `updated_by IS NULL`** — an operator's edits are theirs.
 `docs/CODEBASE-INDEX.md` §24.
 
-## A bare hex is not a colour: `fill`, `edge`, `ink`, `wash`
+## A bare hex is not a colour: one palette, typed in one file
 
-The house style used to name **one gold accent, `#f3b416`**. On the house paper it is
-**1.65:1** — under the 3:1 a border owes and far under the 4.5:1 a word owes — and it was
-being used as a hairline and as a mono micro-label. That is the whole reason the site read
-monochrome: not too little colour, but **colour used as a LINE when it is only ever visible
-as a FIELD**. Three of five tokens failed on paper (`--ag-gold` `#c9a24b` 2.13 was a SECOND
-gold nothing mentioned; `--ag-green-light` 1.79; `--ag-pulse` 4.08 — a pass for a border and
-a fail for a word, and it WAS a word on three public screens). Underneath: **642 distinct hex
-values in the templates**, four golds among them, because people were hand-deriving this ramp
-separately.
+**`Support\Accent` is the handoff's palette, exactly, and the only file a colour literal may
+be typed in.** The redesign handoff (REFERENCE §6.1, `snippets/css/tokens.css`) names 32
+colour tokens — `ink`, `ink-2`, `soft`, `mute`, `ground`, `surface`, `bar`, `line`/`-2`/`-3`,
+`tint`, the `green`, `gold`, `live` and `info` families, `error`, `stock-low`/`-gone`,
+`scrim`, `chevron`, `grabber` — and the owner decided (2 Oct 2026, GAPS §8 Q1–Q3) to ship
+them **±0, under the handoff's names**, with `Accent` destroyed and rebuilt as that table
+rather than `tokens.css` becoming a second source. `Accent::css()` emits them, plus the
+handoff's shadows (`--ag-sh-*`, which are rgba of the house ink and so are colour), into one
+nonced `<style>` that EVERY layout writes before its stylesheets — shell and the
+admin/judge sign-in screens. `public/assets/css/tokens.css` holds sizes, radii, motion and
+layers and **no colour at all**. Mail and GD cannot read `var()`; they ask `Accent::hex('soft')`
+by name, and an unknown name throws rather than painting a button blank.
+**The admin console has a second set in the same file** (owner, 4 Oct 2026): the admin
+handoff's monochrome palette (README §10) as `Accent::console()`, emitted as `--cn-*` by
+`ag_accents('console')` in the admin layout only — the two surfaces share no name. Its words
+are measured by `ConsolePaletteTest`; four the handoff draws under 4.5:1 are REPORTED in
+`Accent::consoleReported()`, never re-valued.
 
-`Support\Accent` is the ramp. Same `fill`/`edge` split `EventTierTone` already draws; **never
-invent a fifth name.** A `fill` owes NO floor and that is load-bearing — demanding 3:1 of it
-forces the gold to a mustard nobody chose, which is how an accessibility pass fixes a palette
-into blandness. The rule held instead is that a fill is never the only carrier of meaning.
-`AccentTest` re-derives every floor, keeps each lifted value within 18° of its identity, and
-caps a public template at **two roles** — rarity is not something a palette can hope for.
+Why PHP and not a stylesheet: the values the page receives and the values the tests measure
+must be the same values. A colour with two sources is decided by load order, which is how
+four golds came to be in circulation under a house style naming one — and how, until this
+rebuild, `--ag-line` was `#d6d4cc` from Accent and `#e8e5dd` from `tokens.css` at once.
+
+**No compatibility aliases.** The old roles (`--ag-honour-*`, `--ag-action-*`, `--ag-caution-*`,
+the inverted `fault`), `--ag-ink-soft`, `--ag-surface-2`, `--ag-card`, `--ag-line-strong` and
+the twenty-two-name compatibility block were deleted, and every reader was rewritten to the
+new name in the same change: honour → `gold`, action → `green`, caution and fault → `error`
+(there is no inverted error block in the handoff; a refusal is `--ag-error` WORDS, and where it
+needs a field it takes `live-wash`, as the handoff's own audit tile does). An alias is a patch:
+it lets a dead name go on working, so nothing ever forces its reader to change. The full
+old → new table is in the Phase 1 inventory and in `Accent`'s docblocks.
+
+**What "ship exactly" costs is accepted, and written down as data.** The gold on the ground
+is 1.61:1, the outlined chip and input border (`line-2` on white) 1.48:1, `mute` 2.75:1,
+the hairlines and edges lower still. The previous house rule failed every one of them as a
+line; the owner accepted them (Q2), so `Accent::ACCEPTED` lists each with the floor it is
+under and `SlotFloorTest` holds that the list stays true — none may become a word, and none
+may quietly be lifted. **What is not relaxed is every token drawn as a word**:
+`Accent::words()` names each word token and every ground it is drawn on, measured at 4.5:1
+every run (`soft` is 4.80 on the ground and 4.38 on `tint`, so `tint` is not in its row). If
+one fails, the instruction is to REPORT it, not to edit the hex.
+
+**A family is four slots of token names** (`fill`, `edge`, `ink`, `wash`), meanings resolve to
+families (`Accent::for('withheld')` throws on a typo), and a tile or a programme spine is
+painted with `var(--ag-…)` inline — never a hex. A programme's identity colour survives as a
+feature, in the only two families no meaning has claimed on a results page: `info`, then
+`ink`; a third programme wraps, and its printed name is what tells it apart.
+
+**The guards had to learn the new names, and two of them had to learn to read CSS.** The old
+ceilings recognised a field by its slot name (`--ag-honour-wash`), so a page painted entirely
+in `--ag-green`/`--ag-gold` passed unchecked (GAPS C2) — and the handoff's names do not encode
+field-versus-word: `--ag-green` is the primary button, the focus ring and a link. So a field
+is now decided by PROPERTY (`Tests\Support\ColourFields`: a wash anywhere, a hue only in a
+`background`/`fill`), shared by `AccentTest`'s two-family ceiling, `ColourBudgetTest`'s tiers
+and money rule and `ColourIsNeverAloneTest`. Seeing the names surfaced 32 pages that spend
+green with no declared tier and 18 coloured elements with no word; both are count-per-file
+backlogs that may only shrink, owned by each page's rebuild. And `ColourLiteralTest` replaced
+the template-only hex sweep: it counts hex, `rgb()`, `rgba()`, `hsl()` in templates AND
+authored CSS (C8), holds `tokens.css`, `shell.css` and `components.css` at zero by name, and
+ratchets the rest. A translucent palette colour is `color-mix(in srgb, var(--ag-ink) 8%,
+transparent)`, never a typed rgba. `DeadTokenTest` counts Accent's emitted names as
+declarations, or moving colour into PHP would have exempted every colour token from it.
+
+**Shadows exist now.** This file used to say there were none and depth was "the lip". The
+handoff's shadows were adopted (Q3); `components/lip.css` was destroyed with the old pages,
+so the lip survives nowhere.
 
 `Support\Contrast` is the one relative-luminance implementation; there were four, and the
 fifth is where the wrong threshold lands. Each caller keeps its own threshold (`Swatch`'s
@@ -337,40 +453,100 @@ invisible — both fixed by focusing a marker turning the globe to it); 2.5.8 (4
 `pointer: coarse` was the only floor, and the AA 24×24 is not conditional on the pointer).
 `docs/CODEBASE-INDEX.md` §25.
 
-## The type scale is closed, and a scale with no guard is a comment
+## Type is the handoff's: a closed ladder, fixed display sizes, mono for codes, no capitals
 
-`10 · 11 · 12 · 13 · 14 · 16 · 17`, and the gap at 15 is deliberate — 14 is the reading
-size, 16 is the lede, and a rung between them is an invitation to split the difference
-again. Above 17px is the display range, set with `clamp()` against the viewport rather
-than off this ladder. `TypeScaleTest` holds it.
+The owner answered GAPS Q4 and Q5 on 3 Oct 2026: **apply REFERENCE §6.2 and §18.3–4 as
+written** on the public site. Three rules, each held by a guard, and each the reverse of
+something this file used to say — which is the reason to read the section before the first
+`font:` you write, because the old prose is still in people's heads and in a great deal of
+git history.
 
-It arrived as a comment in a design handoff and stayed one: the tree it was handed to
-carried **1,579** declarations off the ladder, 41% of every font size on the site. Nothing
-failed, because nothing asked. Eight distinct sizes existed between 11px and 15px, because
-sizes were set one screen at a time — `12.5px` and `13px` on adjacent cards doing the same
-job, and the next person splitting the difference again from whichever they copied. None
-of that is visible from any single file, which is why it ran for the life of the codebase.
+**Small text sits on a closed ladder: `11.5 · 12 · 12.5 · 13 · 13.5 · 14 · 14.5 · 15 ·
+15.5 · 16 · 16.5 · 17`.** Micro 11.5–12.5, meta 13–13.5, secondary 14.5, buttons
+14.5–15.5, body and inputs 16. **There is no 10 and no 11.** Those are px at the 16px root,
+but **screen type is WRITTEN in rem** (owner, 3 Oct 2026): `var(--ag-fs-14-5)`, a
+`tokens.css` step named by its px. Display & reading (100/125/150%) scales the root, and a
+px size ignores the root — the first chrome build was all px, the setting's class landed on
+`<html>` and not one letter grew. `TypeScaleTest` refuses a px size on a screen and an
+`em`/`%` size anywhere but the root, and asserts the text-size classes move it. Mail is px
+(no setting reaches an inbox) and still on the ladder; box sizes and targets stay px. `TypeScaleTest` used to carry
+them as a `MIGRATING` allowance for the unconverted pages; those pages were destroyed, the
+allowance went with them, and its test now fails if the constant comes back. An allowance
+that outlives its reason is how a ladder grows a rung nobody chose. The ladder is closed
+because an unguarded scale is a comment: the tree this repo inherited carried **1,579**
+declarations off its own documented scale, 41% of every size on the site, set one screen at
+a time with nothing asking.
 
-Two things a sweep over this has to know, both of which had one lying here:
+**Display type is a FIXED size per breakpoint, never scaled by the viewport.** §6.2 gives a
+phone and a desktop size for every display role (H1 32 → 44, celebration 34 → 48, app-bar
+title 26) and §4.5 forbids `vw` type outright. This file used to say the opposite — "above
+17px is the display range, set with `clamp()` against the viewport" — so fluid type here
+was not a lapse, it was the convention. A `vw` size is a size nobody chose: it renders
+every value between the two the designer drew, and it does not grow with the reader's text
+setting (WCAG 1.4.4). `TypeScaleTest` refuses viewport units, container units and
+`clamp()` in `font-size` and the `font` shorthand, including through a custom property — a
+breakpoint is a QUERY, not a unit.
 
-- **Most of the type is in the `font:` SHORTHAND**, not in `font-size:`. 214 declarations
-  of micro-label live as `font:600 11px/1 var(--ag-font-mono)`, and a `font-size:` grep
-  never sees one. Inside the shorthand the size is the FIRST px value — nothing else in
-  `font` takes a length except the line-height, which follows a `/`.
+**Monospace is only for references and codes** — order refs, ticket codes, receipt codes,
+times inside a ticket stub — **never labels, stats or kickers. No capitals**: no
+`text-transform:uppercase`, no `capitalize`, no small-caps, and no typed all-caps
+micro-labels; headings are sentence case. The one exception is the ticket stub's CONFIRMED
+stamp, which is a graphic. The handoff contradicted itself on both (HANDOFF §2 "mono …
+numbers", SKILL §24.3 "mono 17px value", fifteen uppercase declarations in its own DCs);
+its README §0 puts §18 above all of those, and the owner confirmed it. This file's house
+style used to read "mono micro-labels", and 214 declarations were written to it. Mono says
+"copy me exactly": on a reference that is true and it is what tells `0` from `O`; on a
+kicker it is a costume, and it spends the page's only signal for "this is a code".
+`MonoAndCaseTest` holds it with a NAMING convention derived from §18.3's list — a rule may
+set a monospace face only if its selector carries a class segment `ref`, `code` or `stub`
+(or is `code`/`kbd`/`samp`/`pre`), and capitals only under a `stamp` segment. The name is
+the claim, and a claim is reviewable: `.order-ref` in mono is plainly right, `.stat-ref` is
+a lie somebody had to type. Mono is recognised by VALUE and resolved through aliases — the
+door defines its own `--dr-mono`, and a sweep knowing only `--ag-font-mono` passes every
+kicker on that page.
+
+**Scope is the public surface, and the consoles are out by name.** The judge console is
+held by the owner; the ADMIN console was rebuilt from its own handoff (4 Oct 2026) and has
+its OWN ladder (README §10, plus 10.5 and 16), held by `ConsoleTypeTest` over
+`Tests\Support\ConsoleSurface` (`public/assets/css/console/` and the rebuilt templates),
+which also holds the two shared rules — no capitals, mono only for figures, references,
+times and keycaps (by a class-segment naming rule: `n`, `num`, `badge`, `v`, `kbd`, `time`,
+`ref`, `code`). Both public guards read `Tests\Support\PublicSurface`: every template but
+`admin/` and `judge/`, every stylesheet but the console's directory, the five only the judge
+console links (`judge.css`, `main.css`, `aurora.css`, `components/auth.css`, `a11y.css`)
+and `vendor/`. **The door scanner is held
+too** (owner, 3 Oct 2026: a staff tool outside the redesign) — `pages/events/door.twig` and
+`components/door.css`, with a guard that only the door links its sheet. Everything else is in by default, so a
+new sheet is covered the day it lands — and `TypeScaleTest` fails if a public page ever
+links a held sheet, because an exclusion is honest only while nothing public reads what it
+excludes. Mail is in for the scale and out for mono and case, which are rules for screens.
+Neither guard reads JavaScript, and both say so.
+
+Things a sweep over type has to know, each of which had one lying here:
+
+- **Most of the type is in the `font:` SHORTHAND**, not in `font-size:` — the 214
+  micro-labels were `font:600 11px/1 var(--ag-font-mono)`, invisible to a `font-size:`
+  grep. Inside the shorthand the size is the FIRST length — or the first `var()` that
+  resolves to one, now that sizes are tokens; the only other length in `font` is the
+  line-height, after a `/`.
 - **`font-size:1px` in an email is not type.** It is the collapse that keeps the hidden
-  preheader from occupying a line in clients that ignore `display:none`, and raising it to
-  the ladder puts a stray line of grey text at the top of four production emails. It is
-  exempted by what it DOES — a 1px size beside `mso-hide:all` — never by naming the four
-  files that currently do it.
+  preheader from occupying a line in clients that ignore `display:none`; raising it puts a
+  stray line of grey text at the top of production mail. Exempt by what it DOES — at most
+  1px in a rule that also says `mso-hide:all` — never by naming the files that do it.
+- **An exemption recognised by a side-effect excuses whatever else has the side-effect.**
+  The old scale forgave a logotype by its `.26em` tracking; with the wordmark gone from the
+  public surface, the only thing that clause still excused was the door's 10px mono
+  kickers, which share the tracking and are labels. It was deleted, not narrowed.
+- **A guard that spells a SIZE inside a regex about something else goes quiet the moment
+  type moves.** `EventTierSelectionTest` found the ticket row's perk colour with
+  `/\.ed-tier__perk\{ font-size:11\.5px; color:(#[0-9a-f]{6})/`; moving the row half a
+  pixel stopped the match, and a contrast floor that cannot find its colour is not being
+  checked. Anything under 18.66px owes 4.5:1 whatever its size. Find it by SELECTOR — the
+  right rule pinned to the wrong token, as with `camera=()`.
 
-**And a guard that spells a SIZE inside a regex about something else goes quiet the moment
-type moves.** `EventTierSelectionTest` found the ticket row's perk colour with
-`/\.ed-tier__perk\{ font-size:11\.5px; color:(#[0-9a-f]{6})/`, to check that no state
-layer takes that text below AA. Moving the row half a pixel stopped the regex matching, and
-a contrast floor that cannot find its colour is a contrast floor that is not being checked.
-The size was never the subject: anything under 18.66px is small text to 1.4.3 and owes the
-same 4.5:1. Find it by SELECTOR. This is `camera=()` again — the right rule pinned to the
-wrong token.
+Both guards run their detectors over planted text on every run (a shorthand, a media query,
+an inline `style=`, a two-step alias, typed capitals) because a sweep is evidence only once
+it has been seen to name a break.
 
 ## A declared token with no reader, and the three ways the sweep lies
 
@@ -484,8 +660,12 @@ does not. A limit that locks out real people fails in the direction nobody repor
 
 ### Two sign-ins, each strong where the other was weak
 
-`/account/login` and `/org/login` are separate trust domains on separate routes, and that
-separation is deliberate — `account/login.twig` refuses to offer organisation sign-in for
+(Historical since 29 Oct 2026: `/org/login` is retired and forwards to the one sign-in — see
+"One login" below. The organisation's password survives as what a payout asks for, so the
+throttle-and-lock reasoning here still governs it.)
+
+`/account/login` and `/org/login` were separate trust domains on separate routes, and that
+separation was deliberate — `account/login.twig` refused to offer organisation sign-in for
 exactly that reason. What was not deliberate is the two arriving at different answers to
 the same questions, with nothing anywhere comparing them.
 
@@ -561,6 +741,28 @@ every one. Nothing failed: the suite was green either way, because the replaceme
 The tell was the COUNT, which went 6579 → 6574 after adding five tests, and a status line
 reading `M` where `??` was expected. Read the test total after a run that adds tests, and
 make it add up.
+
+### One login, and a role is given to an address
+
+Since 29 Oct 2026 there is ONE sign-in, `/account/login`. A staff, judging or organisation role
+is **given by staff to an email address** — the address typed when the admin, judge or
+organisation user was created — and the Africa GATES account that has **verified** that address
+holds it (`Services\Account\Roles::held`, read from the role's own row on every request, so a
+role switched off or given to another address is gone on the next one). Nobody joins, links
+or adds anything; there is no roles page. A member cannot change their account's address, so
+holding it is proving it — the proof the console's magic link and the panel's code always
+asked for. The console, the panel and the organisation open **on the way in** from the account
+(`Roles::derive`, called by `AdminAuthMiddleware`, `JudgeAuthMiddleware` and `OrgAuth::user`),
+through each role's own session start. A session proved only by a code texted to a phone is
+sent an email code first. Money and configuration ask again: an emailed code before a console
+write in Finance or Configuration (`AccountReconfirmMiddleware`, keyed on
+`Permissions::sectionForPath`), and an organisation's payout asks for **the organisation's own
+password** — not retired, because an email must never move a charity's money. `/admin/login`,
+`/admin/magic`, `/judge/login` and `/org/login` are forwarding addresses only (bookmarks, old
+mail, every bounce written before), and signing out of any of them signs the person out.
+`/__setup/admin` also leaves the superadmin's account able to sign in with its password,
+because on a fresh install mail may not work yet. The product switcher at the top of the rail
+moves between them (ElevenLabs' shape). `AccountRolesTest`, seven mutations each failing it.
 
 ### A link that signs you in is a sign-in, and there were three answers to one question
 
@@ -754,6 +956,53 @@ reported as a second reader of ElevenLabs' key; `SETTING` does the same to `Door
 `DisplayTime`. Two invented findings, both plausible enough to send somebody refactoring
 correct code.
 
+**And mail had both faults at once, plus a third nobody could see.** The sender and the
+status probe each resolved the SMTP settings: a blank host meant Brevo to one and "not set"
+to the other, so the page built to answer "is email working" answered about a configuration
+nothing was using. The transport was STARTTLS whatever the port, so 465 — implicit TLS, the
+port most providers hand out — timed out on every send as "SMTP connect() failed", which
+reads as a firewall. And every alert the platform raised went out through `OtpService`, the
+transport that had failed, so an email outage was the one fault it could never report.
+`Services\Mail\MailConfig` is the resolver now (`MailHealthTest` sweeps `src/` for a second
+reader, and found two on its first run); `MailHealth` opens an incident from the log or its
+hourly probe, runs `MailDiagnosis` — the SMTP conversation step by step to `MAIL FROM`, then
+`RSET`, never a message — and `MailAlert` reports it by webhook, by the host's own `mail()`
+and on every console page, recording which channels actually reached somebody.
+`/admin/settings/mail` is where every alert points.
+
+**And mail that sends ITSELF claims before it sends.** The campaign screen logs a row
+after each send and says so; a person watching the tally can see a repeat. The newsletter
+and the voting reminder have nobody watching and a second way to repeat — two cron ticks
+reading the same "not yet sent" list — so `Support\BroadcastLog::claim()` writes the row
+FIRST and the UNIQUE (campaign, email_hash) decides who owns the address. The reminder had
+none of it: it ignored the opt-out list, carried no List-Unsubscribe, mailed every address
+anybody had typed into the signup form, and could fire three times in its fifteen-minute
+06:00 window. `Newsletter\NewsletterAudience` is the one answer to "may we mail this
+person" — confirmed, not unsubscribed, not opted out — and a stand-call "email me when it
+opens" row in the same table is not a subscription. The signup form that existed was a
+script bound to a `.subscribe-form` no template rendered; `/newsletter` is the way in now,
+linked from the footer. `NewsletterTest`'s 28 mutations each fail it.
+
+**And the rules about WHO may be mailed live at the transport, not in each sender.**
+Seventy call sites send mail; some announcement senders filtered the opt-out list and some
+did not, and none knew which addresses had bounced, because nothing recorded a bounce — the
+same dead nominee address bounced in every broadcast. `Mail\SendPolicy::decide()` runs in
+`OtpService::dispatch()`, the one road every message takes, before any connection: an
+address at a reserved domain (`.invalid`, `.test`, `example.com` — the sandbox's own
+`@demo.invalid`) is refused for ALL mail; an ANNOUNCEMENT — anything carrying an unsubscribe
+link — is also refused to the opt-out list and to `Mail\Suppression` (permanent 5xx
+recipient refusals at send time, and provider bounce/complaint reports through
+`/hooks/mail-events/{token}`), and deferred past `mail_bulk_daily_cap` per address per 24
+hours. A sign-in code is never held by an announcement rule. **Held is not failed:**
+`refused` and `deferred` are `Mail\MailLog::HELD`, and every reader that makes a rate counts
+only `ATTEMPTS`, or each correctly-refused dead address would edge the platform toward a mail
+incident. The log's status was an `ENUM`/`CHECK` of three words, so the new two needed
+`2027_02_20_mail_send_rules.php` to REPAIR it — a corrected definition would have fixed only
+fresh databases, and the old column turns `deferred` into `Data truncated`, swallowed by the
+log's own catch. And the branded footer said "We hash every email — plain text is never
+stored" on every message for its whole life; three tables hold addresses in the clear.
+`MailSendRulesTest`'s 28 mutations each fail it.
+
 **And one probe, not one per service.** "Does this database have that column?" has to be
 asked here — migrations are applied by an operator opening a URL and the admin layout
 counts unapplied steps in the dozens. The four lines that ask it existed **four** times and
@@ -763,6 +1012,15 @@ Twenty-four round trips per page, invisibly — the page draws and the figures a
 `Support\SchemaHas` is it; it never memoises a `false` that came from a throw, because a
 dropped connection recorded as "no such column" makes a merge skip a table, journal nothing
 for it, and report success.
+
+## Minified twins: run `php scripts/build-min.php` after editing a script
+
+`Assets::url()` serves `public/assets/min/<js|css>/<path>.<hash>.<ext>` in place of a source
+when a twin exists for the source's CURRENT content hash (`Support\MinifiedAssets`). Edit a
+script and its old twin stops matching, so the source is served as written: correct, and
+43% heavier. CSS twins are rebuilt by the hourly maintenance run in PHP; JS twins need
+esbuild, which the host does not have, so run the build where Node exists and commit
+`public/assets/min`. Never edit a twin.
 
 ## Running the tests
 
@@ -860,6 +1118,13 @@ something a controller passes. A render test that builds its own `Environment` u
 screen — 16 tests at once. Mirror the app's globals in the test; do not default the token in
 the template, which posts an empty one and has the write rejected in production.
 
+**`|trans` is the same trap, louder.** An unknown FILTER is a compile error, not a blank,
+so the first `|trans` added to a shared partial breaks every test that builds a bare
+`Environment` over it — and every mailer that does, from a cron tick whose catch swallows
+it. Wrap the construction in `Translator::register(new Environment(…))`;
+`TranslatorTest` sweeps `src/` for one that is not. Never `is_safe` the filter, and never
+add a catalogue entry nothing passes to `|trans` — that test fails on both.
+
 ### The MySQL parity run, which is the one that finds things
 
 ```bash
@@ -947,6 +1212,21 @@ were still working. Anything monitoring it must parse the body. `Maintenance::TA
 is `-1`; `0` means "ran, nothing to do".
 
 Full account in `docs/CODEBASE-INDEX.md` §16.
+
+## A session's cookie and its data must die together
+
+The session cookie lived seven days and the data behind it about twenty-four minutes —
+PHP's default `session.gc_maxlifetime`, in the host's shared directory, where other sites'
+collection and the distro's cron delete files on their own schedule. So any form left open
+that long posted a token the server had forgotten, and the refusal was a 403 and a line of
+JSON to a browser that had submitted a form: "the site tells users csrf invalid and they get
+stuck there". `Support\SessionStore` gives the data the cookie's lifetime in `var/sessions`;
+`csrf-fresh.js` (every layout that draws a token includes `partials/csrf-fresh.twig`) keeps
+an open page's token current from `/session/token.json`; and `CsrfMiddleware` sends a
+same-origin browser form BACK with a 303, a sentence and its fields (`Support\FormReplay`,
+never a secret), while a cross-site post and a JSON caller are still plainly refused.
+**A script must read the token when it sends, never copy it at load** — the copy outlives
+every refresh. `CsrfRecoveryTest` holds all of it, the script sweep included.
 
 ## Things that must stay true
 
@@ -1314,8 +1594,8 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
   `SchemaHas` and its absence means no refund has been recorded rather than an error.
   `RefundedMoneyTest` refunds a real row and requires every figure to move, which is the only
   way to tell a scope that is APPLIED from one that is merely present in the source.
-- **Anything a partner or nominee typed is untrusted in JSON-LD.** `layout/gates.twig`
-  renders it with `JSON_UNESCAPED_SLASHES`, so `</script>` in a campaign title closes the
+- **Anything a partner or nominee typed is untrusted in JSON-LD.** The public layout (it was
+  `layout/gates.twig`, destroyed; the rebuild must keep this) renders it with `JSON_UNESCAPED_SLASHES`, so `</script>` in a campaign title closes the
   script element. Everything in `src/Support/Schema.php` goes through `text()`.
 - **No secrets, no model identifiers, and no operator email addresses in commits.**
 - **And its mirror image: a record everything writes that nothing can ask.** `gates_audit_log`
@@ -1635,7 +1915,13 @@ smoke check that a symbol decodes at all; the threshold question needs a camera.
 Comments explain *why*, and name the failure the code exists to prevent — this codebase is
 maintained by people who were not in the room. Match the density of the file you are in.
 
-Design system: paper ground `#f0f2f2`, hairline rules, mono micro-labels. **Colour comes
-from `Support\Accent` and nowhere else** — four roles (`honour`, `action`, `live`,
-`caution`), four values each (`fill`, `edge`, `ink`, `wash`). See the section above for why a
-bare hex is not a colour here.
+Design system: the handoff's — ground `#f1efe9`, white cards, hairline rules, the shadows
+of REFERENCE §6.5. **Colour comes from `Support\Accent` and nowhere else**: the handoff's
+32 tokens under their own names, families of four slots (`fill`, `edge`, `ink`, `wash`),
+meanings resolved by `Accent::for()`. Never invent a token the handoff does not name; never
+type a hex, `rgb()` or `hsl()` outside `Accent`. See the section above for why.
+**Type is REFERENCE §6.2, exactly** (owner, 3 Oct 2026): Playfair Display 700 for headlines,
+DM Sans for everything else, sizes from the closed ladder and fixed per breakpoint — never
+`vw` or `clamp()` — and JetBrains Mono only for references and codes, never a label, stat or
+kicker. No capitals anywhere but the ticket stub's CONFIRMED stamp; headings sentence case.
+`TypeScaleTest` and `MonoAndCaseTest` hold it; see "Type is the handoff's" above for why.

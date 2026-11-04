@@ -423,7 +423,9 @@ final class JudgeSchedule
                     'message' => 'Nobody was selected.'];
         }
 
-        $mailer ??= new OtpService();
+        // `boot()`, never `new OtpService()`: the constructor requires its settings, so the
+        // bare form is an ArgumentCountError for any caller that does not pass a mailer.
+        $mailer ??= OtpService::boot();
 
         try {
             $judges = DB::table('gates_judges')->whereIn('id', $ids)

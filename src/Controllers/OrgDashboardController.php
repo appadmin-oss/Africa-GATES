@@ -80,71 +80,24 @@ final class OrgDashboardController
     // ──────────────────────────────── sign in ───────────────────────────────
 
     /**
-     * ── WHY THE FAILURE IS NO LONGER IN THE URL ──────────────────────────────
+     * NO ORGANISATION SIGN-IN OF ITS OWN (owner, 29 Oct 2026: one login, roles given).
      *
-     * It was `/org/login?e=1`, and a query string is not a flash. It survives a refresh, so
-     * the page re-accuses somebody who has attempted nothing; it lands in browser history
-     * and in the referrer of anything the page links to; and it is shareable, which makes
-     * "your sign-in is broken" a URL rather than an event. The member sign-in beside it has
-     * always used a one-shot session value, and there was no reason for the two to differ.
-     *
-     * A dedicated key rather than `org_flash_error`: that one is aliased into the Twig
-     * global `flash_error` when the container is built, which happens BEFORE this runs — so
-     * the message would be in scope twice and the layout could draw it beside the one this
-     * method passes. Explicit beats clever for a thing that renders next to a password box.
+     * An organisation's dashboard is a role given to the address its user was created with; the
+     * Africa GATES account holding that address opens it (OrgAuth::user → Account\Roles). The
+     * old paths are forwarding addresses. The organisation's password is not retired — it is
+     * what a payout asks for (AccountReconfirmMiddleware), because an email alone must never
+     * move a charity's money.
      */
-    public function loginPage(Request $req, Response $res): Response
+    public function toAccount(Request $req, Response $res): Response
     {
-        if (OrgAuth::user()) return $this->redirect($res, '/org');
-
-        $failed = !empty($_SESSION['org_login_failed']);
-        $typed  = (string) ($_SESSION['org_login_email'] ?? '');
-        unset($_SESSION['org_login_failed'], $_SESSION['org_login_email']);
-
-        return $this->view->render($res, 'pages/org/login.twig', [
-            'page_title' => 'Partner sign in — Africa GATES',
-            'gates_page' => 'partner',
-            'lite_page'  => true,
-            // ONE message for every kind of failure — unknown address, wrong password,
-            // locked account, inactive user. Telling them apart is an enumeration oracle,
-            // and OrgAuth::attempt() returns the same null for all of them precisely so
-            // that this line cannot accidentally learn the difference.
-            'error'      => $failed
-                            ? 'Those details did not match. Check the address and password and try again.'
-                            : null,
-            // Handed back so a failure costs the password and not the address as well.
-            // Whatever was typed, account or not: this reveals nothing that was not typed
-            // into this browser a moment ago.
-            'old_email'  => $typed,
-            'support_email' => \AfricaGates\Services\Notifier::supportEmail(),
-        ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
-    }
-
-    public function login(Request $req, Response $res): Response
-    {
-        $b  = (array) $req->getParsedBody();
-        $ip = (string) ($req->getServerParams()['REMOTE_ADDR'] ?? '');
-
-        $user = (new OrgAuth($this->rateLimit))->attempt(
-            (string) ($b['email'] ?? ''), (string) ($b['password'] ?? ''), $ip
-        );
-
-        // One message for every failure — unknown address, wrong password, locked, suspended
-        // organisation. Telling them apart is an account-enumeration oracle.
-        if (!$user) {
-            $_SESSION['org_login_failed'] = true;
-            $_SESSION['org_login_email']  = strtolower(trim((string) ($b['email'] ?? '')));
-            return $this->redirect($res, '/org/login');
-        }
-
-        (new OrgAuth($this->rateLimit))->signIn($user);
-        return $this->redirect($res, '/org');
+        return $this->redirect($res, '/account/login?next=' . rawurlencode('/org'));
     }
 
     public function logout(Request $req, Response $res): Response
     {
         (new OrgAuth())->signOut();
-        return $this->redirect($res, '/org/login');
+        (new \AfricaGates\Services\UserAccountService())->logout();
+        return $this->redirect($res, '/');
     }
 
     // ─────────────────────────────── dashboard ──────────────────────────────
@@ -167,6 +120,42 @@ final class OrgDashboardController
         $applications = $this->applicationRows($orgId);
         $campaigns    = $this->campaignRows($orgId);
         $payouts      = OrgPayout::history($orgId, 20);
+        $items        = \AfricaGates\Services\VendorCatalogue::forOrg($orgId);
+        // One read. It is printed as a figure AND it decides whether the payout is offered,
+        // and those two must be the same number.
+        $available    = OrgPayout::available($orgId);
+
+        // ── WHICH SECTION, AND WHICH SECTIONS EXIST ──────────────────────────
+        //
+        // Every section is an address, so the phone's pushed screens and the desktop's rail
+        // are the same pages (REFERENCE §7.2) — and `OrgRail::valid()` is what stops a typed
+        // `?tab=` reaching a section that does not exist.
+        //
+        // The three facts below are the GATE, and they are computed once and handed to the
+        // rail and to the template together. `has_money` is deliberately not `is_vendor`
+        // inverted: a vendor who later takes gifts has both halves of this console, and
+        // branching on kind alone would hand them one that has decided what they are.
+        $isVendor  = PartnerOrg::kindOf($org) === PartnerOrg::KIND_VENDOR;
+        $hasMoney  = ((int) ($totals['count'] ?? 0)) > 0 || $payouts !== [] || $campaigns !== [];
+        $tab       = \AfricaGates\Services\OrgRail::valid((string) ($req->getQueryParams()['tab'] ?? ''));
+        $offers    = count(array_filter($applications, static fn ($a) => !empty($a['live_offer'])));
+
+        $railCounts = \AfricaGates\Services\OrgRail::countsFrom([
+            'appeals'   => count($campaigns),
+            'donations' => (int) ($totals['count'] ?? 0),
+            'items'     => count($items),
+            'documents' => count($required),
+            'missing'   => count($missing),
+            'stands'    => count($applications),
+            'offers'    => $offers,
+        ]);
+
+        // A typed `?tab=` for a section this organisation is not offered is not an error —
+        // it is a stale link, and the overview is the honest answer to one.
+        if (!\AfricaGates\Services\OrgRail::offers(
+                $tab, $isVendor, $hasMoney, $required !== [], $applications !== [])) {
+            $tab = 'overview';
+        }
 
         return $this->view->render($res, 'pages/org/dashboard.twig', [
             'page_title'  => $org->name . ' — partner dashboard',
@@ -175,7 +164,7 @@ final class OrgDashboardController
             'org'         => $org,
             'me'          => $user,
             'totals'      => $totals,
-            'available'   => OrgPayout::available($orgId),
+            'available'   => $available,
             'payouts'     => $payouts,
             'donations'   => $this->recentDonations($orgId),
             'payout_mode' => OrgPayout::mode(),
@@ -194,7 +183,6 @@ final class OrgDashboardController
             // template on kind would mean a partner who later takes a stand sees a dashboard
             // that has quietly decided what they are.
             'is_vendor'   => PartnerOrg::kindOf($org) === PartnerOrg::KIND_VENDOR,
-            'individual'  => PartnerOrg::isIndividual($org),
             'applications'=> $applications,
             'documents'   => $this->documentRows($orgId),
             'required'    => $required,
@@ -206,7 +194,10 @@ final class OrgDashboardController
             // unconditionally so the template decides what to SHOW rather than the
             // controller deciding what exists — the rail already gates sections on whether
             // they are relevant to a vendor or to a donation partner.
-            'items'       => \AfricaGates\Services\VendorCatalogue::forOrg($orgId),
+            // The variable, not a second `forOrg()` — the rail counts the same rows the
+            // catalogue section lists, and two reads of one list is how the count and the
+            // table come to disagree (and one wasted query per render).
+            'items'       => $items,
             'item_cats'   => \AfricaGates\Services\VendorPolicy::categories(),
             'max_items'   => \AfricaGates\Services\VendorCatalogue::MAX_ITEMS,
             'lead_cat'    => \AfricaGates\Services\VendorCatalogue::leadingCategory($orgId),
@@ -248,11 +239,53 @@ final class OrgDashboardController
                 'documents'    => count($required),
                 'to_do'        => count($missing),
                 'applications' => count($applications),
-                'offers'       => count(array_filter($applications, static fn ($a) => !empty($a['live_offer']))),
+                'offers'       => $offers,
                 'donations'    => (int) ($totals['count'] ?? 0),
                 'appeals'      => count($campaigns),
                 'payouts'      => count($payouts),
             ],
+            // ── THE CONSOLE FRAME ────────────────────────────────────────────
+            //
+            // `rail` and `org_tab` are what `pages/org/_frame.twig` draws; the gate behind
+            // them is `OrgRail::offers()`, asked here and asked again by each section, so a
+            // tab can never lead to a section that refuses to render.
+            'org_tab'   => $tab,
+            'rail'      => \AfricaGates\Services\OrgRail::tabs(
+                $tab, $isVendor, $hasMoney, $required !== [], $applications !== [],
+                $railCounts['counts'], $railCounts['attention']),
+            // `show_money` only. `has_money` was passed beside it and read nowhere —
+            // the gate the template actually asks is the derived one, and passing both
+            // invites a section testing the raw fact and disagreeing with the rail.
+            'show_money'=> !$isVendor || $hasMoney,
+            // An approved organisation is told it can advertise here, from the console it
+            // already opens; the figures are AdRules'. Never to one still under review.
+            'ad_trial'  => $tab === 'overview' && (string) ($org->status ?? '') === 'approved'
+                ? ['views' => \AfricaGates\Services\Ads\AdRules::TRIAL_VIEWS, 'days' => \AfricaGates\Services\Ads\AdRules::TRIAL_DAYS] : null,
+            // DERIVED, both of them. A console that prints "Verified organisation" beside a
+            // suspended account is worse than one that prints nothing, and the first panel
+            // below it exists to explain the suspension.
+            'org_standing' => match ((string) ($org->status ?? '')) {
+                'approved'  => PartnerOrg::isIndividual($org)
+                    ? \AfricaGates\Support\Translator::t('Verified account')
+                    : \AfricaGates\Support\Translator::t('Verified organisation'),
+                'suspended' => \AfricaGates\Support\Translator::t('Suspended'),
+                'rejected'  => \AfricaGates\Support\Translator::t('Not accepted'),
+                default     => \AfricaGates\Support\Translator::t('Under review'),
+            },
+            'org_role' => ($user->role ?? '') === 'owner'
+                ? \AfricaGates\Support\Translator::t('Account owner')
+                : \AfricaGates\Support\Translator::t('View only'),
+            // ── THE OFFER AND THE FORM AGREE, AND THIS IS WHY THEY CAN ───────
+            //
+            // ONE condition, read by the overview's "Request a payout" button and by the
+            // payout form itself. The destroyed `OrgConsoleLedeTest` held exactly this:
+            // a console that offers a withdrawal the next screen refuses wastes somebody's
+            // afternoon and reads as the platform holding their money back. Spelling the
+            // four clauses out twice is how the two come to disagree — this codebase's most
+            // repeated fault — so neither screen spells them at all.
+            'org_can_request' => OrgAuth::canRequestPayout($user)
+                && (string) ($org->status ?? '') === 'approved'
+                && $available >= OrgPayout::MIN_NAIRA,
             'money_chart' => \AfricaGates\Support\Viz::area(
                 'viz-money', 'Received, last 90 days', $this->donationSeries($orgId),
                 [
@@ -710,13 +743,13 @@ final class OrgDashboardController
             $rows = PartnerOrg::countableDonations($orgId)
                 ->where('created_at', '>=', $from . ' 00:00:00')
                 ->orderBy('id')
-                ->get(['amount_naira', 'platform_fee_naira', 'created_at']);
+                ->selectRaw(PartnerOrg::netRowSql() . ' AS net, created_at')->get();
             // Everything before the window, so the line starts where the organisation
             // actually stood rather than at zero — a partner two years in is not somebody
             // who joined ninety days ago.
             $before = (int) PartnerOrg::countableDonations($orgId)
                 ->where('created_at', '<', $from . ' 00:00:00')
-                ->sum(DB::raw('amount_naira - COALESCE(platform_fee_naira, 0)'));
+                ->sum(DB::raw(PartnerOrg::netRowSql()));
         } catch (\Throwable) {
             return [];
         }
@@ -725,7 +758,7 @@ final class OrgDashboardController
 
         $moved = [];
         foreach ($rows as $r) {
-            $net = max(0, (int) ($r->amount_naira ?? 0) - (int) ($r->platform_fee_naira ?? 0));
+            $net = max(0, (int) ($r->net ?? 0));
             $d   = substr((string) $r->created_at, 0, 10);
             $moved[$d] = ($moved[$d] ?? 0) + $net;
         }
@@ -745,7 +778,8 @@ final class OrgDashboardController
         try {
             $rows = PartnerOrg::countableDonations($orgId)
                 ->orderByDesc('id')->limit($limit)
-                ->get(['donor_name', 'amount_naira', 'platform_fee_naira', 'show_name', 'created_at']);
+                ->selectRaw('donor_name, amount_naira, platform_fee_naira, show_name, created_at, '
+                          . PartnerOrg::netRowSql() . ' AS net, (' . PartnerOrg::raisedRowSql() . ') AS given')->get();
         } catch (\Throwable) {
             return [];
         }
@@ -758,9 +792,11 @@ final class OrgDashboardController
                 'name'   => ((int) ($r->show_name ?? 0) === 1)
                                 ? (string) ($r->donor_name ?? 'A supporter')
                                 : 'Anonymous',
-                'gross'  => $gross,
-                'fee'    => $fee,
-                'net'    => max(0, $gross - $fee),
+                // `given` is the gift as the donor meant it; `fee` everything kept back from
+                // it (our share, the gateway's where they bear it), so gross − fee = net.
+                'gross'  => (int) ($r->given ?? $gross),
+                'fee'    => max(0, (int) ($r->given ?? $gross) - (int) ($r->net ?? ($gross - $fee))),
+                'net'    => max(0, (int) ($r->net ?? ($gross - $fee))),
                 'when'   => (string) ($r->created_at ?? ''),
             ];
         }

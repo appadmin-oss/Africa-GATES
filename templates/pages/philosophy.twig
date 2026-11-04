@@ -1,146 +1,108 @@
-{% extends "layout/gates.twig" %}
-{% import "partials/article.twig" as art %}
+{% extends 'layout/shell.twig' %}
+{% import 'partials/article.twig' as art %}
 
-{# ── COLOUR BUDGET: tier 0 — this document asks for nothing ────────────────────
-   A policy, a methodology or a statement of principle is read, not acted on, so
-   it spends no colour event at all: links included, which are ink with an
-   underline. A legal page that is loud reads as one that is selling something.
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE PHILOSOPHY — /philosophy
+  Phase 9 · design/DocPage.dc.html (`doc=philosophy`) · §8.20
+  ══════════════════════════════════════════════════════════════════════════════
 
-   Declared so the rule can BITE. Every screen in this family is built on
-   `components/article.css`, which carried `action` green on its eyebrow chip, its
-   download button, its contents rail and its inline code — and was invisible to
-   every sweep here, because the sweep read templates and this page holds no
-   literal and no role token. It is ink now; the declaration is what stops it
-   quietly going back. See ColourBudgetTest. #}
+  Rebuilt from the DC after the destroy (inventory: pages--philosophy.md). The argument the
+  methodology enforces, and the one document in the Integrity Centre that is wholly data:
+  every section, the standfirst and both downloads come from CommunityVotingPhilosophy with
+  the live figures resolved into it, so the page, the .txt and the .md cannot quote
+  different shares (PhilosophyDocumentTest: "the anti-drift promise").
+
+  · Download is a plain anchor to the extensionless path — an extension-shaped URL is at
+    the mercy of the web server before PHP sees it.
+  · The anti-pyramid disclaimer is a section of the document, so it is in every rendering.
+  · Tools: Listen, Download, Cite (the DC's three). Colour tier 0.
+#}
 {% set colour_tier = '0' %}
+{% set app_bar = {variant: 'child', title: 'Philosophy'|trans, sub: 'Integrity Centre'|trans, back: '/integrity'} %}
 
-{#
-  ══════════════════════════════════════════════════════════════════════════════
-  THE PHILOSOPHY — the argument, in full
-  ══════════════════════════════════════════════════════════════════════════════
+{% set _toc = [] %}
+{% for s in doc_sections %}{% set _toc = _toc|merge([{id: s.id, title: s.nav_title|default(s.title|striptags)}]) %}{% endfor %}
 
-  Half of a pair. This page argues; /integrity enforces. Each ends by handing the
-  reader to the other, which is what makes them one Integrity Centre rather than
-  two pages that happen to share a stylesheet.
+{% set d = {
+  key: 'philosophy',
+  eyebrow: 'Integrity Centre · Philosophy'|trans,
+  title: doc_title,
+  subtitle: doc_subtitle,
+  standfirst: doc_standfirst,
+  byline: [doc_author, 'Version %v%'|trans({'%v%': doc_version}), 'Updated %d%'|trans({'%d%': doc_updated|date('j M Y')}), '%n% min read'|trans({'%n%': doc_read_minutes})],
+  listen: true,
+  download: {txt: '/philosophy/download/txt', md: '/philosophy/download/md', stem: doc_file_stem},
+  cite_tool: true,
+  toc: _toc,
+  siblings: [
+    {label: 'How a winner is decided'|trans, href: '/integrity', current: false},
+    {label: 'The philosophy'|trans, href: '/philosophy', current: true},
+    {label: 'Terms of use'|trans, href: '/terms', current: false},
+    {label: 'Privacy policy'|trans, href: '/privacy', current: false},
+    {label: 'Cookie policy'|trans, href: '/cookies', current: false}
+  ],
+  aside: {
+    label: 'This document'|trans,
+    rows: [
+      {k: 'Version'|trans, v: doc_version},
+      {k: 'Published'|trans, v: doc_published|date('j M Y')},
+      {k: 'Updated'|trans, v: doc_updated|date('j M Y')},
+      {k: 'Public vote'|trans, v: '%c%% of the outcome'|trans({'%c%': community_pct|default(45)})}
+    ],
+    note: 'The share is read from the scoring engine, so this document cannot quote a figure the engine has changed.'|trans
+  },
+  cite: {
+    word: 'essay'|trans,
+    citations: doc_citations,
+    note: 'Cite the version you read, with its date: the figures follow live programme settings and can change.'|trans,
+    action: 'download', url: doc_url, txt: '/philosophy/download/txt', md: '/philosophy/download/md', stem: doc_file_stem
+  },
+  contact: 'integrity@afrovanguard.org.ng',
+  end: 'Questions? Write to'|trans
+} %}
 
-  It lived on /integrity first and outgrew it: an argument that runs to sixteen
-  sections was burying the mechanics underneath it, and a reader who arrives from
-  a ballot wanting to know how a winner is decided should not have to scroll past
-  Ubuntu to find out. /integrity now carries the précis
-  ({@see CommunityVotingPhilosophy::summary()}) and links here.
-
-  NOT ONE WORD OF THE PROSE IS WRITTEN HERE. It arrives as `doc_sections` from
-  CommunityVotingPhilosophy, because the same words leave as HTML, as the .txt the
-  Copy button lifts and as the .md the Download button saves. One source, three
-  surfaces. Every figure in it is a resolved {token}, never typed — see the class.
-#}
-
-{% block structured_data %}
-{{ art.cite_meta({
-  title: doc_title, author: doc_author, publisher: doc_publisher,
-  published: doc_published, updated: doc_updated, url: doc_url
-}) }}
-{{ art.article_ld({
-  title: doc_title, subtitle: doc_subtitle, description: doc_standfirst,
-  author: doc_author, publisher: doc_publisher, published: doc_published,
-  updated: doc_updated, version: doc_version, url: doc_url,
-  terms_url: _site_url ~ '/terms'
-}, csp_nonce) }}
-
-{#
-  A FAQPage built ONLY from questions this page visibly answers — marking up an
-  answer a reader cannot find is what search engines penalise, and it is also just
-  a lie in a format nobody reads. The figures interpolate from the same route
-  variables the prose uses, so a cycle override changes both at once.
-#}
+{% block head_styles %}
+<link rel="stylesheet" href="{{ asset('/assets/css/components/doc.css') }}">
+{{ art.cite_meta({title: doc_title, author: doc_author, publisher: doc_publisher, published: doc_published, updated: doc_updated, url: doc_url}) }}
+{{ art.article_ld({title: doc_title, subtitle: doc_subtitle, description: meta_description, author: doc_author, publisher: doc_publisher,
+                   published: doc_published, updated: doc_updated, version: doc_version, url: doc_url}, csp_nonce) }}
+{# Only questions this page visibly answers, from the same figures as the prose. #}
 <script nonce="{{ csp_nonce }}" type="application/ld+json">
-{% set faq = [
-  {
-    q: 'Why is voting on Africa GATES paid?',
-    a: 'A token contribution gives a supporter a practical way of standing with a nominee rather than passively applauding, and it funds the judging, verification, communications and production work behind the programme. It is a contribution toward a community-driven recognition process, not the purchase of an award.'
-  },
-  {
-    q: 'Can you buy an Africa GATES award?',
-    a: 'Yes, and we would rather say so here than have anybody work it out from the numbers. Every vote counts the same toward the community share of the index — ' ~ community_pct|default(45) ~ '% of it — whether the vote was free or bought, and there is no ceiling. What money cannot reach is the judging ' ~ judge_pct|default(55) ~ '%: the panel scores against a published rubric and never sees a vote count or a contribution. And it cannot hide — every result publishes each nominee’s full tally beside how much of it was bought.'
-  },
-  {
-    q: 'Why is the public vote only ' ~ community_pct|default(45) ~ '% of the decision?',
-    a: 'Because popularity is not the same thing as excellence. A larger following is not greater impact, a nominee with more capacity to mobilise supporters is not necessarily the strongest candidate, and some deserving people come from communities with fewer financial and digital resources. The remaining ' ~ judge_pct|default(55) ~ '% is independent assessment.'
-  },
-  {
-    q: 'Is Africa GATES a pyramid or Ponzi scheme?',
-    a: 'No. Africa GATES is not a Ponzi scheme, pyramid scheme, MLM programme, investment scheme or get-rich-quick scheme. Nobody is promised a financial return for recruiting other participants, and no participant earns money by introducing another person into the programme.'
-  },
-  {
-    q: 'Do nominees receive any of the money supporters contribute?',
-    a: 'Yes. A nominee keeps ' ~ return_pct|default('50') ~ '% of what supporters contribute in their name, win or lose, once they have gathered ' ~ return_threshold|default(250) ~ ' votes of qualifying support. No single supporter may supply more than ' ~ return_cap_pct|default(10) ~ '% of that threshold, so qualifying takes at least ' ~ return_people|default(10) ~ ' different verified people.'
-  },
-  {
-    q: 'What does Africa GATES mean by a nominee’s community?',
-    a: 'Not an audience and not a follower count: the people who will do something small and deliberate on a nominee’s behalf. Qualification therefore requires support from a number of different verified people rather than a sum of money, because a community is a plurality by definition.'
-  }
+{% set _faq = [
+  {q: 'Why is the public vote only ' ~ community_pct|default(45) ~ '% of the decision?', a: 'Because popularity is not the same thing as excellence. A larger following is not greater impact, and some deserving people come from communities with fewer financial and digital resources. The remaining ' ~ judge_pct|default(55) ~ '% is independent assessment.'},
+  {q: 'Is Africa GATES a pyramid or Ponzi scheme?', a: 'No. Nobody is promised a financial return for recruiting other participants, and nobody is paid because somebody else registered, was nominated or voted. The one referral reward is a published commission on event tickets and shop orders bought through a member’s own link, paid on what those buyers paid.'},
+  {q: 'Do nominees receive any of the money supporters contribute?', a: 'Because the community raises it, ' ~ return_sentence}
 ] %}
-{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{% for f in faq %}{"@type":"Question","name":{{ f.q|json_encode|raw }},"acceptedAnswer":{"@type":"Answer","text":{{ f.a|json_encode|raw }}}}{% if not loop.last %},{% endif %}{% endfor %}]}
+{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{% for f in _faq %}{"@type":"Question","name":{{ f.q|json_encode(JSON_SAFE)|raw }},"acceptedAnswer":{"@type":"Answer","text":{{ f.a|json_encode(JSON_SAFE)|raw }}}}{% if not loop.last %},{% endif %}{% endfor %}]}
 </script>
 {% endblock %}
 
-{% block head_styles %}{{ art.styles() }}{% endblock %}
-
 {% block content %}
-{{ art.script({ txt_url: '/philosophy/download/txt', url: doc_url, tab_ids: doc_citations|column('id') }, csp_nonce) }}
-
-{% set toc = [{ label: '', items: doc_sections }] %}
-
-<div class="ar" x-data="agArticleDoc()">
-  <div class="ar-shell">
-    {{ art.contents(toc, true) }}
-
-    <article class="ar-body">
-      <header class="ar-head">
-        {{ art.masthead({
-          eyebrow: 'Integrity Centre · Position paper',
-          title: doc_title, subtitle: doc_subtitle, standfirst: doc_standfirst,
-          author: doc_author, version: doc_version, updated: doc_updated,
-          read_minutes: doc_read_minutes
-        }) }}
-        {{ art.tools({ txt_url: '/philosophy/download/txt', md_url: '/philosophy/download/md', file_stem: doc_file_stem, id: 'top' }) }}
-      </header>
-
-      {{ art.contents(toc, false) }}
-
-      {% for s in doc_sections %}
-        <section class="ar-sec" id="{{ s.id }}" data-ag-reveal>
-          <h3><span class="ar-sn">{{ '%02d'|format(loop.index) }}</span>{{ s.title|raw }}</h3>
-          {{ art.blocks(s.blocks) }}
-        </section>
-      {% endfor %}
-
-      {# The handover. The argument ends by pointing at its own enforcement — a
-         philosophy page that did not would be asking to be taken on trust. #}
-      {{ art.next({
-        url: '/integrity',
-        kicker: 'Continue · Part II',
-        title: 'How the Cultural Power Index is scored',
-        blurb: 'Everything above, enforced in code: the ' ~ community_pct|default(45) ~ '/' ~ judge_pct|default(55)
-             ~ ' split, the ceiling on purchased votes, the judge quorum, the risk bands and the sealed result.'
-      }) }}
-
-      {{ art.cite({
-        citations: doc_citations, version: doc_version, published: doc_published,
-        updated: doc_updated, accessed: doc_accessed, url: doc_url,
-        txt_url: '/philosophy/download/txt', md_url: '/philosophy/download/md', file_stem: doc_file_stem,
-        note: 'This is a versioned document with a stable address. Please cite the version you read
-                — the figures in it track live programme settings, so an undated reference to
-                &ldquo;the Africa GATES philosophy&rdquo; may not describe what you saw.'
-      }) }}
-
-      <div class="ar-end">
-        <p>Questions this document does not answer? Write to
-           <a href="mailto:integrity@afrovanguard.org.ng">integrity@afrovanguard.org.ng</a>, or browse
-           every written answer in the <a href="/help">Help Centre</a>.</p>
-        <p><em>{{ doc_publisher }}</em></p>
+<div class="ag-doc dp" data-doc>
+  {{ art.top(d) }}
+  <div class="dp-shell">
+    {{ art.rail(d) }}
+    <article class="dp-doc" data-doc-article>
+      {{ art.masthead(d) }}
+      <div data-doc-read>
+        {% for s in doc_sections %}
+          {% set _body = art.blocks(s.blocks) %}
+          {% if loop.last %}
+            {% set _body = _body ~ art.next({href: '/integrity', kicker: 'The method this argues for'|trans, title: 'How a winner is decided'|trans,
+              blurb: 'Every rule, figure and safeguard, read live from the scoring engine.'|trans}) %}
+          {% endif %}
+          {{ art.section(s.id, loop.index, _toc[loop.index0].title, _body) }}
+        {% endfor %}
       </div>
+      {{ art.cite(d) }}
+      {{ art.foot(d) }}
     </article>
+    {{ art.aside(d, 'rail') }}
   </div>
 </div>
 {% endblock %}
+
+{% block sheets %}{{ parent() }}{{ art.sheet(d) }}{% endblock %}
+
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/doc.js') }}" data-nav="rerun"></script>{% endblock %}

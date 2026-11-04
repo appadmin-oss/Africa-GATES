@@ -381,8 +381,12 @@ class CspHostCoverageTest extends TestCase
         $scripts = $this->referencedHosts('script');
         $styles  = $this->referencedHosts('style');
 
-        $this->assertArrayHasKey('unpkg.com', $scripts);
-        $this->assertArrayHasKey('challenges.cloudflare.com', $scripts);
+        // `unpkg.com` (Leaflet, from layout/gates.twig) and `challenges.cloudflare.com`
+        // (Turnstile, on the public forms) were asserted PRESENT here. Every template
+        // that loaded either was destroyed with the old pages on 3 Oct 2026
+        // (docs/handoff/DESTROYED.md), so no external script host is referenced
+        // anywhere today and the script half of this control has nothing real to find.
+        // The first rebuilt page that loads Turnstile must put its assertion back.
         // cdn.jsdelivr.net used to be asserted here. It is deliberately gone: every
         // script it served is vendored now, so a scan that still found it would mean
         // a CDN dependency had crept back in.
@@ -395,8 +399,9 @@ class CspHostCoverageTest extends TestCase
         // come back on the same "compatibility shim" reasoning.
         $this->assertArrayNotHasKey('code.jquery.com', $scripts);
         $this->assertArrayHasKey('fonts.googleapis.com', $styles);
-        $this->assertGreaterThanOrEqual(2, count($scripts));
-        $this->assertGreaterThanOrEqual(2, count($styles));
+        // Was ≥ 2 for each; today the only external stylesheet host is Google Fonts,
+        // loaded by layout/shell.twig, and no script host remains (see above).
+        $this->assertGreaterThanOrEqual(1, count($styles));
     }
 
     public function test_a_host_not_in_the_allowlist_is_actually_refused(): void

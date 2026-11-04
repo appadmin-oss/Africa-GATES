@@ -1,278 +1,217 @@
-{# ═══════════════════════════════════════════════════════════════════════════
-   MEMBER SIGN-IN — /account/login
+{% extends 'layout/auth.twig' %}
+{% import 'layout/auth.twig' as auth %}
+{% import 'partials/field.twig' as f %}
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  SIGN IN OR JOIN — /account/login · Phase 8 §8.17, design/SignIn.dc.html
+  view=phone (step 1) · view=code (step 2, `?sent=1`) · the password door (`?with=password`)
+  ══════════════════════════════════════════════════════════════════════════════
 
-   Two states on one route: credentials, and (with `sent`) the one-time code.
+  Destroyed and rebuilt (inventory pages--account--login.md). The DC is passwordless: a
+  code by phone or by email, then the six digits. Every rule the old screen carried is
+  here, each against a test that names it:
 
-   ── WHAT IS DELIBERATELY NOT HERE ──────────────────────────────────────────
-   No link to the admin console, the judges' panel or the organisation
-   sign-in. Those are separate trust domains on their own routes and a shared
-   public entry point is the thing that makes one of them a target.
+  · NO LINK to the admin console, the judges' panel or the organisation sign-in — separate
+    trust domains on their own routes, and a shared public door is what makes one of them
+    a target (AccountJoinTest).
+  · THE CODE SCREEN POSTS THE ADDRESS THE CODE WENT TO, and with nothing remembered it ASKS
+    for it rather than posting an empty one; it offers no resend it cannot perform
+    (OneTimeCodeScreenTest).
+  · A NEW CODE IS ASKED FOR BY POST, never by a link a mail scanner can follow.
+  · ONE REAL CODE FIELD, visible until the script paints the boxes; its `pattern` and
+    `maxlength` are the boxes' six (signin.css).
+  · THE WINDOW AND THE CAP ARE STATED, read from UserAccountService::OTP_TTL_MINUTES and
+    the controller's cap — never typed here, never through `|default()`.
+  · THE PASSKEY ROW is absent when the server cannot verify one, and hidden until the
+    script confirms this browser can run the ceremony (passkeys.js).
+  · RECOVERY: the password door carries "Forgotten your password?" to a real route.
 
-   Three alternate ways in, and each one exists. The passkey row is HIDDEN until
-   the script confirms this browser can run the ceremony, and is not rendered at
-   all when the server half is unavailable — a row that opens nothing reads as
-   the account being broken rather than as the feature being absent, which is
-   worse than not offering it.
+  Two things the DC does not draw are kept, because members already depend on them: the
+  password door (accounts made before this flow have passwords) and the passkey — a step
+  away from the passwordless screen rather than on it (PHASE-8.md deviations).
 
-   ── THE EMAIL IS CARRIED, NOT REMEMBERED ───────────────────────────────────
-   The code screen used to show neither the address the code went to nor any
-   way to correct it, and `otpVerify` read the address out of the SESSION. So a
-   typo put somebody on a code screen for an inbox they do not own, with
-   "Invalid or expired code" as the only feedback — a message about the code,
-   for a fault in the address. The address is now printed, posted with the
-   code, and changeable in one click.
+  The phone tab is drawn only while a text or WhatsApp gateway is configured
+  (SmsService::boot()); "Send by WhatsApp" only while WhatsApp is. "Call me with it" is not
+  drawn at all: this codebase integrates no voice-call transport (PHASE-8.md, blocked).
+#}
+{% set _phoneOk = phone_channels.sms or phone_channels.whatsapp %}
+{% set _step = sent ? 1 : 0 %}
+{# The flash arrives as the Twig globals (config/container.php consumes the session keys
+   when the environment is built, before the controller runs); `error`/`notice` are what a
+   test passing context directly hands in. #}
+{% set _error  = error|default(null) ?: flash_error|default(null) %}
+{% set _notice = notice|default(null) ?: flash_notice|default(null) %}
+{% set _dest = code_via == 'phone' ? login_phone : login_email %}
 
-   ── AND WHEN THERE IS NO ADDRESS TO CARRY ──────────────────────────────────
-   That fix carried the address FORWARD, from the session into the post, which
-   is the wrong direction for the case it named: a session that has already
-   rolled over has nothing to carry. Measured — `/account/login?sent=1` with an
-   empty session rendered the complete code screen, lede, boxes, Sign in and
-   "Send a new one", and every one of those controls posted an EMPTY address,
-   so verifying answered "Invalid or expired code. Request a new one." and
-   resending answered "Please enter a valid email." A screen on which nothing
-   can succeed, with its own comment above saying the case was handled.
-
-   It is a real arrival, not a contrived one: `?sent=1` is in history and the
-   code lands on a phone while the request was made on a laptop. The code is
-   still live, so the screen asks for the one thing it is missing rather than
-   sending somebody back to the start of a flow they have already completed.
-   ═══════════════════════════════════════════════════════════════════════════ #}
-{% extends "layout/account-auth.twig" %}
-
-{% block card %}
-{% if sent %}
-
-  <a class="ag-acct__back" href="/account/login">
-    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    {% if login_email %}Use a different email{% else %}Start again{% endif %}
-  </a>
-
-  <div class="ag-acct__art">{% include 'partials/lottie.twig' with { src: '/assets/anim/otp-verify.json', width: 170, height: 112 } only %}</div>
-
-  <h1 class="ag-acct__h1">Check your email</h1>
-  <p class="ag-acct__lede">
-    {% if login_email %}
-      Enter the 6-digit code we sent to <b>{{ login_email }}</b>.
-    {% else %}
-      {# Not "we just sent you" — this browser has no record of a send, and saying
-         otherwise is how the screen came to look complete while nothing on it
-         could work. Ask for the address the code went to. #}
-      Enter the address your code went to, and the code itself.
-    {% endif %}
-    {# The window comes from UserAccountService::OTP_TTL_MINUTES, which is also
-       what mints the code and what both halves of the email say. No `default`:
-       a fallback here is a fifth typed copy of the number, and it would take
-       over silently on the day the controller stopped passing it — which is the
-       whole failure this replaced. `strict_variables` throws instead. #}
-    It expires {{ otp_ttl_minutes }} minutes after it is sent.
-  </p>
-
-  {% if error %}<div class="ag-acct__alert ag-acct__alert--err" role="alert">{{ error }}</div>{% endif %}
-  {% if notice %}<div class="ag-acct__alert ag-acct__alert--note" role="status">{{ notice }}</div>{% endif %}
-
-  <form method="post" action="/account/login/verify">
-    <input type="hidden" name="_token" value="{{ csrf_token }}">
-    {# Posted rather than read from the session, so the code and the address it
-       belongs to travel together — and ASKED FOR when the session no longer
-       knows it, because a hidden field carrying nothing posts nothing and the
-       only feedback available is a message about the code. #}
-    {% if login_email %}
-      <input type="hidden" name="email" value="{{ login_email }}">
-    {% else %}
-      <div class="ag-acct__field">
-        <label class="ag-acct__label" for="otp-email">Email</label>
-        <input class="ag-acct__input" id="otp-email" type="email" name="email"
-               autocomplete="email" placeholder="you@email.com" required autofocus>
-      </div>
-    {% endif %}
-
-    <div class="ag-acct__field ag-acct__otp-wrap" id="agOtpWrap">
-      <label class="ag-acct__label" for="otp">6-digit code</label>
-      {# Decorative. The real input below takes the entry — see account-auth.css. #}
-      <span class="ag-acct__otp" aria-hidden="true">
-        <span class="ag-acct__box{% if error %} ag-acct__box--err{% endif %}"></span>
-        <span class="ag-acct__box{% if error %} ag-acct__box--err{% endif %}"></span>
-        <span class="ag-acct__box{% if error %} ag-acct__box--err{% endif %}"></span>
-        <span class="ag-acct__box{% if error %} ag-acct__box--err{% endif %}"></span>
-        <span class="ag-acct__box{% if error %} ag-acct__box--err{% endif %}"></span>
-        <span class="ag-acct__box{% if error %} ag-acct__box--err{% endif %}"></span>
-      </span>
-      <input class="ag-acct__input ag-acct__code{% if error %} ag-acct__input--err{% endif %}"
-             id="otp" name="otp" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
-             autocomplete="one-time-code" aria-label="6-digit code" required
-             {% if login_email %}autofocus{% endif %}>
-    </div>
-
-    <div class="ag-acct__btns">
-      <button class="ag-acct__cta" type="submit">Sign in</button>
-    </div>
-  </form>
-
-  {# A second form, a sibling of the one above — never nested. The HTML parser
-     DROPS a <form> start tag while a form is open and adopts its children into
-     the outer one, so a nested "send a new code" would silently post the code
-     form to the verify route instead.
-
-     Only offered when this browser knows the address. Without one the button
-     posts an empty field and comes back "Please enter a valid email" — a
-     control that cannot succeed, next to a form that is already asking for the
-     address it would need. #}
-  {% if login_email %}
-    <form method="post" action="/account/login/otp">
-      <input type="hidden" name="_token" value="{{ csrf_token }}">
-      <input type="hidden" name="email" value="{{ login_email }}">
-      <p class="ag-acct__fine">
-        Code not arrived?
-        <button class="ag-acct__quiet" type="submit">Send a new one</button>
-        · <a href="/account/login">use a password</a>
-        {# Said because it is otherwise learned as a failure: the older code stops
-           working the moment a new one is sent, and somebody who resends and then
-           types the first code they find is told "that code is not right" with the
-           real reason never stated anywhere. #}
-        <span class="ag-acct__hint">A new code cancels the last one.</span>
-      </p>
-    </form>
+{% block auth_top %}
+  {% if sent or with_password %}
+    {{ auth.back('/account/login?via=' ~ (sent ? code_via : 'email'), sent ? 'Use a different address'|trans : 'Back'|trans) }}
   {% else %}
-    <p class="ag-acct__fine">
-      No code yet? <a href="/account/login">Ask for one</a> · <a href="/account/login">use a password</a>
-    </p>
+    {{ parent() }}
   {% endif %}
+{% endblock %}
 
-{% else %}
+{% block auth_bars %}{% if not with_password %}{{ auth.bars(_step) }}{% endif %}{% endblock %}
 
-  <h1 class="ag-acct__h1">Welcome back</h1>
-  <p class="ag-acct__lede">Sign in to track your points and redeem votes.</p>
-
-  {% if error %}<div class="ag-acct__alert ag-acct__alert--err" role="alert">{{ error }}</div>{% endif %}
-  {% if notice %}<div class="ag-acct__alert ag-acct__alert--note" role="status">{{ notice }}</div>{% endif %}
-
-  <form method="post" action="/account/login">
-    <input type="hidden" name="_token" value="{{ csrf_token }}">
-
-    <div class="ag-acct__field">
-      <label class="ag-acct__label" for="email">Email</label>
-      <input class="ag-acct__input{% if error %} ag-acct__input--err{% endif %}" id="email" type="email" name="email"
-             value="{{ login_email|default('') }}" autocomplete="email" placeholder="you@email.com" required autofocus>
-    </div>
-
-    <div class="ag-acct__field">
-      <label class="ag-acct__label" for="password">Password <span>or use a code instead</span></label>
-      {# Not required, deliberately: the code button below is a first-class
-         sign-in route, not a fallback, and `required` here would block it. #}
-      <input class="ag-acct__input{% if error %} ag-acct__input--err{% endif %}" id="password" type="password"
-             name="password" autocomplete="current-password" placeholder="••••••••">
-    </div>
-
-    <div class="ag-acct__btns">
-      <button class="ag-acct__cta" type="submit">Sign in</button>
-      {# formaction on the submitter, never a second <form> — and formnovalidate
-         so an empty password field cannot hold the code path hostage. #}
-      <button class="ag-acct__ghost" type="submit" formaction="/account/login/otp" formnovalidate>Email me a one-time code</button>
-    </div>
-  </form>
-
-  <div class="ag-acct__rows">
-    {% if passkeys_available|default(false) %}
-      {# HIDDEN until the script confirms this browser can actually do it. A passkey row
-         that opens nothing on an older browser is worse than no row: the person reads it
-         as the account being broken rather than as the feature being unavailable. #}
-      <button class="ag-acct__row" type="button" id="agPasskeyRow" hidden
-              data-passkey-signin data-passkey-note="agPasskeyNote">
-        <span class="ag-acct__row-body">
-          <b class="ag-acct__row-title">Use a passkey</b>
-          <span class="ag-acct__row-note">Face, fingerprint or device PIN — nothing to type and nothing to remember.</span>
-        </span>
-        <svg class="ag-acct__chev" width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7.5 4.5 13 10l-5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
-      <p class="ag-acct__alert ag-acct__alert--note" id="agPasskeyNote" hidden></p>
+{% block auth_body %}
+{% if sent %}
+  {# ══ STEP 2 · ENTER THE CODE ═══════════════════════════════════════════════ #}
+  <div class="si__head">
+    <h1 class="si__h1">{{ 'Enter the code'|trans }}</h1>
+    {% if _dest %}
+      <p class="si__lede">{{ 'We sent 6 digits to %dest%.'|trans({'%dest%': _dest}) }}</p>
+    {% else %}
+      {# The session no longer holds the address (a code requested on one device and read
+         on another). The code is still live, so ask for the one thing that is missing. #}
+      <p class="si__lede">{{ 'Tell us the email the code went to, then type the 6 digits.'|trans }}</p>
     {% endif %}
-    <a class="ag-acct__row" href="/vote">
-      <span class="ag-acct__row-body">
-        <b class="ag-acct__row-title">Claim a profile someone nominated</b>
-        <span class="ag-acct__row-note">Open the page you were nominated on, verify by code, and it becomes yours to edit.</span>
-      </span>
-      <svg class="ag-acct__chev" width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7.5 4.5 13 10l-5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </a>
-    <a class="ag-acct__row" href="/account/forgot">
-      <span class="ag-acct__row-body">
-        <b class="ag-acct__row-title">Forgotten your password</b>
-        <span class="ag-acct__row-note">We email a reset link, valid once.</span>
-      </span>
-      <svg class="ag-acct__chev" width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7.5 4.5 13 10l-5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </a>
   </div>
 
+  {{ auth.say(_error, _notice) }}
+
+  <form class="si__form-step" method="post" action="/account/login/verify" novalidate data-ag-validate>
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    {% if _dest and code_via == 'phone' %}
+      <input type="hidden" name="via" value="phone">
+      <input type="hidden" name="phone" value="{{ login_phone }}">
+      <input type="hidden" name="country" value="{{ login_country }}">
+    {% elseif _dest %}
+      <input type="hidden" name="email" value="{{ login_email }}">
+    {% else %}
+      <input class="si__in" id="si-email" type="email" name="email" required autocomplete="email" inputmode="email"
+             aria-label="{{ 'Email'|trans }}" placeholder="you@example.com" data-ag-error-group="otp">
+    {% endif %}
+
+    <div class="si-code" data-si-code>
+      <label class="ag-sr" for="si-otp">{{ '6-digit code'|trans }}</label>
+      <input class="si-code__real" id="si-otp" name="otp" type="text" required
+             inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6"
+             aria-describedby="si-otp-hint"{% if _error %} aria-invalid="true"{% endif %} data-ag-error-group="otp"
+             {% if _dest %}autofocus{% endif %}>
+      <div class="si-code__boxes" aria-hidden="true">
+        {%- for i in 1..6 %}<span class="si-code__box"></span>{% endfor -%}
+      </div>
+    </div>
+    <p class="ag-hint" id="si-otp-hint">{{ 'It lasts %n% minutes and %t% tries. A new code cancels this one.'|trans({'%n%': otp_ttl_minutes, '%t%': max_tries}) }}</p>
+
+    <button class="si__go" type="submit">{{ 'Continue'|trans }}</button>
+  </form>
+
+  {% if _dest %}
+    {# The fallbacks. Each is a POST that mints a fresh code (cancelling this one), so a
+       mail scanner following links can never spend the code that was just sent. #}
+    <div class="si__again">
+      <span>
+        {%- if resend_in > 0 -%}
+          <span data-si-wait="{{ resend_in }}" data-si-done="{{ 'Didn’t get it?'|trans }}">{{ 'Didn’t get it? Resend in %t%, or'|trans({'%t%': (resend_in // 60) ~ ':' ~ ('%02d'|format(resend_in % 60))}) }}</span>
+        {%- else -%}
+          {{ 'Didn’t get it?'|trans }}
+        {%- endif -%}
+      </span>
+      <form class="si__again-row" method="post" action="/account/login/otp">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        {% if code_via == 'phone' %}
+          <input type="hidden" name="via" value="phone">
+          <input type="hidden" name="phone" value="{{ login_phone }}">
+          <input type="hidden" name="country" value="{{ login_country }}">
+        {% else %}
+          <input type="hidden" name="email" value="{{ login_email }}">
+        {% endif %}
+        <button class="si__pill" type="submit" data-si-resend{% if resend_in > 0 %} hidden{% endif %}>{{ 'Send a new code'|trans }}</button>
+        {% if code_via == 'phone' and phone_channels.whatsapp %}
+          <button class="si__pill" type="submit" name="channel" value="whatsapp">{{ 'Send by WhatsApp'|trans }}</button>
+        {% endif %}
+      </form>
+    </div>
+  {% endif %}
+
+{% elseif with_password %}
+  {# ══ THE PASSWORD DOOR ═════════════════════════════════════════════════════
+     For an account that has one. The email AND the password carry the error together
+     (`data-ag-error-group`): reddening only the password would say "that address has an
+     account" — one sentence for all four ways of failing (SignInScreensTest). #}
+  <div class="si__head">
+    <h1 class="si__h1">{{ 'Sign in with your password'|trans }}</h1>
+    <p class="si__lede">{{ 'Or go back and have a code sent instead — no password needed.'|trans }}</p>
+  </div>
+  {{ auth.say(_error, _notice) }}
+  <form class="si__form-step" method="post" action="/account/login" novalidate data-ag-validate>
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <input class="si__in" id="si-pw-email" type="email" name="email" value="{{ login_email }}" required
+           autocomplete="email" inputmode="email" aria-label="{{ 'Email'|trans }}" placeholder="you@example.com"
+           {% if _error %}aria-invalid="true"{% endif %} data-ag-error-group="signin">
+    <input class="si__in" id="si-pw" type="password" name="password" autocomplete="current-password"
+           aria-label="{{ 'Password'|trans }}" placeholder="{{ 'Password'|trans }}"
+           {% if _error %}aria-invalid="true"{% endif %} data-ag-error-group="signin">
+    <button class="si__go" type="submit">{{ 'Sign in'|trans }}</button>
+    <p class="si__alt">
+      <a href="/account/forgot">{{ 'Forgotten your password?'|trans }}</a>
+      <button class="si__link" type="submit" formaction="/account/login/otp" formnovalidate>{{ 'Email me a one-time code'|trans }}</button>
+    </p>
+  </form>
+
+{% else %}
+  {# ══ STEP 1 · SIGN IN OR JOIN ══════════════════════════════════════════════ #}
+  <div class="si__head">
+    <h1 class="si__h1">{{ 'Sign in or join'|trans }}</h1>
+    <p class="si__lede">{{ 'One account to nominate, vote, give and keep your recognitions.'|trans }}</p>
+  </div>
+
+  {% if _phoneOk %}
+    {# Links that work with no script (each is the page with the other tab); signin.js
+       switches the panel in place and keeps the URL in step. #}
+    <div class="si__via" role="radiogroup" aria-label="{{ 'Sign in with'|trans }}" data-si-via>
+      <a class="si__via-o" role="radio" href="/account/login?via=phone" data-si-tab="phone"
+         aria-checked="{{ via == 'phone' ? 'true' : 'false' }}" tabindex="{{ via == 'phone' ? '0' : '-1' }}">{{ 'Phone'|trans }}</a>
+      <a class="si__via-o" role="radio" href="/account/login?via=email" data-si-tab="email"
+         aria-checked="{{ via == 'email' ? 'true' : 'false' }}" tabindex="{{ via == 'email' ? '0' : '-1' }}">{{ 'Email'|trans }}</a>
+    </div>
+  {% endif %}
+
+  {{ auth.say(_error, _notice) }}
+
+  {% if _phoneOk %}
+    <form class="si__form-step si__panel" method="post" action="/account/login/otp" novalidate data-ag-validate data-si-panel="phone"{% if via != 'phone' %} hidden{% endif %}>
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <input type="hidden" name="via" value="phone">
+      <input type="hidden" name="channel" value="{{ phone_channels.sms ? 'sms' : 'whatsapp' }}">
+      <div class="si__tel">
+        <select class="si__cc" name="country" aria-label="{{ 'Country code'|trans }}">
+          {% for c in countries %}<option value="{{ c.code }}"{% if c.code == login_country %} selected{% endif %}>{{ c.code }} +{{ c.dial }}</option>{% endfor %}
+        </select>
+        <input class="si__in" id="phone" type="tel" name="phone" required inputmode="tel" autocomplete="tel-national"
+               enterkeyhint="send" aria-label="{{ 'Phone number'|trans }}" placeholder="801 234 5678"
+               {% if errors.phone|default('') %}aria-invalid="true" aria-describedby="phone-err"{% endif %}>
+      </div>
+      {{ f.message('phone', errors.phone|default('')) }}
+      <button class="si__go" type="submit">{{ 'Send me a code'|trans }}</button>
+    </form>
+  {% endif %}
+
+  <form class="si__form-step si__panel" method="post" action="/account/login/otp" novalidate data-ag-validate data-si-panel="email"{% if via != 'email' %} hidden{% endif %}>
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <input type="hidden" name="via" value="email">
+    <input class="si__in" id="email" type="email" name="email" value="{{ login_email }}" required
+           inputmode="email" autocomplete="email" enterkeyhint="send"
+           aria-label="{{ 'Email'|trans }}" placeholder="you@example.com"
+           {% if errors.email|default('') %}aria-invalid="true" aria-describedby="email-err"{% endif %}>
+    {{ f.message('email', errors.email|default('')) }}
+    <button class="si__go" type="submit">{{ 'Send me a code'|trans }}</button>
+  </form>
+
+  <p class="si__fine">{{ 'No password to remember. By continuing you agree to the'|trans }} <a href="/terms">{{ 'Terms'|trans }}</a> {{ 'and'|trans }} <a href="/privacy">{{ 'Privacy policy'|trans }}</a>.</p>
+
+  <p class="si__alt">
+    <a href="/account/login?with=password">{{ 'Sign in with a password'|trans }}</a>
+    {% if passkeys_available %}
+      {# Hidden until passkeys.js confirms this browser can run the ceremony; absent when
+         the server cannot verify one. A row that opens nothing reads as the account being
+         broken rather than as the feature being absent. #}
+      <button class="si__link" type="button" data-passkey-signin data-csrf="{{ csrf_token }}" hidden>{{ 'Use a passkey'|trans }}</button>
+    {% endif %}
+  </p>
+  {% if passkeys_available %}<p class="si__fine" data-passkey-note role="status"></p>{% endif %}
 {% endif %}
 {% endblock %}
 
-{% block below %}
-{% if not sent %}
-  <p class="ag-acct__switch">New to Africa GATES? <a class="ag-acct__quiet" href="/account/register">Create an account</a></p>
-  {# The prototype carried a stat row here — "1,240 points", "9 categories",
-     "54 nations". A signed-out visitor has no points, and this platform has
-     shipped invented figures before (StatsService's "1,247 profiles"). What is
-     true without a query is the sentence. #}
-  <p class="ag-acct__note">Points come from shop orders, event tickets and donations, and turn into votes.</p>
-{% endif %}
-{% endblock %}
-
-{% block foot_scripts %}
-{% if passkeys_available|default(false) %}
-<script nonce="{{ csp_nonce }}" src="{{ asset('/assets/js/passkeys.js') }}" defer></script>
-{# The row appears only once BOTH halves are real: the library on the server (checked
-   above) and the API in this browser. `hidden` off, not `display`, so the toggle cannot
-   be undone by a stylesheet. #}
-<script nonce="{{ csp_nonce }}">
-document.addEventListener('DOMContentLoaded', function () {
-  var row = document.getElementById('agPasskeyRow');
-  if (row && window.agPasskeys && window.agPasskeys.supported()) row.hidden = false;
-});
-</script>
-{% endif %}
-{% if sent %}
-{# Mirrors the real input's digits into the decorative boxes, and only then
-   hides the input behind them. Ordered that way on purpose: if this script
-   never runs, the page keeps a plainly visible code field rather than six
-   empty boxes over an invisible input, which is a sign-in screen where typing
-   shows nothing and nothing reports an error. #}
-<script nonce="{{ csp_nonce }}">
-(function () {
-  var wrap  = document.getElementById('agOtpWrap');
-  var input = document.getElementById('otp');
-  if (!wrap || !input) return;
-  var boxes = wrap.querySelectorAll('.ag-acct__box');
-  if (boxes.length !== 6) return;
-
-  wrap.classList.add('is-boxed');
-
-  function paint() {
-    var v = input.value.replace(/\D/g, '').slice(0, 6);
-    // Keep the FIELD and the boxes agreeing. `pattern` and `maxlength` police the
-    // submission, not the typing, so "4821ab" left the boxes showing four digits
-    // while the field held six characters: the person sees an unfinished code, the
-    // sixth keystroke is refused by maxlength, and the form then declines to submit
-    // for a reason nothing on screen explains. Stripping here also makes a pasted
-    // "your code is 482193" work, which is how a code actually arrives.
-    if (input.value !== v) {
-      var atEnd = input.selectionStart === input.value.length;
-      input.value = v;
-      if (atEnd) { try { input.setSelectionRange(v.length, v.length); } catch (e) {} }
-    }
-    for (var i = 0; i < boxes.length; i++) {
-      boxes[i].textContent = v.charAt(i) || '';
-      boxes[i].classList.toggle('ag-acct__box--active',
-        i === v.length && document.activeElement === input);
-    }
-  }
-  input.addEventListener('input', paint);
-  input.addEventListener('focus', paint);
-  input.addEventListener('blur', paint);
-  // The boxes are aria-hidden, so a tap on them must reach the real input.
-  wrap.addEventListener('click', function (e) {
-    if (e.target.classList && e.target.classList.contains('ag-acct__box')) input.focus();
-  });
-  paint();
-})();
-</script>
-{% endif %}
-{% endblock %}
+{% block auth_scripts %}{% if passkeys_available %}<script defer src="{{ asset('/assets/js/passkeys.js') }}" data-nav="rerun"></script>{% endif %}{% endblock %}

@@ -1,0 +1,134 @@
+{#
+  The review list's side peek (README §10b "Side peek on every list", "Nomination
+  drawer"): every field, the checks spelled out, supporting links and files, the history
+  and the team's notes, and the decision. Rendered inside the list, or alone for
+  review-queue.js (`?part=peek`), which swaps it in place.
+
+  Decisions post to the same routes as the desk — `/admin/nominations/{id}/approve` and
+  `/reject` — with `back` set to this list, so they run the same checks, send the same
+  emails and write the same audit rows. Rejecting needs a reason; approving does not ask
+  twice, as on the desk.
+#}
+{% set can_decide = peek.status == 'pending' and shell.can_write|default(false) %}
+<div class="rq-peek__head">
+  <span class="rq-pos__num" data-rq-pos>{{ pos|default('') }}</span>
+  {% for v in viewing %}<span class="rq-viewing"><span class="rq-dot rq-dot--green" aria-hidden="true"></span>{{ v }} is viewing</span>{% endfor %}
+  <span class="ls-bar__gap"></span>
+  <button type="button" class="rq-peek__b rq-js" data-rq-step="-1" aria-label="Previous nomination (K)"><svg aria-hidden="true" focusable="false"><use href="#ic-up"/></svg></button>
+  <button type="button" class="rq-peek__b rq-js" data-rq-step="1" aria-label="Next nomination (J)"><svg aria-hidden="true" focusable="false"><use href="#ic-down"/></svg></button>
+  <a class="rq-peek__b" href="{{ close }}" aria-label="Close (Esc)" data-rq-close><svg aria-hidden="true" focusable="false"><use href="#ic-x"/></svg></a>
+</div>
+
+<div class="rq-peek__body" data-rq-peek-id="{{ peek.id }}">
+  <div class="rq-peek__id">
+    <span class="rq-av rq-av--lg rq-av--{{ peek.tone }}" aria-hidden="true">{{ peek.initials }}</span>
+    <span class="rq-peek__who">
+      <h2 class="rq-peek__name">{{ peek.name }}</h2>
+      <span class="rq-peek__sub">{{ [peek.org, peek.nominee_state, peek.country_code]|filter(x => x)|join(' · ') }}</span>
+    </span>
+  </div>
+
+  <dl class="rq-dl">
+    <dt>Category</dt>
+    <dd>
+      {% if can_decide and peek.categories %}
+        <label class="sr-only" for="rqCat{{ peek.id }}">Category to approve into</label>
+        <select id="rqCat{{ peek.id }}" class="ls-select rq-dl__select" name="category_id" form="rqApprove{{ peek.id }}">
+          {% if not peek.category_id %}<option value="">Choose a category</option>{% endif %}
+          {% for c in peek.categories %}<option value="{{ c.id }}"{% if c.id == peek.category_id %} selected{% endif %}>{{ c.title }}</option>{% endfor %}
+        </select>
+      {% else %}
+        {{ peek.category ?: 'No category' }}
+      {% endif %}
+      {% if peek.suggest %}<span class="rq-cat__sug">Reads closer to “{{ peek.suggest.title }}”</span>{% endif %}
+    </dd>
+    <dt>Edition</dt><dd>{{ peek.edition ?: '—' }}</dd>
+    <dt>Nominated by</dt><dd><span class="rq-dl__line">{{ peek.by ?: '—' }}{% if peek.rel %} <span class="rq-by__rel">· {{ peek.rel }}</span>{% endif %}</span></dd>
+    <dt>Received</dt><dd>{{ peek.recv_at }}</dd>
+    {% if peek.reference %}<dt>Reference</dt><dd><span class="rq-ref">{{ peek.reference }}</span></dd>{% endif %}
+    <dt>Status</dt><dd>{% set st = {pending: 'gold', needs_details: 'gold', approved: 'green', rejected: 'grey'}[peek.status]|default('grey') %}<span class="ls-pill ls-pill--{{ st }}">{{ peek.status_label }}</span></dd>
+  </dl>
+
+  <section class="rq-peek__sec">
+    <h3 class="rq-peek__h">Why they were nominated</h3>
+    {% if peek.reasons %}
+      {% for x in peek.reasons %}
+        <div class="rq-why">{% if peek.reasons|length > 1 or x.title != peek.category %}<span class="rq-why__cat">{{ x.title }}</span>{% endif %}<p class="rq-why__p">{{ x.reason }}</p></div>
+      {% endfor %}
+    {% elseif peek.reason %}
+      <p class="rq-why__p">{{ peek.reason }}</p>
+    {% else %}
+      <p class="rq-why__p rq-why__p--none">The nominator did not write a reason.</p>
+    {% endif %}
+  </section>
+
+  {% if peek.ai and peek.ai.state == 'ok' %}
+    <section class="rq-peek__sec">
+      <h3 class="rq-peek__h">AI reading · advisory</h3>
+      <p class="rq-why__p"><strong>{{ peek.ai.band }}</strong> · <span class="rq-peek__num">{{ peek.ai.score }}/100</span>{% if peek.ai.stale %} · read before the latest evidence{% endif %}</p>
+      {% if peek.ai.summary %}<p class="rq-why__p">{{ peek.ai.summary }}</p>{% endif %}
+    </section>
+  {% endif %}
+
+  <ul class="rq-checks">
+    {% for c in peek.check_list %}
+      <li class="rq-check"><span class="rq-check__m rq-check__m--{{ c.ok ? 'ok' : (c.bad|default(false) ? 'bad' : 'warn') }}" aria-hidden="true">{{ c.ok ? '✓' : '!' }}</span><span>{{ c.t }}</span></li>
+    {% endfor %}
+  </ul>
+
+  {% if peek.evidence_list %}
+    <section class="rq-peek__sec">
+      <h3 class="rq-peek__h">Supporting links and files</h3>
+      <ul class="rq-files">
+        {% for e in peek.evidence_list %}
+          <li><a class="rq-file" href="{{ e.href }}" target="_blank" rel="noopener noreferrer nofollow"><svg aria-hidden="true" focusable="false"><use href="#ic-{{ e.kind == 'file' ? 'doc' : 'external' }}"/></svg><span>{{ e.label }}</span></a></li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
+  <section class="rq-peek__sec">
+    <h3 class="rq-peek__h">History</h3>
+    <ol class="rq-hist">
+      {% for h in peek.history %}
+        <li class="rq-hist__i{% if h.note %} rq-hist__i--note{% endif %}"><span class="rq-dot rq-dot--{{ h.tone }}" aria-hidden="true"></span><span class="rq-hist__t"><strong>{{ h.who }}</strong> {% if h.note %}<span class="rq-hist__note">{{ h.what }}</span>{% else %}{{ h.what }}{% endif %}</span><span class="rq-hist__time">{{ h.when }}</span></li>
+      {% endfor %}
+    </ol>
+    {% if shell.can_write|default(false) %}
+      <form class="rq-note" method="post" action="/admin/nominations/{{ peek.id }}/note">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <input type="hidden" name="back" value="{{ back }}">
+        <label class="sr-only" for="rqNote{{ peek.id }}">Note for your team</label>
+        <textarea id="rqNote{{ peek.id }}" name="body" rows="2" maxlength="2000" placeholder="Add a note for your team" required></textarea>
+        <span class="rq-note__foot"><span class="rq-note__hint">Only people in the console see this.</span><button type="submit" class="cn-pillbtn cn-pillbtn--sm">Save note</button></span>
+      </form>
+    {% endif %}
+  </section>
+
+  {% if can_decide %}
+    <details class="rq-reject" data-rq-reject>
+      <summary>Reject with a reason</summary>
+      <form method="post" action="/admin/nominations/{{ peek.id }}/reject" data-confirm="Reject the nomination of {{ peek.name }}? The nominator is emailed this reason straight away, and it cannot be recalled." data-confirm-title="Reject nomination">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <input type="hidden" name="back" value="{{ back }}">
+        <label class="rq-reject__l" for="rqWhy{{ peek.id }}">Sent to the nominator</label>
+        <textarea id="rqWhy{{ peek.id }}" name="decision_reason" rows="3" maxlength="800" placeholder="Kind and specific. Left blank, a drafted reason is sent instead."></textarea>
+        <button type="submit" class="rq-reject__go">Send rejection</button>
+      </form>
+    </details>
+  {% endif %}
+</div>
+
+<div class="rq-peek__foot">
+  {% if can_decide %}
+    <button type="button" class="rq-peek__reject rq-js" data-rq-open-reject title="Reject (R)">Reject</button>
+    <a class="rq-peek__more" href="/admin/nominations/{{ peek.id }}">Full record</a>
+    <form id="rqApprove{{ peek.id }}" class="rq-peek__approve" method="post" action="/admin/nominations/{{ peek.id }}/approve">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <input type="hidden" name="back" value="{{ back }}">
+      <button type="submit" class="rq-approve" data-rq-approve title="{{ peek.can_approve ? 'Approve (A)' : 'Not yet — see the checks above' }}"{% if not peek.can_approve %} aria-disabled="true"{% endif %}>Approve<kbd class="rq-approve__kbd" aria-hidden="true">A</kbd></button>
+    </form>
+  {% else %}
+    <a class="rq-peek__more rq-peek__more--wide" href="/admin/nominations/{{ peek.id }}">Open the full record</a>
+  {% endif %}
+</div>

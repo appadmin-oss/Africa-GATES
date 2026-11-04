@@ -77,21 +77,28 @@ class MilestoneService
 
     private function notifyAdmin(object $nominee, int $milestone): void
     {
-        $adminEmail = Env::get('ADMIN_ALERT_EMAIL') ?? Env::get('MAIL_FROM_ADDRESS');
-        if (!$adminEmail || !$this->mailer) return;
+        // The one resolver (Settings, then .env), not a second reading of the same keys: this
+        // read ADMIN_ALERT_EMAIL from .env alone, so an address changed in /admin/settings
+        // reached every other alert and never this one.
+        $adminEmail = Notifier::adminEmail();
+        if ($adminEmail === '' || !$this->mailer) return;
 
         $formatted = number_format($milestone);
+        // A nominee's name is what somebody else typed into a nomination form; in an HTML
+        // mail it is markup unless it is escaped.
+        $name  = htmlspecialchars((string) $nominee->name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $total = htmlspecialchars((string) $nominee->vote_count, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $html = <<<HTML
-<p><strong>{$nominee->name}</strong> has just crossed the
+<p><strong>{$name}</strong> has just crossed the
 <span style="color:#15803d;font-size:1.25em;font-weight:700">{$formatted} votes</span>
 milestone in the Africa GATES 2026 cycle. 🎉</p>
 <p>Notify the nominee so they can share this achievement with their supporters.</p>
 <table role="presentation" cellpadding="0" cellspacing="0" border="0"
        style="margin:16px 0;background:#f0fdf4;border-left:4px solid #22c55e;border-radius:0 8px 8px 0;padding:12px 16px">
   <tr><td style="font-size:14px;color:#166534">
-    Nominee: <strong>{$nominee->name}</strong><br>
+    Nominee: <strong>{$name}</strong><br>
     Milestone: <strong>{$formatted} votes</strong><br>
-    Total votes: <strong>{$nominee->vote_count}</strong>
+    Total votes: <strong>{$total}</strong>
   </td></tr>
 </table>
 HTML;
@@ -115,15 +122,34 @@ HTML;
             $pid   = DB::table('gates_nominees')->where('id', $nominee->id)->value('profile_id');
             $email = $pid ? DB::table('gates_profiles')->where('id', $pid)->value('email') : null;
             if ($email && filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                $base = rtrim((string) Env::get('APP_URL', 'https://afg.afrovanguard.org.ng'), '/');
-                $nm   = htmlspecialchars((string)$nominee->name, ENT_QUOTES, 'UTF-8');
-                $nhtml = "<p>Hi <strong>{$nm}</strong>,</p>"
-                    . "<p>Your supporters just pushed you past <strong>{$formatted} votes</strong> in the Africa GATES cycle. 🎉</p>"
-                    . "<p>Share your campaign to keep the momentum going — every verified vote counts toward your Cultural Power Index.</p>"
-                    . "<p style=\"text-align:center;margin:22px 0\"><a href=\"{$base}/vote\" style=\"display:inline-block;padding:12px 28px;background:#10292C;color:#fff;border-radius:999px;font-weight:600;text-decoration:none;font-size:15px\">Rally more votes →</a></p>";
-                $this->mailer->sendBranded((string)$email, "You reached {$formatted} votes — Africa GATES", $nhtml,
-                    "Hi {$nominee->name}, you reached {$formatted} votes in the Africa GATES cycle. Rally more support: {$base}/vote",
-                    'Milestone', $base . '/assets/img/illustrations/illo-medallion.jpg');
+                // The handoff's "Milestone" — an announcement, so it carries the opt-out
+                // link (EmailOptOut, HMAC-bound to this address) and the List-Unsubscribe
+                // header. It counts VOTES; whether separate people count too is the
+                // edition's own basis, so that sentence is stated only where it is true.
+                $base = \AfricaGates\Support\SiteUrl::base();
+                $ctx  = DB::table('gates_nominees as n')
+                    ->leftJoin('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+                    ->leftJoin('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
+                    ->where('n.id', $nominee->id)->first(['cy.id as cycle_id', 'cy.programme_id', 'cy.voting_close']);
+                $closes = '';
+                if ($ctx && !empty($ctx->voting_close)) {
+                    $closes = \AfricaGates\Support\DisplayTime::showZoned((string) $ctx->voting_close, 'j F, H:i');
+                }
+                $eff   = (new RuleEngine())->effective(
+                    $ctx && $ctx->programme_id !== null ? (int) $ctx->programme_id : null,
+                    $ctx && $ctx->cycle_id !== null ? (int) $ctx->cycle_id : null);
+                $basis = CpiService::basis($eff['community_basis'] ?? null);
+                $unsub = EmailOptOut::url($base, (string) $email);
+                \AfricaGates\Services\Mail\Emails::send($this->mailer, (string) $email, 'milestone', [
+                    'first_name'      => DoorWelcome::firstName((string) $nominee->name) ?: (string) $nominee->name,
+                    'full_name'       => (string) $nominee->name,
+                    'votes'           => $formatted,
+                    'closes'          => $closes,
+                    'page_url'        => \AfricaGates\Support\NomineeUrl::ballot((int) $nominee->id),
+                    'by_people'       => in_array($basis, [CpiService::BASIS_IDEAL, CpiService::BASIS_REACH], true),
+                    'unsubscribe_url' => $unsub,
+                    'site_url'        => $base,
+                ], [], $unsub);
             }
         } catch (\Throwable) {}
     }

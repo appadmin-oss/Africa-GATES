@@ -1,0 +1,37 @@
+{# Africa GATES — loader v5: two edits to templates/layout/gates.twig
+   EDIT 1 — replace the whole #agLoader block. Copy the two existing d values verbatim. #}
+<div class="ag-loader" id="agLoader" role="status" aria-label="Loading Africa GATES">
+  <div class="ag-loader__mark">
+    <svg class="ag-loader__logo" viewBox="0 0 1563 1563" aria-hidden="true">
+      <circle class="ag-loader__disc" cx="781.1" cy="781.4" r="756.2"/>
+      <g class="ag-loader__land">
+        <path d="PASTE THE EXISTING CONTINENT d VALUE HERE"/>
+        <path d="PASTE THE EXISTING MADAGASCAR d VALUE HERE"/>
+      </g>
+    </svg>
+    <div class="ag-loader__word" aria-hidden="true"><span class="ag-loader__africa">Africa</span><span class="ag-loader__gates">GATES</span></div>
+    <span class="ag-loader__bar" aria-hidden="true"></span>
+  </div>
+</div>
+
+{# EDIT 2 — replace the exit IIFE. REVEAL+LEAVE+FADE = 1.36s. #}
+<script nonce="{{ csp_nonce }}">
+(function(){
+  var h=document.documentElement;
+  if(!h.classList.contains('ag-loading')) return;
+  var l=document.getElementById('agLoader');
+  var REVEAL=1040, LEAVE=80, FADE=240, CAP=2200;
+  var gone=false, playing=false, started=0;
+  function rm(){ if(gone) return; gone=true; try{ if(l) l.remove(); }catch(e){} h.classList.remove('ag-loading'); }
+  function out(){
+    if(gone) return;
+    if(!l || !playing){ rm(); return; }
+    l.classList.add('is-leaving');
+    setTimeout(function(){ l.classList.add('is-out'); setTimeout(rm, FADE+40); }, LEAVE);
+  }
+  function play(){ if(playing||gone) return; playing=true; started=performance.now(); if(l) l.classList.add('is-playing'); setTimeout(out, REVEAL); }
+  if(window.requestAnimationFrame) requestAnimationFrame(function(){ requestAnimationFrame(play); }); else play();
+  setTimeout(function(){ if(playing && performance.now()-started < REVEAL) return; out(); }, Math.max(0, CAP - performance.now()));
+  window.addEventListener('pageshow', function(e){ if(e.persisted) rm(); });
+})();
+</script>

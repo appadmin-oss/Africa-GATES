@@ -123,6 +123,22 @@ final class PublicSurfaceSandboxTest extends TestCase
      * The one that needed nothing to happen. A seeded sandbox is immediately
      * searchable by name on a public page.
      */
+    /** The public dashboard API counts real ballots and real awards only. */
+    public function test_the_dashboard_api_counts_no_sandbox_ballot_or_award(): void
+    {
+        foreach ([[$this->realNomineeId, 2], [$this->demoNomineeId, 5]] as [$nid, $n]) {
+            $cat = (int) DB::table('gates_nominees')->where('id', $nid)->value('category_id');
+            for ($i = 0; $i < $n; $i++) {
+                DB::table('gates_votes')->insert(['nominee_id' => $nid, 'category_id' => $cat,
+                    'voter_email_hash' => hash('sha256', $nid . ':' . $i), 'voted_at' => '2026-02-01 10:00:00']);
+            }
+        }
+        $body = json_decode((string) $this->get('/api/dashboard')->getBody(), true);
+        $data = $body['data'] ?? $body;
+        $this->assertSame(2, (int) ($data['total_votes'] ?? -1), 'the sandbox\'s seeded ballots are not votes');
+        $this->assertSame(1, (int) ($data['awards_given'] ?? -1), 'nor is its crowned nominee an award');
+    }
+
     public function test_a_demo_nominee_is_not_searchable(): void
     {
         $titles = $this->titles('Kigali');
@@ -409,5 +425,81 @@ final class PublicSurfaceSandboxTest extends TestCase
         $this->assertFalse((bool) $started['ok'], 'a claim can still be opened on the rehearsal');
         $this->assertSame('NO_NOMINEE', $started['code'],
             'the rehearsal is refused for some other reason, which will stop being true');
+    }
+
+    /**
+     * The WRITE half of the containment, and the one that took money.
+     *
+     * Every vote path — OTP {@see \AfricaGates\Services\VoteService::castVote()}, paid
+     * checkout and its mint, points, donation bonus — resolves the nominee BY ID and asks
+     * {@see \AfricaGates\Services\BallotGuard} whether the ballot is open. The sandbox's
+     * main cycle sits in `voting` with a live window on purpose, and the guard never
+     * looked at the programme, so before the fix a stranger typing a rehearsal nominee's
+     * number had their vote recorded (VOTE_CAST) and was let through to a REAL checkout.
+     *
+     * The second half asserts the REASON: flip only the programme's `is_active` and the
+     * same category opens. A refusal that came from the window, the nominee's status or
+     * the fixture would survive the flip; this one must not.
+     */
+    public function test_a_sandbox_nominee_cannot_be_voted_for_or_paid_for(): void
+    {
+        $seed = DemoSeeder::seed(0);
+        $nom  = DB::table('gates_nominees')
+            ->whereIn('id', array_values($seed['nominees'] ?? []))
+            ->where('status', 'approved')->first(['id', 'category_id']);
+        $this->assertNotNull($nom, 'the sandbox seeded no approved nominee, so this proves nothing');
+        $cat = (int) $nom->category_id;
+        $pid = (int) DB::table('gates_award_categories as c')
+            ->join('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
+            ->where('c.id', $cat)->value('cy.programme_id');
+
+        $email = 'stranger@realmail.ng';
+        DB::table('gates_otp_tokens')->insert([
+            'email_hash' => \AfricaGates\Services\VoteService::voterHash($email),
+            'token_hash' => hash('sha256', '123456'), 'purpose' => 'vote',
+            'nominee_id' => (int) $nom->id, 'award_id' => $pid, 'attempts' => 0, 'is_used' => 0,
+            'expires_at' => \Illuminate\Support\Carbon::now()->addMinutes(10)->toDateTimeString(),
+            'created_at' => \Illuminate\Support\Carbon::now()->toDateTimeString(),
+        ]);
+        $before = (int) DB::table('gates_votes')->where('nominee_id', $nom->id)->count();
+
+        $r = (new \AfricaGates\Services\VoteService())
+            ->castVote($email, '123456', (int) $nom->id, $pid, '1.2.3.4', null, null, 'Ada Obi', '08012345678');
+
+        $this->assertFalse((bool) $r['success'], 'a free vote was recorded on the rehearsal: ' . json_encode($r));
+        $this->assertSame($before, (int) DB::table('gates_votes')->where('nominee_id', $nom->id)->count());
+        $this->assertFalse(\AfricaGates\Services\BallotGuard::isVotable($cat));
+        // /vote/paid/start's gate, and the mint's.
+        $this->assertFalse(\AfricaGates\Services\PaidVoteService::checkoutOpenFor($cat),
+            'a real-money checkout opens on the rehearsal');
+        $this->assertFalse(\AfricaGates\Services\PaidVoteService::votingOpenFor($cat));
+
+        // The reason: the programme, and only the programme.
+        DB::table('gates_award_programmes')->where('id', $pid)->update(['is_active' => 1]);
+        $this->assertTrue(\AfricaGates\Services\BallotGuard::isVotable($cat),
+            'the sandbox cycle is not in an open window, so the refusal above is not about the sandbox');
+    }
+
+    /**
+     * The code that cannot be spent must not be SENT either. castVote() refuses the
+     * rehearsal, but /api/otp/request used to mint a token and mail it first — a real email
+     * to whatever address was typed, for a nominee anybody can enumerate by id.
+     */
+    public function test_no_vote_code_is_minted_for_a_sandbox_nominee(): void
+    {
+        $seed = DemoSeeder::seed(0);
+        $nom  = DB::table('gates_nominees')
+            ->whereIn('id', array_values($seed['nominees'] ?? []))
+            ->where('status', 'approved')->value('id');
+        $this->assertNotNull($nom, 'the sandbox seeded no approved nominee, so this proves nothing');
+
+        $req = (new ServerRequestFactory())->createServerRequest('POST', 'http://localhost/api/otp/request')
+            ->withHeader('Origin', 'http://localhost')->withHeader('Host', 'localhost')
+            ->withParsedBody(['email' => 'stranger@realmail.ng', 'nominee_id' => (string) $nom, 'award_id' => '0']);
+        $res = $this->app()->handle($req);
+
+        $this->assertNotSame(200, $res->getStatusCode(), (string) $res->getBody());
+        $this->assertSame(0, DB::table('gates_otp_tokens')->where('nominee_id', $nom)->count(),
+            'a vote code was minted for the rehearsal');
     }
 }

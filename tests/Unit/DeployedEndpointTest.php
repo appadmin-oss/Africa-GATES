@@ -105,7 +105,9 @@ final class DeployedEndpointTest extends TestCase
         $this->assertStringContainsString('noindex', $res->getHeaderLine('X-Robots-Tag'));
 
         // The feature-level checks a reader is looking for.
-        $this->assertStringContainsString('The message box on the paid form', $html);
+        // Was 'The message box on the paid form' — a row checking vote-nominee.twig, which
+        // was destroyed with the old pages along with its row (docs/handoff/DESTROYED.md).
+        $this->assertStringContainsString('One message, rendered', $html);
         $this->assertStringContainsString('Table gates_vote_messages', $html);
         $this->assertStringContainsString('Where to look', $html);
 

@@ -185,6 +185,37 @@ class CyclePolicyTest extends TestCase
         }
     }
 
+    /**
+     * A release is an act, not a date (CycleMaterialiser::release()): a panel that finishes
+     * early may publish before its results date, and plenty of cycles never set one. The
+     * dates alone then still say "with the jury", so a released award was shown as being
+     * judged on every page that draws its phase, beside its own published result.
+     *
+     * The stored `results` is trusted ONLY where the dates have already reached judging —
+     * the release refuses anything earlier — so a wrong cache can never close voting or
+     * reach back into any earlier phase.
+     */
+    public function test_a_released_award_reads_as_released_before_its_results_date(): void
+    {
+        $released = (object) [
+            'status' => 'results', 'voting_open' => '2026-07-01 00:00:00',
+            'voting_close' => '2026-08-01 00:00:00', 'results_date' => '2026-09-01 00:00:00',
+        ];
+        $this->assertSame(CyclePhase::Results, CyclePolicy::phaseFor($released, $this->at('2026-08-10 00:00:00')),
+            'released early, before the date it promised');
+        $this->assertSame('Results published', CyclePolicy::stateFor($released, $this->at('2026-08-10 00:00:00'))['label']);
+
+        $noDate = (object) ['status' => 'results', 'voting_close' => '2026-08-01 00:00:00', 'results_date' => null];
+        $this->assertSame(CyclePhase::Results, CyclePolicy::phaseFor($noDate, $this->at('2026-08-10 00:00:00')),
+            'released with no results date ever set');
+
+        // The dates still win everywhere before judging: a stale cache cannot close voting.
+        $this->assertSame(CyclePhase::Voting, CyclePolicy::phaseFor($released, $this->at('2026-07-10 00:00:00')));
+        // And an unreleased cycle past its voting close is still with the jury.
+        $judging = ['status' => 'judging'] + (array) $released;
+        $this->assertSame(CyclePhase::Judging, CyclePolicy::phaseFor((object) $judging, $this->at('2026-08-10 00:00:00')));
+    }
+
     public function test_archived_is_sticky_regardless_of_dates(): void
     {
         $phase = CyclePolicy::phaseFor($this->gapCycle('archived'), $this->at('2026-08-01 12:00:00'));

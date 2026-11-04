@@ -22,6 +22,10 @@
     background:#fffaf0; border-radius:0 8px 8px 0; font-size:13px; line-height:1.65;
     color:#7a5605 }
   .ed-new{ margin-top:14px }
+  .pz-row{ display:grid; grid-template-columns:2fr 1fr; gap:10px; margin:0 0 10px; padding:10px 12px; border:1px solid var(--cn-line-card); border-radius:8px }
+  .pz-row[hidden]{ display:none }
+  .pz-row legend{ font-weight:700; font-size:13px; padding:0 4px }
+  @media (max-width:640px){ .pz-row{ grid-template-columns:1fr } }
   .ed-new__f{ display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
     gap:10px; align-items:end }
   .ed-new label{ display:block; font-size:11px; font-weight:700; letter-spacing:.05em;
@@ -49,12 +53,19 @@
           <span class="ad-chip ad-chip--{{ phase.is_open ? 'green' : (phase.is_finished ? 'grey' : 'gold') }}">{{ phase.label }}</span>
         </div>
         <div class="ad-card__body">
-          <p style="margin:0;font-size:14px;color:var(--ad-text)">{{ phase.detail }}</p>
-          <p style="margin:8px 0 0;font-size:13px;color:var(--ad-text-mute)">
+          <p style="margin:0;font-size:14px;color:var(--cn-ink)">{{ phase.detail }}</p>
+          <p style="margin:8px 0 0;font-size:13px;color:var(--cn-soft)">
             Votes accepted: <strong>{{ phase.is_voting_open ? 'yes' : 'no' }}</strong> ·
             Nominations accepted: <strong>{{ phase.is_nominations_open ? 'yes' : 'no' }}</strong>
             {% if cycle.next_boundary_at %} · Next change <strong>{{ cycle.next_boundary_at|date('j M Y, H:i') }}</strong>{% endif %}
           </p>
+          {% if window_error|default(null) %}
+          <div class="ad-flash ad-flash--err" role="alert" style="margin:14px 0 0">
+            ⚠ The saved dates are out of order: {{ window_error }} The site follows the dates, so
+            this edition is behaving as the latest date that has passed says. Correct the dates below
+            and save.
+          </div>
+          {% endif %}
           {% if phase.drifted %}
           <div class="ad-flash ad-flash--err" role="alert" style="margin:14px 0 0">
             ⚠ The stored status column says <code>{{ phase.stored_status }}</code> but the dates compute
@@ -62,6 +73,78 @@
             site is behaving correctly — but reports and lists reading the column will be wrong until the
             scheduled task catches up. Saving this form re-syncs it.
           </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      {% if cycle %}
+      {# The formal letter each verified nominee receives once this edition is on the public
+         vote (Services\NomineeVotingNotice). Counted here so nobody has to chase whether it
+         went out: verified, sent, waiting for the next tick, and unreachable.
+         The card is drawn for every edition, with or without its counts: it is the only way
+         to the letter's editor, and it used to vanish whole when the status could not be
+         read (votingLetterStatus() logs and returns null), taking the editor with it. #}
+      {% set _vl = voting_letter|default(null) %}
+      <div class="ad-card" style="margin-bottom:14px">
+        <div class="ad-card__head">
+          <div class="ad-card__title">Nominee voting letter<small>Sent automatically to every approved nominee while voting is open</small></div>
+          {% if _vl %}<span class="ad-chip ad-chip--{{ not _vl.on ? 'grey' : (_vl.voting ? 'green' : 'gold') }}">{{ not _vl.on ? 'Off' : (_vl.voting ? 'Sending' : 'Waits for voting') }}</span>{% endif %}
+        </div>
+        <div class="ad-card__body">
+          {% if not _vl %}
+          <p style="margin:0;font-size:14px;color:var(--cn-ink)">
+            Whether letters have gone out could not be read just now; the reason is in the server's error log under [voting-letter]. The letter itself can still be written and previewed.
+          </p>
+          {% else %}
+          <p style="margin:0;font-size:14px;color:var(--cn-ink)">
+            On the ballot: <strong>{{ _vl.ballot|default(0) }}</strong> ·
+            Verified nominees: <strong>{{ _vl.verified }}</strong> ·
+            Letters sent: <strong>{{ _vl.sent }}</strong>{% if _vl.voting and _vl.on %} ·
+            Due on the next run: <strong>{{ _vl.due }}</strong>{% endif %}
+            {% if _vl.failed %} · Failed: <strong>{{ _vl.failed }}</strong>{% endif %}
+          </p>
+          {% if _vl.audience|default('ballot') == 'verified' and _vl.unverified|default(0) > 0 %}
+          <p style="margin:8px 0 0;font-size:13px;color:var(--cn-ink)">
+            <strong>{{ _vl.unverified }} {{ _vl.unverified == 1 ? 'nominee has' : 'nominees have' }} not verified</strong>, so they receive no letter.
+            To write to every approved nominee, choose “Every approved nominee on the ballot” in <a href="/admin/settings#f-vl_title">Settings</a>.
+          </p>
+          {% endif %}
+          {% if _vl.unreachable %}
+          <p style="margin:8px 0 0;font-size:13px;color:var(--cn-soft)">
+            {{ _vl.unreachable }} verified {{ _vl.unreachable == 1 ? 'nominee has' : 'nominees have' }} no
+            address we can be sure is theirs, so no letter is sent to them.
+          </p>
+          {% endif %}
+          {% endif %}
+          <p style="margin:8px 0 0;font-size:13px">
+            <a href="/admin/programmes/{{ programme.id }}/cycle/letter?cycle={{ cycle.id }}"><strong>Write or change the letter</strong></a>
+            · <a href="/admin/programmes/{{ programme.id }}/cycle/voting-letter?cycle={{ cycle.id }}">See it as a PDF</a>
+            · Signatory, who receives it and on/off are in <a href="/admin/settings#f-vl_title">Settings</a>.
+          </p>
+          {% if _vl and _vl.held|default('') %}
+          <p class="ad-callout ad-callout--warn" style="margin:10px 0 0">{{ _vl.held }}</p>
+          {% endif %}
+          {% if _vl and _vl.correction_due|default(0) > 0 %}
+          {# A letter stated a community-return rule this edition no longer runs
+             (NomineeVotingNotice::correctionPlan()). The correction says so, apologises, states
+             the rule and reissues the letter; it is sent only from here, with a reason. #}
+          <p class="ad-callout ad-callout--warn" style="margin:10px 0 0">
+            <strong>{{ _vl.correction_due }} {{ _vl.correction_due == 1 ? 'nominee was' : 'nominees were' }} sent the letter before this edition’s community-return rule changed</strong>,
+            so {{ _vl.correction_due == 1 ? 'their letter states' : 'their letters state' }} a rule the edition does not run.
+          </p>
+          <p style="margin:10px 0 0">
+            <button class="ad-btn" type="submit" formnovalidate data-confirm="Send the correction to {{ _vl.correction_due }} {{ _vl.correction_due == 1 ? 'nominee' : 'nominees' }}? It says the earlier letter was wrong, states the rule that applies, and attaches a corrected letter."
+                    formaction="/admin/programmes/{{ programme.id }}/cycle/voting-letter/correct?cycle={{ cycle.id }}">Send the correction to {{ _vl.correction_due }} {{ _vl.correction_due == 1 ? 'nominee' : 'nominees' }}</button>
+          </p>
+          {% endif %}
+          {% if _vl and _vl.on and _vl.voting and _vl.due > 0 and not _vl.held|default('') %}
+          {# Inside the cycle form: a nested <form> would be dropped by the parser and this
+             button would save the cycle instead, so it carries its own formaction. #}
+          <p style="margin:10px 0 0">
+            <button class="ad-btn ad-btn--primary" type="submit" formnovalidate
+                    formaction="/admin/programmes/{{ programme.id }}/cycle/voting-letter/send?cycle={{ cycle.id }}">Send the {{ _vl.due }} due {{ _vl.due == 1 ? 'letter' : 'letters' }} now</button>
+          </p>
           {% endif %}
         </div>
       </div>
@@ -83,6 +166,7 @@
               </div>
             </div>
             <div><label for="f-edition_label">Edition label</label><input type="text" name="edition_label" id="f-edition_label" value="{{ cycle.edition_label|default('') }}"></div>
+            <div><label for="f-edition_number">Edition number</label><input type="number" min="1" max="999" name="edition_number" id="f-edition_number" value="{{ cycle.edition_number|default('') }}"></div>
             <div class="row">
               <div><label for="f-nominations_open">Nominations open</label><input type="datetime-local" name="nominations_open" id="f-nominations_open" value="{{ cycle.nominations_open|default('')|when_input }}" step="1"></div>
               <div><label for="f-nominations_close">Nominations close</label><input type="datetime-local" name="nominations_close" id="f-nominations_close" value="{{ cycle.nominations_close|default('')|when_input }}" step="1"></div>
@@ -264,7 +348,7 @@
               and order, from the most recent edition that has any. Nothing else comes with
               them: no nominees, no votes, no shortlists, no scorecards.</span>
           </label>
-          <p style="margin:10px 0 0;font-size:12px;line-height:1.65;color:var(--ad-text-mute,#5a6d6f)">
+          <p style="margin:10px 0 0;font-size:12px;line-height:1.65;color:var(--cn-soft)">
             The new edition opens as <strong>upcoming with no dates</strong>. A results date
             inherited from last year is a promise nobody made, arriving already passed
             &mdash; the public site would publish a &ldquo;this award is late&rdquo; notice
@@ -275,13 +359,43 @@
   </div>
 
   <div>
+    {# ══ PRIZES, BY PLACE, FOR THIS EDITION (EditionPrizes) ═══════════════════
+       Its own form, outside the cycle form: a <form> inside another is dropped by the parser. #}
+    {% if cycle %}
+    <div class="ad-card" id="prizes" style="margin-bottom:14px">
+      <div class="ad-card__head"><div class="ad-card__title">Prizes<small>What each place wins overall in this edition, across every category. Shown on the award page and in the voting letter.</small></div></div>
+      <div class="ad-card__body">
+        <form class="ad-form" method="post" action="/admin/programmes/{{ programme.id }}/cycle/prizes">
+          <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="cycle_id" value="{{ cycle.id }}">
+          {# Every place up to the most is in the form; the ones past the next empty place start
+             hidden, and "Add a place" opens the next one (admin.js, prize-add). It used to draw
+             two spare rows and need a save for more, which read as "only two places". #}
+          {% set _open = max(prizes|length + 1, 3) %}
+          {% for i in 0..(prizes_max - 1) %}{% set z = prizes[i]|default({award: '', cash_naira: null}) %}
+          <fieldset class="pz-row" data-pz-row{% if i >= _open %} hidden{% endif %}>
+            <legend>{{ i + 1 }}{{ (i + 1) in [11,12,13] ? 'th' : ({1:'st',2:'nd',3:'rd'}[(i + 1) % 10]|default('th')) }} place</legend>
+            <div><label for="pz-a-{{ i }}">What they receive</label><input type="text" id="pz-a-{{ i }}" name="prizes[{{ i }}][award]" value="{{ z.award }}" maxlength="{{ prize_max }}" placeholder="{{ i == 0 ? 'A trophy and a year of mentoring' : '' }}"></div>
+            <div><label for="pz-c-{{ i }}">Cash (₦, optional)</label><input type="text" inputmode="numeric" id="pz-c-{{ i }}" name="prizes[{{ i }}][cash]" value="{{ z.cash_naira }}" placeholder="{{ i == 0 ? '500000' : '' }}"></div>
+          </fieldset>
+          {% endfor %}
+          {% if _open < prizes_max %}<div><button class="ad-btn ad-btn--sm" type="button" data-ag-do="prize-add">+ Add a place</button></div>{% endif %}
+          <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px">
+            <input type="checkbox" name="on_milestone" value="1" {% if prizes_on_milestone %}checked{% endif %}>
+            <span><strong>These prizes depend on the milestone being reached</strong>. The award page and the voting letter say so beside the prizes{% if prize_condition %}: “{{ prize_condition.text }}”{% else %}, once the edition has a milestone (Community return){% endif %}.</span>
+          </label>
+          <p class="hint" style="margin:0">Up to {{ prizes_max }} places. Leave a place blank to remove it; the rest are numbered in order, so there is never a gap.</p>
+          <div><button class="ad-btn ad-btn--primary ad-btn--sm" type="submit">Save prizes</button></div>
+        </form>
+      </div>
+    </div>
+    {% endif %}
     <div class="ad-card">
       <div class="ad-card__head"><div class="ad-card__title">Categories<small>For the current cycle</small></div></div>
       <div class="ad-card__body">
-        {% if categories|length == 0 %}<p style="color:var(--ad-text-mute);font-size:13px">No categories yet.</p>{% endif %}
+        {% if categories|length == 0 %}<p style="color:var(--cn-soft);font-size:13px">No categories yet.</p>{% endif %}
         {% for c in categories %}
-        <details style="border:1px solid var(--ad-line);border-radius:8px;padding:12px;margin-bottom:8px">
-          <summary style="font-weight:600;cursor:pointer">{{ c.title }} <span style="color:var(--ad-text-mute);font-weight:500">· {{ c.slug }}</span></summary>
+        <details style="border:1px solid var(--cn-line-card);border-radius:8px;padding:12px;margin-bottom:8px">
+          <summary style="font-weight:600;cursor:pointer">{{ c.title }} <span style="color:var(--cn-soft);font-weight:500">· {{ c.slug }}</span></summary>
           <form class="ad-form" method="post" action="/admin/programmes/{{ programme.id }}/categories" style="margin-top:12px">
             <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="id" value="{{ c.id }}">
             <div class="row">
@@ -290,7 +404,7 @@
             </div>
             <div><label for="f-description-{{ c.id }}">Description</label><textarea name="description" id="f-description-{{ c.id }}" rows="2">{{ c.description }}</textarea></div>
             <div class="row">
-              <div><label for="f-sort_order-{{ c.id }}">Sort order</label><input type="number" name="sort_order" id="f-sort_order-{{ c.id }}" value="{{ c.sort_order }}"></div>
+              <div><label for="f-sort_order-{{ c.id }}">Sort order</label><input type="number" name="sort_order" id="f-sort_order-{{ c.id }}" min="0" max="255" value="{{ c.sort_order }}"></div>
               <div style="display:flex;gap:8px;align-items:flex-end">
                 <button class="ad-btn ad-btn--primary ad-btn--sm" type="submit">Update</button>
                 {# `formaction`, NOT a nested <form>. This WAS a nested form, and an HTML
@@ -310,7 +424,7 @@
         </details>
         {% endfor %}
 
-        <form class="ad-form" method="post" action="/admin/programmes/{{ programme.id }}/categories" style="margin-top:18px;padding:14px;background:var(--ad-bg);border-radius:8px">
+        <form class="ad-form" method="post" action="/admin/programmes/{{ programme.id }}/categories" style="margin-top:18px;padding:14px;background:var(--cn-panel);border-radius:8px">
           <input type="hidden" name="_token" value="{{ csrf_token }}">
           <strong style="font-size:13px">+ Add category</strong>
           <div class="row">
@@ -319,7 +433,7 @@
           </div>
           <div><label for="f-description">Description</label><textarea name="description" id="f-description" rows="2"></textarea></div>
           <div class="row">
-            <div><label for="f-sort_order">Sort order</label><input type="number" name="sort_order" id="f-sort_order" value="0"></div>
+            <div><label for="f-sort_order">Sort order</label><input type="number" name="sort_order" id="f-sort_order" min="0" max="255" value="0"></div>
             <div style="display:flex;align-items:flex-end"><button class="ad-btn ad-btn--primary ad-btn--sm" type="submit">Add</button></div>
           </div>
         </form>

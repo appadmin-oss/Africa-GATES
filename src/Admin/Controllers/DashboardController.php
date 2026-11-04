@@ -6,8 +6,8 @@ namespace AfricaGates\Admin\Controllers;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
-use Illuminate\Database\Capsule\Manager as DB;
 use AfricaGates\Admin\Services\AuditService;
+use AfricaGates\Admin\Services\HomeBlocks;
 
 class DashboardController
 {
@@ -45,68 +45,45 @@ class DashboardController
             );
         }
 
-        // ── WHAT NEEDS A PERSON, BEFORE ANYTHING THAT MERELY MEASURES ────────
+        // ── HOME, ADMINCONSOLE V2 (README §10b, 20 Oct 2026) ─────────────────
         //
-        // The dashboard used to open on eight counts and three charts. Every number was true
-        // and not one of them was a job — while a chargeback on a sixteen-hour clock, an
-        // interview held weeks ago whose transcript nobody published, and sixty nominees never
-        // told their questionnaire exists appeared nowhere on the first screen after login.
-        //
-        // Filtered by ROLE through the same resolver the section guard uses, so a card can
-        // never offer a screen that then bounces the person who clicked it.
-        $board = \AfricaGates\Admin\Services\AttentionBoard::forRole((string) ($_SESSION['admin_role'] ?? ''));
+        // The brief, the work by area, the running editions and Performance, with This
+        // week, System and Recent beside them. Every block is read from a record the
+        // platform keeps (HomeBlocks) and filtered by what this role can open, and each
+        // has a calm empty state, because an operator must be able to see a zero.
+        $role   = (string) ($_SESSION['admin_role'] ?? '');
+        $qp     = $req->getQueryParams();
+        $rkey   = in_array($qp['range'] ?? '', ['7d', '30d', '90d'], true) ? (string) $qp['range'] : '7d';
+        $range  = \AfricaGates\Admin\Support\TimeRange::fromQuery(['range' => $rkey], '7d');
+        $metric = isset(HomeBlocks::KPIS[$qp['metric'] ?? '']) ? (string) $qp['metric'] : 'votes';
+        $hour   = (int) \AfricaGates\Admin\Support\TimeRange::show(time(), 'G');
 
-        // Region distribution
-        $regionDist = DB::table('gates_profiles')->where('status','approved')
-            ->selectRaw('region, COUNT(*) as count')->groupBy('region')->get()
-            ->map(fn($r) => ['region' => $r->region, 'count' => (int)$r->count])->all();
+        $jobs  = HomeBlocks::attention($role);
+        $kpis  = HomeBlocks::kpis($range, $metric);
+        $chart = null;
+        foreach ($kpis as $k) if ($k['on']) $chart = $k;
+        if ($chart === null && $kpis !== []) { $kpis[0]['on'] = true; $chart = $kpis[0]; }
+        $pill  = \AfricaGates\Admin\Services\ConsoleAlerts::pill($role);
 
-        // Tier distribution
-        $tierDist = DB::table('gates_profiles')->where('status','approved')
-            ->selectRaw('cpi_tier, COUNT(*) as count')->groupBy('cpi_tier')->get()
-            ->map(fn($r) => ['tier' => $r->cpi_tier, 'count' => (int)$r->count])->all();
-
-        // Votes per day (last 14 days)
-        $rows = DB::table('gates_votes')->where('voted_at','>=', date('Y-m-d', strtotime('-13 days')))
-            ->selectRaw("substr(voted_at,1,10) as d, COUNT(*) as c")
-            ->groupBy('d')->orderBy('d')->get();
-        $byDay = [];
-        foreach ($rows as $r) { $byDay[$r->d] = (int)$r->c; }
-        $voteSeries = [];
-        for ($i = 13; $i >= 0; $i--) {
-            $d = date('Y-m-d', strtotime("-$i days"));
-            $voteSeries[] = ['date' => $d, 'count' => $byDay[$d] ?? 0];
-        }
-
-        // Top nominees right now
-        $topNominees = DB::table('gates_nominees as n')
-            ->join('gates_award_categories as c','c.id','=','n.category_id')
-            ->where('n.status','approved')
-            ->orderByDesc('n.vote_count')->limit(6)
-            ->select(['n.id','n.name','n.vote_count','n.country_code','c.title as category'])
-            ->get()->map(fn($r)=>(array)$r)->all();
-
-        // Integrity briefing — deterministic signals + a templated summary on
-        // load (NO AI call here); the "AI briefing" button upgrades it on demand.
-        $intSignals = \AfricaGates\Services\IntegrityBriefService::signals();
-        $intBrief   = \AfricaGates\Services\IntegrityBriefService::narrative($intSignals, new \AfricaGates\Services\AiService());
-
-        return $this->view->render($res, 'admin/dashboard.twig', [
-            'page_title'  => 'Dashboard — Africa GATES Admin',
-            'admin_page'  => 'dashboard',
-            'board'       => $board,
-            'board_total' => \AfricaGates\Admin\Services\AttentionBoard::total($board),
-            // The counts that are worth knowing but are not jobs, rendered small and BELOW the
-            // work rather than across the top of it.
-            'pulse'       => \AfricaGates\Admin\Services\AttentionBoard::pulse(),
-            'region_dist' => $regionDist,
-            'tier_dist'   => $tierDist,
-            'vote_series' => $voteSeries,
-            'top_nominees'=> $topNominees,
-            'recent_activity' => $this->audit->recent(12),
-            'integrity'       => $intSignals,
-            'integrity_brief' => $intBrief['text'],
-            'ai_enabled'      => \AfricaGates\Services\AiGateway::available('integrity.brief'),
+        return $this->view->render($res, 'admin/home.twig', [
+            'page_title' => 'Home — Africa GATES Admin',
+            'admin_page' => 'dashboard',
+            'greeting'   => $hour < 12 ? 'Good morning' : ($hour < 17 ? 'Good afternoon' : 'Good evening'),
+            'state'      => $pill['label'] ?? null,
+            'rkey'       => $rkey,
+            'metric'     => $chart['key'] ?? $metric,
+            'brief'      => HomeBlocks::brief($role, $jobs),
+            'jobs'       => $jobs,
+            'areas'      => HomeBlocks::AREAS,
+            'editions'   => HomeBlocks::editions($role),
+            'can_setup'  => \AfricaGates\Admin\Support\Permissions::canOpen($role, '/admin/programmes/new'),
+            'kpis'       => $kpis,
+            'chart'      => $chart,
+            'week'       => HomeBlocks::week($role),
+            'can_cal'    => \AfricaGates\Admin\Support\Permissions::canOpen($role, '/admin/calendar'),
+            'system'     => HomeBlocks::system($role),
+            'recent'     => HomeBlocks::recent($role, $this->audit),
+            'can_audit'  => \AfricaGates\Admin\Support\Permissions::canOpen($role, '/admin/audit'),
         ]);
     }
 

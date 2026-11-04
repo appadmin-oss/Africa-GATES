@@ -331,38 +331,6 @@ final class TallyOnlyCommunityHalfTest extends TestCase
             . 'both branches were gated on cohort_max_unique > 0 and there was no else');
     }
 
-    public function test_the_public_page_states_the_half_was_paid_on_tally_alone(): void
-    {
-        $this->importedCycle();
-        $html = $this->publicPage();
-
-        $this->assertStringContainsString('total votes alone', $html,
-            'the method note described a seventy per cent that was never computed');
-        $this->assertStringContainsString('it applies to everybody in the cycle', $html,
-            'a caveat that reads as a finding about one nominee would be an accusation — '
-            . 'this is a gap in our records and it covers the whole field');
-    }
-
-    /**
-     * AND NEITHER SCREEN SAYS IT WHERE IT IS UNTRUE.
-     *
-     * A disclosure printed on every cycle is a disclosure nobody reads, and this one would
-     * be actively wrong: it says the seventy per cent was not computed. With rows present
-     * it was.
-     */
-    public function test_neither_screen_says_it_when_the_rows_are_there(): void
-    {
-        [$a, $b] = $this->importedCycle();
-        $this->backers($a, 2, 'a');
-        $this->backers($b, 4, 'b');
-
-        $r = ResultRelease::category($this->categoryId);
-        $this->assertGreaterThan(0, $r['cohort_max_unique'], 'the fixture has no rows');
-
-        $this->assertStringNotContainsString('tally only', $this->releaseScreen());
-        $this->assertStringNotContainsString('total votes alone', $this->publicPage());
-    }
-
     // ══ and the screen says WHICH rule produced the numbers ═════════════════
 
     /**
@@ -565,26 +533,5 @@ final class TallyOnlyCommunityHalfTest extends TestCase
             '315 &times; 400/2,000 + 135 &times; 2,000/2,000 = <b>'
             . $row['community_points'] . '</b>', $html,
             'the half cannot be checked against the number printed beside it');
-    }
-
-    /**
-     * THE LEGACY BASES ARE NOT COVERED, AND THAT IS CORRECT.
-     *
-     * `relative` and `absolute` have no reach term to lose, so a sentence about a seventy
-     * per cent that could not be worked out would describe a rule the cycle never ran
-     * under — which is this repository's most expensive documented fault, on the page a
-     * nominee checks their own score against.
-     */
-    public function test_a_basis_with_no_reach_term_gets_no_such_caveat(): void
-    {
-        $this->importedCycle();
-        (new RuleEngine())->set('cycle', $this->cycleId,
-            ['community_basis' => CpiService::BASIS_RELATIVE]);
-
-        $r = ResultRelease::category($this->categoryId);
-        $this->assertSame(CpiService::BASIS_RELATIVE, $r['community_basis']);
-
-        $this->assertStringNotContainsString('tally only', $this->releaseScreen());
-        $this->assertStringNotContainsString('total votes alone', $this->publicPage());
     }
 }

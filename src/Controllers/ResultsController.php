@@ -189,6 +189,8 @@ final class ResultsController
             'gates_page'      => 'results',
             'canonical_url'   => $base . $e['url'],
             'e'               => $e,
+            'switcher'        => self::switcher((int) $e['programme_id'], (int) $e['cycle_id']),
+            'host'            => \AfricaGates\Support\ProgrammeHost::forProgramme((int) $e['programme_id']),
             'breadcrumbs'     => [
                 ['label' => 'Results', 'url' => '/results'],
                 ['label' => $e['programme'] . ' ' . ($e['edition'] ?: $e['year'])],
@@ -219,9 +221,11 @@ final class ResultsController
                 . (count($o['categories']) === 1 ? '' : 's') . ', and no standing is '
                 . 'published until every one of them is decided.',
             'gates_page'      => 'results',
-            'robots'          => 'noindex, follow',
+            'meta_robots'     => 'noindex, follow',
             'canonical_url'   => \AfricaGates\Support\SiteUrl::base($req) . $o['url'],
             'e'               => $o,
+            'switcher'        => self::switcher((int) $o['programme_id'], (int) $o['cycle_id']),
+            'host'            => \AfricaGates\Support\ProgrammeHost::forProgramme((int) $o['programme_id']),
             'breadcrumbs'     => [
                 ['label' => 'Results', 'url' => '/results'],
                 ['label' => $name],
@@ -284,6 +288,7 @@ final class ResultsController
             'meta_description' => $this->description($r),
             'gates_page'       => 'results',
             'r'                => $r,
+            'siblings'         => self::siblings((int) $r['cycle_id']),
             'thread'           => $thread,
             'replies'          => $replies,
             // Absolute: a relative og:image is silently ignored by every crawler and the
@@ -293,6 +298,54 @@ final class ResultsController
             'og_image_h'       => ResultCard::H,
             'canonical_url'    => $base . '/results/' . $want,
         ]);
+    }
+
+    /**
+     * The edition switcher on a result page (ResultsPage.dc.html): every edition of this
+     * programme that has a result page to go to — released, or open (counting / with the
+     * panel) — newest first, each with the state it is in. An `upcoming` edition has no
+     * page yet and is left out rather than linked to a 404.
+     *
+     * @return list<array{label:string,state:string,url:string,on:bool}>
+     */
+    private static function switcher(int $programmeId, int $currentCycleId): array
+    {
+        $out = [];
+        try {
+            $slug = (string) \Illuminate\Database\Capsule\Manager::table('gates_award_programmes')->where('id', $programmeId)->value('slug');
+            foreach (\Illuminate\Database\Capsule\Manager::table('gates_award_cycles')->where('programme_id', $programmeId)
+                         ->orderByDesc('year')->orderByDesc('id')->get() as $c) {
+                $k = \AfricaGates\Services\AwardsFront::phaseKey($c);
+                if ($k === 'upcoming' || $k === 'nominations' || $k === 'shortlisting') continue;
+                $out[] = [
+                    'label' => \AfricaGates\Support\EditionName::full($c),
+                    'state' => \AfricaGates\Support\Translator::t(match ($k) {
+                        'voting' => 'Voting open', 'judging' => 'With the judges', 'late' => 'Results delayed',
+                        default => 'Decided',
+                    }),
+                    'url'   => PublicResults::editionUrl($slug, (int) $c->year),
+                    'on'    => (int) $c->id === $currentCycleId,
+                ];
+            }
+        } catch (\Throwable) {}
+        return $out;
+    }
+
+    /**
+     * The other categories of the award's edition, for the category view's list.
+     *
+     * @return list<array{title:string,url:string}>
+     */
+    private static function siblings(int $cycleId): array
+    {
+        try {
+            return \Illuminate\Database\Capsule\Manager::table('gates_award_categories')->where('cycle_id', $cycleId)
+                ->orderBy('sort_order')->orderBy('id')->get(['id', 'title'])
+                ->map(fn ($c) => ['id' => (int) $c->id, 'title' => (string) $c->title,
+                                  'url' => '/results/' . PublicResults::slug((int) $c->id, (string) $c->title)])->all();
+        } catch (\Throwable) {
+            return [];
+        }
     }
 
     /** GET /results/{slug}/card.png */

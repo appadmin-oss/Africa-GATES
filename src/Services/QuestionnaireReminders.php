@@ -191,11 +191,28 @@ final class QuestionnaireReminders
             }
 
             foreach (self::silent($cycleId, $opened, $cap - $sent) as $row) {
+                // CLAIM, THEN WARN. It used to warn and then stamp, so two sweeps reading
+                // the same silent list — the 06:00 tick and an organiser's
+                // `?task=qremind`, or two webcron hits in the window — both mailed the
+                // nominee before either stamped. The stamp is the claim: a guarded UPDATE
+                // carrying the same "not had this warning" predicate silent() selected
+                // on, and only the sweep that changed the row sends.
+                $stamp   = $now->toDateTimeString();
+                $prior   = $row->reminded_at ?? null;
+                $claimed = DB::table('gates_nominee_submissions')->where('id', (int) $row->id)
+                    ->where(fn ($q) => $q->whereNull('reminded_at')->orWhere('reminded_at', '<', $opened))
+                    ->update(['reminded_at' => $stamp, 'updated_at' => $stamp]);
+                if ($claimed !== 1) continue;
+
                 if (self::warn($row, $p, $left, $mailer)) {
-                    DB::table('gates_nominee_submissions')->where('id', (int) $row->id)
-                        ->update(['reminded_at' => $now->toDateTimeString(),
-                                  'updated_at'  => $now->toDateTimeString()]);
                     $sent++;
+                } else {
+                    // Nothing left, so hand the claim back — and to its OLD value, not
+                    // NULL: enforce() holds back anybody with no `reminded_at`, so a warning
+                    // that did not go must not count as one that did, nor erase an earlier
+                    // one that did. Only if it is still our stamp.
+                    DB::table('gates_nominee_submissions')->where('id', (int) $row->id)
+                        ->where('reminded_at', $stamp)->update(['reminded_at' => $prior]);
                 }
                 if ($sent >= $cap) break;
             }
@@ -226,7 +243,7 @@ final class QuestionnaireReminders
                 ->where(fn ($q) => $q->whereNull('s.reminded_at')->orWhere('s.reminded_at', '<', $openedAt))
                 ->orderBy('s.id')
                 ->limit(max(0, $limit))
-                ->get(['s.id', 's.nominee_id', 's.cycle_id', 's.invite_token', 'n.name'])
+                ->get(['s.id', 's.nominee_id', 's.cycle_id', 's.invite_token', 's.reminded_at', 'n.name'])
                 ->all();
         } catch (\Throwable $e) {
             error_log('[questionnaire-remind] could not list cycle ' . $cycleId . ': ' . $e->getMessage());

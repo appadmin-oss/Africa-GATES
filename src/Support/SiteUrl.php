@@ -42,6 +42,24 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * control sets it, for the same reason {@see ClientIp} treats forwarded headers that way:
  * on a directly-exposed host the client chooses that header, and a client-chosen scheme
  * on a payment callback is a downgrade an attacker can request.
+ *
+ * ── BUT ONLY FROM A HOST WE RECOGNISE ────────────────────────────────────────
+ *
+ * Validating the Host as a hostname stops it CORRUPTING a URL; it does not stop it being
+ * somebody else's hostname. This base is what every account email is built from — the
+ * password-reset link, the verification link, the sign-in link — and the person who
+ * chooses the Host header on a reset request is whoever POSTs the victim's address to
+ * `/account/forgot`. With APP_URL unset, `Host: evil.example` mailed the victim a genuine
+ * reset token on a link to `https://evil.example/account/reset?token=…`, from our own
+ * domain, with our own branding. One click hands the attacker the account.
+ *
+ * So a derived origin is used only when its host is one this deployment answers to: the
+ * production host ({@see FALLBACK}), loopback (a development server — a link there can
+ * only reach the clicker's own machine), and anything listed in `TRUSTED_HOSTS`
+ * (comma-separated, host names without scheme). Anything else is treated exactly like a
+ * malformed header and falls back. That is the least disruptive safe line: production
+ * and dev behave as before with APP_URL unset, and a staging host that never set APP_URL
+ * gets production links until it sets one — which `app:doctor` already tells it to do.
  */
 final class SiteUrl
 {
@@ -98,6 +116,7 @@ final class SiteUrl
         // host[:port], hostname characters only. Rejects a header carrying a path, a
         // second host, CR/LF, or anything else that would corrupt the URL.
         if (preg_match('~^[A-Za-z0-9.\-]+(:\d{1,5})?$~', $host) !== 1) return '';
+        if (!self::isTrustedHost($host)) return '';
 
         $scheme = $uri->getScheme() !== '' ? $uri->getScheme() : 'https';
         if (Env::bool('TRUST_PROXY')) {
@@ -106,5 +125,24 @@ final class SiteUrl
         }
 
         return $scheme . '://' . $host;
+    }
+
+    /**
+     * May a link we MAIL point at this host? See the class docblock: a hostname-shaped
+     * Host header is not therefore ours. The port is ignored — it does not change whose
+     * machine the name resolves to.
+     */
+    public static function isTrustedHost(string $hostPort): bool
+    {
+        $host = strtolower(rtrim((string) preg_replace('~:\d{1,5}$~', '', trim($hostPort)), '.'));
+        if ($host === '') return false;
+
+        $trusted = [strtolower((string) parse_url(self::FALLBACK, PHP_URL_HOST)), 'localhost', '127.0.0.1'];
+        foreach (explode(',', (string) Env::get('TRUSTED_HOSTS', '')) as $h) {
+            $h = strtolower(rtrim(trim($h), '.'));
+            if ($h !== '') $trusted[] = $h;
+        }
+
+        return in_array($host, $trusted, true);
     }
 }

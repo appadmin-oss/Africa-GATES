@@ -76,6 +76,24 @@ final class OrgPayout
         self::ST_QUEUED, self::ST_PENDING, self::ST_RECEIVED, self::ST_OTP, self::ST_SUCCESS,
     ];
 
+    /**
+     * Every status this platform understands. Anything else from the gateway is NOT written.
+     *
+     * The status decides whether the amount still holds the balance down (HOLDS_FUNDS), so a
+     * word nobody here knows — a new Paystack state, a provider's spelling, a malformed
+     * webhook — written verbatim took an in-flight transfer out of HOLDS_FUNDS and handed the
+     * money back to the organisation's available balance while the transfer could still land:
+     * the shape of a double payout. An unknown status is logged and the row keeps the status
+     * it had, so the funds stay held until a status that means something arrives.
+     */
+    public const KNOWN = [
+        self::ST_QUEUED, self::ST_PENDING, self::ST_RECEIVED, self::ST_OTP, self::ST_SUCCESS,
+        self::ST_FAILED, self::ST_REVERSED, self::ST_ABANDONED, self::ST_BLOCKED, self::ST_REJECTED,
+    ];
+
+    /** A queued transfer the sweep re-sends at most this many times before a person must look. */
+    public const MAX_ATTEMPTS = 5;
+
     /** Smallest payout worth the gateway fee and the operational attention. */
     public const MIN_NAIRA = 1000;
 
@@ -95,7 +113,7 @@ final class OrgPayout
      */
     public static function available(int $orgId): int
     {
-        $net = PartnerOrg::totals($orgId)['net'];
+        $net = self::heldForOrg($orgId);
 
         try {
             $held = (int) DB::table('gates_org_payouts')
@@ -107,6 +125,94 @@ final class OrgPayout
             return 0;
         }
         return max(0, $net - $held);
+    }
+
+    /**
+     * Net of the gifts that reached AFRICA GATES' account rather than the organisation's own.
+     *
+     * A gift routed to the organisation's subaccount (`gates_payment_routes`, stream
+     * `partner:<id>`) is split at the gateway and settled by Paystack straight to their bank;
+     * it never passes through an account this platform can pay out of. `available()` used to
+     * be the net of EVERY gift, so an organisation could request money it had already been
+     * paid by the gateway — in transfer mode the platform then paid it a second time out of
+     * its own balance. What is left is money that really is held here: a gift made before the
+     * subaccount existed, or one the gateway refused to route and the retry settled to us.
+     */
+    public static function heldForOrg(int $orgId): int
+    {
+        try {
+            $q = PartnerOrg::countableDonations($orgId);
+            if (DB::schema()->hasTable('gates_payment_routes')) {
+                $stream = 'partner:' . $orgId;
+                $q->whereNotExists(static fn ($r) => $r->selectRaw('1')->from('gates_payment_routes')
+                    ->whereColumn('gates_payment_routes.reference', 'gates_donations.payment_ref')
+                    ->where('gates_payment_routes.revenue_stream', $stream));
+            }
+            $row = $q->selectRaw('COALESCE(SUM(' . PartnerOrg::netRowSql() . '),0) n')->first();
+        } catch (\Throwable) {
+            return 0;
+        }
+        return max(0, (int) ($row->n ?? 0));
+    }
+
+    /**
+     * Open requests a PERSON settles: every queued request in settlement mode, never sent to
+     * the gateway. Paying one is a bank transfer done by hand and recorded with its reference.
+     *
+     * @return list<object>
+     */
+    public static function awaitingHand(): array
+    {
+        try {
+            $rows = DB::table('gates_org_payouts as p')
+                ->leftJoin('gates_partner_orgs as o', 'o.id', '=', 'p.org_id')
+                ->where('p.status', self::ST_QUEUED)->where('p.attempts', 0)
+                ->orderBy('p.requested_at')
+                ->get(['p.*', 'o.name as org_name', 'o.account_last4', 'o.settlement_bank', 'o.subaccount_code'])->all();
+        } catch (\Throwable) {
+            return [];
+        }
+        foreach ($rows as $r) $r->held_naira = self::heldForOrg((int) $r->org_id);
+        return $rows;
+    }
+
+    /**
+     * Record a request paid by hand. Settlement mode only: in transfer mode a queued row can
+     * be in the middle of send(), and a person paying it as well is a charity paid twice.
+     * Claimed by a conditional update, so two people pressing it record one payment.
+     *
+     * @return array{ok:bool,message:string}
+     */
+    public static function settleByHand(int $id, string $reference, int $adminId): array
+    {
+        $reference = trim($reference);
+        if ($reference === '') return ['ok' => false, 'message' => 'Enter the bank transfer reference.'];
+        if (self::mode() === 'transfer') {
+            return ['ok' => false, 'message' => 'Payouts are sent by transfer here, so they cannot also be paid by hand.'];
+        }
+        $n = DB::table('gates_org_payouts')->where('id', $id)->where('status', self::ST_QUEUED)->where('attempts', 0)
+            ->update(['status' => self::ST_SUCCESS, 'settled_at' => date('Y-m-d H:i:s'),
+                      'gateway_message' => mb_substr('Paid by bank transfer, reference ' . $reference . '.', 0, 250),
+                      'transfer_code' => mb_substr($reference, 0, 60), 'last_checked_at' => date('Y-m-d H:i:s')]);
+        if ($n !== 1) return ['ok' => false, 'message' => 'That request has just been settled or refused by somebody else. Reload it.'];
+        return ['ok' => true, 'message' => 'Recorded as paid (' . $reference . ').'];
+    }
+
+    /**
+     * Refuse a request. The amount stops holding the balance, so the organisation can ask
+     * again for what is still theirs; the reason is what they read on their payouts tab.
+     *
+     * @return array{ok:bool,message:string}
+     */
+    public static function refuse(int $id, string $why, int $adminId): array
+    {
+        $why = trim($why);
+        if ($why === '') return ['ok' => false, 'message' => 'Say why, so the organisation knows what to change.'];
+        $n = DB::table('gates_org_payouts')->where('id', $id)->where('status', self::ST_QUEUED)->where('attempts', 0)
+            ->update(['status' => self::ST_REJECTED, 'settled_at' => date('Y-m-d H:i:s'),
+                      'gateway_message' => mb_substr('Refused: ' . $why, 0, 250), 'last_checked_at' => date('Y-m-d H:i:s')]);
+        if ($n !== 1) return ['ok' => false, 'message' => 'That request has just been settled or refused by somebody else. Reload it.'];
+        return ['ok' => true, 'message' => 'Refused. The amount is available to the organisation again.'];
     }
 
     /** @return array<int,object> */
@@ -162,34 +268,57 @@ final class OrgPayout
             return $fail + ['message' => 'The smallest payout is ₦' . number_format(self::MIN_NAIRA) . '.'];
         }
 
-        $available = self::available($orgId);
-        if ($amountNaira > $available) {
-            return $fail + ['message' => 'That is more than is available. You can request up to ₦'
-                                       . number_format($available) . '.'];
-        }
-
         $reference = self::mintReference($orgId);
 
+        // ── THE BALANCE IS READ AND SPENT UNDER ONE LOCK ─────────────────────
+        //
+        // available() is a computed figure — net donations less what is already out — and it
+        // used to be read here and then spent by an INSERT several statements later with
+        // nothing in between. Two requests in the same second (a double-click, two people
+        // in one organisation, a retried POST) each read the full balance, each passed, and
+        // each wrote a payout for all of it; in transfer mode both are then SENT. So the
+        // organisation's row is locked first and the balance is computed inside the lock:
+        // the second request waits for the first to commit and then sees its payout among
+        // the ones holding funds. SQLite has no row lock and serialises the whole write
+        // instead, which gives the same answer.
+        //
+        // The lock is on `gates_partner_orgs` rather than on payout rows because the
+        // question is "how much of THIS organisation's money is left", and an organisation
+        // with no payouts yet has no payout row to lock.
+        $available = 0;
         try {
-            DB::table('gates_org_payouts')->insert([
-                'org_id'       => $orgId,
-                'reference'    => $reference,
-                'amount_naira' => $amountNaira,
-                'status'       => self::ST_QUEUED,
-                'requested_by' => $byOrgUserId > 0 ? $byOrgUserId : null,
-                'requested_at' => date('Y-m-d H:i:s'),
-            ]);
+            $ok = DB::transaction(static function () use ($orgId, $amountNaira, $reference, $byOrgUserId, &$available): bool {
+                DB::table('gates_partner_orgs')->where('id', $orgId)->lockForUpdate()->first();
+
+                $available = self::available($orgId);
+                if ($amountNaira > $available) return false;
+
+                DB::table('gates_org_payouts')->insert([
+                    'org_id'       => $orgId,
+                    'reference'    => $reference,
+                    'amount_naira' => $amountNaira,
+                    'status'       => self::ST_QUEUED,
+                    'requested_by' => $byOrgUserId > 0 ? $byOrgUserId : null,
+                    'requested_at' => date('Y-m-d H:i:s'),
+                ]);
+                return true;
+            });
         } catch (\Throwable $e) {
             return $fail + ['message' => 'Could not record that request. Nothing was sent.'];
+        }
+
+        if (!$ok) {
+            return $fail + ['message' => 'That is more than is available. You can request up to ₦'
+                                       . number_format($available) . '.'];
         }
 
         // Settlement mode stops here, and says so plainly rather than implying money moved.
         if (self::mode() !== 'transfer') {
             return [
                 'ok' => true, 'reference' => $reference, 'status' => self::ST_QUEUED,
-                'message' => 'Payout requested. Your donations settle to your own account through '
-                           . 'Paystack — this request tells us to release the next settlement, and '
-                           . 'you will see it here when it moves.',
+                'message' => 'Payout requested. This is money that reached our account rather than '
+                           . 'yours; we pay it by bank transfer and it shows here as paid, with the '
+                           . 'reference, when it has gone.',
             ];
         }
 
@@ -287,6 +416,17 @@ final class OrgPayout
             return false;   // already settled; a later event cannot unsettle it
         }
 
+        if (!in_array($status, self::KNOWN, true)) {
+            error_log('[payout] ' . $reference . ': the gateway said "' . mb_substr($status, 0, 40)
+                    . '", which is not a status this platform knows — the funds stay held');
+            DB::table('gates_org_payouts')->where('reference', $reference)->update([
+                'gateway_message' => mb_substr('Unrecognised status "' . $status . '" from the gateway; '
+                                   . 'still held until a known status arrives.', 0, 250),
+                'last_checked_at' => date('Y-m-d H:i:s'),
+            ]);
+            return false;
+        }
+
         $update = [
             'status'          => $status,
             'gateway_message' => $message !== '' ? mb_substr($message, 0, 250) : ($row->gateway_message ?? null),
@@ -338,9 +478,17 @@ final class OrgPayout
         $changed = 0;
 
         try {
+            // A QUEUED row that has been tried is asked about too. send() leaves a row queued,
+            // reference intact, when the gateway refused OR the answer was lost, and says the
+            // sweep will ask what became of it; excluding every queued row meant nothing ever
+            // did — a transfer that DID go out stayed queued (holding the balance, unconfirmed)
+            // and one that did not was never retried. Untried queued rows stay out: in
+            // settlement mode they are requests for a person, never something to send.
             $rows = DB::table('gates_org_payouts')
                 ->whereNotIn('status', self::TERMINAL)
-                ->where('status', '!=', self::ST_QUEUED)
+                ->where(static fn ($q) => $q->where('status', '!=', self::ST_QUEUED)
+                    ->orWhere(static fn ($w) => $w->where('status', self::ST_QUEUED)->where('attempts', '>', 0)
+                        ->where('attempts', '<', self::MAX_ATTEMPTS)))
                 ->where('requested_at', '<=', date('Y-m-d H:i:s', time() - 120))
                 ->orderByRaw('last_checked_at IS NULL DESC')
                 ->orderBy('last_checked_at')
@@ -354,6 +502,13 @@ final class OrgPayout
             $checked++;
             $v = $payments->verifyTransfer((string) $row->reference);
 
+            // Tried, and the gateway has no such transfer: it never left. The same reference
+            // goes again — Paystack refuses a duplicate reference, so this cannot pay twice.
+            if (!$v['ok'] && !empty($v['absent']) && (string) $row->status === self::ST_QUEUED && self::mode() === 'transfer') {
+                $r = self::send($payments, (string) $row->reference);
+                if ($r['ok']) $changed++;
+                continue;
+            }
             if (!$v['ok']) {
                 // Unreachable is not a verdict. Touch the clock so the queue rotates and this
                 // row is not asked about again immediately, but change nothing else.

@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace AfricaGates\Controllers;
 
 use AfricaGates\Services\FlierService;
+use AfricaGates\Services\ShareCardSpec;
 use AfricaGates\Support\Env;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -39,18 +40,62 @@ final class FlierController
         // The card lives beside the flier, one segment up: …/{slug}/flier → …/{slug}/card.png
         $cardAbs = preg_replace('~/flier$~', '', $abs) . '/card.png';
 
+        // The share kit (ShareKit): the same messages and QR code every nominee gets, carrying
+        // the short form of their link — the id segment alone resolves, and it is what fits a
+        // QR code and a person reading it off a poster.
+        $short = (string) preg_replace('~(/vote/[^/]+/\d+)-[^/?#]*~', '$1', (string) $f['url']);
+        $kit   = \AfricaGates\Services\ShareKit::for($f, $short);
+
+        // The nominee's choices — size, style, colour, ground — travel as a query string,
+        // so every choice is a plain link that works with JavaScript off, and the preview,
+        // the PNG and the SVG are all the same URL with the same four parameters.
+        $opt  = ShareCardSpec::options($req->getQueryParams());
+        $card = $this->flier->card($f, $opt);
+        $chosen = ['size' => $card['format'], 'style' => $card['layout'], 'tone' => $card['tone'], 'mode' => $card['mode']];
+        $qs   = static fn (array $over): string => '?' . http_build_query(array_merge($chosen, $over));
+        $pick = static function (string $key, array $items) use ($chosen, $qs, $path): array {
+            $out = [];
+            foreach ($items as $val => $meta) {
+                $out[] = $meta + ['value' => $val, 'on' => $chosen[$key] === $val, 'href' => $path . $qs([$key => $val])];
+            }
+            return $out;
+        };
+        $choices = [
+            'size'  => $pick('size', [
+                'feed'   => ['label' => 'Feed',      'hint' => '4:5 · Instagram, Facebook'],
+                'status' => ['label' => 'Status',    'hint' => '9:16 · WhatsApp, Stories'],
+                'square' => ['label' => 'Square',    'hint' => '1:1 · any feed'],
+                'link'   => ['label' => 'Link card', 'hint' => '1.91:1 · link previews'],
+            ]),
+            'style' => $pick('style', ['portrait' => ['label' => 'Photo'], 'statement' => ['label' => 'Statement']]),
+            'mode'  => $pick('mode', ['light' => ['label' => 'Light'], 'bold' => ['label' => 'Bold']]),
+            'tone'  => $pick('tone', [
+                'gold'  => ['label' => 'Gold'],
+                'green' => ['label' => 'Green'],
+                'info'  => ['label' => 'Blue'],
+                'live'  => ['label' => 'Rose'],
+                'stone' => ['label' => 'Stone'],
+            ]),
+        ];
+        $q = $qs([]);
+
         return $this->view->render($res, 'pages/vote-flier.twig', [
+            'kit'              => $kit,
+            'card'             => $card,
+            'choices'          => $choices,
+            'default_tone'     => ShareCardSpec::defaultTone((string) $f['programme']),
+            'video_url'        => preg_replace('~/flier$~', '', $path) . '/video?tone=' . $card['tone'],
             'page_title'       => 'Share a flier for ' . $f['name'] . ' — Africa GATES',
             'meta_description' => 'Download a ready-to-post flier asking your community to vote for '
                 . $f['name'] . ' in ' . $f['category'] . '.',
             'gates_page'       => 'vote',
             'f'                => $f,
-            'svg_url'          => $path . '.svg',
-            'png_url'          => $path . '.png',
+            'svg_url'          => $path . '.svg' . $q,
+            'png_url'          => $path . '.png' . $q,
             // Shared with the download so the file the OS share sheet receives is named
             // the same as the one the button saves — the template previously built a
             // THIRD variant in Twig, which produced a non-ASCII filename.
-            'file_name'        => $this->filename($f['name']) . '.png',
+            'file_name'        => $this->filename($f['name']) . ($card['format'] === 'feed' ? '' : '-' . $card['format']) . '.png',
             // The 1200×630 CARD, not this page's own flier PNG. A nominee sharing the
             // flier page gets a preview built for the shape the platforms crop to —
             // otherwise the flier's bottom third (the vote URL) is cut off in exactly the
@@ -69,7 +114,8 @@ final class FlierController
         $f = $this->flier->forNominee($this->idFrom($args));
         if ($f === null) throw new \Slim\Exception\HttpNotFoundException($req);
 
-        $res->getBody()->write($this->flier->svg($f));
+        $opt = ShareCardSpec::options($req->getQueryParams());
+        $res->getBody()->write($this->flier->svg($f, $opt));
 
         return $res
             ->withHeader('Content-Type', 'image/svg+xml; charset=utf-8')
@@ -103,13 +149,15 @@ final class FlierController
         $f = $this->flier->forNominee($this->idFrom($args));
         if ($f === null) throw new \Slim\Exception\HttpNotFoundException($req);
 
-        $png = $this->flier->png($f);
+        $opt = ShareCardSpec::options($req->getQueryParams());
+        $png = $this->flier->png($f, $opt);
         if ($png === null) {
             // GD or a bundled font is unavailable. Redirect to the SVG rather than serve a
             // broken image: a browser following the link still sees the flier, and the
             // failure is visible in `app:doctor` instead of as a grey box in a chat.
             return $res
-                ->withHeader('Location', rtrim($req->getUri()->getPath(), '.png') . '.svg')
+                ->withHeader('Location', substr($req->getUri()->getPath(), 0, -4) . '.svg'
+                    . ($req->getUri()->getQuery() !== '' ? '?' . $req->getUri()->getQuery() : ''))
                 ->withStatus(302);
         }
 
@@ -128,7 +176,7 @@ final class FlierController
             // Named so a downloads folder is usable. `inline` because it is also fetched
             // as an og:image, and Content-Disposition: attachment confuses some crawlers.
             ->withHeader('Content-Disposition',
-                'inline; filename="' . $this->filename($f['name']) . '.png"');
+                'inline; filename="' . $this->filename($f['name']) . ($opt['format'] === 'feed' ? '' : '-' . $opt['format']) . '.png"');
     }
 
     /**

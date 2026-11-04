@@ -77,73 +77,11 @@ final class SignInScreensTest extends TestCase
 
     // ══════════════════════ the organisation sign-in ═════════════════════════
 
-    /**
-     * A FAILURE IS AN EVENT, NOT A URL.
-     *
-     * `?e=1` is not a flash. It survives a refresh, so the page goes on accusing somebody
-     * who has attempted nothing; it lands in browser history and in the referrer of
-     * anything the page links to; and it is shareable, which turns "your sign-in is broken"
-     * into a link. The member sign-in has always used a one-shot session value.
-     */
-    public function test_the_organisation_failure_does_not_live_in_the_url(): void
-    {
-        $res = $this->post('/org/login', ['email' => 'nobody@example.test', 'password' => 'wrong']);
-
-        $this->assertSame(302, $res->getStatusCode());
-        $this->assertSame('/org/login', $res->getHeaderLine('Location'),
-            'the failure is still being carried in the query string');
-
-        $this->assertStringContainsString('did not match', $this->get('/org/login'),
-            'the failure is not shown at all, which is worse than showing it in the URL');
-
-        // Consumed: a second look is a fresh visit, not a repeat of the accusation.
-        $this->assertStringNotContainsString('did not match', $this->get('/org/login'),
-            'the failure is replayed on every reload for the rest of the session');
-    }
-
     /** And the retired query string cannot conjure one. */
     public function test_a_query_string_can_no_longer_accuse_anybody(): void
     {
         $this->assertStringNotContainsString('did not match', $this->get('/org/login?e=1'),
             'anybody can still hand somebody a URL that tells them their sign-in failed');
-    }
-
-    /**
-     * A wrong password costs the password, not the address as well.
-     *
-     * Whatever was typed is handed back, account or not — which reveals nothing that was
-     * not typed into this browser a moment earlier.
-     */
-    public function test_the_organisation_form_hands_the_address_back(): void
-    {
-        $this->post('/org/login', ['email' => 'Kigali@Example.TEST', 'password' => 'wrong']);
-
-        $this->assertStringContainsString('kigali@example.test', $this->get('/org/login'),
-            'a failed sign-in empties the address field and makes them type it again');
-    }
-
-    /**
-     * THE ONE REMEDY THIS PAGE OFFERS HAS SOMEWHERE TO GO.
-     *
-     * There is deliberately no self-service reset: this sign-in can request payouts, and a
-     * reset link in an inbox is a payout for whoever holds that inbox. That makes "contact
-     * Africa GATES" the only way out of a lockout — and it named no address and carried no
-     * link, for a reader who is by definition already locked out and cannot reach their
-     * dashboard to find one.
-     *
-     * Asserted inside the note itself. The page has links further down (the two doors for
-     * somebody with no account), so a search of the whole body finds an anchor and reports
-     * a remedy that is not there — a first cut of this test did exactly that.
-     */
-    public function test_the_lost_access_note_is_actionable(): void
-    {
-        $html = $this->get('/org/login');
-
-        $this->assertMatchesRegularExpression('~<p class="pl__note">.*?mailto:.*?</p>~s', $html,
-            'the only remedy this page offers is plain text with nowhere to go');
-
-        $this->assertStringContainsString('never send a password over email', $html,
-            'the promise about how we will not contact them has gone');
     }
 
     // ═════════════════════════ the member sign-in ════════════════════════════

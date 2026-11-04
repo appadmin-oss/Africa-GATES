@@ -161,7 +161,7 @@ final class SearchSourcesTest extends TestCase
     {
         // The site's own destinations are a list in the service, so nothing about the
         // database can prove they work. "how voting works" is a real keyword on the
-        // Integrity Center row and is the kind of thing somebody types into a search box
+        // Integrity Centre row and is the kind of thing somebody types into a search box
         // rather than a nav.
         $kinds = [];
         foreach ($this->feed()->search('how voting works', 60)['items'] as $item) {

@@ -42,7 +42,7 @@ final class Schema
      * @param list<array{name?:string,price?:int|string,url?:string,available?:bool}> $tiers
      * @return array<string,mixed>
      */
-    public static function event(array $e, string $siteUrl, array $tiers = [], string $image = ''): array
+    public static function event(array $e, string $siteUrl, array $tiers = [], string|array $image = ''): array
     {
         $slug = trim((string) ($e['slug'] ?? ''));
         $url  = rtrim($siteUrl, '/') . '/events' . ($slug !== '' ? '/' . rawurlencode($slug) : '');
@@ -66,7 +66,10 @@ final class Schema
         $desc = self::text($e['summary'] ?? $e['description'] ?? '');
         if ($desc !== '') $out['description'] = mb_substr($desc, 0, 500);
 
-        if ($image !== '') $out['image'] = [self::absolute($image, $siteUrl)];
+        // One uploaded photo, or — with none — the three default-cover ratios Google asks
+        // for (16:9, 4:3, 1:1; DEFAULT-GRAPHICS §7). Never empty-string entries.
+        $images = array_values(array_filter(array_map('trim', (array) $image), static fn ($i) => $i !== ''));
+        if ($images !== []) $out['image'] = array_map(static fn ($i) => self::absolute($i, $siteUrl), $images);
 
         $venue = self::text($e['venue'] ?? '');
         if ($venue !== '') {

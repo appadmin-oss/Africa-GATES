@@ -31,7 +31,7 @@ use Tests\TestCase;
  *   other input — an eye tracker, a trackpad used with a tremor, a touchscreen that
  *   reports itself as fine.
  *
- * And the one that is this repository's own signature shape: `--ag-pulse` `#e0245e` was
+ * And the one that is this repository's own signature shape: `--ag-live` `#e0245e` was
  * chosen as "the Pulse accent" with no floor attached, and it is a pass for a border and a
  * borderline case for a word — 4.58:1 on white, 4.42:1 on the Pulse's own `#fbfbfa`
  * ground, 4.08:1 on paper. It was a word on three public screens, and on exactly ONE of
@@ -124,18 +124,18 @@ final class AccessibilityFloorTest extends TestCase
         // a pass on a card and a failure on the page behind it — which is exactly why it
         // was chosen as "the Pulse accent" and never questioned.
         $hues = [];
-        foreach (Accent::roles() as $role) {
+        foreach (Accent::families() as $family) {
             foreach (['fill', 'edge'] as $slot) {
-                $hex = strtolower(Accent::of($role)[$slot]);
-                if (Contrast::ratio($hex, Accent::SURFACE) < Contrast::TEXT
-                    || Contrast::ratio($hex, Accent::PAPER) < Contrast::TEXT) {
-                    $hues[$hex] = '--ag-' . $role . '-ink';
+                $hex = Accent::hex($family[$slot]);
+                if (Contrast::ratio($hex, Accent::hex('surface')) < Contrast::TEXT
+                    || Contrast::ratio($hex, Accent::hex('ground')) < Contrast::TEXT) {
+                    $hues[$hex] = '--ag-' . $family['ink'];
                 }
             }
         }
         // The strays that are in no role table and were the drift that made one necessary.
-        foreach (['#c9a24b' => '--ag-honour-ink', '#fbc329' => '--ag-honour-ink',
-                  '#7fc87c' => '--ag-action-ink'] as $hex => $use) {
+        foreach (['#c9a24b' => '--ag-gold-ink', '#fbc329' => '--ag-gold-ink',
+                  '#7fc87c' => '--ag-green'] as $hex => $use) {
             $hues[$hex] = $use;
         }
         $this->assertNotSame([], $hues, 'nothing is being swept — the role table went empty');
@@ -274,9 +274,9 @@ final class AccessibilityFloorTest extends TestCase
         // The other half: the sweep above tells somebody to use an ink, so an ink has to
         // exist and has to pass. AccentTest measures the palette; this is the one line that
         // makes the instruction above honest.
-        foreach (Accent::roles() as $role) {
+        foreach (Accent::families() as $name => $family) {
             $this->assertGreaterThanOrEqual(Contrast::TEXT,
-                Contrast::ratio(Accent::ink($role), Accent::PAPER), $role);
+                Contrast::ratio(Accent::hex($family['ink']), Accent::hex('ground')), $name);
         }
     }
 
@@ -298,27 +298,8 @@ final class AccessibilityFloorTest extends TestCase
         // Read from the chrome's own token, not typed: a number here is wrong the first
         // time a nav grows a row, and silently — nothing looks broken, the focus is just
         // behind something.
-        $this->assertStringContainsString('--ag-nav-h', $css);
-        $this->assertStringContainsString('--ag-mobile-nav-h', $css);
-    }
-
-    public function test_the_globe_can_be_turned_without_a_drag(): void
-    {
-        // SC 2.5.7. Rotation was drag-only. A head pointer, a switch, or any device that
-        // cannot express a drag path could not reach the far side of the sphere.
-        $js = (string) file_get_contents($this->root() . '/public/assets/js/globe-band.js');
-
-        $this->assertStringContainsString('pointerdown', $js,
-            'the drag is gone, so this test is now asserting nothing');
-        $this->assertMatchesRegularExpression('/ArrowLeft|ArrowRight/', $js,
-            'the globe rotates by drag and by nothing else');
-
-        // And the half that fixes 2.4.7 in the same component: a marker on the far side is
-        // drawn at opacity 0 and stays in the tab order, so focusing one used to put the
-        // ring on something invisible. Focus now turns the globe to it.
-        $this->assertMatchesRegularExpression(
-            '/addEventListener\(\s*[\'"]focus[\'"]/', $js,
-            'tabbing lands on markers that are drawn at zero opacity');
+        $this->assertStringContainsString('--ag-header-h', $css);
+        $this->assertStringContainsString('--ag-bottom-ui', $css);
     }
 
     public function test_the_target_minimum_is_not_conditional_on_the_pointer(): void
@@ -339,65 +320,5 @@ final class AccessibilityFloorTest extends TestCase
             'the 24px AA target floor is inside a media query, so it is not a floor');
     }
 
-    public function test_motion_is_not_forced_on_anybody(): void
-    {
-        // Not new and not previously broken — held because the globe gained a keyboard
-        // rotation in the same change, and an animation that ignores the preference is the
-        // easiest thing to add without noticing.
-        $js = (string) file_get_contents($this->root() . '/public/assets/js/globe-band.js');
-
-        $this->assertStringContainsString('prefers-reduced-motion', $js);
-        // The new easing honours it by snapping rather than by refusing to turn: a globe
-        // that will not move for somebody who asked for less motion has taken the feature
-        // away instead of the animation.
-        $this->assertMatchesRegularExpression('/reduced\s*\?\s*1\s*:/', $js,
-            'reduced motion stops the turn instead of making it instant');
-    }
-
     // ══ the notice this codebase shipped a week ago ═══════════════════════════
-
-    public function test_the_cookie_notice_cannot_hide_what_the_keyboard_is_on(): void
-    {
-        // The guidance names cookie banners by name under 2.4.11, and this one is
-        // `position:fixed` at the bottom of every page in ask-first mode. The
-        // scroll-padding above is what keeps a focused control clear of it — asserted
-        // here separately because the notice is the element the criterion was written
-        // about, and a future change to it must not quietly reintroduce the fault.
-        $twig = (string) file_get_contents($this->root() . '/templates/partials/cookie-notice.twig');
-
-        $this->assertStringContainsString('position:fixed', $twig,
-            'the notice moved; check scroll-padding-bottom still matches what covers the page');
-
-        // And it clears the fixed mobile tab bar rather than sitting on top of it: a
-        // notice that hides the site's primary navigation on a phone while asking a
-        // question is obstructing the one control a reader needs to leave it. Read from
-        // the bar's own token, so the clearance follows it.
-        $this->assertStringContainsString('--ag-mobile-nav-h', $twig,
-            'the notice covers the mobile tab bar');
-
-        // It must not trap or block: no overlay, nothing inert, and it is not a dialog.
-        foreach (['aria-modal', 'role="dialog"', 'inert'] as $trap) {
-            $this->assertStringNotContainsString($trap, $twig);
-        }
-    }
-
-    public function test_a_policy_table_becomes_readable_records_on_a_phone(): void
-    {
-        // Not a WCAG criterion by number, and the failure is the same shape as one: the
-        // cookie table is four columns and its `why` column is a paragraph, so at 380px it
-        // is a horizontal scrollbar inside a document — and a reader who does not find it
-        // never sees the last two columns at all. Below 640px each row becomes a record,
-        // which is what the .txt edition settled on for the same reason.
-        $css = (string) file_get_contents($this->root() . '/public/assets/css/components/article.css');
-
-        $this->assertStringContainsString('max-width:640px', $css);
-        $this->assertMatchesRegularExpression('/td\[data-label\]::before/', $css,
-            'the stacked rows carry no column labels, so a value has nothing naming it');
-
-        // And the labels are actually emitted, or the rule above dresses nothing.
-        $html = \AfricaGates\Services\LegalDocument::cookiesHtml();
-        foreach (['Name', 'Why', 'How long', 'Kind'] as $label) {
-            $this->assertStringContainsString('data-label="' . $label . '"', $html);
-        }
-    }
 }

@@ -105,7 +105,7 @@ africa-gates/
 ├─ config/                container.php, database.php, AfricaGATES_AppScript.gs
 ├─ deploy/cloudflare/    the Cron Trigger Worker that drives /__cron/run (see §16)
 ├─ tests/Unit/            PHPUnit (in-memory SQLite harness)
-├─ docs/                  this file, redesign spec, redesign-ref/
+├─ docs/                  this file, redesign spec (redesign-ref/ deleted 8 Oct 2026, owner Q15 — in git history)
 └─ bin/console            Symfony Console entry
 ```
 
@@ -624,8 +624,16 @@ operator has no SSH, and `/__setup/broadcast` sits beside the database migrator.
 | `templates/emails/campaign.twig` | The skeleton — built from `final-hours.twig` so the proven structure is unchanged. |
 | `database/migrations/2026_08_22_email_campaigns.php` | `gates_email_campaigns` + `_versions`. |
 
+On 19 Oct 2026 the fixed message itself moved into the house shell with the email handoff:
+`final-hours.twig` is gone, the fallback is `emails/final.html.twig` (via `Mail\Emails`,
+wrapped by `OtpService::brandWrap()`), and the starter blocks carry its words —
+`EmailCampaignTest` holds that the starter says every sentence the fixed message says.
+The twelve inbox properties are `EmailInboxCompatCase` (abstract), run per skeleton by
+`CampaignInboxCompatTest`, `InviteInboxCompatTest`, `NewsletterInboxCompatTest` and
+`FinalHoursInboxCompatTest`.
+
 **Structured blocks, not a document.** A rich-text editor emits `<div>`s and inline styles
-Outlook drops on the floor, and `EmailInboxCompatTest` holds twelve properties a WYSIWYG
+Outlook drops on the floor, and `EmailInboxCompatCase` holds twelve properties a WYSIWYG
 would break in an afternoon. So the skeleton is fixed and the editor edits *fields*; every
 text value is `strip_tags`'d on the way in and there is no block type that emits raw markup.
 `CampaignInboxCompatTest` extends the original test so those twelve properties apply to the
@@ -1508,6 +1516,24 @@ That migration runs against an empty table in the harness, so it would have ship
 completely untested — the `gates_event_invites.audience` shape exactly. `CookiePolicyRepairTest`
 plants rows that look like production's and exercises both branches.
 
+### Rebuilt for four categories (3 Oct 2026, GAPS Q11)
+
+The single switch above is history; what it argued is kept. Consent is the redesign's four
+categories — Essential, always on, plus Preferences, Analytics and Marketing — in one cookie,
+`ag_consent` (versioned JSON, `HttpOnly`), resolved by the rebuilt `CookiePrefs::allows()`
+with the same one-sentence rule: if anything said no, the answer is no (GPC/DNT beats a
+stored yes for every optional category). `visits_consent_mode` now decides the Analytics
+default only; Preferences is off until allowed (refused, `ag_lang` is a session cookie and
+`ag-a11y` lives in `sessionStorage`); Marketing is drawn as "Not used" with no switch,
+because nothing here does it. `ag_privacy` is read once — a stored no stays a no — carried
+into `ag_consent` by `CookiePrefs::carryOver()` and expired. The notice, the preferences sheet
+and the "saved" line are `partials/cookie-consent.twig` on the shell; every answer is still a
+plain form that posts, and the notice's three answers share one class string.
+`CookieRegistryTest` now holds the registry to the code in BOTH directions and resolves keys
+held in variables (an unresolvable key fails). Full account: `docs/handoff/PHASE-2.md`,
+"Cookie consent". `2027_02_27_cookie_consent_policy_repair.php` carries the rewritten prose to
+production, again only where `updated_by IS NULL`.
+
 ### Also removed
 
 `templates/pages/privacy.twig` — unrouted, rendered by nothing, and carrying a **third**
@@ -2192,3 +2218,23 @@ attacks the thing being offered.
 never taken, `DEFAULT_PCT = 0`, never pre-ticked), and the shop, tickets and stands. No
 licence fee, no seat charge, no subscription — and the three levels in §4.2 are drawn on
 operational load, which is a real constraint for a non-profit, rather than on price.
+
+## Volunteer academy and the contact report (31 Oct 2026)
+
+Volunteers asked "how do I send my report". Their report is the record of each contact with a
+nominee (`Volunteer\Outreach::log` / `email`, table `gates_vol_outreach`), not the hours log.
+`Workspace::REPORT` names it once: Today's first button **Log a contact with a nominee** (only
+for holders of `vol.nominee_outreach`), the nominee page's **Log a contact** form and **Log this
+contact** button, the **Follow up** tab, and Find answers "report". Hours by hand stay separate
+(`Workspace::HOURS_LOG`); a sent log now lands on Hours › In review and a refused one keeps what
+was typed. **No reader yet** for a volunteer's own list of contacts, a lead's per-volunteer view,
+or a staff view per award — the rows exist.
+
+`/volunteer/academy` (`VolunteerController::academy`, `templates/volunteer/academy.twig`,
+`console/academy.css`) is the guide, open signed out, linked from the rail ("Volunteer
+academy"), Today ("How to use this portal") and `/volunteer/apply` ("How it works").
+Screenshots: `node scripts/academy-shots.mjs` (seeds a throwaway SQLite via
+`scripts/academy-seed.php`, serves via `scripts/academy-router.php`, 1366×768, cropped,
+control outlined in `--cn-green`) → `public/assets/img/academy/*.webp`, stems in
+`VolunteerController::SHOTS`. `VolunteerAcademyTest` holds the shots on disk, every button the
+guide names to the workspace's sources, and no bare-verb control label in the workspace.

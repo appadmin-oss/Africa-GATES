@@ -75,11 +75,15 @@ class CacheService {
         try { DB::table('gates_cache')->updateOrInsert(['cache_key'=>$key],['payload'=>json_encode($v),'tags'=>$tags?implode(',',$tags):null,'expires_at'=>Carbon::now()->addSeconds($ttl)->toDateTimeString(),'created_at'=>Carbon::now()->toDateTimeString()]); } catch(\Throwable) {}
         return $v;
     }
+    /** Write a value outright. Best-effort, like every write here: a cache must never break a feature. */
+    public function put(string $key, mixed $value, int $ttl, array $tags = []): void {
+        try { DB::table('gates_cache')->updateOrInsert(['cache_key'=>$key],['payload'=>json_encode($value),'tags'=>$tags?implode(',',$tags):null,'expires_at'=>Carbon::now()->addSeconds($ttl)->toDateTimeString(),'created_at'=>Carbon::now()->toDateTimeString()]); } catch(\Throwable) {}
+    }
     public function get(string $key): mixed {
         try { $r=DB::table('gates_cache')->where('cache_key',$key)->where('expires_at','>',Carbon::now())->first(); return $r?json_decode($r->payload,true):null; } catch(\Exception) { return null; }
     }
     public function forget(string $key): void { try { DB::table('gates_cache')->where('cache_key',$key)->delete(); } catch(\Exception) {} }
-    public function forgetByTag(string $tag): void { try { DB::table('gates_cache')->where('tags','LIKE',"%$tag%")->delete(); } catch(\Exception) {} }
+    public function forgetByTag(string $tag): void { try { DB::table('gates_cache')->whereRaw(\AfricaGates\Support\Like::clause('tags'),[\AfricaGates\Support\Like::contains($tag)])->delete(); } catch(\Exception) {} }
 
     /**
      * Every cached view derived from an award cycle's phase.

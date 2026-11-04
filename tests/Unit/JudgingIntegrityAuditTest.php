@@ -154,6 +154,10 @@ final class JudgingIntegrityAuditTest extends TestCase
         ]);
 
         $a = $this->judge('a@x.io');
+        // On BOTH panels: a mark in a programme the judge is not assigned to does not
+        // count for its own reason, and this test is about the conflict alone.
+        DB::table('gates_judges')->where('id', $a)
+            ->update(['programme_ids' => json_encode([$this->prog, $otherProg])]);
         $this->scorecard($a, $this->nominee, 9);
         foreach ($this->crit as $cid) {
             DB::table('gates_judge_criteria_scores')->insert([

@@ -24,75 +24,27 @@ class NominationsController
         private readonly ?AwardService $awards = null,
     ) {}
 
+    /**
+     * The old "All nominations" list, retired 21 Oct 2026: it was a second page for the same
+     * nominations the review list already shows by status, so the console had two
+     * Nominations pages. The address forwards there, carrying what it can say in the
+     * review list's own words — so the many links into it (the desk, the attention board,
+     * the staff alert email, the palette) keep landing somewhere sensible.
+     */
     public function index(Request $req, Response $res): Response
     {
         $p = $req->getQueryParams();
-        $status = (string)($p['status'] ?? 'pending');
-        $q = (string)($p['q'] ?? '');
-        $sort = in_array(($p['sort'] ?? ''), ['oldest', 'newest'], true) ? (string)$p['sort'] : 'newest';
-        $page = max(1, (int)($p['page'] ?? 1));
-        $per = 25;
-        // Accountability filters: slice the queue by programme, cycle and country
-        // so a reviewer can audit exactly one segment at a time.
-        $programmeId = (int)($p['programme'] ?? 0);
-        $cycleId     = (int)($p['cycle'] ?? 0);
-        $country     = strtoupper(trim((string)($p['country'] ?? '')));
-
-        $base = DB::table('gates_nominations as n')
-            ->leftJoin('gates_award_cycles as c', 'c.id', '=', 'n.cycle_id')
-            ->leftJoin('gates_award_programmes as p', 'p.id', '=', 'c.programme_id')
-            ->select(['n.*', 'p.title as programme_title', 'c.year as cycle_year']);
-        if ($status !== '' && $status !== 'all') $base->where('n.status', $status);
-        if ($q !== '') $base->where(function ($x) use ($q) {
-            $x->where('n.nominee_name','like',"%$q%")
-              ->orWhere('n.nominator_name','like',"%$q%")
-              ->orWhere('n.nominator_email','like',"%$q%");
-        });
-        if ($programmeId > 0) $base->where('c.programme_id', $programmeId);
-        if ($cycleId > 0)     $base->where('n.cycle_id', $cycleId);
-        if ($country !== '')  $base->where('n.country_code', $country);
-        // Date-range filter (day/week/month presets + custom from/to) on submission date.
-        $dateMeta = Filters::applyDateRange($base, 'n.created_at', $p);
-
-        $base->orderBy('n.id', $sort === 'oldest' ? 'asc' : 'desc');
-        $pg = Paginator::paginate($base, $page, $per);
-        $rows = $pg['rows']; $total = $pg['total']; $pages = $pg['pages']; $page = $pg['page'];
-
-        // Option lists for the filter dropdowns.
-        $programmes = DB::table('gates_award_programmes')->orderBy('title')->get(['id', 'title'])->map(fn($r)=>(array)$r)->all();
-        $cycles = DB::table('gates_award_cycles as c')->join('gates_award_programmes as p','p.id','=','c.programme_id')
-            ->orderByDesc('c.year')->get(['c.id', 'c.year', 'p.title'])->map(fn($r)=>(array)$r)->all();
-        $countries = DB::table('gates_nominations')->whereNotNull('country_code')->where('country_code','!=','')
-            ->distinct()->orderBy('country_code')->pluck('country_code')->all();
-
-        $filterState = ['status' => $status, 'sort' => $sort, 'q' => $q, 'programme' => $programmeId ?: '', 'cycle' => $cycleId ?: '', 'country' => $country, 'range' => $dateMeta['range'], 'from' => $dateMeta['from'], 'to' => $dateMeta['to']];
-        return $this->view->render($res, 'admin/nominations/index.twig', [
-            'page_title'  => 'Nominations — Admin',
-            'admin_page'  => 'nominations',
-            'rows'        => $rows->map(fn($r)=>(array)$r)->all(),
-            'total'       => $total,
-            'page'        => $page,
-            'pages'       => $pages,
-            'per'         => $per,
-            'window'      => Filters::pageWindow($page, $pages),
-            'programmes'  => $programmes,
-            'cycles'      => $cycles,
-            'countries'   => $countries,
-            // `qs` keeps every filter (for the pager); `qs_base` drops status/sort
-            // (for the status tabs, which set those themselves).
-            'qs'          => Filters::qs($filterState),
-            'qs_base'     => Filters::qs(['q' => $q, 'programme' => $programmeId ?: '', 'cycle' => $cycleId ?: '', 'country' => $country, 'range' => $dateMeta['range'], 'from' => $dateMeta['from'], 'to' => $dateMeta['to']]),
-            'filters'     => $filterState,
-            // Show the plain-English AI filter box only when a provider is set.
-            // Would the call actually run? A configured() probe alone showed the
-            // button even when a switch was off or the budget was spent.
-            'ai_enabled'  => \AfricaGates\Services\AiGateway::available('nomination.triage'),
-            'counts'      => [
-                'pending'  => (int)DB::table('gates_nominations')->where('status','pending')->count(),
-                'approved' => (int)DB::table('gates_nominations')->where('status','approved')->count(),
-                'rejected' => (int)DB::table('gates_nominations')->where('status','rejected')->count(),
-            ],
-        ]);
+        $tabs = \AfricaGates\Admin\Services\ReviewQueue::TABS;
+        $out = [];
+        $status = (string) ($p['status'] ?? '');
+        if (isset($tabs[$status])) $out['tab'] = $status;
+        if (($q = trim((string) ($p['q'] ?? ''))) !== '') $out['q'] = $q;
+        if (($c = (int) ($p['cycle'] ?? 0)) > 0) $out['scope'] = 'c' . $c;
+        elseif (($pr = (int) ($p['programme'] ?? 0)) > 0) $out['scope'] = 'p' . $pr;
+        if (($cc = strtoupper(trim((string) ($p['country'] ?? '')))) !== '') $out['cc'] = [$cc];
+        if (($p['sort'] ?? '') === 'oldest') { $out['sort'] = 'recv'; $out['dir'] = 'asc'; }
+        $qs = http_build_query($out);
+        return $res->withHeader('Location', '/admin/nominations/review' . ($qs !== '' ? '?' . $qs : ''))->withStatus(301);
     }
 
     /**
@@ -149,7 +101,12 @@ class NominationsController
         // Desk SPA posts over fetch with this header: return JSON so it can swap
         // in the next nomination instead of following a redirect.
         $wantsJson = strtolower($req->getHeaderLine('X-Requested-With')) === 'fetch';
-        $deskBack  = '/admin/nominations/' . $id . ($fromDesk ? '?desk=1' : '');
+        $deskBack  = $fromDesk ? '/admin/nominations/desk?item=' . $id : '/admin/nominations/' . $id;
+        // The review list (v2) posts its decisions with `back` = the list as it stood, so
+        // the reviewer lands where they were, filters and all. Only that one path is
+        // accepted: a free `back` is an open redirect wearing an admin session.
+        $back = self::reviewBack((string) (((array) $req->getParsedBody())['back'] ?? ''));
+        if ($back !== null) $deskBack = $back;
 
         // Uniform exits: JSON for the SPA, flash+redirect for the classic flow.
         $fail = function (string $msg, int $code = 422) use ($res, $wantsJson, $deskBack): Response {
@@ -169,6 +126,122 @@ class NominationsController
             return $res->withHeader('Location', $redirect)->withStatus(302);
         };
 
+        // Nobody decides a nomination that carries their own inbox (ReviewConflict). Checked
+        // before anything else, so bulk approve — which runs this same method — is held too.
+        if (in_array($action, \AfricaGates\Admin\Services\ReviewConflict::GUARDED, true)) {
+            $conflict = \AfricaGates\Admin\Services\ReviewConflict::of((int) ($_SESSION['admin_id'] ?? 0), $nom);
+            if ($conflict !== null) return $fail($conflict, 403);
+        }
+
+        // The nominee's own contact, corrected by a reviewer. The address the nominator typed
+        // is where the nominee's form link goes, so it may not be set to an inbox somebody who
+        // nominated them reads — that is the case this edit exists to repair.
+        if ($action === 'contact') {
+            $b = (array) $req->getParsedBody();
+            $email = trim((string) ($b['nominee_email'] ?? ''));
+            $phone = trim((string) ($b['nominee_phone'] ?? ''));
+            if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) return $fail('That email address does not look right.');
+            $e164 = $phone !== '' ? \AfricaGates\Support\Phone::normalize($phone, 'NG') : null;
+            if ($phone !== '' && $e164 === null) return $fail('That phone number does not look right. Start with the country code if it is not a Nigerian number.');
+            $probe = (object) ['nominee_email' => $email, 'cycle_id' => $nom->cycle_id, 'nominee_name' => $nom->nominee_name];
+            if ($email !== '' && \AfricaGates\Services\NominationSignals::contactIsNominators($probe)) {
+                return $fail('That is the address of somebody who nominated them. The nominee’s form link has to reach the nominee.');
+            }
+            $changes = ['nominee_email' => $email !== '' ? mb_substr($email, 0, 190) : null, 'nominee_phone' => $e164];
+            $fields = array_keys(array_filter($changes, static fn ($v, $k): bool => (string) ($nom->{$k} ?? '') !== (string) ($v ?? ''), ARRAY_FILTER_USE_BOTH));
+            if ($fields === []) return $ok('Nothing changed.', '/admin/nominations/' . $id);
+            try {
+                DB::table('gates_nominations')->where('id', $id)->update(OptionalColumn::filter('gates_nominations', $changes, ['nominee_phone']));
+            } catch (\Throwable $e) {
+                return $fail($this->dbErrorFlash($e), 500);
+            }
+            // Which fields moved, never their values: the audit log is read by every role.
+            $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'nomination.contact', 'nomination', $id, ['fields' => $fields]);
+            return $ok('Saved the nominee’s own contact.' . ((string) $nom->status === 'approved' ? ' Send the form link again from here.' : ''), '/admin/nominations/' . $id);
+        }
+
+        // The desk's one decision form names its choice; it runs exactly the action the
+        // three separate buttons on the list run.
+        if ($action === 'decide') {
+            $choice = (string) (((array) $req->getParsedBody())['choice'] ?? '');
+            if (!in_array($choice, ['approve', 'ask', 'reject'], true)) return $fail('Choose Approve, Ask for more or Reject.');
+            $action = $choice;
+        }
+
+        // ── ONE DECISION PER NOMINATION ──────────────────────────────────────────
+        //
+        // The review list and the desk are built for several reviewers at once, and
+        // presence only informs. Without this, two reviewers pressing Approve on the same
+        // nomination both approved it — two "approved" emails to the nominator, a second
+        // single-use form link to the nominee — and Reject could reject a nomination that
+        // was already approved while its nominee stayed on the ballot. So a decision that
+        // is already the nomination's status is refused, reject never undoes an approval
+        // (that is a withdrawal, a different act), and the write below is CONDITIONAL on
+        // the status the reviewer saw, so the second of two simultaneous presses changes
+        // nothing and is told so. Bulk approve already refused anything not pending.
+        $seen = (string) $nom->status;
+        $target = ['approve' => 'approved', 'merge' => 'approved', 'reject' => 'rejected', 'pending' => 'pending'][$action] ?? null;
+        if ($target !== null && $seen === $target) {
+            return $fail('This nomination is already ' . $target . '. Somebody may have decided it a moment ago.', 409);
+        }
+        if ($action === 'reject' && $seen === 'approved') {
+            return $fail('This nomination is approved and its nominee is on the ballot. Rejecting it now would not take them off; withdraw the nominee instead.', 409);
+        }
+        $taken = static fn (): \RuntimeException => new \RuntimeException('nomination.decided-elsewhere');
+
+        // The desk's optional team note travels with whichever decision it was written
+        // beside, and is kept only once that decision has landed.
+        $teamNote = trim((string) (((array) $req->getParsedBody())['team_note'] ?? ''));
+        $keepNote = function () use ($teamNote, $id): void {
+            if ($teamNote !== '') \AfricaGates\Admin\Services\ReviewQueue::addNote($id, (int) ($_SESSION['admin_id'] ?? 0), $teamNote);
+        };
+
+        // Ask for more — the nominator is emailed one link to add what is missing; the
+        // nomination waits in Asked until they do. NominationAsk holds the rules.
+        if ($action === 'ask') {
+            $r = \AfricaGates\Services\NominationAsk::ask($nom, (string) (((array) $req->getParsedBody())['asked_message'] ?? ''), $this->mailer);
+            if (!$r['ok']) return $fail($r['error'] ?? 'The request could not be sent.');
+            $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'nomination.ask', 'nomination', $id);
+            $keepNote();
+            return $ok('Asked the nominator for more. It is in Asked until they reply.',
+                $back ?? ($fromDesk ? '/admin/nominations/desk?after=' . $id : '/admin/nominations/review?tab=needs_details'));
+        }
+
+        // Not a duplicate — a reviewer's ruling that a same-name entry is somebody else.
+        // Kept on the row, so the desk and the list stop raising the same pair. It is not
+        // a decision about the nomination, which stays where it was.
+        if ($action === 'apart') {
+            if (!\AfricaGates\Support\SchemaHas::column('gates_nominations', 'not_duplicate')) {
+                return $fail('The database needs its latest update before this works.');
+            }
+            DB::table('gates_nominations')->where('id', $id)->update(['not_duplicate' => 1]);
+            $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'nomination.not_duplicate', 'nomination', $id);
+            return $ok('Marked as a different person.', $back ?? ($fromDesk ? '/admin/nominations/desk?item=' . $id : '/admin/nominations/' . $id));
+        }
+
+        // Same person: combine — fold this nomination into the other one for the same person
+        // while both still wait for review, so the reviewer decides once (NominationCombine).
+        // A MERGE into an entry that is not approved yet is the same act, so it lands here
+        // too rather than being refused with "nothing to merge into yet".
+        $intoId = (int) (((array) $req->getParsedBody())['merge_into'] ?? 0);
+        $into = $intoId > 0 ? DB::table('gates_nominations')->where('id', $intoId)->first() : null;
+        if ($action === 'combine' || ($action === 'merge' && $into && in_array((string) $into->status, \AfricaGates\Services\NominationCombine::OPEN, true))) {
+            $r = \AfricaGates\Services\NominationCombine::combine($id, $intoId, (int) ($_SESSION['admin_id'] ?? 0));
+            if (!$r['ok']) return $fail($r['error'] ?? 'Those two could not be combined.');
+            $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'nomination.combine', 'nomination', $id, ['into' => $intoId]);
+            return $ok('Combined. You decide them once, on the earlier nomination; this one follows.',
+                $back ?? ($fromDesk ? '/admin/nominations/desk?item=' . $intoId : '/admin/nominations/' . $intoId));
+        }
+        // Separate — undo a combine: a different person after all, back in the queue alone.
+        if ($action === 'separate') {
+            if (!\AfricaGates\Services\NominationCombine::separate($id, (int) ($_SESSION['admin_id'] ?? 0))) {
+                return $fail('This nomination is not combined with another one.');
+            }
+            $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'nomination.separate', 'nomination', $id);
+            return $ok('Separated. It is back in the queue on its own, marked a different person.',
+                $back ?? ($fromDesk ? '/admin/nominations/desk?item=' . $id : '/admin/nominations/' . $id));
+        }
+
         // Reject / pending — no category needed
         if ($action === 'reject' || $action === 'pending') {
             $status = ['reject' => 'rejected', 'pending' => 'pending'][$action];
@@ -176,6 +249,13 @@ class NominationsController
             // when they leave it blank on a rejection — an AI-drafted reason
             // (moderation AI, free backup). Collected here, shown in the email.
             $reason = mb_substr(trim((string) (((array) $req->getParsedBody())['decision_reason'] ?? '')), 0, 800);
+            // The desk rejects with one of four reasons, and the nominator is shown it.
+            // There, no reason is a refusal rather than a drafted one: the reviewer was
+            // made to pick, so an empty pick means the form was bypassed.
+            if ($action === 'reject' && $reason === '' && $fromDesk) {
+                $reason = \AfricaGates\Admin\Services\ReviewDesk::reasonText((string) (((array) $req->getParsedBody())['reject_reason'] ?? ''));
+                if ($reason === '') return $fail('Pick the reason the nominator will see.');
+            }
             if ($action === 'reject' && $reason === '') {
                 try { $reason = (string) (\AfricaGates\Services\NominationFeedbackService::suggestReason($nom, 'rejected') ?? ''); }
                 catch (\Throwable $e) { $reason = ''; }
@@ -187,12 +267,19 @@ class NominationsController
                 // approve or reject regardless. This is the failure the admin console's
                 // migration banner names out loud: "approving/rejecting nominations …
                 // are failing with errors while pages still load".
-                DB::table('gates_nominations')->where('id', $id)->update(
+                $changed = DB::table('gates_nominations')->where('id', $id)->where('status', $seen)->update(
                     OptionalColumn::filter('gates_nominations', [
                         'status'          => $status,
                         'decision_reason' => $reason !== '' ? $reason : null,
                     ], ['decision_reason'])
                 );
+                // Zero rows: the status moved since this request read it — another
+                // reviewer decided first.
+                if ($changed === 0) {
+                    return $fail('Somebody else decided this nomination a moment ago. Nothing was changed and nobody was emailed.', 409);
+                }
+                // The repeats combined into it are the same nomination: they take its decision.
+                if ($action === 'reject') \AfricaGates\Services\NominationCombine::follow($id, 'rejected', null, $reason !== '' ? $reason : null);
                 // Whether the AI's lean matched the human's call. Without this
                 // there is no way to tell if the triage score is helping the
                 // reviewer or merely decorating the page.
@@ -214,44 +301,58 @@ class NominationsController
                 ]);
             }
 
-            // Email the nominator when their nomination is rejected
+            // Email the nominator when their nomination is rejected — the handoff's "Not taken
+            // forward". The reviewer's reason travels as written; with none, the email says
+            // so rather than guessing one ("did not meet the eligibility criteria" was a
+            // reason nobody had given).
             if ($action === 'reject' && $this->mailer && filter_var($nom->nominator_email ?? '', FILTER_VALIDATE_EMAIL)) {
-                // Escape attacker-controlled names before interpolating into HTML email.
-                $nn = htmlspecialchars((string)$nom->nominee_name, ENT_QUOTES, 'UTF-8');
-                $by = htmlspecialchars((string)$nom->nominator_name, ENT_QUOTES, 'UTF-8');
-                $reasonBlock = $reason !== ''
-                    ? '<p style="font-size:14px;line-height:1.7;color:#3a4448">' . nl2br(htmlspecialchars($reason, ENT_QUOTES, 'UTF-8')) . '</p>'
-                    : '<p>This may be because the submission did not fully meet the eligibility criteria for the selected category, or because sufficient supporting detail was not provided.</p>';
-                $html = <<<HTML
-<p>Hi <strong>{$by}</strong>,</p>
-<p>Thank you for taking the time to nominate <strong>{$nn}</strong> for the Africa GATES 2026 awards.</p>
-<p>After review, our moderation team was unable to approve this nomination at this time.</p>
-{$reasonBlock}
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0;background:#fef2f2;border-left:4px solid #fca5a5;border-radius:0 8px 8px 0;padding:12px 16px">
-  <tr><td style="font-size:14px;color:#7f1d1d">
-    Nominee: <strong>{$nn}</strong><br>
-    Status: <strong>Not approved</strong>
-  </td></tr>
-</table>
-<p>You are welcome to submit a revised nomination with additional supporting evidence. If you believe this decision was made in error, please reply to this email.</p>
-HTML;
-                $this->mailer->sendBranded(
-                    $nom->nominator_email,
-                    "Update on your nomination of {$nom->nominee_name}",
-                    $html,
-                    "Hi {$nom->nominator_name},\n\nYour nomination of {$nom->nominee_name} was not approved after review." . ($reason !== '' ? "\n\n{$reason}" : '') . "\n\nYou may resubmit with additional supporting evidence.\n\n— Africa GATES",
-                    'Nominations'
-                );
+                $base = \AfricaGates\Support\SiteUrl::base();
+                $slug = '';
+                try {
+                    $slug = (string) (DB::table('gates_award_cycles as cy')
+                        ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
+                        ->where('cy.id', (int) ($nom->cycle_id ?? 0))->value('p.slug') ?? '');
+                } catch (\Throwable) {}
+                try {
+                    \AfricaGates\Services\Mail\Emails::send($this->mailer, (string) $nom->nominator_email, 'rejected', [
+                        'nominee'   => (string) $nom->nominee_name,
+                        'reason'    => $reason,
+                        'rules_url' => $base . ($slug !== '' ? '/awards/' . rawurlencode($slug) : '/awards'),
+                        'help_url'  => $base . '/support',
+                        'site_url'  => $base,
+                    ]);
+                } catch (\Throwable) {}
             }
 
+            $keepNote();
             $msg = 'Nomination ' . $status . ($reason !== '' && $action === 'reject' ? ' — reason sent to the nominator.' : '.');
-            return $ok($msg, $fromDesk ? '/admin/nominations/review?after=' . $id : '/admin/nominations?status=' . $nom->status);
+            return $ok($msg, $back ?? ($fromDesk ? '/admin/nominations/desk?after=' . $id : '/admin/nominations?status=' . $nom->status));
         }
 
         // Approve flow — admin must pick a category (POST body category_id)
-        if ($action !== 'approve') throw new \Slim\Exception\HttpNotFoundException($req);
+        if ($action !== 'approve' && $action !== 'merge') throw new \Slim\Exception\HttpNotFoundException($req);
         $b = (array)$req->getParsedBody();
         $catId = (int)($b['category_id'] ?? $nom->category_id ?? 0);
+
+        // Merge — the desk's "Merge into earlier": this nomination is a repeat of one
+        // already approved, so it is approved INTO that entry's category and resolves to
+        // the same nominee (one ballot entry, both nominators credited). Never a
+        // rejection, and never a second nominee: if the earlier entry's nominee cannot be
+        // found, nothing is written.
+        $mergeInto = null;
+        if ($action === 'merge') {
+            $mergeInto = DB::table('gates_nominations')->where('id', (int) ($b['merge_into'] ?? 0))->first();
+            if (!$mergeInto || (int) $mergeInto->id === $id || (int) $mergeInto->cycle_id !== (int) $nom->cycle_id
+                || (string) $mergeInto->status !== 'approved' || (int) ($mergeInto->category_id ?? 0) < 1
+                || (\AfricaGates\Services\NominationTriageService::nameKey((string) $mergeInto->nominee_name)
+                    !== \AfricaGates\Services\NominationTriageService::nameKey((string) $nom->nominee_name)
+                    // A near-miss spelling (Muhammed / Mohammed) is the case the desk offers,
+                    // by the same rule that flagged it — a button it drew must be one that works.
+                    && !\AfricaGates\Services\NominationTriageService::similarName((string) $mergeInto->nominee_name, (string) $nom->nominee_name))) {
+                return $fail('That earlier nomination cannot take a merge. Only an approved entry for the same person in this edition can.');
+            }
+            $catId = (int) $mergeInto->category_id;
+        }
         if (!$catId) {
             return $fail('Choose a category before approving.');
         }
@@ -280,8 +381,8 @@ HTML;
         // actionable flash, never a raw 500 with a half-approved nomination.
         $nomineeId = 0;
         try {
-            DB::transaction(function () use ($id, $catId, $approveReason, $nom, &$nomineeId) {
-                DB::table('gates_nominations')->where('id', $id)->update(
+            DB::transaction(function () use ($id, $catId, $approveReason, $nom, $mergeInto, $seen, $taken, &$nomineeId) {
+                $changed = DB::table('gates_nominations')->where('id', $id)->where('status', $seen)->update(
                     // Same rule as the reject path: the approval must land even when the
                     // feedback column does not exist yet. `status` and `category_id` are
                     // the approval; `decision_reason` is a note about it.
@@ -291,13 +392,28 @@ HTML;
                         'decision_reason' => $approveReason !== '' ? $approveReason : null,
                     ], ['decision_reason'])
                 );
+                // The status moved since this request read it: another reviewer decided
+                // first. Thrown so the whole approval (nominee row included) rolls back.
+                if ($changed === 0) throw $taken();
+                // Repeats combined into this one are approved with it, inside the same
+                // transaction: they are its support, and they join the same ballot entry.
+                \AfricaGates\Services\NominationCombine::follow($id, 'approved', $catId);
 
                 // Auto-attach on approval: if a nominee for this person already
                 // exists in the category, link to it instead of minting a duplicate
                 // that would split their votes. The resolver is honorific / case /
                 // punctuation insensitive ("Dr. Jane Doe" → existing "jane doe") and
                 // skips tombstones — the prevention that pairs with the merge cure.
-                $nomineeId = \AfricaGates\Services\MergeSuggestionService::findLiveMatch($catId, (string)$nom->nominee_name);
+                // Unless a reviewer ruled this a different person who shares the name
+                // ("Not a duplicate" on the desk): then joining the existing entry is
+                // exactly the wrong answer, and a nominee of their own is minted.
+                // A merge joins the EARLIER entry's nominee, found by that entry's own name:
+                // on a near-miss spelling this nomination's name matches nobody.
+                $nomineeId = (int) ($nom->not_duplicate ?? 0) === 1 && $mergeInto === null ? 0
+                    : \AfricaGates\Services\MergeSuggestionService::findLiveMatch($catId, (string) ($mergeInto->nominee_name ?? $nom->nominee_name));
+                if ($nomineeId < 1 && $mergeInto !== null) {
+                    throw new \RuntimeException('merge: the earlier entry has no live nominee to join');
+                }
                 if ($nomineeId < 1) {
                     // Best-effort auto-link to an existing registry profile so this
                     // nominee's votes + judge scores roll up into the CPI leaderboard.
@@ -359,8 +475,23 @@ HTML;
                 }
             });
         } catch (\Throwable $e) {
+            if ($e->getMessage() === 'nomination.decided-elsewhere') {
+                return $fail('Somebody else decided this nomination a moment ago. Nothing was changed and nobody was emailed.', 409);
+            }
+            if ($mergeInto !== null && str_starts_with($e->getMessage(), 'merge:')) {
+                return $fail('The earlier entry is not on the ballot any more, so nothing was merged. Approve or reject this one instead.');
+            }
             return $fail($this->dbErrorFlash($e), 500);
         }
+        if ($mergeInto !== null) {
+            try {
+                if (\AfricaGates\Support\SchemaHas::column('gates_nominations', 'merged_into')) {
+                    DB::table('gates_nominations')->where('id', $id)->update(['merged_into' => (int) $mergeInto->id]);
+                }
+            } catch (\Throwable) {}
+            $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'nomination.merge', 'nomination', $id, ['into' => (int) $mergeInto->id]);
+        }
+        $keepNote();
 
         // The counterpart of the rejection record. Agreement is only meaningful if
         // BOTH verdicts are captured — logging only one outcome silently biases
@@ -419,12 +550,15 @@ HTML;
             );
         }
 
-        // Verified nominee → congratulatory email with a single-use gated form link.
-        $this->sendNomineeForm($nom, $nomineeId);
+        // Verified nominee → congratulatory email with a single-use gated form link. Not on
+        // a merge: the nominee already had theirs when the earlier entry was approved.
+        $form = $mergeInto === null ? $this->sendNomineeForm($nom, $nomineeId) : '';
 
         return $ok(
-            'Nomination approved and added to "' . $cat->title . '".',
-            $fromDesk ? '/admin/nominations/review?after=' . $id : '/admin/nominations?status=approved'
+            $mergeInto !== null ? 'Merged into the earlier entry in "' . $cat->title . '". Both nominators keep credit.'
+                                : 'Nomination approved and added to "' . $cat->title . '".'
+                                  . ($form === 'withheld' ? ' The nominee’s form link was not sent: their email is a nominator’s own. Add the nominee’s address on the full record and send it from there.' : ''),
+            $back ?? ($fromDesk ? '/admin/nominations/desk?after=' . $id : '/admin/nominations?status=approved')
         );
     }
 
@@ -445,9 +579,12 @@ HTML;
             $_SESSION['flash_error'] = 'Could not locate the created nominee record.';
             return $res->withHeader('Location', '/admin/nominations/' . $id)->withStatus(302);
         }
-        if ($this->sendNomineeForm($nom, $nomineeId)) {
+        $sent = $this->sendNomineeForm($nom, $nomineeId);
+        if ($sent === 'sent') {
             $this->audit->record((int)$_SESSION['admin_id'], 'nomination.regenerate_form', 'nomination', $id);
-            $_SESSION['flash_ok'] = 'A fresh single-use acceptance form link was emailed to the nominee (any previous link is now void).';
+            $_SESSION['flash_ok'] = 'A fresh profile link was emailed to the nominee. Any earlier link has stopped working.';
+        } elseif ($sent === 'withheld') {
+            $_SESSION['flash_error'] = 'Not sent: the nominee’s email is the address of somebody who nominated them, so the link would reach the nominator. Add the nominee’s own address, then send it again.';
         } else {
             $_SESSION['flash_error'] = 'Could not issue or email the acceptance form link — check the nominee has a valid email and that mail is configured, then try again.';
         }
@@ -472,65 +609,74 @@ HTML;
      * the approve flow the return value is ignored — sending is best-effort
      * there and must never break an approval that already committed.
      */
-    private function sendNomineeForm(object $nom, int $nomineeId): bool
+    /**
+     * Issue the nominee's single-use form link and email it.
+     *
+     * @return string 'sent' | 'withheld' (the address is a nominator's own — see
+     *                NominationSignals::contactIsNominators) | 'failed'
+     */
+    private function sendNomineeForm(object $nom, int $nomineeId): string
     {
         $email = strtolower(trim((string)($nom->nominee_email ?? '')));
-        if (!$this->mailer || $nomineeId < 1 || !filter_var($email, FILTER_VALIDATE_EMAIL)) return false;
+        if (!$this->mailer || $nomineeId < 1 || !filter_var($email, FILTER_VALIDATE_EMAIL)) return 'failed';
+        if (\AfricaGates\Services\NominationSignals::contactIsNominators($nom)) return 'withheld';
         // Issuing the token, building the link, and sending are ALL best-effort:
         // a missing gates_form_tokens table (stale DB) or a mail failure must
         // never bubble up and 500 an approval that already committed.
         try {
-            $raw  = GatedFormService::issue('nominee', $nomineeId, $email);
-            $link = GatedFormService::link($raw);
-            $nn   = htmlspecialchars((string)$nom->nominee_name, ENT_QUOTES, 'UTF-8');
-            $html = "<p>Hi <strong>{$nn}</strong>,</p>"
-                . "<p>Congratulations — your nomination has been <strong style=\"color:#15803d\">verified and approved</strong> on Africa GATES.</p>"
-                . "<p>Please confirm your details using your private form below. It takes a minute and helps us present you accurately to the continent.</p>"
-                . "<p style=\"text-align:center;margin:24px 0\"><a href=\"{$link}\" style=\"display:inline-block;padding:12px 28px;background:#10292C;color:#fff;border-radius:999px;font-weight:600;text-decoration:none;font-size:15px\">Complete your form →</a></p>"
-                . "<p style=\"font-size:12.5px;color:#6b7674\">This is a private, single-use link just for you — it works once.</p>";
-            $plain = "Hi {$nom->nominee_name},\n\nCongratulations — your nomination has been verified and approved on Africa GATES.\nPlease complete your details using your private, single-use form:\n{$link}\n\n— Africa GATES";
-            $this->mailer->sendBranded($email, 'Congratulations — complete your Africa GATES nominee form', $html, $plain, 'Nominations');
-            return true;
+            // The link signs the nominee in (or makes their account) and puts the nomination on
+            // it for good (NomineeDetails): no single-use form to fill once and never see again.
+            $ttl  = \AfricaGates\Services\NomineeDetails::LINK_DAYS;
+            $link = \AfricaGates\Services\NomineeDetails::invite($nomineeId, $nom);
+            if ($link === '') return 'failed';
+            // The handoff's "Approved". The page, the dates and the deadline are the live
+            // ones: the form is due when this single-use link expires.
+            $base = \AfricaGates\Support\SiteUrl::base();
+            $row  = DB::table('gates_nominees as n')
+                ->leftJoin('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+                ->leftJoin('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
+                ->leftJoin('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
+                ->where('n.id', $nomineeId)
+                ->first(['n.id', 'n.name', 'c.title as category', 'cy.voting_open', 'p.title as programme', 'p.slug as programme_slug']);
+            $opens = '';
+            if ($row && !empty($row->voting_open)) {
+                try { $opens = \Illuminate\Support\Carbon::parse((string) $row->voting_open)->format('j F Y'); } catch (\Throwable) {}
+            }
+            $name = (string) ($row->name ?? $nom->nominee_name);
+            $r = \AfricaGates\Services\Mail\Emails::send($this->mailer, $email, 'approved', [
+                'programme'    => (string) ($row->programme ?? ''),
+                'first_name'   => \AfricaGates\Services\DoorWelcome::firstName($name) ?: $name,
+                'category'     => (string) ($row->category ?? ''),
+                'due'          => \Illuminate\Support\Carbon::now()->addDays($ttl)->format('j F Y'),
+                'voting_opens' => $opens,
+                'form_url'     => $link,
+                // The one builder, so the link in the email is the page's own link.
+                'page_url'     => !empty($row->programme_slug) ? \AfricaGates\Support\NomineeUrl::ballot($nomineeId) : '',
+                'site_url'     => $base,
+            ]);
+            return ($r['success'] ?? false) ? 'sent' : 'failed';
         } catch (\Throwable $e) { /* token issue or mail failure — never break approval */ }
-        return false;
+        return 'failed';
     }
 
-    /** Review page — preview the nomination + pick a category before approving. */
     /**
-     * Review DESK — the high-volume flow: serves the oldest pending nomination
-     * (or the next one after ?after=N when walking the queue) and redirects to
-     * its review page in desk mode. Decisions go through the SAME audited
-     * approve/reject actions — the desk changes navigation speed, never process.
+     * The review desk (AdminConsole v2, README §10b): the queue, one nomination, and the
+     * decision beside it. `?item=N` opens one; `?after=N` opens the one after it (where a
+     * decision landed); neither opens the oldest. The list's scope and quick view carry
+     * over, so the desk works the same rows the list's To review tab shows.
      */
     public function desk(Request $req, Response $res): Response
     {
-        $after = (int)($req->getQueryParams()['after'] ?? 0);
-        $lite  = \AfricaGates\Services\NominationTriageService::nextPending($after ?: null);
-        if (!$lite && $after > 0) {
-            $_SESSION['flash_ok'] = 'You reached the end of the queue. Anything you skipped is still pending — restart the desk to pick it up.';
-            return $res->withHeader('Location', '/admin/nominations?status=pending&sort=oldest')->withStatus(302);
-        }
-        if (!$lite) {
-            $_SESSION['flash_ok'] = 'Review queue is clear — no pending nominations. 🎉';
-            return $res->withHeader('Location', '/admin/nominations')->withStatus(302);
-        }
-        // Render the SPA desk shell with the first nomination server-side (so it
-        // works with JS off too). Subsequent nominations load as fragments.
-        $nom = $this->fullNomination((int)$lite->id);
-        if (!$nom) {
-            $_SESSION['flash_ok'] = 'Review queue is clear — no pending nominations. 🎉';
-            return $res->withHeader('Location', '/admin/nominations')->withStatus(302);
-        }
         return $this->view->render($res, 'admin/nominations/desk.twig', [
             'page_title' => 'Review desk — Admin',
-            'admin_page' => 'nominations',
-        ] + $this->reviewContext($nom));
+            'admin_page' => 'review',
+        ] + $this->deskContext($req->getQueryParams()));
     }
 
     /**
-     * SPA fragment endpoint: the next pending nomination's review body as JSON
-     * ({ok, done, html, id, position, total, nominee}). The desk swaps this in
-     * without a full reload. Same FIFO/eligibility/duplicate logic as desk().
+     * The desk's two working panes for review-desk.js, as JSON
+     * ({ok, done, id, nominee, position, total, html}). Same choice of nomination as
+     * desk(); `done` when nothing is left.
      */
     public function deskFragment(Request $req, Response $res): Response
     {
@@ -538,31 +684,83 @@ HTML;
             $res->getBody()->write((string) json_encode($p, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
             return $res->withHeader('Content-Type', 'application/json')->withStatus($code);
         };
-        $after = (int)($req->getQueryParams()['after'] ?? 0);
-        $lite  = \AfricaGates\Services\NominationTriageService::nextPending($after ?: null);
-        if (!$lite) {
-            return $json([
-                'ok'   => true,
-                'done' => true,
-                'message' => $after > 0
-                    ? 'You reached the end of the queue. Anything you skipped is still pending — reopen the desk to pick it up.'
-                    : 'No more pending nominations.',
-            ]);
+        $ctx = $this->deskContext($req->getQueryParams());
+        if ($ctx['n'] === null) {
+            return $json(['ok' => true, 'done' => true, 'message' => 'Nothing is left in this queue.']);
         }
-        $nom = $this->fullNomination((int)$lite->id);
-        if (!$nom) return $json(['ok' => true, 'done' => true, 'message' => 'No more pending nominations.']);
-
-        $ctx  = $this->reviewContext($nom);
-        $html = $this->view->fetch('admin/nominations/_review_body.twig', $ctx + ['spa' => true, 'csrf_token' => ($_SESSION['csrf_token'] ?? '')]);
+        $html = $this->view->fetch('admin/nominations/_desk_main.twig', $ctx + [
+            'csrf_token' => ($_SESSION['csrf_token'] ?? ''),
+            'shell' => ['can_write' => \AfricaGates\Admin\Support\Permissions::canWrite((string) ($_SESSION['admin_role'] ?? ''))],
+        ]);
         return $json([
             'ok'       => true,
             'done'     => false,
-            'id'       => (int)$nom->id,
-            'nominee'  => (string)$nom->nominee_name,
-            'position' => $ctx['queue']['position'] ?? null,
-            'total'    => $ctx['queue']['total'] ?? null,
+            'id'       => (int) $ctx['n']['id'],
+            'nominee'  => (string) $ctx['n']['name'],
+            'position' => $ctx['pos'],
+            'total'    => $ctx['total'],
             'html'     => $html,
         ]);
+    }
+
+    /** @return array<string,mixed> what both desk views draw */
+    private function deskContext(array $q): array
+    {
+        $p = \AfricaGates\Admin\Services\ReviewQueue::params(['tab' => 'pending'] + array_intersect_key($q, ['scope' => 1, 'view' => 1]));
+        $queue = \AfricaGates\Admin\Services\ReviewQueue::deskQueue($p, $this->awards);
+        $ids = array_map(static fn (array $r): int => (int) $r['id'], $queue);
+        $id = self::deskPick($ids, (int) ($q['item'] ?? 0), (int) ($q['after'] ?? 0));
+
+        $keep = array_filter(['scope' => $p['scope'], 'view' => $p['view'] === 'all' ? '' : $p['view']]);
+        $qbase = '/admin/nominations/desk?' . ($keep ? http_build_query($keep) . '&' : '');
+        $at = array_search($id, $ids, true);
+        $n = $id > 0 ? \AfricaGates\Admin\Services\ReviewDesk::view($id, $this->awards, (int) ($_SESSION['admin_id'] ?? 0)) : null;
+        $count = count($ids);
+        return [
+            'queue'      => $queue,
+            'n'          => $n,
+            'pos'        => $at === false ? null : $at + 1,
+            'total'      => $count,
+            'qbase'      => $qbase,
+            'back'       => $qbase . 'item=' . $id,
+            'prev_href'  => $count ? $qbase . 'item=' . $ids[$at === false ? 0 : ($at - 1 + $count) % $count] : null,
+            'next_href'  => $count ? $qbase . 'item=' . $ids[$at === false ? 0 : ($at + 1) % $count] : null,
+            'list_href'  => \AfricaGates\Admin\Services\ReviewQueue::qs($p),
+            'scope_line' => \AfricaGates\Admin\Services\ReviewQueue::scopeLine($p['scope']),
+            'view_label' => $p['view'] === 'all' ? 'Everything waiting' : (\AfricaGates\Admin\Services\ReviewQueue::VIEWS[$p['view']] ?? ''),
+        ];
+    }
+
+    /**
+     * Which nomination the desk opens. An item still waiting is opened even when the
+     * quick view would not list it — a link somebody followed must land on what it
+     * named. An item already decided means "the one after it", which is where the
+     * no-script flow comes back to after a decision. The end of the queue wraps to its
+     * start, so anything skipped comes round again.
+     *
+     * @param list<int> $ids the queue, oldest first
+     */
+    private static function deskPick(array $ids, int $item, int $after): int
+    {
+        if ($item > 0) {
+            if (in_array($item, $ids, true)) return $item;
+            $st = DB::table('gates_nominations')->where('id', $item)->value('status');
+            if ($st === 'pending') return $item;
+            $after = $item;
+        }
+        if ($ids === []) return 0;
+        if ($after > 0) {
+            $ref = DB::table('gates_nominations')->where('id', $after)->first(['id', 'created_at']);
+            if ($ref) {
+                $order = DB::table('gates_nominations')->whereIn('id', $ids)->get(['id', 'created_at']);
+                $by = [];
+                foreach ($order as $o) $by[(int) $o->id] = (string) $o->created_at;
+                foreach ($ids as $i) {
+                    if ($by[$i] > (string) $ref->created_at || ($by[$i] === (string) $ref->created_at && $i > (int) $ref->id)) return $i;
+                }
+            }
+        }
+        return $ids[0];
     }
 
     /** Load a nomination joined to its programme/cycle (the review view's shape). */
@@ -579,11 +777,22 @@ HTML;
     private function reviewContext(object $nom): array
     {
         $cats = DB::table('gates_award_categories')->where('cycle_id', $nom->cycle_id)->orderBy('sort_order')->get()->map(fn($r) => (array)$r)->all();
+        // What the nominee added on their own page (NomineeDetails), if they have one yet.
+        $own = null;
+        if (\AfricaGates\Services\NomineeDetails::ready() && ($d = DB::table('gates_nominee_details')->where('nomination_id', $nom->id)->first())) {
+            $own = ['linked' => (bool) $d->user_id, 'complete' => (bool) $d->completed_at, 'check' => \AfricaGates\Services\NomineeDetails::checklist($d),
+                    'phones' => \AfricaGates\Services\NomineeDetails::list($d->phones), 'emails' => \AfricaGates\Services\NomineeDetails::list($d->emails), 'bio' => (string) $d->bio,
+                    'photos' => \AfricaGates\Services\NomineeDetails::files((int) $d->nominee_id, 'photo'), 'evidence' => \AfricaGates\Services\NomineeDetails::files((int) $d->nominee_id, 'evidence')];
+        }
         return [
+            'own'         => $own,
             'nom'         => (array)$nom,
             'categories'  => $cats,
             'eligibility' => $this->awards ? $this->awards->nomineeEligibility((string)$nom->nominee_name, (int)$nom->cycle_id) : null,
             'duplicates'  => \AfricaGates\Services\NominationTriageService::duplicatesFor($nom),
+            // The desk's checks, with the rule behind each, on the full record too.
+            'signals'     => \AfricaGates\Services\NominationSignals::forIds([(int) $nom->id])[(int) $nom->id] ?? [],
+            'conflict'    => \AfricaGates\Admin\Services\ReviewConflict::of((int) ($_SESSION['admin_id'] ?? 0), $nom),
             'insight'     => \AfricaGates\Services\NominationTriageService::insight((int)$nom->id),
             'queue'       => ($nom->status === 'pending') ? \AfricaGates\Services\NominationTriageService::queuePosition((int)$nom->id) : null,
             // Would the call actually run? A configured() probe alone showed the
@@ -600,16 +809,28 @@ HTML;
      */
     public function aiInsight(Request $req, Response $res, array $args): Response
     {
-        $back = $req->getServerParams()['HTTP_REFERER'] ?? ('/admin/nominations/' . (int)($args['id'] ?? 0));
         $id   = (int)($args['id'] ?? 0);
+        // Back to the page the button was on — the desk, the list or the full record — and
+        // only ever to a console path: the referrer is a header, not something to trust.
+        $ref  = (string) ($req->getServerParams()['HTTP_REFERER'] ?? '');
+        $path = (string) (parse_url($ref, PHP_URL_PATH) ?? '');
+        $qs   = (string) (parse_url($ref, PHP_URL_QUERY) ?? '');
+        $back = preg_match('~^/admin/nominations(/|$)~', $path) === 1 && !str_contains($path, '//')
+            ? $path . ($qs !== '' ? '?' . $qs : '') : '/admin/nominations/' . $id;
         if (!DB::table('gates_nominations')->where('id', $id)->exists()) {
             $_SESSION['flash_error'] = 'Nomination not found.';
             return $res->withHeader('Location', $back)->withStatus(302);
         }
         $insight = \AfricaGates\Services\NominationTriageService::generate($id);
-        $_SESSION[$insight ? 'flash_ok' : 'flash_error'] = $insight
-            ? 'AI insight generated.'
-            : 'AI is not configured (add a Groq/Gemini/Anthropic/OpenAI key in Settings) — nothing generated.';
+        // generate() always stores a row — the duplicates are worked out without any AI —
+        // so "a row came back" is not "the AI read it". This used to say "generated" either way.
+        if ($insight !== null && $insight['quality_score'] !== null) {
+            $_SESSION['flash_ok'] = 'Read again. The AI reading is updated.';
+        } elseif (!\AfricaGates\Services\AiGateway::available('nomination.triage')) {
+            $_SESSION['flash_error'] = 'The AI reading is switched off, out of today’s budget or has no provider. See Settings → AI.';
+        } else {
+            $_SESSION['flash_error'] = 'The AI could not read it just now. Nothing else changed; it will be tried again within the hour.';
+        }
         return $res->withHeader('Location', $back)->withStatus(302);
     }
 
@@ -643,8 +864,195 @@ HTML;
         // the reviewer's position in the pending queue.
         return $this->view->render($res, 'admin/nominations/review.twig', [
             'page_title' => 'Review nomination — Admin',
-            'admin_page' => 'nominations',
+            'admin_page' => 'review',
             // Flash renders from the Twig globals via the layout — do not shadow it.
         ] + $this->reviewContext($nom));
+    }
+
+    // ══ THE REVIEW LIST (AdminConsole v2, screenshot 02) ═════════════════════════════
+    //
+    // `/admin/nominations/review` is the rail's "Nominations": the list a reviewer works
+    // from, with the checks on every row, quick views, facets, a side peek and a bulk bar.
+    // The one-at-a-time desk it used to be moved to `/admin/nominations/desk`; an old desk
+    // link still carrying `?after=` is sent there rather than dropped on the list.
+
+    /** Only the review list itself is an acceptable `back`. */
+    private static function reviewBack(string $back): ?string
+    {
+        // Anchored on the path itself, so `//host`, a scheme or another page never matches;
+        // what follows the `?` is only ever this list's own query.
+        return preg_match('~^/admin/nominations/(review|desk)(\?[^#\s]*)?$~', $back) ? $back : null;
+    }
+
+    public function queue(Request $req, Response $res): Response
+    {
+        $q = $req->getQueryParams();
+        if (isset($q['after'])) {
+            return $res->withHeader('Location', '/admin/nominations/desk?after=' . (int) $q['after'])->withStatus(302);
+        }
+        $p = \AfricaGates\Admin\Services\ReviewQueue::params($q);
+        $adminId = (int) ($_SESSION['admin_id'] ?? 0);
+        \AfricaGates\Admin\Services\Presence::touch($adminId, 'review', $p['open'] ?: null);
+
+        $peek = $p['open'] ? \AfricaGates\Admin\Services\ReviewQueue::peek($p['open'], $this->awards) : null;
+        $others = \AfricaGates\Admin\Services\Presence::others($adminId, 'review');
+        $viewing = [];
+        if ($peek) foreach ($others as $o) if ($o['target_id'] === (int) $peek['id']) $viewing[] = $o['short'];
+
+        // The peek alone, for the list's own script: J/K and a row click swap it in place
+        // rather than reloading the whole list.
+        if (($q['part'] ?? '') === 'peek') {
+            if (!$peek) throw new \Slim\Exception\HttpNotFoundException($req);
+            // Rendered without the layout, so the shell's `can_write` is not in scope: pass
+            // the same answer it gives, or a writer's fragment would draw read-only.
+            return $this->view->render($res, 'admin/nominations/_queue_peek.twig', [
+                'shell' => ['can_write' => \AfricaGates\Admin\Support\Permissions::canWrite((string) ($_SESSION['admin_role'] ?? ''))],
+                'peek' => $peek, 'viewing' => $viewing, 'back' => \AfricaGates\Admin\Services\ReviewQueue::qs($p),
+                'close' => \AfricaGates\Admin\Services\ReviewQueue::qs($p, ['open' => 0]),
+            ]);
+        }
+
+        $m = \AfricaGates\Admin\Services\ReviewQueue::build($p, $this->awards);
+        $pos = '';
+        if ($peek) {
+            foreach ($m['rows'] as $i => $r) {
+                if ((int) $r['id'] === (int) $peek['id']) { $pos = ($m['from'] + $i) . ' of ' . number_format($m['total']); break; }
+            }
+        }
+        return $this->view->render($res, 'admin/nominations/queue.twig', $m + [
+            'pos'        => $pos,
+            'page_title' => 'Nomination review — Admin',
+            'admin_page' => 'review',
+            'sub_line'   => \AfricaGates\Admin\Services\ReviewQueue::subLine($p['scope']),
+            'peek'       => $peek,
+            'viewing'    => $viewing,
+            'others'     => $others,
+            'back'       => \AfricaGates\Admin\Services\ReviewQueue::qs($p),
+            'close'      => \AfricaGates\Admin\Services\ReviewQueue::qs($p, ['open' => 0]),
+            'pending'    => (int) DB::table('gates_nominations')->where('status', 'pending')->count(),
+            'nominate_url' => \AfricaGates\Support\SiteUrl::base() . '/nominate',
+        ]);
+    }
+
+    /** GET /admin/nominations/review/count — the Filter popover's live "Show N". */
+    public function queueCount(Request $req, Response $res): Response
+    {
+        $m = \AfricaGates\Admin\Services\ReviewQueue::build(\AfricaGates\Admin\Services\ReviewQueue::params($req->getQueryParams()), $this->awards);
+        $res->getBody()->write((string) json_encode(['ok' => true, 'n' => $m['total']]));
+        return $res->withHeader('Content-Type', 'application/json')->withHeader('Cache-Control', 'no-store');
+    }
+
+    /**
+     * GET /admin/nominations/review/export.csv — the list as filtered, or the selected rows.
+     *
+     * With contacts (owner, 30 Oct 2026: "the export of the nominees should include their
+     * contact, not just names"): the nominee's email and phone as the nominator gave them, every
+     * phone and email the nominee has added on their own page since (NomineeDetails), and the
+     * nominator's. The audit row records that contacts left the console, and how many.
+     */
+    public function queueExport(Request $req, Response $res): Response
+    {
+        $q = $req->getQueryParams();
+        $p = \AfricaGates\Admin\Services\ReviewQueue::params($q);
+        $ids = array_values(array_filter(array_map('intval', (array) ($q['ids'] ?? []))));
+        $rows = \AfricaGates\Admin\Services\ReviewQueue::exportRows($p, $this->awards, $ids);
+        $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'nomination.export', 'nomination', null,
+            ['tab' => $p['tab'], 'rows' => count($rows), 'selected' => count($ids), 'contacts' => true]);
+
+        // What each nominee added themselves, keyed by the nomination their page came from.
+        $own = [];
+        if (\AfricaGates\Services\NomineeDetails::ready() && $rows) {
+            foreach (DB::table('gates_nominee_details')->whereIn('nomination_id', array_map(static fn ($r) => (int) $r['id'], $rows))
+                         ->get(['nomination_id', 'phones', 'emails', 'completed_at']) as $d) {
+                $own[(int) $d->nomination_id] = $d;
+            }
+        }
+        $fh = fopen('php://temp', 'r+');
+        \AfricaGates\Support\Csv::put($fh, ['Reference', 'Nominee', 'Nominee email', 'Nominee phone', 'Other emails (added by nominee)', 'Other phones (added by nominee)',
+            'Profile complete', 'Organisation', 'Country', 'Programme', 'Category', 'Reads closer to', 'Nominated by', 'Nominator email', 'Nominator phone',
+            'How they know them', 'Checks', 'Supporting links or files', 'Status', 'Received'], ',', '"', '\\');
+        foreach ($rows as $r) {
+            $d = $own[(int) $r['id']] ?? null;
+            $email = strtolower(trim((string) ($r['nominee_email'] ?? '')));
+            $phone = trim((string) ($r['nominee_phone'] ?? ''));
+            $emails = $d ? array_values(array_diff(\AfricaGates\Services\NomineeDetails::list($d->emails), [$email])) : [];
+            $phones = $d ? array_values(array_diff(\AfricaGates\Services\NomineeDetails::list($d->phones), [$phone])) : [];
+            \AfricaGates\Support\Csv::put($fh, [
+                (string) ($r['reference'] ?? ''), $r['name'], $email, $phone, implode('; ', $emails), implode('; ', $phones),
+                $d ? ($d->completed_at ? 'Yes' : 'Not yet') : 'No account yet',
+                $r['org'], (string) ($r['country_code'] ?? ''), $r['edition'], $r['category'], $r['suggest']['title'] ?? '', $r['by'],
+                (string) ($r['nominator_email'] ?? ''), (string) ($r['nominator_phone'] ?? ''), $r['rel'],
+                implode('; ', array_column($r['checks'], 't')), (string) $r['evidence'],
+                \AfricaGates\Support\NominationStatus::label((string) $r['status']), (string) $r['created_at'],
+            ], ',', '"', '\\');
+        }
+        rewind($fh);
+        $csv = (string) stream_get_contents($fh);
+        fclose($fh);
+        $res->getBody()->write($csv);
+        return $res->withHeader('Content-Type', 'text/csv; charset=utf-8')
+            ->withHeader('Content-Disposition', 'attachment; filename="nominations-' . $p['tab'] . '-' . date('Y-m-d') . '.csv"');
+    }
+
+    /**
+     * POST /admin/nominations/review/bulk — Approve the selected nominations.
+     *
+     * Each one goes through {@see action()} exactly as a single Approve does — the same
+     * category check, the same eligibility gate, the same emails and the same audit row —
+     * so a bulk approval is N approvals and never a second, laxer way to approve. Whatever
+     * one of them refuses is reported by name and the rest still go through.
+     */
+    public function bulk(Request $req, Response $res): Response
+    {
+        $b = (array) $req->getParsedBody();
+        $back = self::reviewBack((string) ($b['back'] ?? '')) ?? '/admin/nominations/review';
+        $ids = array_slice(array_values(array_unique(array_filter(array_map('intval', (array) ($b['ids'] ?? []))))), 0, 100);
+        if (($b['do'] ?? '') !== 'approve' || $ids === []) {
+            $_SESSION['flash_error'] = 'Choose at least one nomination to approve.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+        $done = 0; $refused = [];
+        $factory = new \Slim\Psr7\Factory\ResponseFactory();
+        foreach ($ids as $id) {
+            $nom = DB::table('gates_nominations')->where('id', $id)->first(['id', 'nominee_name', 'status']);
+            if (!$nom) continue;
+            if ($nom->status !== 'pending') { $refused[] = $nom->nominee_name . ' (already ' . \AfricaGates\Support\NominationStatus::label((string) $nom->status) . ')'; continue; }
+            $one = $req->withParsedBody(['_token' => $b['_token'] ?? ''])->withHeader('X-Requested-With', 'fetch');
+            $r = $this->action($one, $factory->createResponse(), ['id' => $id, 'action' => 'approve']);
+            $j = json_decode((string) $r->getBody(), true);
+            if (!empty($j['ok'])) $done++; else $refused[] = $nom->nominee_name . ' — ' . (string) ($j['error'] ?? 'refused');
+        }
+        if ($done) $_SESSION['flash_ok'] = $done . ' nomination' . ($done === 1 ? '' : 's') . ' approved.';
+        if ($refused) $_SESSION['flash_error'] = 'Not approved: ' . implode('; ', array_slice($refused, 0, 8)) . (count($refused) > 8 ? ' and ' . (count($refused) - 8) . ' more.' : '.');
+        return $res->withHeader('Location', $back)->withStatus(302);
+    }
+
+    /** POST /admin/nominations/{id}/note — a note for the team, never shown outside the console. */
+    public function note(Request $req, Response $res, array $args): Response
+    {
+        $id = (int) $args['id'];
+        $b = (array) $req->getParsedBody();
+        $back = self::reviewBack((string) ($b['back'] ?? '')) ?? '/admin/nominations/' . $id;
+        if (!DB::table('gates_nominations')->where('id', $id)->exists()) throw new \Slim\Exception\HttpNotFoundException($req);
+        $saved = \AfricaGates\Admin\Services\ReviewQueue::addNote($id, (int) ($_SESSION['admin_id'] ?? 0), (string) ($b['body'] ?? ''));
+        if ($saved) {
+            $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'nomination.note', 'nomination', $id);
+            $_SESSION['flash_ok'] = 'Note saved for the team.';
+        } else {
+            $_SESSION['flash_error'] = trim((string) ($b['body'] ?? '')) === '' ? 'Write the note first.' : 'The note could not be saved.';
+        }
+        return $res->withHeader('Location', $back)->withStatus(302);
+    }
+
+    /** POST /admin/nominations/review/presence — the heartbeat; answers who else is here. */
+    public function presence(Request $req, Response $res): Response
+    {
+        $adminId = (int) ($_SESSION['admin_id'] ?? 0);
+        $target = (int) (((array) $req->getParsedBody())['target'] ?? 0);
+        \AfricaGates\Admin\Services\Presence::touch($adminId, 'review', $target ?: null);
+        $others = \AfricaGates\Admin\Services\Presence::others($adminId, 'review');
+        $res->getBody()->write((string) json_encode(['ok' => true, 'others' => array_map(
+            static fn (array $o): array => ['short' => $o['short'], 'initials' => $o['initials'], 'target' => $o['target_id']], $others)]));
+        return $res->withHeader('Content-Type', 'application/json')->withHeader('Cache-Control', 'no-store');
     }
 }

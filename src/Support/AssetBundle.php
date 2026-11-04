@@ -57,41 +57,35 @@ final class AssetBundle
      * use it makes every other page heavier.
      */
     public const STYLESHEETS = [
-        'assets/css/tokens.motion.css',
-        // The layer that consumes those tokens. Immediately after them and before
-        // main.css, matching the layout — a page stylesheet must still be able to
-        // override any of it, and the bundle is a concatenation, so order here IS
-        // the cascade.
-        'assets/css/motion.css',
-        'assets/css/main.css',
-        'assets/css/ui-overhaul.css',
-        'assets/css/professional.css',
-        'assets/css/redesign-2026.css',
-        'assets/css/aurora.css',
-        // The newer modular design system, layered over the legacy sheets above.
-        'assets/css/base/tokens.css',
-        'assets/css/base/reset.css',
-        'assets/css/base/typography.css',
-        'assets/css/components/flash.css',
-        'assets/css/components/loader.css',
-        'assets/css/components/nav.css',
+        // The rebuilt foundation, in cascade order: sizes and motion, the page shell,
+        // then the base components a page composes. Colour is in none of them —
+        // Support\Accent emits the palette into the layout's nonced <style> first.
+        // Everything that used to sit around these three was destroyed with the old
+        // public pages (docs/handoff/DESTROYED.md); each phase adds back, in order,
+        // only what it rebuilds.
+        'assets/css/fonts.css',
+        'assets/css/tokens.css',
+        'assets/css/shell.css',
+        'assets/css/components.css',
+        // Phase 2: the shared chrome — header, app bar, tab bar, Menu, Quick settings,
+        // Display & reading, the search palette. After the base, which it specialises.
+        'assets/css/components/chrome.css',
+        // The phone Menu sheet, rebuilt whole out of chrome.css (4 Oct 2026, MENU-SHEET.md).
+        'assets/css/components/menu-sheet.css',
+        // Phase 2 item 6: the cookie notice and preferences sheet, on the chrome.
+        'assets/css/components/consent.css',
+        // The field macros' sheet (partials/field.twig): error, hint, counter and summary.
+        // It was linked by the shell without being added here, so the bundle and the shell
+        // disagreed about the cascade — ShellLayoutTest had been red on it since.
+        'assets/css/components/forms.css',
+        // The default graphics (DEFAULT-GRAPHICS §2, handoff 5 Oct 2026): every image slot
+        // with no upload draws a cover or avatar, on any page. After the base, as the spec says.
+        'assets/css/components/cover.css',
+        // Phase 4: the site footer — chrome on every shell page, after the notice.
         'assets/css/components/footer.css',
+        // Phase 3: Gee, the guide and the help desk — the launcher and the panel that sit
+        // over every shell page but Pulse. Last: it floats above all of the above.
         'assets/css/components/gee.css',
-        'assets/css/components/community-modal.css',
-        'assets/css/components/site-search.css',
-        // The immersive mobile Pulse feed. After site-search so its
-        // body[data-page="pulse"] overrides win over the generic components, and
-        // before a11y.css, which must stay last.
-        'assets/css/components/pulse-immersive.css',
-        // The tile — the one device that carries colour. After the components it is
-        // placed inside, so a card's own rules cannot win over it on order.
-        'assets/css/components/tile.css',
-        // The lip. After every component sheet, because it overrides the hover lift
-        // those sheets declare on the buttons it applies to — a lipped button does not
-        // rise, and a rule that loses on order would leave the press overshooting.
-        'assets/css/components/lip.css',
-        // LAST, and it must stay last — its corrections are meant to win.
-        'assets/css/a11y.css',
     ];
 
     /** Where the built bundle and its manifest live. Gitignored build output. */
@@ -123,7 +117,52 @@ final class AssetBundle
         // Any source newer than the build → the bundle no longer represents the source.
         if (self::newestSourceMtime($root) > (int) ($manifest['mtime'] ?? 0)) return null;
 
+        // And the ORDER is part of what it represents. A reorder edits no stylesheet, so
+        // the mtime check above passes and the old cascade keeps being served — which is
+        // exactly how moving the base layer ahead of the component sheets would have
+        // reached production: the layout's fallback in the new order, the bundle every
+        // visitor actually receives in the old one. A manifest from before this check
+        // carries no list and falls back, which is the safe direction.
+        if (($manifest['order'] ?? '') !== self::orderHash()) return null;
+
         return '/' . ltrim($file, '/');
+    }
+
+    /**
+     * The bundle's URL for a page being drawn NOW, building it first when it is missing or
+     * out of date — so a deploy is not followed by an hour of fourteen stylesheet requests a
+     * page until the maintenance run notices. One request builds, under a non-blocking lock;
+     * every request that arrives meanwhile falls back to the individual links, which are
+     * always correct. A build that fails leaves the fallback in place and is not retried
+     * by every request: the lock file's own mtime spaces the attempts a minute apart.
+     */
+    public static function current(?string $publicRoot = null): ?string
+    {
+        $url = self::url($publicRoot);
+        if ($url !== null) return $url;
+
+        $root = self::root($publicRoot);
+        $dist = $root . '/' . self::DIST_DIR;
+        if (!is_dir($dist) && !@mkdir($dist, 0775, true) && !is_dir($dist)) return null;
+        $lockPath = $dist . '/.build.lock';
+        if (is_file($lockPath) && filemtime($lockPath) > time() - 60) return null;
+        $lock = @fopen($lockPath, 'c');
+        if ($lock === false) return null;
+        try {
+            if (!flock($lock, LOCK_EX | LOCK_NB)) return null;
+            @touch($lockPath);
+            $url = self::url($publicRoot) ?? (self::build($publicRoot)['ok'] ? self::url($publicRoot) : null);
+            flock($lock, LOCK_UN);
+            return $url;
+        } finally {
+            fclose($lock);
+        }
+    }
+
+    /** The cascade order the bundle was built in, as one comparable string. */
+    private static function orderHash(): string
+    {
+        return substr(hash('sha256', implode("\n", self::STYLESHEETS)), 0, 16);
     }
 
     /**
@@ -170,6 +209,7 @@ final class AssetBundle
         $manifest = [
             'file'    => self::DIST_DIR . '/' . $name,
             'mtime'   => self::newestSourceMtime($root),
+            'order'   => self::orderHash(),
             'sources' => count($parts),
             'raw'     => $raw,
             'min'     => strlen($min),
@@ -194,16 +234,22 @@ final class AssetBundle
     }
 
     /**
-     * Delete superseded bundles, keeping the current one.
+     * Delete superseded bundles, keeping the current one and anything built in the last day.
      *
      * Without this, `assets/dist/` accumulates one file per build forever. Deliberately
      * narrow: only `site.<hex>.css`, so nothing an operator put in that directory is
-     * ever removed by a build.
+     * ever removed by a build. And not the moment it is superseded: a page drawn before the
+     * rebuild still names the old file — a prefetched copy (kept five minutes), the back
+     * button's copy, a tab left open — and deleting it under them draws that page with no
+     * styles at all.
      */
+    public const KEEP_SUPERSEDED_SECONDS = 86400;
+
     private static function prune(string $dist, string $keep): void
     {
         foreach (glob($dist . '/site.*.css') ?: [] as $path) {
-            if (basename($path) !== $keep && preg_match('/^site\.[0-9a-f]{12}\.css$/', basename($path)) === 1) {
+            if (basename($path) !== $keep && preg_match('/^site\.[0-9a-f]{12}\.css$/', basename($path)) === 1
+                && (int) @filemtime($path) < time() - self::KEEP_SUPERSEDED_SECONDS) {
                 @unlink($path);
             }
         }
@@ -243,14 +289,14 @@ final class AssetBundle
      * Rewrite relative `url(...)` references so they still resolve from `assets/dist/`.
      *
      * Concatenation moves CSS to a new directory, and a relative `url(../img/x.svg)` in
-     * `assets/css/components/nav.css` resolves against `assets/dist/` afterwards —
+     * `assets/css/components/footer.css` resolves against `assets/dist/` afterwards —
      * silently pointing at a file that is not there. Today every reference in this
      * project is already absolute or a fragment (`url(#cpiGrad)`), verified before
      * writing this, so nothing changes. It is here so that adding one relative URL later
      * does not quietly break an image on a deployment that ran the build and nowhere
      * else — which is the hardest version of this bug to find.
      */
-    private static function rebaseUrls(string $css, string $sourceRel): string
+    public static function rebaseUrls(string $css, string $sourceRel): string
     {
         $dir = trim(dirname($sourceRel), '/');   // e.g. assets/css/components
 
