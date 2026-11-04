@@ -1,0 +1,13 @@
+/* Scoped shared upload feedback, independent of member or staff page styles. */
+.ag-photo-upload{max-width:100%;margin-block:.5rem 1rem}
+.ag-photo-upload__status{font:inherit;font-size:.875rem;overflow-wrap:anywhere;margin-block:.4rem}
+.ag-photo-upload__status:empty{display:none}
+.ag-photo-upload__preview{display:flex;flex-wrap:wrap;gap:.5rem}
+.ag-photo-upload__preview img{width:6rem;height:6rem;max-width:100%;object-fit:contain;border-radius:.5rem;background:var(--ag-bg,#fafbf8)}
+.ag-photo-upload__clear{font:inherit;color:inherit;background:transparent;border:1px solid currentColor;border-radius:.5rem;min-height:44px;padding:.5rem .75rem;margin-top:.5rem;cursor:pointer}
+.ag-photo-upload__clear:focus-visible{outline:3px solid currentColor;outline-offset:3px}
+.ag-photo-upload__clear[hidden]{display:none}
+input[type=file]{max-width:100%;min-width:0}
+
+/* Keep the native chooser reachable by keyboard inside legacy staff drop zones. */
+.ad-form .file-zone input[type=file]{display:block;width:100%;margin-top:.5rem}

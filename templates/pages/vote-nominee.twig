@@ -278,7 +278,7 @@
 {% block content %}
 <div class="vn">
   <div class="vn__left">
-    {% set _portrait = profile.avatar_path|default('') ?: n.photo_path %}
+    {% set _portrait = n.photo_path|default('') ?: profile.avatar_path|default('') %}
     {% if _portrait %}
     <div class="vn-photo">
       {% include 'partials/photo.twig' with {kind: 'person', src: _portrait, name: n.name, id: n.profile_id|default(n.id), size: 160, alt: 'Portrait of %n%'|trans({'%n%': n.name}), eager: true} only %}

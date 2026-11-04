@@ -168,7 +168,7 @@ class UploadService
         int $minDim = 0
     ): array {
         if ($file->getError() !== UPLOAD_ERR_OK) {
-            throw new \RuntimeException('Upload failed: error code ' . $file->getError());
+            throw new \RuntimeException(\AfricaGates\Support\UploadLimits::error($file->getError()));
         }
         if ($file->getSize() && $file->getSize() > 10 * 1024 * 1024) {
             throw new \RuntimeException('Image larger than 10MB');
@@ -180,6 +180,10 @@ class UploadService
         // detected type, and every image is re-encoded below as a second guarantee.
         $tmp = tempnam(sys_get_temp_dir(), 'ag_up_');
         $file->moveTo($tmp);
+        if ((filesize($tmp) ?: 0) > 10 * 1024 * 1024) {
+            @unlink($tmp);
+            throw new \RuntimeException('Image larger than 10MB');
+        }
 
         $allowed = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif'];
         $mime = (string)(new \finfo(FILEINFO_MIME_TYPE))->file($tmp);
@@ -198,23 +202,27 @@ class UploadService
         $relPath = $relDir . '/' . $uuid . '.' . $ext;
         $absPath = $this->publicRoot . '/' . $relPath;
 
-        $image = $this->img->read($tmp);
-        // Reject unsuitable images (too small to be a usable portrait) before saving,
-        // so no orphan file is written. Decode failures already throw above.
-        if ($minDim > 0 && ($image->width() < $minDim || $image->height() < $minDim)) {
-            @unlink($tmp);
-            throw new \RuntimeException("Image too small — use at least {$minDim}×{$minDim}px.");
-        }
-        if ($image->width() > $maxWidth) {
-            $image->scaleDown(width: $maxWidth);
-        }
+        try {
+            $image = $this->img->read($tmp);
+            // Reject unsuitable images (too small to be a usable portrait) before saving,
+            // so no orphan file is written. Decode failures already throw above.
+            if ($minDim > 0 && ($image->width() < $minDim || $image->height() < $minDim)) {
+                throw new \RuntimeException("Image too small — use at least {$minDim}×{$minDim}px.");
+            }
+            if ($image->width() > $maxWidth) {
+                $image->scaleDown(width: $maxWidth);
+            }
 
-        if ($ext === 'jpg' || $ext === 'webp') {
-            $image->toJpeg($quality)->save($absPath);
-        } else {
-            $image->save($absPath);
+            if ($ext === 'webp') {
+                $image->toWebp($quality)->save($absPath);
+            } elseif ($ext === 'jpg') {
+                $image->toJpeg($quality)->save($absPath);
+            } else {
+                $image->save($absPath);
+            }
+        } finally {
+            @unlink($tmp);
         }
-        @unlink($tmp);
 
         $w = $image->width(); $h = $image->height();
         $size = filesize($absPath) ?: 0;

@@ -192,6 +192,10 @@ return [
             // Drives members-only UI (community composer, Gee suppression there).
             'is_member'         => !empty($_SESSION['user_id']),
             'member_name'       => $_SESSION['user_name'] ?? null,
+            'photo_upload_limit' => \AfricaGates\Support\UploadLimits::imageBytes(),
+            'photo_upload_limit_label' => \AfricaGates\Support\UploadLimits::label(\AfricaGates\Support\UploadLimits::imageBytes()),
+            'photo_post_limit' => \AfricaGates\Support\UploadLimits::bytes((string) ini_get('post_max_size')),
+            'member_photo'      => \AfricaGates\Services\AccountPhotoService::currentPath(),
             // Per-request canonical/og:url inputs (were undefined → every page
             // self-reported as the homepage). site_url tracks APP_URL so canonical
             // + Open Graph use the real deployed host.

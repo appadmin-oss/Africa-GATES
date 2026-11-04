@@ -171,7 +171,10 @@ final class NomineeDetails
         } catch (\Throwable $e) {
             return ['ok' => false, 'error' => 'That photograph could not be used: ' . $e->getMessage()];
         }
-        self::file($d, 'photo', (string) $up['path'], null, $label);
+        DB::connection()->transaction(function () use ($d, $up, $label) {
+            self::file($d, 'photo', (string) $up['path'], null, $label);
+            NomineePortrait::reconcile((int) $d->nominee_id);
+        });
         return ['ok' => true];
     }
 
@@ -201,7 +204,10 @@ final class NomineeDetails
     {
         $n = DB::table('gates_nominee_files')->where('id', $fileId)->where('nominee_id', $d->nominee_id)->whereNull('removed_at')
             ->update(['removed_at' => date('Y-m-d H:i:s')]);
-        if ($n) self::touch($d, []);
+        if ($n) {
+            self::touch($d, []);
+            NomineePortrait::reconcile((int) $d->nominee_id);
+        }
         return $n > 0;
     }
 

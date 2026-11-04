@@ -62,6 +62,7 @@ window.cnPage = (function () {
 <link rel="stylesheet" href="{{ asset('/assets/css/console/assistant.css') }}">
 {% block head_styles %}{% endblock %}
   {% include 'partials/csrf-fresh.twig' %}
+<link rel="stylesheet" href="{{ asset('/assets/css/components/photo-upload.css') }}">
 </head>
 <body class="cn" data-console{% if not shell.can_write %} data-readonly{% endif %}{% if shell.sidebar_closed %} data-side="closed"{% endif %}>
 
@@ -499,6 +500,7 @@ window.cnPage = (function () {
 <script defer src="{{ asset('/assets/js/vendor/tippy-6.3.7.umd.min.js') }}" data-nav="shell"></script>
 {# A page's own scripts. Unmarked, the page loads the ordinary way; `data-nav="rerun"` lets
    console-nav.js swap it in, and ConsoleNavTest decides who may say that. #}
+<script defer src="{{ asset('/assets/js/photo-upload.js') }}" data-photo-max-bytes="{{ photo_upload_limit|default(10485760) }}" data-photo-post-bytes="{{ photo_post_limit|default(0) }}" data-nav="shell"></script>
 {% block foot_scripts %}{% endblock %}
 <script defer src="{{ asset('/assets/js/accessibility-focus.js') }}" data-nav="shell"></script>
 <script defer src="{{ asset('/assets/js/admin.js') }}" data-nav="shell"></script>

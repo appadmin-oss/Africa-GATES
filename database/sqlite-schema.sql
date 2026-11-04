@@ -661,6 +661,7 @@ CREATE TABLE IF NOT EXISTS gates_users (
   name TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE,
   phone TEXT,
+  avatar_path TEXT DEFAULT NULL,
   password_hash TEXT,
   points INTEGER NOT NULL DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'active',

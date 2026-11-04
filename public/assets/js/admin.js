@@ -463,22 +463,29 @@
     const preview = zone.parentElement.querySelector('[data-file-preview]');
     if (!input) return;
     zone.setAttribute('data-mounted', '');
-    zone.addEventListener('click', () => input.click());
+    // The zone is a native label; the visible input also supports keyboard users.
+    let photoUrls = [];
+    const releasePhotos = () => { photoUrls.forEach(url => URL.revokeObjectURL(url)); photoUrls = []; };
+    window.cnPage?.leave(releasePhotos);
     zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.borderColor = 'var(--cn-ink)'; });
     zone.addEventListener('dragleave', () => { zone.style.borderColor = ''; });
     zone.addEventListener('drop', e => {
       e.preventDefault(); zone.style.borderColor = '';
-      input.files = e.dataTransfer.files;
-      renderPreviews();
+      const dropped = new DataTransfer();
+      Array.from(e.dataTransfer.files).slice(0, input.multiple ? undefined : 1).forEach(file => dropped.items.add(file));
+      input.files = dropped.files;
+      input.dispatchEvent(new Event('change', {bubbles: true}));
     });
     input.addEventListener('change', renderPreviews);
     function renderPreviews() {
       if (!preview) return;
+      releasePhotos();
       preview.innerHTML = '';
       Array.from(input.files || []).forEach(f => {
         if (!f.type.startsWith('image/')) return;
         const img = document.createElement('img');
-        img.src = URL.createObjectURL(f);
+        const url = URL.createObjectURL(f); photoUrls.push(url);
+        img.src = url;
         img.alt = f.name;
         preview.appendChild(img);
       });

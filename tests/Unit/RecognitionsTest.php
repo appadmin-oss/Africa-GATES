@@ -162,6 +162,17 @@ final class RecognitionsTest extends TestCase
         $this->assertStringStartsWith('/results/', $mine['active'][0]['award']['url']);
     }
 
+    public function test_selected_nominee_portrait_precedes_the_linked_profile_avatar(): void
+    {
+        $cy = $this->edition(self::PROG, 'results');
+        $pid = (int) DB::table('gates_profiles')->insertGetId(['slug' => 'portrait-precedence', 'display_name' => 'Ada Win', 'email' => 'portrait@example.test', 'status' => 'approved', 'avatar_path' => '/profile.png']);
+        DB::table('gates_nominees')->where('name', 'Ada Win')->update(['profile_id' => $pid, 'photo_path' => '/selected-nominee.webp']);
+        Recognitions::syncCycle($cy);
+        $this->assertSame('/selected-nominee.webp', Recognitions::forProfile($pid)['active'][0]['recipient']['photo']);
+        DB::table('gates_nominees')->where('name', 'Ada Win')->update(['photo_path' => null]);
+        $this->assertSame('/profile.png', Recognitions::forProfile($pid)['active'][0]['recipient']['photo']);
+    }
+
     /**
      * IMMUTABLE APART FROM WITHDRAWAL holds only while Recognitions is the one writer. Any
      * other file that names the table beside insert/update/delete is a second writer.

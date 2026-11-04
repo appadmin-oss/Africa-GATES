@@ -3850,6 +3850,8 @@ return function(App $app) {
         $a->post('/bank', AccountController::class . ':bank');
         $a->post('/redeem',       AccountController::class.':redeem');
         $a->post('/profile',      AccountController::class.':profileUpdate');
+        $a->post('/photo', \AfricaGates\Controllers\AccountPhotoController::class . ':upload');
+        $a->post('/photo/delete', \AfricaGates\Controllers\AccountPhotoController::class . ':remove');
         $a->post('/password',     AccountController::class.':passwordUpdate');
         // Display & reading, saved to the member so it follows them between devices
         // (REFERENCE §7.5). JSON, from a11y.js; the member is the session's, never a param.

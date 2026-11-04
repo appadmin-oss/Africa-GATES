@@ -227,6 +227,7 @@ $app->add(new \AfricaGates\Middleware\LanguageMiddleware());
 
 $app->add(new CsrfMiddleware());
 $app->addBodyParsingMiddleware();
+$app->add(new \AfricaGates\Middleware\UploadSizeMiddleware());
 
 // Error handler — reuse the single error-visibility decision computed above.
 $errMiddleware = $app->addErrorMiddleware($showErrors, true, true);
