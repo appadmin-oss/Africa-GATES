@@ -796,9 +796,13 @@ final class NomineeVotingNotice
         static $twig = null;
         $twig ??= \AfricaGates\Support\Translator::register(new Environment(
             new FilesystemLoader(\dirname(__DIR__, 2) . '/templates'), ['autoescape' => 'html']));
+        // Where the rule is published: this award's own details, not /integrity, which states
+        // only what holds for every award.
+        $slug = (string) ($cycle->programme_slug ?? '');
+        $rules = ($base ?? SiteUrl::base()) . ($slug !== '' ? '/awards/' . rawurlencode($slug) . '?tab=details#community-return' : '/awards');
         $html = $twig->render('emails/nominee-voting-correction.twig', [
             'name' => $v['name'], 'lead' => $lead, 'after' => $after, 'community_return' => $v['community_return'],
-            'reference' => $v['reference'], 'rules_url' => $v['rules_url'], 'vote_url' => $v['vote_url'],
+            'reference' => $v['reference'], 'rules_url' => $rules, 'vote_url' => $v['vote_url'],
             'signatory' => $v['signatory'], 'signatory_title' => $v['signatory_title'],
             'c' => \AfricaGates\Support\Accent::mail(),
         ]);
@@ -807,7 +811,7 @@ final class NomineeVotingNotice
             ['Dear ' . $v['name'] . ',', '', $lead, '', $after, '', 'Your community return'],
             array_map(static fn (array $r): string => $r[0] . ': ' . $r[1], $v['community_return']),
             ['', 'Reference: ' . $v['reference'], 'Your voting page: ' . $v['vote_url'],
-             'The rules for this award: ' . $v['rules_url'], '', 'Yours sincerely,'],
+             'This award’s rules, community return included: ' . $rules, '', 'Yours sincerely,'],
             $sign, ['For and on behalf of Africa GATES']));
 
         return [

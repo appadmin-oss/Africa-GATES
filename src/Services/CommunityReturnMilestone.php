@@ -329,60 +329,17 @@ final class CommunityReturnMilestone
         if (CommunityReturnLadder::isLadder($model)) return CommunityReturnLadder::describe($rules, $model);
         if ($model === CommunityReturnService::MODEL_POOL) return CommunityReturnPool::summary($rules);
         if ($model === CommunityReturnService::MODEL_MILESTONE) {
-            return $pct((int) ($rules['community_return_locked_bps'] ?? 0)) . '% of every eligible contribution, held locked until the edition’s milestone is confirmed; '
-                 . $pct((int) ($rules['community_return_bps'] ?? 0)) . '% of every contribution after it.';
+            // The milestone is named: "until the edition's milestone" with no figure is a rule
+            // a nominee cannot follow, and the figure is the one the console's confirm button
+            // measures against.
+            $m = (int) ($rules['community_return_milestone_naira'] ?? 0);
+            return $pct((int) ($rules['community_return_locked_bps'] ?? 0)) . '% of every eligible contribution, held locked until '
+                 . ($m > 0 ? 'contributions across the edition reach ₦' . number_format($m) . ' and that milestone is confirmed; '
+                           : 'the edition’s milestone is confirmed; ')
+                 . $pct((int) ($rules['community_return_bps'] ?? 0)) . '% of every contribution after it, and the locked share is released then.';
         }
         return $pct((int) ($rules['community_return_bps'] ?? 0)) . '% of each contribution once a nominee has '
              . number_format((int) ($rules['community_return_vote_threshold'] ?? 0)) . ' votes of qualifying support.';
-    }
-
-    /**
-     * EVERY open edition's rule, shaped for the public page.
-     *
-     * Per edition and read from the rules that do the arithmetic, so /integrity can never
-     * publish a rate or a target the ledger is not using. Live programmes only, and not
-     * archived editions: the sandbox's programme is inactive, and an archived edition's
-     * milestone is history rather than a rule anybody can still act on.
-     *
-     * It used to skip every edition on the house threshold and print the house rule as the
-     * site's rule, in a table of its own. Each award sets its own rule, so a single table
-     * describes none of them in particular — and on 4 Nov 2026 it was the only rule on the
-     * page while an open award ran a target pool. Every edition is listed now, and `own` says
-     * whether the award chose its rule or is running the house rule by default.
-     *
-     * @return list<array{title:string, model:string, summary:string, own:bool, uses_milestone:bool,
-     *                    target_kobo:int, measured_kobo:int, confirmed_at:?string, settled_at:?string}>
-     */
-    public static function publicEditions(): array
-    {
-        try {
-            $cycles = DB::table('gates_award_cycles as cy')
-                ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
-                ->where('p.is_active', 1)->where('cy.status', '!=', 'archived')
-                ->orderBy('cy.id')->get(['cy.id', 'cy.programme_id', 'cy.year', 'cy.edition_label', 'p.title']);
-        } catch (\Throwable) {
-            return [];
-        }
-        $out = [];
-        $engine = new RuleEngine();
-        foreach ($cycles as $c) {
-            $p = self::progress((int) $c->id);
-            $out[] = [
-                'title'          => trim((string) $c->title . ' · ' . ((string) ($c->edition_label ?: $c->year))),
-                'model'          => $p['model'],
-                'summary'        => $p['summary'],
-                // Chosen for this award (its programme or the edition), or inherited by default.
-                'own'            => in_array($engine->provenance('community_return_model', (int) $c->programme_id, (int) $c->id)['from'],
-                                             ['programme', 'cycle'], true),
-                'uses_milestone' => $p['uses_milestone'],
-                'target_kobo'    => $p['target_kobo'],
-                'measured_kobo'  => $p['measured_kobo'],
-                'confirmed_at'   => $p['confirmed_at'],
-                // When a pool edition's money moves: at settling, after voting closes.
-                'settled_at'     => $p['model'] === CommunityReturnService::MODEL_POOL ? (CommunityReturnPool::settlement((int) $c->id)->settled_at ?? null) : null,
-            ];
-        }
-        return $out;
     }
 
     /**

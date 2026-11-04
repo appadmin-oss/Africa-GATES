@@ -216,23 +216,35 @@ final class CommunityReturnLetterRuleTest extends TestCase
         $this->assertArrayNotHasKey(Milestone::CHANGED_AT, $otherDoc, 'no letter predates its save');
     }
 
-    // ── /integrity ────────────────────────────────────────────────────────────
+    // ── Where the rule is published ───────────────────────────────────────────
 
-    public function test_integrity_lists_every_award_and_says_which_run_the_house_rule(): void
+    /**
+     * Each award publishes its own rule in its award details; /integrity states only what holds
+     * for every award and links there. It used to print one house rule as the site's, then a
+     * list of every award's rule — neither is the place a nominee reads their award's terms.
+     */
+    public function test_the_award_details_state_the_editions_own_rule_and_integrity_does_not(): void
     {
-        $e = Milestone::publicEditions();
-        $this->assertCount(1, $e, 'an award on the house threshold used to be left out, and the house rule printed instead');
-        $this->assertFalse($e[0]['own']);
-        $this->assertSame('threshold', $e[0]['model']);
+        $a = \AfricaGates\Services\AwardsFront::detail('teachers-award');
+        $this->assertNotNull($a);
+        $this->assertSame([], $a['community_return'], 'no rule chosen: the house default is not presented as this award’s');
+        $this->assertTrue($a['community_return_pending']);
 
-        $this->assertTrue(Milestone::saveEditionRules($this->cycleId, ['model' => 'pool', 'full_pct' => 50, 'milestone_naira' => 75000])['ok']);
-        $e = Milestone::publicEditions();
-        $this->assertTrue($e[0]['own']);
-        $this->assertSame('pool', $e[0]['model']);
+        // The two-stage rule as the owner described it: 10% at first, 50% once the milestone is reached.
+        $this->assertTrue(Milestone::saveEditionRules($this->cycleId, ['model' => 'milestone', 'locked_pct' => 10, 'full_pct' => 50, 'milestone_naira' => 5900000])['ok']);
+        $a = \AfricaGates\Services\AwardsFront::detail('teachers-award');
+        $this->assertFalse($a['community_return_pending']);
+        $this->assertSame($a['community_return'], NomineeVotingNotice::communityReturn($this->programmeId, $this->cycleId), 'the letter’s rows, so the two cannot differ');
+        $rule = $a['community_return'][0][1];
+        $this->assertStringContainsString('10% of every eligible contribution', $rule);
+        $this->assertStringContainsString('₦5,900,000', $rule, 'the milestone is named, not just referred to');
+        $this->assertStringContainsString('50% of every contribution after it', $rule);
 
         $twig = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/integrity.twig');
-        $this->assertStringNotContainsString("'Qualifying support'", $twig, 'no single house-rule table');
-        $this->assertStringNotContainsString('return_threshold', $twig);
+        foreach (["'Qualifying support'", 'return_threshold', 'return_editions', 'The rule for each award'] as $gone) {
+            $this->assertStringNotContainsString($gone, $twig, 'integrity states no award’s rule: ' . $gone);
+        }
+        $this->assertStringContainsString("href: '/awards'", $twig, 'and says where each award states it');
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

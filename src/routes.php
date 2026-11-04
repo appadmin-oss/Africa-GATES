@@ -2966,9 +2966,8 @@ return function(App $app) {
                 'return_off_reason'=> $ret['off_reason'],
                 // The house rule in one sentence, whatever its model, or that none is running.
                 'return_sentence'  => $ret['sentence'],
-                // The two-stage editions and the withdrawal terms, from the resolvers the
-                // ledger and the withdrawals use — never typed into the page.
-                'return_editions'  => \AfricaGates\Services\CommunityReturnMilestone::publicEditions(),
+                // The withdrawal terms, from the resolver the withdrawals use — never typed
+                // into the page. No edition's rule: each award publishes its own.
                 'return_terms'     => \AfricaGates\Services\CommunityReturnWithdrawals::terms($eff),
             ];
         };

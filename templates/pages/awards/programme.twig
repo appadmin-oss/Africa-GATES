@@ -176,6 +176,18 @@
       <p>{% if a.paid_only|default(false) %}{{ 'On this award, every vote is a contribution that helps fund the awards. You back a nominee from their page.'|trans }} {{ a.paid }}{% else %}{{ 'Each person verified by an email code has one free vote per category.'|trans }}{% if a.paid %} {{ 'Supporters can also add contributed votes on a nominee’s page.'|trans }} {{ a.paid }}{% endif %}{% endif %}</p>
       {% if _d.voting_note %}{% for para in _d.voting_note|split("\n\n") %}<p>{{ para|nl2br }}</p>{% endfor %}{% endif %}
     </section>
+    {# Generated from this edition's own community-return rule (AwardsFront::detail(), the
+       voting letter's rows). Each award sets its own, so the rule is published here and not
+       on /integrity, which links to this section. #}
+    {% if a.community_return %}
+    <section class="aw-doc__s" id="community-return"><h2 class="aw-doc__h">{{ 'Community return'|trans }}</h2>
+      <dl class="aw-prizes">{% for r in a.community_return %}<div class="aw-prizes__r"><dt>{{ r[0] }}</dt><dd>{{ r[1] }}</dd></div>{% endfor %}</dl>
+    </section>
+    {% elseif a.community_return_pending %}
+    <section class="aw-doc__s" id="community-return"><h2 class="aw-doc__h">{{ 'Community return'|trans }}</h2>
+      <p>{{ 'The community return rule for this edition has not been published yet. It will be stated here before anything is earned under it.'|trans }}</p>
+    </section>
+    {% endif %}
     <section class="aw-doc__s"><h2 class="aw-doc__h">{{ 'After the results'|trans }}</h2>
       <p>{{ 'Every result is published with its working and sealed; later rule changes cannot alter it.'|trans }} <a href="/integrity">{{ 'How results are checked'|trans }}</a></p>
       {% if _d.after_note %}{% for para in _d.after_note|split("\n\n") %}<p>{{ para|nl2br }}</p>{% endfor %}{% endif %}
