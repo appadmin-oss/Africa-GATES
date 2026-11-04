@@ -110,9 +110,14 @@
       <div class="ad-form__row">
         <div>
           <label for="crModel">Model</label>
-          <select id="crModel" name="model">
+          {# An edition with no rule of its own used to show Threshold selected, so pressing Save
+             unchanged CHOSE Threshold without anybody choosing it (4 Nov 2026). Unsaved, the picker
+             now starts blank and must be answered; the server refuses a blank too. #}
+          {% set _unchosen = model_from in ['default', 'global'] %}
+          <select id="crModel" name="model" required>
+            {% if _unchosen %}<option value="" selected disabled>Choose the rule this edition runs</option>{% endif %}
             {% for key, label in model_choices %}
-              <option value="{{ key }}" {% if p.model == key %}selected{% endif %}>{{ label }}</option>
+              <option value="{{ key }}" {% if not _unchosen and p.model == key %}selected{% endif %}>{{ label }}</option>
             {% endfor %}
           </select>
         </div>

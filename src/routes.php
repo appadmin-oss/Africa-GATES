@@ -2958,17 +2958,12 @@ return function(App $app) {
                 'fraud_block'      => (int) ($eff['fraud_block'] ?? 80),
                 'fraud_flag'       => (int) ($eff['fraud_flag'] ?? 60),
                 'fraud_monitor'    => (int) ($eff['fraud_monitor'] ?? 30),
-                'return_pct'       => $ret['pct'],
                 'return_on'        => $ret['on'],
                 // WHY it is off, not just that it is. The section prints a different
                 // note for "the share is 0%" than for "this site sells no votes", and
                 // a template deriving that itself would be a second reader of a
                 // setting the service already resolves.
                 'return_off_reason'=> $ret['off_reason'],
-                'return_threshold' => $ret['threshold'],
-                'return_cap_pct'   => $ret['cap_pct'],
-                'return_cap_votes' => $ret['cap_votes'],
-                'return_people'    => $ret['min_supporters'],
                 // The house rule in one sentence, whatever its model, or that none is running.
                 'return_sentence'  => $ret['sentence'],
                 // The two-stage editions and the withdrawal terms, from the resolvers the
@@ -4240,6 +4235,7 @@ return function(App $app) {
         $a->get('/programmes/{id:[0-9]+}/cycle',     AdminProgrammesController::class.':cycleEdit')->add(new RoleMiddleware('superadmin'));
         $a->get('/programmes/{id:[0-9]+}/cycle/voting-letter', AdminProgrammesController::class.':votingLetterPreview')->add(new RoleMiddleware('superadmin'));
         $a->post('/programmes/{id:[0-9]+}/cycle/voting-letter/send', AdminProgrammesController::class.':votingLetterSend')->add(new RoleMiddleware('superadmin'));
+        $a->post('/programmes/{id:[0-9]+}/cycle/voting-letter/correct', AdminProgrammesController::class.':votingLetterCorrect')->add(new RoleMiddleware('superadmin'));
         // The voting letter's words, per edition: the editor, and its autosave/publish/restore.
         $a->get('/programmes/{id:[0-9]+}/cycle/letter',  AdminProgrammesController::class.':letterEditor')->add(new RoleMiddleware('superadmin'));
         $a->post('/programmes/{id:[0-9]+}/cycle/letter', AdminProgrammesController::class.':letterSave')->add(new RoleMiddleware('superadmin'));

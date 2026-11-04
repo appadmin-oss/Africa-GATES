@@ -100,6 +100,7 @@ final class NomineeVotingNotice
         foreach (self::votingCycles($now) as $cycle) {
             $cfg = self::settings((int) $cycle->programme_id, (int) $cycle->id);
             if (!$cfg['on']) continue;
+            if (self::returnRuleUnchosen($cycle)) continue;
 
             $plan = self::plan($cycle);
             $out['unreachable'] += $plan['unreachable'];
@@ -196,6 +197,7 @@ final class NomineeVotingNotice
         $out = ['sent' => 0, 'failed' => 0, 'held' => 0, 'unreachable' => 0];
         if (!$mailer->canSend()) return $out + ['error' => 'Email is not set up, so nothing can be sent. See Settings → Mail.'];
         if (CyclePolicy::phaseFor($cycle) !== CyclePhase::Voting) return $out + ['error' => 'Letters go only while this edition is open for voting.'];
+        if (self::returnRuleUnchosen($cycle)) return $out + ['error' => self::HOLD_MESSAGE];
         $cfg = self::settings((int) $cycle->programme_id, (int) $cycle->id);
         $plan = self::plan($cycle);
         $out['unreachable'] = $plan['unreachable'];
@@ -624,6 +626,200 @@ final class NomineeVotingNotice
             'due'         => count($plan['due']),
             'unreachable' => $plan['unreachable'],
             'failed'      => $tally['failed'],
+            // Why nothing is going out, when the reason is the community-return rule.
+            'held'        => self::returnRuleUnchosen($cycle) ? self::HOLD_MESSAGE : '',
+            // Nominees told a rule this edition no longer runs, and not yet corrected.
+            'correction_due' => count(self::correctionPlan($cycle)['due']),
+        ];
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // The community-return section: chosen before it is promised, corrected if it changes
+    // ══════════════════════════════════════════════════════════════════════════
+
+    public const HOLD_MESSAGE = 'Letters are on hold: this edition has no community-return rule of its own, and the letter '
+        . 'states one. Choose and save it on Community return (Money), then the letters go.';
+
+    /** The correction's campaign prefix; the rest is the cycle and the rule it corrects to. */
+    public const CORRECTION_PREFIX = 'voting-letter-fix-';
+
+    /**
+     * Is this letter about to state a community-return rule nobody chose for the edition?
+     *
+     * The letter's "Your community return" section is a promise about money, read from the
+     * edition's effective rules. An edition with no rule of its own inherits the house default
+     * — Threshold — silently, and the letter promised it to live nominees on an edition set up
+     * as a target pool (4 Nov 2026). So where the section would be printed, the letter waits
+     * until a programme or edition has CHOSEN its rule. Where there is no section (no votes are
+     * sold, or the share is nought) nothing is promised and nothing waits.
+     */
+    public static function returnRuleUnchosen(object $cycle): bool
+    {
+        $pid = (int) ($cycle->programme_id ?? 0) ?: null;
+        $cid = (int) ($cycle->id ?? 0) ?: null;
+        if (self::communityReturn($pid, $cid) === []) return false;
+        $from = (new RuleEngine())->provenance('community_return_model', $pid, $cid)['from'];
+        return !in_array($from, ['programme', 'cycle'], true);
+    }
+
+    /**
+     * The keys that decide what the letter's community-return section SAYS, and nothing else.
+     *
+     * Hashed, so "has the rule a nominee was told changed?" is a comparison rather than a
+     * reading of prose — the pool's target line carries today's date and would differ daily.
+     *
+     * @param array<string,mixed> $rules a RuleEngine::effective() result
+     */
+    public static function returnFingerprint(array $rules): string
+    {
+        $keys = ['community_return_model', 'community_return_bps', 'community_return_locked_bps',
+                 'community_return_milestone_naira', 'community_return_vote_threshold',
+                 'community_return_supporter_cap_pct', 'community_return_ladder', 'community_return_ladder_basis',
+                 'community_return_ladder_locked', 'community_return_vote_price_naira'];
+        $pick = [];
+        foreach ($keys as $k) $pick[$k] = $rules[$k] ?? null;
+        $pick['community_return_model'] = CommunityReturnService::modelOf($rules);
+        return substr(hash('sha256', (string) json_encode($pick)), 0, 12);
+    }
+
+    /** The correction campaign for this edition's CURRENT rule: one correction per rule, ever. */
+    public static function correctionCampaign(int $cycleId): string
+    {
+        return self::CORRECTION_PREFIX . $cycleId . '-'
+            . self::returnFingerprint(CommunityReturnMilestone::rulesForCycle($cycleId));
+    }
+
+    /**
+     * Who was sent the letter BEFORE the edition's rule last changed, and has not been sent
+     * the correction to the rule as it stands now.
+     *
+     * Read from the letter's own send log, by the address it actually went to: nobody is
+     * corrected who was not told, and nobody told after the change is told it again.
+     *
+     * @return array{due:list<array{nominee:object,email:string,sent_at:string}>, changed_at:?string}
+     */
+    public static function correctionPlan(object $cycle): array
+    {
+        $cycleId = (int) $cycle->id;
+        $out = ['due' => [], 'changed_at' => null];
+        $changed = (string) ((new RuleEngine())->provenance(CommunityReturnMilestone::CHANGED_AT,
+            (int) ($cycle->programme_id ?? 0) ?: null, $cycleId)['value'] ?? '');
+        if ($changed === '' || self::returnRuleUnchosen($cycle)) return $out;
+        $out['changed_at'] = $changed;
+        if (self::communityReturn((int) ($cycle->programme_id ?? 0) ?: null, $cycleId) === []) return $out;
+
+        $done = BroadcastLog::handled(self::correctionCampaign($cycleId));
+        $byId = [];
+        foreach (self::nominees($cycleId) as $n) $byId[(int) $n->id] = $n;
+        try {
+            $rows = DB::table('gates_broadcast_log')
+                ->where('campaign', self::campaign($cycleId))
+                ->where('status', BroadcastLog::SENT)
+                ->where('sent_at', '<', $changed)
+                ->orderBy('id')->get(['email', 'email_hash', 'nominee_id', 'sent_at']);
+        } catch (\Throwable) {
+            return $out;
+        }
+        foreach ($rows as $r) {
+            if (isset($done[(string) $r->email_hash])) continue;
+            // Off the ballot since (withdrawn, merged): the letter no longer applies to them.
+            $n = $byId[(int) $r->nominee_id] ?? null;
+            if ($n === null) continue;
+            $out['due'][] = ['nominee' => $n, 'email' => (string) $r->email, 'sent_at' => (string) $r->sent_at];
+        }
+        return $out;
+    }
+
+    /**
+     * Send the correction to everybody {@see correctionPlan()} names, now.
+     *
+     * Pressed by a person, never by the tick: a correction is an admission, and the operator
+     * should see the count and give a reason before it goes. Claim-before-send on its own
+     * campaign, so pressing twice, or two people pressing at once, corrects each person once.
+     *
+     * @return array{sent:int, failed:int, held:int, error?:string}
+     */
+    public static function sendCorrections(object $cycle, OtpService $mailer): array
+    {
+        $out = ['sent' => 0, 'failed' => 0, 'held' => 0];
+        if (!$mailer->canSend()) return $out + ['error' => 'Email is not set up, so nothing can be sent. See Settings → Mail.'];
+        if (self::returnRuleUnchosen($cycle)) return $out + ['error' => self::HOLD_MESSAGE];
+        $plan = self::correctionPlan($cycle);
+        if ($plan['due'] === []) return $out + ['error' => 'Nobody is owed a correction: every letter sent already states this edition’s rule.'];
+
+        $campaign = self::correctionCampaign((int) $cycle->id);
+        $cfg = self::settings((int) $cycle->programme_id, (int) $cycle->id);
+        foreach ($plan['due'] as $r) {
+            if (!BroadcastLog::claim($campaign, $r['email'], (int) $r['nominee']->id)) { $out['held']++; continue; }
+            try {
+                $m   = self::composeCorrection($r['nominee'], $cycle, $cfg, $r['sent_at']);
+                $res = $mailer->sendBranded($r['email'], $m['subject'], $m['html'], $m['plain'], 'Nomination',
+                                            '', '', $m['attachments'], $m['preheader']);
+            } catch (\Throwable $e) {
+                BroadcastLog::settle($campaign, $r['email'], false, $e->getMessage());
+                $out['failed']++;
+                continue;
+            }
+            $held = (string) ($res['held'] ?? '');
+            if ($held === MailLog::DEFERRED) { BroadcastLog::release($campaign, $r['email']); $out['held']++; continue; }
+            if ($held === MailLog::REFUSED) {
+                BroadcastLog::settle($campaign, $r['email'], false, (string) ($res['error'] ?? ''), BroadcastLog::REFUSED);
+                $out['held']++;
+                continue;
+            }
+            $ok = (bool) ($res['success'] ?? false);
+            BroadcastLog::settle($campaign, $r['email'], $ok, (string) ($res['error'] ?? ''));
+            $out[$ok ? 'sent' : 'failed']++;
+        }
+        return $out;
+    }
+
+    /**
+     * The correction: what was wrong, the rule that applies, and the letter reissued.
+     *
+     * It says plainly that the earlier letter was wrong and apologises. It does not claim
+     * nothing else in the letter changed, because the reissued copy is drawn from the
+     * edition as it stands today and somebody may have edited the letter's words since.
+     *
+     * @return array{subject:string, preheader:string, html:string, plain:string,
+     *               attachments:list<array{name:string,mime:string,body:string}>}
+     */
+    public static function composeCorrection(object $nominee, object $cycle, array $cfg, string $sentAt, ?string $base = null): array
+    {
+        $v    = self::view($nominee, $cycle, $cfg, $base ?? SiteUrl::base());
+        $when = DisplayTime::show($sentAt, 'j F Y');
+        $lead = 'In our letter of ' . $when . ' telling you that your nomination is on the public vote, the section headed '
+              . '“Your community return” described a rule this edition does not run. We are sorry for the error.';
+        $after = 'The rule that applies to ' . $v['award'] . ' is set out below. A corrected copy of your letter is attached '
+               . 'and replaces the one dated ' . $when . '. Your nomination, your category and your voting page are unchanged.';
+
+        static $twig = null;
+        $twig ??= \AfricaGates\Support\Translator::register(new Environment(
+            new FilesystemLoader(\dirname(__DIR__, 2) . '/templates'), ['autoescape' => 'html']));
+        $html = $twig->render('emails/nominee-voting-correction.twig', [
+            'name' => $v['name'], 'lead' => $lead, 'after' => $after, 'community_return' => $v['community_return'],
+            'reference' => $v['reference'], 'rules_url' => $v['rules_url'], 'vote_url' => $v['vote_url'],
+            'signatory' => $v['signatory'], 'signatory_title' => $v['signatory_title'],
+            'c' => \AfricaGates\Support\Accent::mail(),
+        ]);
+        $sign = $v['signatory'] !== '' ? [$v['signatory'], $v['signatory_title']] : [$v['signatory_title']];
+        $plain = implode("\n", array_merge(
+            ['Dear ' . $v['name'] . ',', '', $lead, '', $after, '', 'Your community return'],
+            array_map(static fn (array $r): string => $r[0] . ': ' . $r[1], $v['community_return']),
+            ['', 'Reference: ' . $v['reference'], 'Your voting page: ' . $v['vote_url'],
+             'The rules for this award: ' . $v['rules_url'], '', 'Yours sincerely,'],
+            $sign, ['For and on behalf of Africa GATES']));
+
+        return [
+            'subject'     => 'Correction to your nomination letter: ' . $v['award'],
+            'preheader'   => 'The community return section of our earlier letter was wrong. The correct rule, and a corrected letter.',
+            'html'        => $html,
+            'plain'       => $plain,
+            'attachments' => [[
+                'name' => NomineeVotingLetter::fileName($v),
+                'mime' => 'application/pdf',
+                'body' => NomineeVotingLetter::render($v, (string) $v['paper']),
+            ]],
         ];
     }
 

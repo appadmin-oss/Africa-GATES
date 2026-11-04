@@ -389,6 +389,29 @@ class ProgrammesController
         return $res->withHeader('Location', '/admin/programmes/' . (int) $args['id'] . '/cycle?cycle=' . (int) $cycle->id)->withStatus(303);
     }
 
+    /**
+     * POST …/cycle/voting-letter/correct — send the correction to every nominee whose letter
+     * stated a community-return rule this edition no longer runs (4 Nov 2026: letters promised
+     * Threshold terms on an edition set up as a target pool). Pressed by a person, with a
+     * reason, because a correction is an admission and goes out under the award's name.
+     */
+    public function votingLetterCorrect(Request $req, Response $res, array $args): Response
+    {
+        $cycle = $this->letterCycle($req, $args);
+        if (!$cycle) throw new \Slim\Exception\HttpNotFoundException($req);
+        $r = \AfricaGates\Services\NomineeVotingNotice::sendCorrections($cycle, \AfricaGates\Services\OtpService::boot());
+        $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'voting_letter.correction_sent', 'cycle', (int) $cycle->id,
+            ['sent' => $r['sent'], 'failed' => $r['failed'], 'held' => $r['held']]);
+        if (isset($r['error'])) {
+            $_SESSION['flash_error'] = $r['error'];
+        } else {
+            $_SESSION['flash_ok'] = $r['sent'] . ($r['sent'] === 1 ? ' correction' : ' corrections') . ' sent'
+                . ($r['failed'] ? ', ' . $r['failed'] . ' failed (see Settings → Mail)' : '')
+                . ($r['held'] ? ', ' . $r['held'] . ' held by the send rules' : '') . '.';
+        }
+        return $res->withHeader('Location', '/admin/programmes/' . (int) $args['id'] . '/cycle?cycle=' . (int) $cycle->id)->withStatus(303);
+    }
+
     /** @return array<string,mixed>|null null when the counts cannot be read, never a 500 */
     private static function votingLetterStatus(object $cycle): ?array
     {

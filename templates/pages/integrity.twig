@@ -49,18 +49,23 @@
 {% elseif return_off_reason|default('') == 'rate_zero' %}
   {% set _ret = 'Set to 0%'|trans %}
 {% else %}
-  {% set _ret = '%p%% after %t% votes'|trans({'%p%': return_pct|default('50'), '%t%': return_threshold|default(250)|number_format}) %}
+  {# Never one rule for the whole site: each award sets its own, so the card says so and the
+     section lists them by award (4 Nov 2026 — this line printed the house threshold while an
+     open award ran a target pool). #}
+  {% set _ret = 'Set by each award'|trans %}
 {% endif %}
 
 {# The two-stage editions and the withdrawal terms, built here from the figures the
    ledger and the withdrawals read (CommunityReturnMilestone::publicEditions(),
    CommunityReturnWithdrawals::terms()) — never typed. Template scope, because the
    sections list below reads them (CLAUDE.md, the Twig block-scope trap). #}
-{% set _ret_editions = [] %}
+{% set _ret_editions = [{p: 'No open award is running a community return at the moment.'|trans|e}] %}
 {% if return_editions|default([]) is not empty %}
   {% set _rows = [] %}
   {% for e in return_editions %}
-    {% set _rows = _rows|merge([[e.title, e.summary|e,
+    {# An award that has not chosen its own rule runs the house rule, and the row says so rather
+       than presenting it as a decision somebody made for that award. #}
+    {% set _rows = _rows|merge([[e.title, (e.own ? e.summary : 'The house rule, because this award has not set its own: %s%'|trans({'%s%': e.summary}))|e,
         (e.model == 'pool' ? (e.settled_at ? 'Shared on %d%'|trans({'%d%': e.settled_at|date('j M Y')}) : 'Shared when voting closes, by votes, between the nominees who reach the target'|trans)
           : (not e.uses_milestone ? 'Released when the edition announces its results'|trans
           : (e.confirmed_at
@@ -68,8 +73,8 @@
             : '₦%m% raised of ₦%t%'|trans({'%m%': (e.measured_kobo / 100)|number_format, '%t%': (e.target_kobo / 100)|number_format}))))|e]]) %}
   {% endfor %}
   {% set _ret_editions = [
-    {p: 'Some editions set their own rule before they open, and it never changes once anything is earned. Target pool: every nominee has the same vote target; when voting closes, those who reached it share the pool by their votes, and below it nothing is paid. Two-stage: a smaller share, held until contributions reach a published target and a person confirms it, then the full share. Flat: one share on everything. Tiered: the share rises as more is raised. Refunded or fraudulent money earns nothing.'|trans|e},
-    {table: {caption: 'Editions with their own return rule'|trans, head: ['Edition'|trans, 'Rule'|trans, 'When it is released'|trans], rows: _rows}}
+    {table: {caption: 'The rule for each award'|trans, head: ['Award'|trans, 'Rule'|trans, 'When it is released'|trans], rows: _rows}},
+    {p: 'The rules an award can choose. Threshold: nothing until a nominee gathers enough support from enough different people, then a share of every later contribution. Target pool: every nominee has the same vote target; when voting closes, those who reached it share the pool by their votes, and below it nothing is paid. Two-stage: a smaller share, held until contributions reach a published target and a person confirms it, then the full share. Flat: one share on everything. Tiered: the share rises as more is raised. Refunded or fraudulent money earns nothing.'|trans|e}
   ] %}
 {% endif %}
 {% set _t = return_terms|default(null) %}
@@ -226,15 +231,10 @@
         ? [{note: {title: 'Currently set to nothing'|trans|e, body: ['The share is set to 0%, so new contributions earn nothing for a nominee. Money already earned is kept.'|trans|e]}}]
         : [])
     )|merge([
-    {p: 'A nominee keeps a share of what supporters contribute in their name, win or lose, because they raised it either way.'|trans|e},
-    {table: {caption: 'How a nominee qualifies, and what they keep'|trans, head: ['Rule'|trans, 'Setting'|trans, 'What it means'|trans],
-      rows: [
-        ['Qualifying support'|trans, '%t% votes'|trans({'%t%': return_threshold|default(250)|number_format}), 'A nominee starts earning once they have %t% votes of support.'|trans({'%t%': return_threshold|default(250)|number_format})|e],
-        ['No single pocket'|trans, return_cap_pct|default(10) ~ '%', 'One supporter counts for at most %v% of those votes, so it takes at least %n% different people.'|trans({'%v%': return_cap_votes|default(25)|number_format, '%n%': return_people|default(10)})|e],
-        ['The share'|trans, return_pct|default('50') ~ '%', 'That share of each later contribution is kept for the nominee. Earlier contributions don’t count.'|trans|e]
-      ]}},
-    {p: 'Every entry stays on the record, and so does a refund, which takes its share back. Under the house rule nothing is paid out before the edition’s results are announced; an edition with its own rule says when, below. A nominee can spend an available return on votes for anyone; those votes earn no return and don’t count towards qualifying.'|trans|e}
-  ])|merge(_ret_editions)|merge(_ret_terms)|merge([
+    {p: 'Where an award runs a community return, a share of what supporters contribute in a nominee’s name comes back to that nominee. Each award sets its own rule before it opens, and the rule never changes once anything has been earned under it. So who qualifies, how much, and when it is paid depend on the award: each one is listed below, read from the same settings that do the arithmetic.'|trans|e}
+  ])|merge(_ret_editions)|merge([
+    {p: 'Every entry stays on the record, and so does a refund, which takes its share back. A nominee can spend an available return on votes for anyone; those votes earn no return and don’t count towards any target or threshold.'|trans|e}
+  ])|merge(_ret_terms)|merge([
     {refs: [{href: '/help/the-community-return', label: 'The community return, in full'|trans}]}
   ])},
   {id: 'honest', blocks: [

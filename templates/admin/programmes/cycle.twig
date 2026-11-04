@@ -122,7 +122,23 @@
             · <a href="/admin/programmes/{{ programme.id }}/cycle/voting-letter?cycle={{ cycle.id }}">See it as a PDF</a>
             · Signatory, who receives it and on/off are in <a href="/admin/settings#f-vl_title">Settings</a>.
           </p>
-          {% if _vl and _vl.on and _vl.voting and _vl.due > 0 %}
+          {% if _vl and _vl.held|default('') %}
+          <p class="ad-callout ad-callout--warn" style="margin:10px 0 0">{{ _vl.held }}</p>
+          {% endif %}
+          {% if _vl and _vl.correction_due|default(0) > 0 %}
+          {# A letter stated a community-return rule this edition no longer runs
+             (NomineeVotingNotice::correctionPlan()). The correction says so, apologises, states
+             the rule and reissues the letter; it is sent only from here, with a reason. #}
+          <p class="ad-callout ad-callout--warn" style="margin:10px 0 0">
+            <strong>{{ _vl.correction_due }} {{ _vl.correction_due == 1 ? 'nominee was' : 'nominees were' }} sent the letter before this edition’s community-return rule changed</strong>,
+            so {{ _vl.correction_due == 1 ? 'their letter states' : 'their letters state' }} a rule the edition does not run.
+          </p>
+          <p style="margin:10px 0 0">
+            <button class="ad-btn" type="submit" formnovalidate data-confirm="Send the correction to {{ _vl.correction_due }} {{ _vl.correction_due == 1 ? 'nominee' : 'nominees' }}? It says the earlier letter was wrong, states the rule that applies, and attaches a corrected letter."
+                    formaction="/admin/programmes/{{ programme.id }}/cycle/voting-letter/correct?cycle={{ cycle.id }}">Send the correction to {{ _vl.correction_due }} {{ _vl.correction_due == 1 ? 'nominee' : 'nominees' }}</button>
+          </p>
+          {% endif %}
+          {% if _vl and _vl.on and _vl.voting and _vl.due > 0 and not _vl.held|default('') %}
           {# Inside the cycle form: a nested <form> would be dropped by the parser and this
              button would save the cycle instead, so it carries its own formaction. #}
           <p style="margin:10px 0 0">

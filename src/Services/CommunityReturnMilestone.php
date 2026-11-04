@@ -44,6 +44,21 @@ use Illuminate\Support\Carbon;
  */
 final class CommunityReturnMilestone
 {
+    /** Every model an edition may be saved with. Anything else is refused, never defaulted. */
+    public const MODELS = ['pool', 'threshold', 'milestone', 'flat', 'tiered', 'custom'];
+
+    /** The models' names as an operator reads them, for the messages this class writes. */
+    public const MODEL_LABELS = [
+        'pool' => 'Target pool', 'threshold' => 'Threshold', 'milestone' => 'Two-stage',
+        'flat' => 'Flat', 'tiered' => 'Tiered', 'custom' => 'Custom',
+    ];
+
+    /**
+     * When this edition's community-return rule last CHANGED, as a rule key at cycle scope.
+     * Letters sent before it described a different rule and are owed a correction.
+     */
+    public const CHANGED_AT = 'community_return_rule_changed_at';
+
     /** The rules an edition runs: house defaults, then the programme, then the cycle. */
     public static function rulesForCycle(?int $cycleId): array
     {
@@ -217,10 +232,33 @@ final class CommunityReturnMilestone
                 . 'fixed: nominees earned them under the rules as they stood.'];
         }
 
-        $model = CommunityReturnService::modelOf(['community_return_model' => (string) ($in['model'] ?? '')]);
+        // ── THE MODEL MUST BE CHOSEN, NOT FALLEN INTO ────────────────────────────
+        //
+        // modelOf() turns anything it does not recognise into `threshold`, which is right for
+        // READING a stored rule and wrong for SAVING one: an empty or mistyped choice became a
+        // saved Threshold rule, and the voting letter then told every nominee "50% once you have
+        // 250 votes" on an edition its operator had set up as a target pool (4 Nov 2026).
+        $raw = (string) ($in['model'] ?? '');
+        if (!in_array($raw, self::MODELS, true)) {
+            return ['ok' => false, 'message' => 'Choose the rule this edition runs.'];
+        }
+        $model = CommunityReturnService::modelOf(['community_return_model' => $raw]);
         $full   = (int) round(max(0.0, min(100.0, (float) ($in['full_pct'] ?? 50))) * 100);
         $locked = (int) round(max(0.0, min(100.0, (float) ($in['locked_pct'] ?? 10))) * 100);
         $target = max(0, (int) ($in['milestone_naira'] ?? 0));
+
+        // A milestone the chosen model never reads is a sign the wrong model is selected. The
+        // same incident: ₦5,900,000 typed into the milestone, Threshold left in the picker, and
+        // the form saved both — the figure stored and ignored, the nominees told a threshold.
+        // Only the target pool, the two-stage model and a custom ladder held locked read it.
+        $readsTarget = $model === CommunityReturnService::MODEL_POOL
+            || $model === CommunityReturnService::MODEL_MILESTONE
+            || ($model === CommunityReturnLadder::MODEL_CUSTOM && ($in['ladder_locked'] ?? '') === '1');
+        if ($target > 0 && !$readsTarget) {
+            return ['ok' => false, 'message' => 'The ' . self::MODEL_LABELS[$model] . ' rule does not use a milestone, so the ₦'
+                . number_format($target) . ' entered would be ignored. To use it, choose Target pool, Two-stage, or a Custom '
+                . 'ladder held locked. To run ' . self::MODEL_LABELS[$model] . ', clear the milestone.'];
+        }
 
         $write = [
             'community_return_model'           => $model,
@@ -265,7 +303,15 @@ final class CommunityReturnMilestone
             $write['community_return_ladder_locked'] = false;
         }
 
-        (new RuleEngine())->merge('cycle', $cycleId, $write);
+        // When what a nominee is TOLD changes, record the moment, so the letters sent before it
+        // can be found and corrected (NomineeVotingNotice::correctionPlan()). Only on a real
+        // change: re-saving the same rule must not make every earlier letter look wrong.
+        $before = NomineeVotingNotice::returnFingerprint(self::rulesForCycle($cycleId));
+        $engine = new RuleEngine();
+        $engine->merge('cycle', $cycleId, $write);
+        if (NomineeVotingNotice::returnFingerprint(self::rulesForCycle($cycleId)) !== $before) {
+            $engine->merge('cycle', $cycleId, [self::CHANGED_AT => \Illuminate\Support\Carbon::now()->toDateTimeString()]);
+        }
 
         return ['ok' => true, 'message' => 'Saved. This edition’s rule: ' . self::summary(self::rulesForCycle($cycleId))];
     }
@@ -291,15 +337,21 @@ final class CommunityReturnMilestone
     }
 
     /**
-     * The editions running any rule but the default threshold, shaped for the public page.
+     * EVERY open edition's rule, shaped for the public page.
      *
      * Per edition and read from the rules that do the arithmetic, so /integrity can never
      * publish a rate or a target the ledger is not using. Live programmes only, and not
      * archived editions: the sandbox's programme is inactive, and an archived edition's
      * milestone is history rather than a rule anybody can still act on.
      *
-     * @return list<array{title:string, model:string, summary:string, uses_milestone:bool,
-     *                    target_kobo:int, measured_kobo:int, confirmed_at:?string}>
+     * It used to skip every edition on the house threshold and print the house rule as the
+     * site's rule, in a table of its own. Each award sets its own rule, so a single table
+     * describes none of them in particular — and on 4 Nov 2026 it was the only rule on the
+     * page while an open award ran a target pool. Every edition is listed now, and `own` says
+     * whether the award chose its rule or is running the house rule by default.
+     *
+     * @return list<array{title:string, model:string, summary:string, own:bool, uses_milestone:bool,
+     *                    target_kobo:int, measured_kobo:int, confirmed_at:?string, settled_at:?string}>
      */
     public static function publicEditions(): array
     {
@@ -307,24 +359,21 @@ final class CommunityReturnMilestone
             $cycles = DB::table('gates_award_cycles as cy')
                 ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
                 ->where('p.is_active', 1)->where('cy.status', '!=', 'archived')
-                ->orderBy('cy.id')->get(['cy.id', 'cy.year', 'cy.edition_label', 'p.title']);
+                ->orderBy('cy.id')->get(['cy.id', 'cy.programme_id', 'cy.year', 'cy.edition_label', 'p.title']);
         } catch (\Throwable) {
             return [];
         }
         $out = [];
-        // The house rule, to tell a threshold edition that merely inherits it from one that
-        // set its own share or threshold. Skipping every threshold edition hid the second
-        // kind: the page stated the house percentage while that edition paid another.
-        $house = (new RuleEngine())->effective();
-        $own = static fn (array $r): bool => (int) ($r['community_return_bps'] ?? 0) !== (int) ($house['community_return_bps'] ?? 0)
-            || (int) ($r['community_return_vote_threshold'] ?? 0) !== (int) ($house['community_return_vote_threshold'] ?? 0);
+        $engine = new RuleEngine();
         foreach ($cycles as $c) {
             $p = self::progress((int) $c->id);
-            if ($p['model'] === CommunityReturnService::MODEL_THRESHOLD && !$own(self::rulesForCycle((int) $c->id))) continue;
             $out[] = [
                 'title'          => trim((string) $c->title . ' · ' . ((string) ($c->edition_label ?: $c->year))),
                 'model'          => $p['model'],
                 'summary'        => $p['summary'],
+                // Chosen for this award (its programme or the edition), or inherited by default.
+                'own'            => in_array($engine->provenance('community_return_model', (int) $c->programme_id, (int) $c->id)['from'],
+                                             ['programme', 'cycle'], true),
                 'uses_milestone' => $p['uses_milestone'],
                 'target_kobo'    => $p['target_kobo'],
                 'measured_kobo'  => $p['measured_kobo'],
