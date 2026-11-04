@@ -364,59 +364,6 @@ final class HomeFront
     // fabricate. The DC's sample people (Mama Ngozi, the Mathare choir, the bank, the
     // honours office) are design content, not records, and none of them is drawn here.
 
-    /** The six "Who do you want to honour?" tiles: the photos the owner supplied. */
-    public const HONOUR = [
-        ['teacher',          'A teacher',          'A teacher guiding two students at a classroom table'],
-        ['nurse',            'A nurse or carer',   'A community nurse checking an elderly woman’s blood pressure'],
-        ['community-leader', 'A community leader', 'A community leader speaking at a neighbourhood meeting'],
-        ['creative',         'A creative',         'A designer draping indigo fabric in her studio'],
-        ['business',         'A business',         'A shop founder at the counter of her boutique'],
-        ['young-leader',     'A young leader',     'A young volunteer holding a clipboard at a youth event'],
-    ];
-
-    /** @return list<array{key:string,label:string,alt:string,src:string,srcset:string}> */
-    public static function honourTiles(): array
-    {
-        $out = [];
-        foreach (self::HONOUR as [$key, $label, $alt]) {
-            $base = '/assets/img/honour/' . $key;
-            $out[] = ['key' => $key, 'label' => $label, 'alt' => $alt,
-                      'src' => $base . '-480.webp', 'srcset' => $base . '-480.webp 480w, ' . $base . '-960.webp 960w'];
-        }
-        return $out;
-    }
-
-    /**
-     * The hero's rotating recognitions: real decided awards, at most four.
-     *
-     * LOW-DATA-RULES: two or more rotate; one is static with no dots; none falls back to
-     * the bundled default slides. The defaults are the honour photos with a line about the
-     * KIND of person this platform honours — never a name, a count or an award nobody won.
-     *
-     * @param list<array<string,mixed>> $decided HomeFront::decided()
-     * @return list<array<string,mixed>>
-     */
-    public static function heroSlides(array $decided): array
-    {
-        $slides = [];
-        foreach (array_slice($decided, 0, 4) as $d) {
-            $slides[] = ['real' => true, 'name' => (string) ($d['name'] ?? ''), 'ini' => (string) ($d['ini'] ?? ''),
-                         'photo' => (string) ($d['photo'] ?? ''), 'what' => (string) ($d['category'] ?? ''),
-                         'issuer' => trim((string) ($d['programme'] ?? '') . ' ' . (string) ($d['edition'] ?? '')),
-                         'url' => (string) ($d['url'] ?? ''), 'img' => '', 'srcset' => '', 'alt' => ''];
-        }
-        if ($slides !== []) return $slides;
-
-        $lines = ['teacher' => 'Teachers who changed a classroom', 'nurse' => 'Carers who keep a community well',
-                  'community-leader' => 'Leaders their street already celebrates', 'young-leader' => 'Young people building what comes next'];
-        foreach (self::honourTiles() as $t) {
-            if (!isset($lines[$t['key']])) continue;
-            $slides[] = ['real' => false, 'name' => $lines[$t['key']], 'ini' => '', 'photo' => '', 'what' => 'Nominate someone like this',
-                         'issuer' => 'Africa GATES', 'url' => '/nominate', 'img' => $t['src'], 'srcset' => $t['srcset'], 'alt' => $t['alt']];
-        }
-        return $slides;
-    }
-
     /**
      * The one wide Featured card: the open challenge closing soonest, or null (the section
      * then hides — "nothing curated: hide the section").

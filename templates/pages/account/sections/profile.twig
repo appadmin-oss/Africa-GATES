@@ -1,0 +1,61 @@
+{% import 'partials/field.twig' as f %}
+{# ══ PROFILE ═══════════════════════════════════════════════════════════════
+     How people see you here and the roles you hold (owner, 30 Oct 2026), shaped by the
+     account handoff (AccountPage.dc.html: "Personal details", "Finish setting up"): who you
+     are first, then what is left as one-tap chips, then your roles as cards, then the form.
+     The figure is MemberActivityService::completeness; nothing here is typed. #}
+  {% set _next = {verify: ['Verify your email'|trans, ''], name: ['Add your full name'|trans, '#p-name'], phone: ['Add a phone number'|trans, '#p-phone'], headline: ['Say what you do'|trans, '#p-headline'], based_in: ['Say where you’re based'|trans, '#p-based']} %}
+  <section class="acx-card acx-hero" aria-labelledby="acx-me-h">
+    <div class="acx-hero__who">
+      {% include 'partials/avatar.twig' with {name: _u.name, id: _u.id|default(null), size: 96, verified: _u.email_verified|default(0) == 1} only %}
+      <div class="acx-hero__t">
+        <h2 class="acx-hero__n" id="acx-me-h">{{ _u.name }}</h2>
+        <p class="acx-hero__s">{{ [_u.headline|default(''), _u.based_in|default('')]|filter(x => x)|join(' · ') ?: 'Tell people what you do and where you’re based'|trans }}</p>
+        {% if _u.email_verified|default(0) == 1 %}<p class="acx-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>{{ 'Verified member'|trans }}</p>{% endif %}
+      </div>
+      <div class="acx-ring" style="--p: {{ profile_done.pct }}" role="img" aria-label="{{ 'Profile %n% per cent complete'|trans({'%n%': profile_done.pct}) }}"><span>{{ profile_done.pct }}%</span></div>
+    </div>
+    {% if profile_done.missing %}
+      <div class="acx-next">
+        <p class="acx-next__h">{{ 'Finish your profile'|trans }}</p>
+        <ul class="acx-chips">
+          {% for k in profile_done.missing %}
+            <li>{% if k == 'verify' %}<form method="post" action="/account/verify/resend"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="email" value="{{ _u.email }}"><button class="acx-chip" type="submit">{{ _next[k][0] }}</button></form>{% else %}<a class="acx-chip" href="{{ _next[k][1] }}">{{ _next[k][0] }}</a>{% endif %}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% else %}
+      <p class="acx-done">{{ 'Your profile is complete. Keep it up to date below.'|trans }}</p>
+    {% endif %}
+  </section>
+
+  <section class="acc__sec" id="roles" aria-labelledby="acx-roles-h">
+    <h2 class="acc__h2" id="acx-roles-h">{{ 'Your roles'|trans }}</h2>
+    <ul class="acx-rolegrid">
+      {% for r in my_roles %}
+        <li class="acx-card acx-rcard">
+          <span class="acx-rcard__i acx-ico--{{ r.icon }}" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="{{ r.d }}"/></svg></span>
+          <span class="acx-rcard__t"><b>{{ r.label }}</b><span>{{ r.state }}</span></span>
+          {% if r.pct is defined %}<span class="acx-setup__bar"><span style="width:{{ r.pct }}%"><span class="ag-sr">{{ '%n% per cent done'|trans({'%n%': r.pct}) }}</span></span></span>{% endif %}
+          {# The lead console's address is typed here so the page sweep (PublicIaTest) sees its way in. #}
+          {% if r.key == 'lead' %}<a class="ag-btn ag-btn--secondary ag-btn--pill acx-rcard__go" href="/lead">{{ r.cta }}<span class="ag-sr">: {{ r.label }}</span></a>{% else %}<a class="ag-btn {{ r.tone == 'warn' or r.cta == 'Apply' ? 'ag-btn--primary' : 'ag-btn--secondary' }} ag-btn--pill acx-rcard__go" href="{{ r.href }}">{{ r.cta }}<span class="ag-sr">: {{ r.label }}</span></a>{% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="acx-card acx-form" id="profile" aria-labelledby="acc-prof-h">
+    <h2 class="acx-h2" id="acc-prof-h">{{ 'Your details'|trans }}</h2>
+    <p class="acc__p">{{ 'Your name and what you do show when you vote, nominate or post. Your phone stays private.'|trans }}</p>
+    <form method="post" action="/account/profile" class="acc__form" novalidate data-ag-validate>
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <div class="acx-fgrid">
+      {{ f.text({id: 'p-name', name: 'name', label: 'Your name'|trans, value: _u.name, required: true, maxlength: 160, autocomplete: 'name', pattern: name_pattern, hint: 'Your first and last name.'|trans}, '') }}
+      {{ f.text({id: 'p-headline', name: 'headline', label: 'What you do'|trans, value: _u.headline|default(''), maxlength: 120, optional: true}, '') }}
+      {{ f.text({id: 'p-based', name: 'based_in', label: 'Where you’re based'|trans, value: _u.based_in|default(''), maxlength: 120, optional: true}, '') }}
+      {{ f.text({id: 'p-phone', name: 'phone', label: 'Phone'|trans, type: 'tel', value: _u.phone|default(''), maxlength: 40, autocomplete: 'tel', inputmode: 'tel', optional: true, hint: 'With it on file you can sign in with a code by text.'|trans}, '') }}
+            </div>
+
+      <button class="ag-btn ag-btn--primary ag-btn--pill" type="submit">{{ 'Save'|trans }}</button>
+    </form>
+  </section>

@@ -23,6 +23,7 @@
   {% include 'partials/csrf-fresh.twig' %}
 </head>
 <body class="jd-body">
+<a class="sr-only sr-only-focusable" href="#jdMain" data-skip-link>Skip to content</a>
 
 <header class="jd-top">
   <div class="wrap jd-top__inner">
@@ -45,7 +46,7 @@
   </div>
 </header>
 
-<main class="jd-main">
+<main class="jd-main" id="jdMain" tabindex="-1">
   {% if flash_ok %}<div class="jd-flash jd-flash--ok">{{ flash_ok }}</div>{% endif %}
   {% if flash_error %}<div class="jd-flash jd-flash--err">{{ flash_error }}</div>{% endif %}
   {% if flash_notice %}<div class="jd-flash jd-flash--note">{{ flash_notice }}</div>{% endif %}
@@ -70,5 +71,6 @@
 <script nonce="{{ csp_nonce }}">window.addEventListener('load',function(){if(window.lucide&&lucide.createIcons)lucide.createIcons();});</script>
 <script defer src="{{ asset('/assets/js/main.js') }}"></script>
 {% block foot_scripts %}{% endblock %}
+<script defer src="{{ asset('/assets/js/accessibility-focus.js') }}"></script>
 </body>
 </html>

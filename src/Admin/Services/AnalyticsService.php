@@ -631,7 +631,7 @@ final class AnalyticsService
                   'prev_total' => 0, 'growth_pct' => null, 'series' => [], 'converted_series' => [],
                   'visitors' => 0, 'pages' => 0, 'pages_per_visit' => null, 'engaged' => 0,
                   'engaged_pct' => null, 'returning_pct' => null, 'median_minutes' => null,
-                  'measured' => false, 'minutes_to_act' => null, 'sources' => [], 'campaigns' => [], 'landings' => [],
+                  'same_visit_pct' => null, 'measured' => false, 'minutes_to_act' => null, 'sources' => [], 'campaigns' => [], 'landings' => [],
                   'sections' => [], 'mediums' => [], 'hosts' => [], 'devices' => [],
                   'countries' => [], 'kinds' => []];
 
@@ -850,6 +850,7 @@ final class AnalyticsService
                 // The middle of the visits that saw more than one page. Never an average:
                 // one tab left open overnight would be the whole figure.
                 'median_minutes' => $lengths !== [] ? (int) round(self::median($lengths) / 60) : null,
+                'same_visit_pct' => null, // Retained for report consumers; no separate same-visit metric is recorded.
                 'measured' => $measured,
                 // Null rather than 0 when nobody converted: "no data" and "at once" are
                 // opposite readings.

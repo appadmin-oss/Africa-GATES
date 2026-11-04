@@ -1,0 +1,12 @@
+{% if admin_role in ['superadmin','admin'] %}
+<section class="ad-card aw-points" aria-labelledby="member-points-heading"><div class="ad-card__body">
+  <h2 id="member-points-heading">Adjust points</h2>
+  <p>Grant or deduct voting points to resolve a member’s query. Enter a negative number to deduct. Every adjustment is recorded in the audit log and points ledger.</p>
+  <form method="post" action="/admin/users/{{ id }}/points" class="aw-filters">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <div><label for="points-delta">Points change (+/−)</label><input id="points-delta" type="number" name="delta" required step="1" placeholder="e.g. 500 or -500"></div>
+    <div class="aw-grow"><label for="points-note">Reason for the adjustment</label><input id="points-note" type="text" name="note" required maxlength="200" placeholder="Explain why these points are changing"></div>
+    <button class="ad-btn ad-btn--primary" type="submit">Apply adjustment</button>
+  </form>
+</div></section>
+{% endif %}

@@ -120,7 +120,7 @@ final class SupportResilienceTest extends TestCase
      */
     public function test_a_near_miss_domain_is_caught_before_the_spam_advice(): void
     {
-        $t = new SupportTools();
+        $t = new SupportTools(dnsLookup: static fn()=>[['type'=>'MX','target'=>'mx.example.org']]);
 
         $r = $t->emailDomain('ada@gmial.com');
         $this->assertFalse($r['deliverable']);

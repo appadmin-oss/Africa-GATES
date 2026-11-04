@@ -422,8 +422,7 @@ final class CycleMaterialiser
 
         // The COMPUTED phase, not the stored one — see the note above.
         $phase = CyclePolicy::phaseFor($cycle, Carbon::now());
-        if ($stored->ordinal() < CyclePhase::Judging->ordinal()
-            && $phase->ordinal() < CyclePhase::Judging->ordinal()) {
+        if ($phase->ordinal() < CyclePhase::Judging->ordinal()) {
             return $fail('This edition has not reached judging yet. Releasing now would crown a '
                        . 'field the panel has not marked.');
         }

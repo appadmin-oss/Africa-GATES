@@ -12,7 +12,7 @@
 {% if flash_error or flash_ok or flash_notice %}
   <div class="ag-flash-rail">
     {% if flash_error %}
-      <p class="ag-flash ag-flash--error" role="alert">
+      <p class="ag-flash ag-flash--error" role="alert" data-feedback-error tabindex="-1">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7.5v5.5M12 16.5h.01"></path></svg>
         <span>{{ flash_error }}</span>
       </p>

@@ -71,7 +71,7 @@ final class AccountFrameTest extends TestCase
             $this->assertStringContainsString('<aside class="acx-rail"', $html, $uri);
             $href = htmlspecialchars(AccountRail::SECTIONS[$key][1], ENT_QUOTES);
             $this->assertMatchesRegularExpression('~<a class="acx-tab" href="' . preg_quote($href, '~') . '" aria-current="page">~', $html, "$uri marks $key");
-            $this->assertSame(1, substr_count($html, 'aria-current="page">'), "$uri: one current section");
+            $this->assertSame(1, preg_match_all('~<a class="acx-tab"[^>]+aria-current="page">~', $html), "$uri: one current section");
             foreach (AccountRail::SECTIONS as $k => [, $h]) {
                 // A conditional section is drawn only for the members it concerns (a
                 // nominee's community return); its own test asserts that both ways.

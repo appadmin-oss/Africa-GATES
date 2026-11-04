@@ -133,7 +133,7 @@ final class ShellLayoutTest extends TestCase
 
         $layout = $this->twig('templates/layout/shell.twig');
         $this->assertSame(1, preg_match_all('~<main\b~', $layout), 'the shell has exactly one <main>');
-        $this->assertMatchesRegularExpression('~<main class="ag-main" id="main">~', $layout);
+        $this->assertMatchesRegularExpression('~<main class="ag-main" id="main" tabindex="-1">~', $layout);
     }
 
     public function test_focus_is_a_three_pixel_green_ring_two_pixels_out(): void

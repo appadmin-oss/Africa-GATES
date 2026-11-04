@@ -49,7 +49,7 @@ final class CoverImageController
         if (!$e) return $res->withStatus(404);
 
         $card = self::facts((array) $e);
-        $key  = sha1(json_encode([$card, $ratio]) ?: '');
+        $key  = sha1(json_encode([\AfricaGates\Support\CoverVariant::VERSION, $card, $ratio]) ?: '');
         $dir  = dirname(__DIR__, 2) . self::CACHE_DIR;
         $file = $dir . '/event-' . $id . '-' . $ratio . '-' . substr($key, 0, 16) . '.png';
 
@@ -75,7 +75,7 @@ final class CoverImageController
      * cannot disagree about what counts as a change.
      *
      * @param array<string,mixed> $e a gates_site_events row
-     * @return array{subject:string, kind:string, award_linked:bool, title:string, date:string, time:string, place:string, host:string}
+     * @return array{subject:string, identity:int|string, kind:string, award_linked:bool, title:string, date:string, time:string, place:string, host:string}
      */
     public static function facts(array $e): array
     {
@@ -86,6 +86,7 @@ final class CoverImageController
 
         return [
             'subject'      => 'event',
+            'identity'     => $id > 0 ? $id : (string) ($e['title'] ?? ''),
             'kind'         => CoverKind::eventKind($e['cover_kind'] ?? null, $award),
             'award_linked' => $award,
             'title'        => trim((string) ($e['title'] ?? '')),

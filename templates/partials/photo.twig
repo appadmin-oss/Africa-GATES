@@ -25,6 +25,7 @@
     eager     true for the largest above-the-fold paint (no lazy loading)
     class     extra classes on the slot
    things:
+    identity  stable record ID for cover variation; title is used when absent
     subject   event | award | campaign | blog | challenge | product      default award
     cover_kind / award_linked   an event's kind (CoverKind::eventKind)
     content   auto | none | date | title — default `none`, or `title` where the caller
@@ -53,7 +54,7 @@
 {%- else -%}
 <span class="ag-photo ag-photo--cover{{ class is defined ? ' ' ~ class }}"{% if alt|default('') %} role="img" aria-label="{{ alt }}"{% else %} aria-hidden="true"{% endif %}>
   {%- include 'partials/cover.twig' with {
-       subject: subject|default('award'), kind: cover_kind|default(null), award_linked: award_linked|default(false),
+       identity: identity|default(null), subject: subject|default('award'), kind: cover_kind|default(null), award_linked: award_linked|default(false),
        content: content|default((title is defined and title) ? 'title' : 'none'),
        date: date|default(''), title: name|default(''), logo: logo|default(''), fill: true,
        tone: tone|default(null)}|merge(label is defined ? {label: label} : {}) only -%}

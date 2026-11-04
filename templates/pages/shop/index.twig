@@ -235,7 +235,7 @@
       <div class="sp-main">
         {% if promo %}
           <a class="sp-promo" href="/shop/{{ promo.slug }}">
-            <span class="sp-promo__img">{% include 'partials/photo.twig' with {kind: 'thing', subject: 'product', cover_kind: promo.category|default(''), src: promo.cover_path|default(''), name: promo.name, label: false} only %}</span>
+            <span class="sp-promo__img">{% include 'partials/photo.twig' with {identity: promo.id|default(null), kind: 'thing', subject: 'product', cover_kind: promo.category|default(''), src: promo.cover_path|default(''), name: promo.name, label: false} only %}</span>
             <span class="sp-promo__b">
               <span class="sp-promo__k">{{ 'Featured in the shop'|trans }}</span>
               <span class="sp-promo__t">{{ promo.name }}</span>

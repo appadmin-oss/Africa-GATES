@@ -210,6 +210,7 @@ final class Permissions
     public static function canOpen(string $role, string $path): bool
     {
         $p = (string) (parse_url($path, PHP_URL_PATH) ?? $path);
+        if ($p === '/admin/users' && !DataRegistry::canRole('users', $role)) return false;
         if (self::isUtilityPath($p)) return $role !== '';
         $section = self::sectionForPath($p);
 

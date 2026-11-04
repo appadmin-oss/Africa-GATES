@@ -50,7 +50,7 @@
 {% macro card(e) %}
   <article class="ei-card ei-t--{{ e.tone }}">
     <a class="ei-card__media" href="{{ e.url }}" tabindex="-1" aria-hidden="true">
-      {% include 'partials/photo.twig' with {kind: 'thing', subject: 'event', src: e.image, name: e.title,
+      {% include 'partials/photo.twig' with {identity: e.id|default(null), kind: 'thing', subject: 'event', src: e.image, name: e.title,
            cover_kind: e.cover_kind, award_linked: e.award_linked, content: e.state == 'ended' ? 'none' : 'date',
            date: e.cover_date, label: e.kind_label, tone: e.live ? 'live' : null} only %}
       {#- On a photo, the same date tile the cover draws (§Cards), and "Live now". #}
@@ -74,7 +74,7 @@
 {% macro rec(e) %}
   <article class="ei-rec">
     <div class="ei-rec__media">
-      {% include 'partials/photo.twig' with {kind: 'thing', subject: 'event', src: e.image, name: e.title,
+      {% include 'partials/photo.twig' with {identity: e.id|default(null), kind: 'thing', subject: 'event', src: e.image, name: e.title,
            cover_kind: e.cover_kind, award_linked: e.award_linked, content: 'none', label: false} only %}
       <a class="ei-rec__play" href="{{ e.recording }}" rel="noopener" target="_blank" aria-label="{{ 'Play %title%'|trans({'%title%': e.title}) }}"><span><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg></span></a>
     </div>
@@ -131,7 +131,7 @@
           {% if _sc %}<a class="ei-slide__stand" href="{{ s.url }}/stands">{{ 'Vendor stands are open'|trans }}{% if _sc.closes_at %} · {{ 'apply by %date%'|trans({'%date%': _sc.closes_at|date('j M')}) }}{% endif %}</a>{% endif %}
         </div>
         <div class="ei-slide__vis">
-          {% include 'partials/photo.twig' with {kind: 'thing', subject: 'event', src: s.image, name: s.title, alt: s.title,
+          {% include 'partials/photo.twig' with {identity: s.id|default(null), kind: 'thing', subject: 'event', src: s.image, name: s.title, alt: s.title,
                eager: loop.first, cover_kind: s.cover_kind, award_linked: s.award_linked, content: 'none', label: false,
                tone: s.live ? 'live' : null} only %}
           <span class="ei-slide__fade" aria-hidden="true"></span>
@@ -166,7 +166,7 @@
       {% for s in _spot %}
       <li><a class="ei-spotph__card ei-t--{{ s.tone }}" href="{{ s.url }}">
         <span class="ei-spotph__vis">
-          {% include 'partials/photo.twig' with {kind: 'thing', subject: 'event', src: s.image, name: s.title,
+          {% include 'partials/photo.twig' with {identity: s.id|default(null), kind: 'thing', subject: 'event', src: s.image, name: s.title,
                eager: loop.first, cover_kind: s.cover_kind, award_linked: s.award_linked, content: 'none', label: false,
                tone: s.live ? 'live' : null} only %}
           <span class="ei-pill"><i aria-hidden="true"></i>{{ s.kind_label }}</span>

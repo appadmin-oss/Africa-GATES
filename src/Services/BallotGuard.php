@@ -191,11 +191,7 @@ final class BallotGuard
     public static function currentCycleForProgramme(int $programmeId): ?object
     {
         try {
-            $row = DB::table('gates_award_cycles')
-                ->where('programme_id', $programmeId)
-                ->orderByRaw("CASE WHEN status IN ('nominations','shortlisting','voting','judging','results') THEN 0 ELSE 1 END")
-                ->orderByDesc('year')->orderByDesc('id')
-                ->first();
+            $row = CurrentCycle::forProgramme($programmeId);
         } catch (\Throwable) {
             return null;
         }

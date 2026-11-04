@@ -42,7 +42,7 @@
 {% include 'partials/csrf-fresh.twig' %}
 </head>
 <body class="sh7">
-<a class="sh7-skip" href="#sh7Main">Skip to the page</a>
+<a class="sh7-skip" href="#sh7Main" data-skip-link>Skip to the page</a>
 <div class="sh7-root">
 
   <aside class="sh7-rail" aria-label="{{ sh.scope == 'root' ? sh.railLabel|default('My volunteering') : (sh.instance.name|default('Profile and access')) }}">
@@ -229,5 +229,6 @@
   <div class="sh7-sr" id="sh7Alert" role="alert" aria-atomic="true"></div>
 </div>
 <script nonce="{{ csp_nonce }}" src="{{ asset('/assets/js/shell7.js') }}" defer></script>
+<script defer src="{{ asset('/assets/js/accessibility-focus.js') }}"></script>
 </body>
 </html>

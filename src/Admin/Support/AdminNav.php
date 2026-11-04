@@ -127,7 +127,8 @@ final class AdminNav
                  ['page' => 'partners', 'label' => 'Partner enquiries', 'href' => '/admin/partners'],
              ]],
         ]],
-        ['key' => 'audience', 'label' => 'Audience', 'tip' => 'Who we reach, and what we send them.', 'items' => [
+        ['key' => 'audience', 'label' => 'People & audience', 'tip' => 'Who we reach, and what we send them.', 'items' => [
+            ['page' => 'members', 'label' => 'Members', 'href' => '/admin/users', 'icon' => 'team', 'sub' => 'Find member accounts, review verification and resolve points queries.'],
             ['page' => 'contacts', 'label' => 'Contacts', 'href' => '/admin/contacts', 'icon' => 'book',
              'sub' => 'Everyone who has voted, given, nominated or bought a ticket.'],
             ['page' => 'campaigns', 'label' => 'Broadcasts', 'href' => '/admin/campaigns', 'icon' => 'mega',
@@ -178,6 +179,9 @@ final class AdminNav
                  ['page' => 'support', 'label' => 'Support tickets', 'href' => '/admin/support'],
              ]],
         ]],
+        ['key' => 'insights', 'label' => 'Insights', 'tip' => 'Understand activity and platform health.', 'items' => [
+            ['page' => 'analytics', 'label' => 'Analytics', 'href' => '/admin/analytics', 'icon' => 'chart', 'sub' => 'Acquisition, participation, conversion and delivery.'],
+        ]],
         ['key' => 'organisation', 'label' => 'Organisation', 'tip' => 'People, roles, health and keys.', 'items' => [
             ['page' => 'admins', 'label' => 'Team', 'href' => '/admin/admins', 'icon' => 'team',
              'sub' => 'Who can sign in to this console and what each role reaches.',
@@ -195,7 +199,6 @@ final class AdminNav
              'sub' => 'Every change made in this console, with who, when and why. Entries can\'t be edited.',
              'children' => [
                  ['page' => 'integrity', 'label' => 'Integrity', 'href' => '/admin/integrity'],
-                 ['page' => 'analytics', 'label' => 'Analytics', 'href' => '/admin/analytics'],
                  ['page' => 'data',      'label' => 'All data',  'href' => '/admin/data'],
              ]],
             ['page' => 'providers', 'label' => 'Integrations', 'href' => '/admin/settings/providers', 'icon' => 'plug',
@@ -352,6 +355,8 @@ final class AdminNav
         $path = rtrim((string) (parse_url($path, PHP_URL_PATH) ?? $path), '/');
         if ($path === '/admin' || $path === '') $path = '/admin/dashboard';
 
+        // Member detail keeps its established data URL while belonging to Members.
+        $path = preg_replace('~^/admin/data/users(?=/|$)~', '/admin/users', $path);
         $candidates = [];
         $home = self::home();
         $candidates[] = [$home, $home];

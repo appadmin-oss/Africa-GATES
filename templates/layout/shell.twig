@@ -111,13 +111,13 @@
   {% include 'partials/csrf-fresh.twig' %}
 </head>
 <body data-page="{{ page_id|default('') }}">
-  <a class="ag-skip" href="#main">{{ 'Skip to content'|trans }}</a>
+  <a class="ag-skip" href="#main" data-skip-link>{{ 'Skip to content'|trans }}</a>
 
   <div class="ag-shell">
     {% block header %}{% include 'partials/site-header.twig' %}{% endblock %}
     {% block app_bar %}{% include 'partials/app-bar.twig' with _bar only %}{% endblock %}
 
-    <main class="ag-main" id="main">
+    <main class="ag-main" id="main" tabindex="-1">
       {% if not own_flash|default(false) %}{% include 'partials/flash.twig' %}{% endif %}
       {% block content %}{% endblock %}
       {# The site's only footer (Phase 4), inside the scroller so it is reached by scrolling
@@ -151,6 +151,7 @@
 
   <script defer src="{{ asset('/assets/js/shell.js') }}"></script>
   <script defer src="{{ asset('/assets/js/a11y.js') }}"></script>
+  <script defer src="{{ asset('/assets/js/accessibility-focus.js') }}"></script>
   <script defer src="{{ asset('/assets/js/chrome.js') }}"></script>
   {# After chrome.js, whose `AGChrome.openSheet` it opens through (defer keeps the order). #}
   <script defer src="{{ asset('/assets/js/menu-sheet.js') }}"></script>

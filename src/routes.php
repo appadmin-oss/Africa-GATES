@@ -3850,6 +3850,7 @@ return function(App $app) {
         $a->post('/bank', AccountController::class . ':bank');
         $a->post('/redeem',       AccountController::class.':redeem');
         $a->post('/profile',      AccountController::class.':profileUpdate');
+        $a->post('/password',     AccountController::class.':passwordUpdate');
         // Display & reading, saved to the member so it follows them between devices
         // (REFERENCE §7.5). JSON, from a11y.js; the member is the session's, never a param.
         $a->post('/display',      \AfricaGates\Controllers\DisplayReadingController::class.':save');
@@ -4568,9 +4569,11 @@ return function(App $app) {
 
 
         // Member account actions (manual points adjustment — audited, admin+ gated in-controller).
+        $a->get('/users', \AfricaGates\Admin\Controllers\UsersController::class.':index');
         $a->post('/users/{id:[0-9]+}/points',    \AfricaGates\Admin\Controllers\UsersController::class.':adjustPoints');
 
         // Generic data explorer — every collected dataset (paginated + detail pages + CSV).
+        $a->get('/data/users/{id:[0-9]+}', \AfricaGates\Admin\Controllers\UsersController::class.':show');
         $a->get('/data',                         AdminDataController::class.':index');
         // Rates, ratios and funnels. The data explorer above shows rows; this shows
         // what the rows are doing over time, which is a different question.

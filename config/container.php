@@ -518,6 +518,7 @@ return [
         $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
             'cover_kind', [\AfricaGates\Support\CoverKind::class, 'resolve']
         ));
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction('cover_variant', [\AfricaGates\Support\CoverVariant::class, 'forRecord']));
         // The member account's section titles and ledes (pages/account/_frame.twig): read
         // from the one list the rail is built from.
         $twig->getEnvironment()->addFunction(new \Twig\TwigFunction('account_title', [\AfricaGates\Services\AccountRail::class, 'title']));
@@ -785,7 +786,7 @@ return [
     AuthService::class      => fn(ContainerInterface $c)=>new AuthService($c->get(AuditService::class)),
 
     // Public controllers
-    HomeController::class        => fn(ContainerInterface $c)=>new HomeController($c->get(Twig::class), $c->get(CacheService::class)),
+    HomeController::class        => fn(ContainerInterface $c)=>new HomeController($c->get(Twig::class), $c->get(CacheService::class), $c->get(\AfricaGates\Services\HomepageImages::class)),
     ApiController::class         => fn(ContainerInterface $c)=>new ApiController($c->get(CacheService::class), $c->get(ProfileService::class), $c->get(AwardService::class), $c->get(VoteService::class), $c->get(OtpService::class), $c->get(RateLimitService::class), $c->get(GoogleSheetsService::class), $c->get(CommunityService::class), $c->get(TurnstileService::class), $c->get(FraudService::class), $c->get(EventService::class), $c->get(MilestoneService::class), $c->get(LegacyService::class), $c->get(OpportunityService::class)),
     RegistryController::class    => fn(ContainerInterface $c)=>new RegistryController($c->get(Twig::class), $c->get(CacheService::class), $c->get(ProfileService::class), $c->get(RateLimitService::class), $c->get(GoogleSheetsService::class), $c->get(CommunityService::class), $c->get(OtpService::class)),
     AwardsController::class      => fn(ContainerInterface $c)=>new AwardsController($c->get(Twig::class), $c->get(CacheService::class), $c->get(OtpService::class), $c->get(RateLimitService::class)),
@@ -996,7 +997,7 @@ return [
     AdminPartnersController::class     => fn(ContainerInterface $c)=>new AdminPartnersController($c->get(Twig::class), $c->get(AuditService::class)),
     AdminJudgesController::class       => fn(ContainerInterface $c)=>new AdminJudgesController($c->get(Twig::class), $c->get(AuditService::class), $c->get(UploadService::class), $c->get(OtpService::class)),
     AdminWebhooksController::class     => fn(ContainerInterface $c)=>new AdminWebhooksController($c->get(Twig::class), $c->get(AuditService::class)),
-    AdminAdminsController::class       => fn(ContainerInterface $c)=>new AdminAdminsController($c->get(Twig::class), $c->get(AuditService::class)),
+    AdminAdminsController::class       => fn(ContainerInterface $c)=>new AdminAdminsController($c->get(Twig::class), $c->get(AuditService::class), $c->get(\AfricaGates\Admin\Services\StaffDirectoryService::class)),
     AdminSettingsController::class     => fn(ContainerInterface $c)=>new AdminSettingsController($c->get(Twig::class), $c->get(SettingsService::class), $c->get(AuditService::class), $c->get(OtpService::class)),
     AdminAwardsPageController::class   => fn(ContainerInterface $c)=>new AdminAwardsPageController($c->get(Twig::class), $c->get(SettingsService::class), $c->get(AuditService::class)),
     AdminMediaController::class        => fn(ContainerInterface $c)=>new AdminMediaController($c->get(Twig::class), $c->get(AuditService::class)),
@@ -1017,6 +1018,6 @@ return [
     // without it changes a status and tells the buyer nothing, which is the one state change
     // they are actually waiting on.
     AdminShopController::class         => fn(ContainerInterface $c)=>new AdminShopController($c->get(Twig::class), $c->get(AuditService::class), $c->get(OtpService::class)),
-    \AfricaGates\Admin\Controllers\UsersController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\UsersController($c->get(AuditService::class)),
+    \AfricaGates\Admin\Controllers\UsersController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\UsersController($c->get(AuditService::class), $c->get(Twig::class), $c->get(\AfricaGates\Admin\Services\MemberAccountsService::class)),
     \AfricaGates\Admin\Controllers\AuditController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\AuditController($c->get(Twig::class), $c->get(AuditService::class)),
 ];

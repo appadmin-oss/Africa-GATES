@@ -550,4 +550,18 @@ class CycleMaterialiserTest extends TestCase
             dirname(__DIR__, 2) . '/src/Admin/Controllers/ResultReleaseController.php');
         $this->assertStringContainsString('results.release', $ctl, 'and it is audited');
     }
+    public function test_a_stale_judging_status_cannot_release_an_extended_voting_window(): void
+    {
+        $this->seedCycle(59, 'judging', [
+            'voting_open'=>date('Y-m-d H:i:s', strtotime('-1 day')),
+            'voting_close'=>date('Y-m-d H:i:s', strtotime('+7 days')),
+        ]);
+        $this->scorable(59);
+        $r=(new CycleMaterialiser())->release(59,7);
+        $this->assertFalse($r['ok']);
+        $this->assertSame('judging',$this->storedStatus(59));
+        $this->assertSame(0,$this->sealedRows(59));
+        $this->assertSame(0,DB::table('gates_cycle_transitions')->where('cycle_id',59)->count());
+    }
+
 }

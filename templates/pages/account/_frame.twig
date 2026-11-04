@@ -66,6 +66,13 @@
       </div>
     </div>
     {% if _lead %}<p class="acx-lead-ph">{{ _lead }}</p>{% endif %}
+    {% if _tab in ['profile', 'security', 'settings'] %}
+    <nav class="acx-settings-nav" aria-label="{{ 'Account settings'|trans }}">
+      {% for key, label in {profile: 'Personal details', security: 'Sign-in & security', settings: 'Preferences & privacy'} %}
+      <a href="/account?tab={{ key }}"{% if _tab == key %} aria-current="page"{% endif %}>{{ label|trans }}</a>
+      {% endfor %}
+    </nav>
+    {% endif %}
     {% block acc_body %}{% endblock %}
   </div>
 </div>
