@@ -149,9 +149,7 @@ final class IntegrityPageTest extends TestCase
         $this->assertStringNotContainsString('class="dp-refs"', $html, 'no per-section link list on this page');
         $this->assertSame(1, substr_count($html, '>I think a count or a ranking is wrong</a>'), 'an article two sections cite is listed once');
 
-        $this->assertMatchesRegularExpression('~<dt>of the score is verified community support</dt><dd>30%</dd>~', $html);
-        $this->assertMatchesRegularExpression('~<dt>is the independent judge panel</dt><dd>70%</dd>~', $html);
-        $this->assertMatchesRegularExpression('~<dt>complete judge scorecards needed to win</dt><dd>4</dd>~', $html);
+        $this->assertStringContainsString('30% of the score is verified community support and 70% is an independent judge panel', $html);
         $this->assertStringContainsString('complete scorecards from at least 4 judges', $html);
     }
 

@@ -19,7 +19,7 @@
    The 2px ink progress bar sits at the top of <main> at every width.
    ══════════════════════════════════════════════════════════════════════════════ */
 
-.dp{ color:var(--ag-ink) }
+.dp{ color:var(--ag-ink); background:var(--ag-surface) }
 .dp a{ color:var(--ag-ink); text-decoration:underline; text-underline-offset:3px; text-decoration-thickness:1px }
 .dp a:hover{ color:var(--ag-ink); text-decoration-thickness:2px }
 
@@ -35,7 +35,7 @@
 .dp-cbar{
   position:sticky; top:2px; z-index:6;
   padding:0 var(--ag-sp-16);
-  background:var(--ag-ground); border-bottom:1px solid var(--ag-line);
+  background:var(--ag-surface); border-bottom:1px solid var(--ag-line-3);
 }
 .dp a.dp-cbar__btn{
   width:100%; max-width:680px; margin:0 auto; height:48px;
@@ -59,27 +59,33 @@
 .dp-doc{ min-width:0; width:100%; max-width:680px; justify-self:center; display:flex; flex-direction:column }
 
 /* ── Masthead ────────────────────────────────────────────────────────────── */
-.dp-head{ display:flex; flex-direction:column; gap:var(--ag-sp-12); padding-bottom:24px; border-bottom:1px solid var(--ag-line-3) }
-.dp-head__eyebrow{ margin:0; font-size:var(--ag-fs-13-5); font-weight:600; color:var(--ag-ink-2) }
+/* After Claude's platform docs: a breadcrumb in muted type, the title at a modest size with
+   the tools on its row, one line saying what the page is, the byline small. No rule under
+   it. The title was 44px over a 19px subtitle, an 18px standfirst and a divider. */
+.dp-head{ display:flex; flex-direction:column; gap:var(--ag-sp-10); padding-bottom:8px }
+.dp-head__eyebrow{ margin:0; display:flex; flex-wrap:wrap; align-items:center; gap:6px; font-size:var(--ag-fs-14-5); color:var(--ag-soft) }
+.dp-head__sep{ flex:none; color:var(--ag-soft) }
+[dir="rtl"] .dp-head__sep{ transform:scaleX(-1) }
+.dp-head__row{ display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:var(--ag-sp-12) var(--ag-sp-16) }
 .dp-head__h1{
-  margin:0; font-family:var(--ag-font-display); font-weight:700;
-  font-size:var(--ag-fs-32); line-height:1.08; letter-spacing:-.015em; text-wrap:balance;
+  margin:0; flex:1 1 20rem; font-family:var(--ag-font-display); font-weight:700;
+  font-size:var(--ag-fs-28); line-height:1.2; letter-spacing:-.01em; text-wrap:balance;
 }
-.dp-head__sub{ margin:0; font-size:var(--ag-fs-17); line-height:1.45; color:var(--ag-ink-2); text-wrap:balance }
-.dp-head__stand{ margin:0; font-size:var(--ag-fs-16-5); line-height:1.65; color:var(--ag-ink); text-wrap:pretty }
+.dp-head__sub{ margin:0; font-size:var(--ag-fs-17); line-height:1.5; color:var(--ag-ink-2); text-wrap:balance }
+.dp-head__stand{ margin:0; font-size:var(--ag-fs-17); line-height:1.5; color:var(--ag-ink-2); text-wrap:pretty }
 .dp-head__by{
   margin:0; display:flex; flex-wrap:wrap; gap:4px var(--ag-sp-14);
-  font-size:var(--ag-fs-13-5); color:var(--ag-soft); font-variant-numeric:tabular-nums;
+  font-size:var(--ag-fs-13); color:var(--ag-soft); font-variant-numeric:tabular-nums;
 }
-.dp-tools{ display:flex; flex-wrap:wrap; gap:var(--ag-sp-8); padding-top:2px }
+.dp-tools{ display:flex; flex-wrap:wrap; gap:var(--ag-sp-8); padding-top:4px }
 
 /* The 44px outlined pill: Listen, Download, Cite, and the cite block's actions. */
 .dp .dp-pill{
   display:inline-flex; align-items:center; gap:var(--ag-sp-8);
-  height:36px; padding:0 var(--ag-sp-14);
-  border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill);
+  height:34px; padding:0 var(--ag-sp-12);
+  border:1px solid var(--ag-line); border-radius:var(--ag-r-10);
   background:var(--ag-surface); color:var(--ag-ink);
-  font-size:var(--ag-fs-14-5); font-weight:600; text-decoration:none; cursor:pointer;
+  font-size:var(--ag-fs-14); font-weight:500; text-decoration:none; cursor:pointer;
 }
 .dp .dp-pill:hover{ border-color:var(--ag-ink) }
 /* 36px reads as a tool beside a document rather than a call to action; a touch screen
@@ -143,14 +149,14 @@
 
 /* ── Sections ────────────────────────────────────────────────────────────── */
 .dp-sec{
-  display:flex; flex-direction:column; gap:var(--ag-sp-14); padding:24px 0 20px;
+  display:flex; flex-direction:column; gap:var(--ag-sp-12); padding:20px 0 12px;
   /* The DC's `scroll-margin-top:64px` is already on the scroller: shell.css gives
      `.ag-main` `scroll-padding-top:64px` (WCAG 2.4.11), and the two ADD — a margin here
      as well landed every jump 64px too low. */
 }
 .dp-sec__h{
   margin:0; display:flex; align-items:baseline; gap:var(--ag-sp-12);
-  font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-22); line-height:1.2;
+  font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-22); line-height:1.25;
 }
 .dp-sec__h:focus{ outline:none }
 .dp-sec__h{ scroll-margin-top:8px }
@@ -162,7 +168,8 @@
 
 /* The body. Free HTML for a policy, block kinds for the Integrity Centre — the same
    reading measure for both: 16/17, line-height 1.7, ink. */
-.dp-rich{ display:flex; flex-direction:column; gap:var(--ag-sp-14); font-size:var(--ag-fs-16); line-height:1.7 }
+.dp-rich{ display:flex; flex-direction:column; gap:var(--ag-sp-14); font-size:var(--ag-fs-16); line-height:1.6; color:var(--ag-ink-2) }
+.dp-rich h3, .dp-rich h4, .dp-rich th, .dp-rich a{ color:var(--ag-ink) }
 .dp-rich > *{ margin:0 }
 .dp-rich p{ text-wrap:pretty }
 .dp-rich strong, .dp-rich b{ color:var(--ag-ink) }
@@ -185,7 +192,7 @@
 }
 /* Asides are white hairline cards — no coloured left border (§8.20). */
 .dp-note, .dp-quote, .dp-rich blockquote{
-  margin:0; padding:14px 18px; background:var(--ag-surface);
+  margin:0; padding:14px 18px; background:color-mix(in srgb, var(--ag-ink) 4%, transparent);
   border-radius:var(--ag-r-10);
   font-size:var(--ag-fs-15); line-height:1.6; color:var(--ag-ink-2);
 }
@@ -214,8 +221,8 @@
 .dp-fig__foot{ margin:0; font-size:var(--ag-fs-13-5); color:var(--ag-ink-2) }
 .dp-rich table{
   width:100%; border-collapse:separate; border-spacing:0;
-  background:var(--ag-surface); border:1px solid var(--ag-line-3); border-radius:var(--ag-r-12);
-  overflow:hidden; font-size:var(--ag-fs-14-5); line-height:1.55;
+  background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-10);
+  overflow:hidden; font-size:var(--ag-fs-15); line-height:1.5;
 }
 .dp-rich thead{ display:none }
 .dp-rich table, .dp-rich tbody, .dp-rich tr, .dp-rich td, .dp-rich tbody th{ display:block }
@@ -337,21 +344,27 @@
    right. The contents are a quiet list against a 1px track, the current section an ink bar
    over it — position, not a filled pill, says "you are here", so the list reads as one
    column of words. Text sizes from the closed ladder; ink and greys only (tier 0). */
-.dp-rail{ position:sticky; top:28px; flex-direction:column; gap:var(--ag-sp-28) }
-.dp-rail__docs{ display:flex; flex-direction:column; gap:2px }
-.dp-rail__h, .dp-toc__h{ padding:0 0 8px; font-size:var(--ag-fs-13); font-weight:600; color:var(--ag-soft) }
-.dp a.dp-rail__sib{
-  display:flex; align-items:center; min-height:36px; padding:6px 12px; margin-inline-start:-12px;
-  border-radius:var(--ag-r-10); font-size:var(--ag-fs-14-5); font-weight:500; text-decoration:none; color:var(--ag-ink-2);
+.dp-rail{
+  position:sticky; top:0; flex-direction:column; gap:var(--ag-sp-24);
+  height:calc(100dvh - 64px); overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin;
+  padding:24px 12px; border-inline-end:1px solid var(--ag-line-3);
 }
-.dp a.dp-rail__sib:hover{ color:var(--ag-ink); background:color-mix(in srgb, var(--ag-surface) 70%, transparent) }
-.dp a.dp-rail__sib.is-current{ color:var(--ag-ink); font-weight:600; background:var(--ag-surface); box-shadow:inset 0 0 0 1px var(--ag-line-3) }
+.dp-rail__docs{ display:flex; flex-direction:column; gap:2px }
+.dp-rail__h{ padding:0 12px 6px; font-size:var(--ag-fs-14-5); font-weight:600; color:var(--ag-ink) }
+.dp-toc__h{ padding:0 0 8px; font-size:var(--ag-fs-13); font-weight:600; color:var(--ag-soft) }
+.dp-toc--left .dp-toc__h{ padding-inline-start:12px }
+.dp a.dp-rail__sib{
+  display:flex; align-items:center; min-height:36px; padding:7px 12px;
+  border-radius:var(--ag-r-10); font-size:var(--ag-fs-14-5); line-height:1.35; color:var(--ag-ink-2); text-decoration:none;
+}
+.dp a.dp-rail__sib:hover{ color:var(--ag-ink); background:color-mix(in srgb, var(--ag-ink) 4%, transparent) }
+.dp a.dp-rail__sib.is-current{ color:var(--ag-ink); font-weight:500; background:color-mix(in srgb, var(--ag-ink) 8%, transparent) }
 
 .dp-toc{ display:flex; flex-direction:column }
-.dp-toc__list{ margin:0; padding:0; list-style:none; border-inline-start:1px solid var(--ag-line) }
+.dp-toc__list{ margin:0; padding:0; list-style:none; border-inline-start:1px solid var(--ag-line-3) }
 .dp a.dp-toc__a{
-  display:block; margin-inline-start:-1px; padding:6px 0 6px 14px; border-inline-start:2px solid transparent;
-  font-size:var(--ag-fs-13-5); line-height:1.4; color:var(--ag-soft); text-decoration:none;
+  display:block; margin-inline-start:-1px; padding:7px 0 7px 14px; border-inline-start:2px solid transparent;
+  font-size:var(--ag-fs-14); line-height:1.4; color:var(--ag-soft); text-decoration:none;
 }
 .dp a.dp-toc__a:hover{ color:var(--ag-ink) }
 .dp a.dp-toc__a[aria-current="location"]{ color:var(--ag-ink); font-weight:600; border-inline-start-color:var(--ag-ink) }
@@ -363,15 +376,13 @@
 @media (min-width:600px){
   .dp-cbar{ padding:0 var(--ag-sp-28) }
   .dp-shell{ padding:var(--ag-sp-32) var(--ag-sp-28) var(--ag-sp-56) }
-  .dp-head__h1{ font-size:var(--ag-fs-40) }
-  .dp-head__sub{ font-size:var(--ag-fs-19) }
-  .dp-head__stand{ font-size:var(--ag-fs-18) }
-  .dp-sec, .dp-cite{ padding:32px 0 24px }
+  .dp-head__h1{ font-size:var(--ag-fs-32) }
+  .dp-sec, .dp-cite{ padding:24px 0 12px }
   .dp-refs__list{ grid-template-columns:repeat(2, minmax(0, 1fr)) }
   .dp-more{ grid-template-columns:repeat(2, minmax(0, 1fr)); gap:var(--ag-sp-28) var(--ag-sp-32) }
   .dp-lead{ padding-top:36px }
-  .dp-sec__h{ font-size:var(--ag-fs-26) }
-  .dp-rich{ font-size:var(--ag-fs-17) }
+  .dp-sec__h{ font-size:var(--ag-fs-24) }
+  .dp-rich{ font-size:var(--ag-fs-16-5) }
   .dp-cols{ grid-template-columns:1fr 1fr }
   .dp-sum__facts{ grid-template-columns:repeat(4, minmax(0, 1fr)) }
 
@@ -384,12 +395,12 @@
      out-ranks a bare `.dp-rich th`, so every row label sat flush against the table's edge
      and above the rest of its row at every width (4 Nov 2026). */
   .dp-rich td, .dp-rich tbody th{ display:table-cell; padding:12px 16px; vertical-align:top; border-top:1px solid var(--ag-line-3) }
-  .dp-rich tbody th{ font-weight:600 }
+  .dp-rich tbody th{ font-weight:500 }
   .dp-rich thead th{ display:table-cell }
   .dp-rich tbody tr:first-child > *{ border-top:0 }
   .dp-rich thead th{
     padding:10px 16px; text-align:start; font-size:var(--ag-fs-13); font-weight:600;
-    color:var(--ag-ink-2); background:var(--ag-ground); border-top:0; border-bottom:1px solid var(--ag-line-3); white-space:nowrap;
+    color:var(--ag-ink); background:color-mix(in srgb, var(--ag-ink) 5%, transparent); border-top:0; border-bottom:1px solid var(--ag-line); white-space:nowrap;
   }
   .dp-rich td[data-label]::before{ content:none }
   /* The label WRAPS. It was nowrap, so one long label ("Alimosho Incredible Principal
@@ -401,17 +412,18 @@
 
 @media (min-width:1024px){
   .dp-cbar, .dp-sheet-layer{ display:none }
-  .dp-shell{ grid-template-columns:220px minmax(0,1fr); padding:40px var(--ag-sp-32) var(--ag-sp-64) }
+  /* Edge to edge from here, as theirs: the sidebar against the left of the page with a
+     hairline, the document in the remaining width. The 1100px centred box is gone. */
+  .dp-shell{ max-width:none; margin:0; padding:0; grid-template-columns:264px minmax(0,1fr); gap:0 }
   .dp-rail{ display:flex }
-  .dp-head__h1{ font-size:var(--ag-fs-44) }
+  .dp-doc{ max-width:860px; justify-self:center; padding:36px 40px 64px }
 }
 
 @media (min-width:1200px){
-  .dp-shell{ max-width:1320px; grid-template-columns:220px minmax(0,700px) 240px; gap:56px }
-  .dp-doc{ max-width:700px }
+  .dp-shell{ grid-template-columns:264px minmax(0,1fr) 264px }
   /* Scrolls on its own when taller than the screen: a long policy's contents (fifteen
      sections) pushed the card below it out of reach while the column was pinned. */
-  .dp-aside--rail{ display:flex; position:sticky; top:28px; gap:var(--ag-sp-24); max-height:calc(100dvh - 120px); overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin }
+  .dp-aside--rail{ display:flex; position:sticky; top:0; gap:var(--ag-sp-24); height:calc(100dvh - 64px); padding:36px 24px 24px 8px; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin }
   .dp-toc--left{ display:none }
   .dp-toc--right{ display:flex }
 }

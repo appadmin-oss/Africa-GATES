@@ -108,7 +108,7 @@
 {% macro toc(d, where) %}
 {% if d.toc|length %}
 <div class="dp-toc dp-toc--{{ where }}">
-  <span class="dp-toc__h" id="dp-toc-{{ where }}">{{ 'On this page'|trans }}</span>
+  <span class="dp-toc__h{% if where == 'right' %} ag-sr{% endif %}" id="dp-toc-{{ where }}">{{ 'On this page'|trans }}</span>
   <ol class="dp-toc__list" aria-labelledby="dp-toc-{{ where }}">
     {% for t in d.toc %}
       <li><a class="dp-toc__a" href="#{{ t.id }}" data-doc-toc="{{ loop.index0 }}">{{ t.title }}</a></li>
@@ -133,15 +133,15 @@
 </nav>
 {% endmacro %}
 
-{# Eyebrow (13.5/600) → Playfair title → subtitle → standfirst → byline → tools. #}
+{# The masthead, after Claude's platform docs: a breadcrumb, then the title with the tools
+   on its own row (their "Copy page"), then one line saying what the page is, then the
+   byline in small type. No divider under it — the space does that. #}
 {% macro masthead(d) %}
 <header class="dp-head">
-  <p class="dp-head__eyebrow">{{ d.eyebrow }}</p>
-  <h1 class="dp-head__h1">{{ d.title }}</h1>
-  {% if d.subtitle is defined and d.subtitle %}<p class="dp-head__sub">{{ d.subtitle }}</p>{% endif %}
-  {% if d.standfirst is defined and d.standfirst %}<p class="dp-head__stand">{{ d.standfirst|raw }}</p>{% endif %}
-  <p class="dp-head__by">{% for b in d.byline %}<span>{{ b }}</span>{% endfor %}</p>
-  <div class="dp-tools" role="toolbar" aria-label="{{ 'Document tools'|trans }}">
+  <p class="dp-head__eyebrow">{% for c in d.eyebrow|split(' · ') %}{% if not loop.first %}<svg class="dp-head__sep" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>{% endif %}<span>{{ c }}</span>{% endfor %}</p>
+  <div class="dp-head__row">
+    <h1 class="dp-head__h1">{{ d.title }}</h1>
+    <div class="dp-tools" role="toolbar" aria-label="{{ 'Document tools'|trans }}">
     {% if d.listen|default(false) %}
       {# Hidden until doc.js has found speech synthesis: a button that cannot work is a
          control lying about a mechanism. The labels travel as data so they translate. #}
@@ -163,6 +163,10 @@
       </a>
     {% endif %}
   </div>
+  </div>
+  {% if d.subtitle is defined and d.subtitle %}<p class="dp-head__sub">{{ d.subtitle }}</p>{% endif %}
+  {% if d.standfirst is defined and d.standfirst %}<p class="dp-head__stand">{{ d.standfirst|raw }}</p>{% endif %}
+  <p class="dp-head__by">{% for b in d.byline %}<span>{{ b }}</span>{% endfor %}</p>
 </header>
 {% endmacro %}
 

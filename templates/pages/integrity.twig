@@ -155,12 +155,8 @@
 
 {% set _sections = [
   {id: 'short', blocks: [
-    {summary: {id: 'short-sum', title: '', facts: [
-      {n: c ~ '%', label: 'of the score is verified community support'|trans},
-      {n: j ~ '%', label: 'is the independent judge panel'|trans},
-      {n: q, label: (q == 1 ? 'complete judge scorecard needed to win'|trans : 'complete judge scorecards needed to win'|trans)},
-      {n: '0', label: 'votes or payments the judges can see'|trans}
-    ], points: [
+    {summary: {id: 'short-sum', title: '', facts: [], points: [
+      ('<strong>' ~ ('Two parts decide it.'|trans|e) ~ '</strong> ' ~ ('%c%% of the score is verified community support and %j%% is an independent judge panel. Judges never see the votes or the money.'|trans({'%c%': c, '%j%': j})|e)),
       ('<strong>' ~ ('Leading the vote isn’t enough.'|trans|e) ~ '</strong> ' ~ ('A winner also needs complete scorecards from at least %n% judges.'|trans({'%n%': q})|e)),
       ('<strong>' ~ ('Money helps, in the open.'|trans|e) ~ '</strong> ' ~ ('Paying for votes adds to the community part only, and every result shows how many votes were bought.'|trans|e)),
       ('<strong>' ~ ('Every vote is checked.'|trans|e) ~ '</strong> ' ~ ('Suspicious votes go to a person before they count.'|trans|e)),
