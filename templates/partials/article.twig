@@ -166,15 +166,17 @@
 </header>
 {% endmacro %}
 
-{# The right column. Inline (below 1200) it is only the page's card, under the masthead;
-   in the rail (≥1200) it is "On this page" first, then the card — drawn whether or not the
-   page has a card, because every document with sections has contents. #}
+{# The page's card ("Live settings" on /integrity). Drawn once, in the flow of the
+   document after its sections — never in the right column, which is "On this page" and
+   nothing else (after Claude's platform docs, 4 Nov 2026: the rail used to stack the
+   contents, this card and an appeal card, and read as a second page beside the first).
+   `where` is kept so a page can still ask for the rail: there it draws only the contents. #}
 {% macro aside(d, where) %}
 {%- import _self as m %}
-{% if d.aside or (where == 'rail' and d.toc|length) %}
-<aside class="dp-aside dp-aside--{{ where }}" aria-label="{{ d.aside ? d.aside.label : 'On this page'|trans }}">
-  {% if where == 'rail' %}{{ m.toc(d, 'right') }}{% endif %}
-  {% if d.aside %}
+{% if where == 'rail' %}
+  {% if d.toc|length %}<aside class="dp-aside dp-aside--rail" aria-label="{{ 'On this page'|trans }}">{{ m.toc(d, 'right') }}</aside>{% endif %}
+{% elseif d.aside %}
+<aside class="dp-aside dp-aside--inline" aria-label="{{ d.aside.label }}">
   <section class="dp-card">
     <h2 class="dp-card__h">{{ d.aside.label }}</h2>
     <dl class="dp-card__rows">
@@ -182,13 +184,6 @@
     </dl>
     {% if d.aside.note is defined and d.aside.note %}<p class="dp-card__note">{{ d.aside.note }}</p>{% endif %}
   </section>
-  {% if d.aside.disputes is defined and d.aside.disputes %}
-    <a class="dp-card dp-card--link" href="{{ d.aside.disputes }}">
-      <b>{{ 'Think a result is wrong?'|trans }}</b>
-      <span>{{ 'Ask for an audit. We’ll show the working.'|trans }}</span>
-    </a>
-  {% endif %}
-  {% endif %}
 </aside>
 {% endif %}
 {% endmacro %}
@@ -260,7 +255,7 @@
         <ul class="dp-refs__list">{% for r in b.refs %}<li><a class="dp-refs__a" href="{{ r.href }}"><svg class="dp-refs__go" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg><span class="dp-refs__t">{{ r.label }}</span></a></li>{% endfor %}</ul>
       </nav>
     {%- elseif b.summary is defined %}
-      <section class="dp-sum" aria-labelledby="{{ b.summary.id }}"><h3 class="dp-sum__h" id="{{ b.summary.id }}">{{ b.summary.title }}</h3>
+      <section class="dp-sum"{% if b.summary.title|default('') %} aria-labelledby="{{ b.summary.id }}"><h3 class="dp-sum__h" id="{{ b.summary.id }}">{{ b.summary.title }}</h3>{% else %}>{% endif %}
         {% if b.summary.facts|default([]) %}<dl class="dp-sum__facts">{% for f in b.summary.facts %}<div class="dp-sum__f"><dt>{{ f.label }}</dt><dd>{{ f.n }}</dd></div>{% endfor %}</dl>{% endif %}
         {% if b.summary.points|default([]) %}<ul class="dp-list">{% for li in b.summary.points %}<li>{{ li|raw }}</li>{% endfor %}</ul>{% endif %}
       </section>

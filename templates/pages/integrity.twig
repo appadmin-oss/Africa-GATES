@@ -102,7 +102,8 @@
   {id: 'cycle',    title: 'The stages of an award'|trans},
   {id: 'return',   title: 'The community return'|trans},
   {id: 'disputes', title: 'Challenging a result, and your data'|trans},
-  {id: 'why',      title: 'Why it works this way'|trans}
+  {id: 'why',      title: 'Why it works this way'|trans},
+  {id: 'more',     title: 'Read more'|trans}
 ] %}
 
 {# No masthead subtitle: the standfirst says what the page is and the version is in the
@@ -135,8 +136,7 @@
       {k: 'Bonus and points votes'|trans, v: 'Up to %p%% of other support'|trans({'%p%': paid_cap_pct|default(50)})},
       {k: 'Community return'|trans, v: _ret}
     ],
-    note: 'Taken from the live settings. Each award and edition can set its own.'|trans,
-    disputes: '#disputes'
+    note: 'Taken from the live settings. Each award and edition can set its own.'|trans
   },
   cite: {
     word: 'document'|trans,
@@ -155,7 +155,7 @@
 
 {% set _sections = [
   {id: 'short', blocks: [
-    {summary: {id: 'short-sum', title: 'The rules in four figures'|trans, facts: [
+    {summary: {id: 'short-sum', title: '', facts: [
       {n: c ~ '%', label: 'of the score is verified community support'|trans},
       {n: j ~ '%', label: 'is the independent judge panel'|trans},
       {n: q, label: (q == 1 ? 'complete judge scorecard needed to win'|trans : 'complete judge scorecards needed to win'|trans)},
@@ -341,9 +341,23 @@
     <article class="dp-doc" data-doc-article>
       {{ art.masthead(d) }}
       <div data-doc-read>
+        {# Each section's help articles are gathered into one "Read more" at the end rather
+           than closing every section with a list of links (after Claude's platform docs, 4 Nov
+           2026): twelve link lists made the page read as a directory. They stay grouped under
+           the section they belong to, so nothing loses its context. #}
+        {# An article two sections both cite is listed once, under the first. #}
+        {% set _more = [] %}
+        {% set _seen = [] %}
         {% for s in _sections %}
-          {{ art.section(s.id, loop.index, _toc[loop.index0].title, art.blocks(s.blocks)) }}
+          {% for b in s.blocks|filter(b => b.refs is defined) %}
+            {% set _fresh = b.refs|filter(r => r.href not in _seen) %}
+            {% if _fresh|length %}{% set _more = _more|merge([{title: _toc[loop.parent.loop.index0].title, refs: _fresh}]) %}{% endif %}
+            {% set _seen = _seen|merge(b.refs|map(r => r.href)) %}
+          {% endfor %}
+          {{ art.section(s.id, loop.index, _toc[loop.index0].title, art.blocks(s.blocks|filter(b => b.refs is not defined))) }}
         {% endfor %}
+        {% set _moreHtml %}<div class="dp-more">{% for g in _more %}<div class="dp-more__g"><h3>{{ g.title }}</h3><ul class="dp-more__l">{% for r in g.refs %}<li><a href="{{ r.href }}">{{ r.label }}</a></li>{% endfor %}</ul></div>{% endfor %}</div>{% endset %}
+        {{ art.section('more', _sections|length + 1, 'Read more'|trans, _moreHtml) }}
       </div>
       {# Below the sections, not above them: "In short" now opens the page with the same
          figures, and below 1200 the card above it put the split in front of the reader

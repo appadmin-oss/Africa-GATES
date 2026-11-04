@@ -143,7 +143,11 @@ final class IntegrityPageTest extends TestCase
 
         preg_match_all('~<section class="dp-sec" id="([a-z]+)"~', $html, $m);
         $this->assertSame('short', $m[1][0] ?? null, 'the summary is the first section');
-        $this->assertSame('why', end($m[1]), 'the argument for the method comes last, after the rules');
+        $this->assertSame(['why', 'more'], array_slice($m[1], -2), 'the argument for the method comes after the rules, then the reading list');
+        // Help articles are gathered at the end, once each, not closing every section.
+        $this->assertSame(1, substr_count($html, 'class="dp-more"'));
+        $this->assertStringNotContainsString('class="dp-refs"', $html, 'no per-section link list on this page');
+        $this->assertSame(1, substr_count($html, '>I think a count or a ranking is wrong</a>'), 'an article two sections cite is listed once');
 
         $this->assertMatchesRegularExpression('~<dt>of the score is verified community support</dt><dd>30%</dd>~', $html);
         $this->assertMatchesRegularExpression('~<dt>is the independent judge panel</dt><dd>70%</dd>~', $html);

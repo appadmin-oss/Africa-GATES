@@ -85,7 +85,6 @@
     {{ art.rail(d) }}
     <article class="dp-doc" data-doc-article>
       {{ art.masthead(d) }}
-      {{ art.aside(d, 'inline') }}
       <div data-doc-read>
         {% for s in doc_sections %}
           {% set _body = art.blocks(s.blocks) %}

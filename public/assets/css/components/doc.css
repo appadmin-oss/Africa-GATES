@@ -93,7 +93,7 @@
 
 /* ── The card ("Live settings" / "This document") ────────────────────────── */
 .dp-aside{ display:flex; flex-direction:column; gap:var(--ag-sp-14) }
-.dp-aside--inline{ padding-top:22px }
+.dp-aside--inline{ padding-top:8px }
 .dp-card{
   display:flex; flex-direction:column; padding:6px 18px 14px;
   background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-18);
@@ -180,24 +180,24 @@
 .dp-steps > li{ display:grid; grid-template-columns:30px 1fr; gap:var(--ag-sp-12); align-items:start; line-height:1.6 }
 .dp-steps > li > span:last-child{ padding-top:2px }
 .dp-steps__n{
-  width:28px; height:28px; border-radius:50%; border:1.5px solid var(--ag-ink);
+  width:24px; height:24px; margin-top:3px; border-radius:50%; background:var(--ag-surface); color:var(--ag-ink-2); box-shadow:inset 0 0 0 1px var(--ag-line);
   display:flex; align-items:center; justify-content:center; font-size:var(--ag-fs-13); font-weight:700;
 }
 /* Asides are white hairline cards — no coloured left border (§8.20). */
 .dp-note, .dp-quote, .dp-rich blockquote{
-  margin:0; padding:16px 18px; background:var(--ag-surface);
-  border:1px solid var(--ag-line-3); border-radius:var(--ag-r-12);
-  font-size:var(--ag-fs-15); line-height:1.6;
+  margin:0; padding:14px 18px; background:var(--ag-surface);
+  border-radius:var(--ag-r-10);
+  font-size:var(--ag-fs-15); line-height:1.6; color:var(--ag-ink-2);
 }
 /* A note leads with a small ink "i" in a ring: the callout reads as an aside before a word
    of it is read. Drawn in CSS (two lines and a circle), so it needs no icon font. */
 .dp-note{ position:relative; padding-inline-start:46px }
 .dp-note::before{
-  content:""; position:absolute; inset-inline-start:16px; top:18px; width:18px; height:18px;
+  content:""; position:absolute; inset-inline-start:16px; top:16px; width:18px; height:18px;
   border:1.5px solid var(--ag-ink-2); border-radius:50%; box-sizing:border-box;
 }
 .dp-note::after{
-  content:""; position:absolute; inset-inline-start:24px; top:22px; width:2px; height:10px;
+  content:""; position:absolute; inset-inline-start:24px; top:20px; width:2px; height:10px;
   background:linear-gradient(var(--ag-ink-2) 0 2px, transparent 2px 4px, var(--ag-ink-2) 4px);
 }
 .dp-note{ display:flex; flex-direction:column; gap:var(--ag-sp-8) }
@@ -232,10 +232,7 @@
 .dp-table caption{ display:none }
 
 .dp-cols{ display:grid; grid-template-columns:minmax(0,1fr); gap:var(--ag-sp-10) }
-.dp-cols__c{
-  display:flex; flex-direction:column; gap:var(--ag-sp-10); padding:16px 18px;
-  background:var(--ag-surface); border:1px solid var(--ag-line-3); border-radius:var(--ag-r-12);
-}
+.dp-cols__c{ display:flex; flex-direction:column; gap:var(--ag-sp-10) }
 .dp-cols__c h3{ margin:0; display:flex; align-items:center; gap:var(--ag-sp-8); font-size:var(--ag-fs-15-5) }
 .dp-cols__mark{
   flex:none; width:22px; height:22px; border-radius:50%; border:1.5px solid var(--ag-ink);
@@ -261,16 +258,23 @@
 [dir="rtl"] .dp a.dp-refs__a:hover .dp-refs__go{ transform:scaleX(-1) translateX(2px) }
 @media (pointer:coarse){ .dp a.dp-refs__a{ min-height:44px } }
 
+/* "Read more" (/integrity): every section's help articles, gathered at the end under the
+   section they belong to, instead of a link list closing every section. */
+.dp-more{ display:grid; grid-template-columns:minmax(0, 1fr); gap:var(--ag-sp-24) }
+.dp-more__g{ display:flex; flex-direction:column; gap:6px }
+.dp-rich .dp-more__g h3{ margin:0; font-size:var(--ag-fs-14); font-weight:600; color:var(--ag-soft) }
+.dp-more__l{ margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:2px }
+.dp-more__l > li{ font-size:var(--ag-fs-15); line-height:1.5 }
+.dp-more__g a{ display:inline-flex; min-height:32px; align-items:center }
+@media (pointer:coarse){ .dp-more__g a{ min-height:44px } }
+
 /* "In short": the page's answer before its argument. Figures on the ground tint, the
    label under each; then the handful of sentences somebody needs if they read nothing
    else. The figure is display type, not mono — it is a number to read, not a code to copy. */
-.dp-sum{
-  display:flex; flex-direction:column; gap:var(--ag-sp-14); padding:18px;
-  background:var(--ag-surface); border:1px solid var(--ag-line-3); border-radius:var(--ag-r-12);
-}
+.dp-sum{ display:flex; flex-direction:column; gap:var(--ag-sp-18) }
 .dp-sum__h{ margin:0; font-size:var(--ag-fs-17); font-weight:700 }
-.dp-sum__facts{ margin:0; display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:var(--ag-sp-10) }
-.dp-sum__f{ margin:0; display:flex; flex-direction:column-reverse; justify-content:flex-end; gap:4px; padding:12px 14px; border-radius:var(--ag-r-12); background:var(--ag-ground) }
+.dp-sum__facts{ margin:0; display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:var(--ag-sp-18) var(--ag-sp-24) }
+.dp-sum__f{ margin:0; display:flex; flex-direction:column-reverse; justify-content:flex-end; gap:4px; padding-top:12px; border-top:1px solid var(--ag-line) }
 .dp-sum__f dd{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-26); line-height:1.1; font-variant-numeric:tabular-nums }
 .dp-sum__f dt{ font-size:var(--ag-fs-13-5); line-height:1.4; color:var(--ag-ink-2) }
 .dp-sum .dp-list{ font-size:var(--ag-fs-15-5) }
@@ -364,11 +368,11 @@
   .dp-head__stand{ font-size:var(--ag-fs-18) }
   .dp-sec, .dp-cite{ padding:32px 0 24px }
   .dp-refs__list{ grid-template-columns:repeat(2, minmax(0, 1fr)) }
+  .dp-more{ grid-template-columns:repeat(2, minmax(0, 1fr)); gap:var(--ag-sp-28) var(--ag-sp-32) }
   .dp-lead{ padding-top:36px }
   .dp-sec__h{ font-size:var(--ag-fs-26) }
   .dp-rich{ font-size:var(--ag-fs-17) }
   .dp-cols{ grid-template-columns:1fr 1fr }
-  .dp-sum{ padding:22px 24px }
   .dp-sum__facts{ grid-template-columns:repeat(4, minmax(0, 1fr)) }
 
   /* A real table from here up. */
@@ -405,7 +409,6 @@
 @media (min-width:1200px){
   .dp-shell{ max-width:1320px; grid-template-columns:220px minmax(0,700px) 240px; gap:56px }
   .dp-doc{ max-width:700px }
-  .dp-aside--inline{ display:none }
   /* Scrolls on its own when taller than the screen: a long policy's contents (fifteen
      sections) pushed the card below it out of reach while the column was pinned. */
   .dp-aside--rail{ display:flex; position:sticky; top:28px; gap:var(--ag-sp-24); max-height:calc(100dvh - 120px); overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin }
