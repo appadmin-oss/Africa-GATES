@@ -105,11 +105,14 @@
   {id: 'why',      title: 'Why it works this way'|trans}
 ] %}
 
+{# No masthead subtitle: the standfirst says what the page is and the version is in the
+   byline — three lines describing one document is two a reader skims before the first
+   rule. The citation keeps doc_subtitle; only the masthead drops it. #}
 {% set d = {
   key: 'integrity',
   eyebrow: 'Integrity Centre · Methodology'|trans,
   title: doc_title,
-  subtitle: doc_subtitle ~ ', ' ~ 'version %v%'|trans({'%v%': doc_version}),
+  subtitle: '',
   standfirst: 'How a winner is decided, who checks it, and what you can do if you think we got it wrong. Every figure on this page is read from the live settings.'|trans,
   byline: [doc_author, 'Version %v%'|trans({'%v%': doc_version}), 'Updated %d%'|trans({'%d%': doc_updated|date('j M Y')})],
   listen: true,
@@ -286,8 +289,7 @@
         ? [{note: {title: 'Currently set to nothing'|trans|e, body: ['The share is set to 0%, so new contributions earn nothing for a nominee. Money already earned is kept.'|trans|e]}}]
         : [])
     )|merge([
-    {p: 'Where an award runs a community return, a share of what supporters contribute in a nominee’s name comes back to that nominee. Each award sets its own rule before it opens, and the rule never changes once anything has been earned under it. So who earns, how much, and when it is paid depend on the award, and each award states its rule in its award details.'|trans|e},
-    {refs: [{href: '/awards', label: 'Find an award, then open Award details'|trans}]},
+    {p: ('Where an award runs a community return, a share of what supporters contribute in a nominee’s name comes back to that nominee. Each award sets its own rule before it opens, and the rule never changes once anything has been earned under it. So who earns, how much, and when it is paid depend on the award: %a%.'|trans|e)|replace({'%a%': '<a href="/awards">' ~ ('each award states its rule in its award details'|trans|e) ~ '</a>'})},
     {p: 'Every entry stays on the record, and so does a refund, which takes its share back. A nominee can spend an available return on votes for anyone; those votes earn no return and don’t count towards any target or threshold.'|trans|e}
   ])|merge(_ret_terms)|merge([
     {refs: [{href: '/help/the-community-return', label: 'The community return, in full'|trans}]}
@@ -338,12 +340,15 @@
     {{ art.rail(d) }}
     <article class="dp-doc" data-doc-article>
       {{ art.masthead(d) }}
-      {{ art.aside(d, 'inline') }}
       <div data-doc-read>
         {% for s in _sections %}
           {{ art.section(s.id, loop.index, _toc[loop.index0].title, art.blocks(s.blocks)) }}
         {% endfor %}
       </div>
+      {# Below the sections, not above them: "In short" now opens the page with the same
+         figures, and below 1200 the card above it put the split in front of the reader
+         twice before a word of the method. From 1200 the card is in the right column. #}
+      {{ art.aside(d, 'inline') }}
       {{ art.cite(d) }}
       {{ art.foot(d) }}
     </article>

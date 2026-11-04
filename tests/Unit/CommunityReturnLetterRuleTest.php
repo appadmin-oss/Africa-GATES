@@ -244,7 +244,7 @@ final class CommunityReturnLetterRuleTest extends TestCase
         foreach (["'Qualifying support'", 'return_threshold', 'return_editions', 'The rule for each award'] as $gone) {
             $this->assertStringNotContainsString($gone, $twig, 'integrity states no award’s rule: ' . $gone);
         }
-        $this->assertStringContainsString("href: '/awards'", $twig, 'and says where each award states it');
+        $this->assertStringContainsString('<a href="/awards">', $twig, 'and links to where each award states it');
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

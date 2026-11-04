@@ -59,7 +59,7 @@
 .dp-doc{ min-width:0; width:100%; max-width:680px; justify-self:center; display:flex; flex-direction:column }
 
 /* ── Masthead ────────────────────────────────────────────────────────────── */
-.dp-head{ display:flex; flex-direction:column; gap:var(--ag-sp-14); padding-bottom:28px; border-bottom:1px solid var(--ag-line-3) }
+.dp-head{ display:flex; flex-direction:column; gap:var(--ag-sp-12); padding-bottom:24px; border-bottom:1px solid var(--ag-line-3) }
 .dp-head__eyebrow{ margin:0; font-size:var(--ag-fs-13-5); font-weight:600; color:var(--ag-ink-2) }
 .dp-head__h1{
   margin:0; font-family:var(--ag-font-display); font-weight:700;
@@ -76,12 +76,15 @@
 /* The 44px outlined pill: Listen, Download, Cite, and the cite block's actions. */
 .dp .dp-pill{
   display:inline-flex; align-items:center; gap:var(--ag-sp-8);
-  height:44px; padding:0 var(--ag-sp-16);
+  height:36px; padding:0 var(--ag-sp-14);
   border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill);
   background:var(--ag-surface); color:var(--ag-ink);
   font-size:var(--ag-fs-14-5); font-weight:600; text-decoration:none; cursor:pointer;
 }
 .dp .dp-pill:hover{ border-color:var(--ag-ink) }
+/* 36px reads as a tool beside a document rather than a call to action; a touch screen
+   still gets the 44px target (WCAG 2.5.8's 24 is the floor, 44 the house rule on touch). */
+@media (pointer:coarse){ .dp .dp-pill{ height:44px; padding:0 var(--ag-sp-16) } }
 .dp-pill[hidden]{ display:none }
 .dp-pill__pause{ display:none }
 .dp-pill--listen[aria-pressed="true"]{ background:var(--ag-surface); border:2px solid var(--ag-ink); color:var(--ag-ink) }
@@ -239,25 +242,24 @@
   display:flex; align-items:center; justify-content:center; font-size:var(--ag-fs-12);
 }
 .dp-cols__c ul{ margin:0; padding-inline-start:18px; display:flex; flex-direction:column; gap:var(--ag-sp-8); font-size:var(--ag-fs-14-5); line-height:1.55 }
-/* "Further reading": link cards, two to a row from 600 (the docs' "next steps"). Each is a
-   whole-card target of at least 52px with an arrow, so it reads as somewhere to go rather
-   than a footnote — it was a stack of bare underlined links at 24px, the smallest target
-   WCAG allows, on the page a reader reaches from a phone with a dispute. Ink only (tier 0). */
-.dp-refs{ display:flex; flex-direction:column; gap:var(--ag-sp-8); padding-top:4px }
+/* "Further reading": a quiet list of links under a hairline, two columns from 600 (the
+   docs' "related" line). It was a row of white cards in every section — eleven on
+   /integrity — so the page read as a wall of boxes; before that, bare underlined links at
+   24px. Each link is a whole-row target: 32px, and 44px under a coarse pointer. Ink only. */
+.dp-refs{ display:flex; flex-direction:column; gap:6px; padding-top:12px; border-top:1px solid var(--ag-line-3) }
 .dp-refs__h{ font-size:var(--ag-fs-13); font-weight:600; color:var(--ag-soft) }
-.dp-refs__grid{ display:grid; grid-template-columns:minmax(0, 1fr); gap:var(--ag-sp-8) }
+.dp-refs__list{ margin:0; padding:0; list-style:none; display:grid; grid-template-columns:minmax(0, 1fr); gap:2px var(--ag-sp-24) }
 .dp a.dp-refs__a{
-  display:flex; align-items:center; justify-content:space-between; gap:var(--ag-sp-12);
-  min-height:52px; padding:12px 16px; background:var(--ag-surface);
-  border:1px solid var(--ag-line-3); border-radius:var(--ag-r-12);
-  font-size:var(--ag-fs-14-5); font-weight:500; line-height:1.4; color:var(--ag-ink); text-decoration:none;
-  transition:border-color var(--ag-dur-1) var(--ag-ease);
+  display:flex; align-items:center; gap:var(--ag-sp-8); min-height:32px;
+  font-size:var(--ag-fs-15); line-height:1.4; color:var(--ag-ink-2); text-decoration:none;
 }
-.dp a.dp-refs__a:hover{ border-color:var(--ag-ink) }
+.dp a.dp-refs__a:hover{ color:var(--ag-ink) }
+.dp a.dp-refs__a:hover .dp-refs__t{ text-decoration:underline; text-underline-offset:3px }
 .dp-refs__go{ flex:none; color:var(--ag-soft); transition:transform var(--ag-dur-1) var(--ag-ease) }
 .dp a.dp-refs__a:hover .dp-refs__go{ color:var(--ag-ink); transform:translateX(2px) }
 [dir="rtl"] .dp-refs__go{ transform:scaleX(-1) }
 [dir="rtl"] .dp a.dp-refs__a:hover .dp-refs__go{ transform:scaleX(-1) translateX(2px) }
+@media (pointer:coarse){ .dp a.dp-refs__a{ min-height:44px } }
 
 /* "In short": the page's answer before its argument. Figures on the ground tint, the
    label under each; then the handful of sentences somebody needs if they read nothing
@@ -361,7 +363,7 @@
   .dp-head__sub{ font-size:var(--ag-fs-19) }
   .dp-head__stand{ font-size:var(--ag-fs-18) }
   .dp-sec, .dp-cite{ padding:32px 0 24px }
-  .dp-refs__grid{ grid-template-columns:repeat(2, minmax(0, 1fr)) }
+  .dp-refs__list{ grid-template-columns:repeat(2, minmax(0, 1fr)) }
   .dp-lead{ padding-top:36px }
   .dp-sec__h{ font-size:var(--ag-fs-26) }
   .dp-rich{ font-size:var(--ag-fs-17) }
@@ -412,7 +414,7 @@
 }
 
 @media (prefers-reduced-motion:reduce){
-  .dp-progress__fill, .dp-switch__track, .dp a.dp-refs__a, .dp-refs__go{ transition:none }
+  .dp-progress__fill, .dp-switch__track, .dp-refs__go{ transition:none }
 }
 
 /* Windows high contrast: a selected state drawn only as a fill, tint or shadow vanishes

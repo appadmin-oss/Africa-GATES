@@ -251,8 +251,13 @@
         {% endfor %}
       </div>
     {%- elseif b.refs is defined %}
+      {# Further reading: a quiet list of links under a hairline, two columns from 600 —
+         the docs' "related" line, not a row of cards. Cards in every section turned the
+         page into a wall of boxes (eleven of them on /integrity), each shouting as loudly
+         as the rule above it. Each link is still a whole-row target of at least 32px, 44
+         on a touch screen. #}
       <nav class="dp-refs" aria-label="{{ 'Further reading'|trans }}"><span class="dp-refs__h" aria-hidden="true">{{ 'Further reading'|trans }}</span>
-        <span class="dp-refs__grid">{% for r in b.refs %}<a class="dp-refs__a" href="{{ r.href }}"><span class="dp-refs__t">{{ r.label }}</span><svg class="dp-refs__go" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>{% endfor %}</span>
+        <ul class="dp-refs__list">{% for r in b.refs %}<li><a class="dp-refs__a" href="{{ r.href }}"><svg class="dp-refs__go" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg><span class="dp-refs__t">{{ r.label }}</span></a></li>{% endfor %}</ul>
       </nav>
     {%- elseif b.summary is defined %}
       <section class="dp-sum" aria-labelledby="{{ b.summary.id }}"><h3 class="dp-sum__h" id="{{ b.summary.id }}">{{ b.summary.title }}</h3>
