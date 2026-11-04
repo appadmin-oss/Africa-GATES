@@ -13,12 +13,12 @@
   "pageErrors": [],
   "sqlite": {
     "tests": 207,
-    "assertions": 980,
+    "assertions": 983,
     "result": "pass"
   },
   "mysql": {
     "tests": 207,
-    "assertions": 980,
+    "assertions": 983,
     "result": "pass"
   },
   "phpLint": {
@@ -34,5 +34,6 @@
     "branch": "claude/ai-assistance-judges-features-1ka4oz",
     "incomingCommits": 0
   },
-  "scope": "Targeted checks, not the complete repository suite or a live production verification."
+  "scope": "Targeted checks, not the complete repository suite or a live production verification.",
+  "exportedArchiveBrowserChecks": "Homepage, existing assets and real member/nominee photo journeys passed against the extracted archive with local-only dependencies and preserved test uploads."
 }

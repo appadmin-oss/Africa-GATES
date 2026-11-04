@@ -17,6 +17,11 @@ final class UploadSizeMiddleware
             return $handler->handle($request);
         }
         $response = new \Slim\Psr7\Response(413);
+        if (str_contains(strtolower($request->getHeaderLine('Accept')), 'application/json') || str_starts_with($request->getUri()->getPath(), '/api/')) {
+            $message = 'The selected files exceed the server limit of ' . UploadLimits::label($limit) . '. Choose fewer or smaller files and try again.';
+            $response->getBody()->write((string) json_encode(['ok' => false, 'success' => false, 'error' => $message, 'message' => $message]));
+            return $response->withHeader('Content-Type', 'application/json')->withHeader('Cache-Control', 'no-store');
+        }
         $response->getBody()->write('<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Upload too large — Africa GATES</title><main><h1>Your upload is too large</h1><p>The server accepts up to '
             . htmlspecialchars(UploadLimits::label($limit), ENT_QUOTES, 'UTF-8')
             . ' for the whole form. Go back, select fewer or smaller files and try again. Nothing from this submission was saved.</p><p><a href="/">Africa GATES home</a></p></main></html>');

@@ -19,12 +19,12 @@ Controls provide effective host size limits, selected filenames/sizes, previews,
 
 Existing staff drop zones retain native label behavior and expose their file inputs to keyboard users. Dropped files dispatch the same change event as chosen files; single-photo fields take one file. Preview URLs are released when replaced or when a console page unloads.
 
-A dedicated middleware returns HTTP 413 for multipart requests discarded by PHP because they exceed `post_max_size`, before their missing CSRF token could be mistaken for an expired session. It does not exempt uploads from authentication or CSRF checks.
+A dedicated middleware returns HTTP 413 for multipart requests discarded by PHP because they exceed `post_max_size`, before their missing CSRF token could be mistaken for an expired session. API clients receive structured JSON errors; ordinary forms receive a readable HTML explanation. It does not exempt uploads from authentication or CSRF checks.
 
 ## Validation
 
-- SQLite: 207 focused regression tests, 980 assertions passed.
-- MySQL 8.4 strict-mode parity: 207 focused regression tests, 980 assertions passed.
+- SQLite: 207 focused regression tests, 983 assertions passed.
+- MySQL 8.4 strict-mode parity: 207 focused regression tests, 983 assertions passed.
 - Chromium: member upload, portrait in account/navigation, removal back to initials, nominee self-service upload and the public ballot image all passed. No page JavaScript errors. Account layout checked at 320, 390, 768 and 1440 pixels.
 - Standalone shared-control browser checks: preview, selection clear/focus, invalid formats, oversized files, retry, reset and four viewport widths passed.
 - Template parsing uses the real application Twig configuration; recognition tests cover selected portrait precedence and registry fallback.

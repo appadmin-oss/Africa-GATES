@@ -33,6 +33,10 @@ final class UploadLimitsTest extends TestCase
             $response = $middleware($req, $handler);
             $this->assertSame(413, $response->getStatusCode());
             $this->assertSame(0, $handler->calls);
+            $json = $middleware($req->withHeader('Accept', 'application/json'), $handler);
+            $this->assertSame('application/json', $json->getHeaderLine('Content-Type'));
+            $this->assertFalse(json_decode((string) $json->getBody(), true)['success']);
+            $this->assertSame(0, $handler->calls);
             $this->assertStringContainsString('Nothing from this submission was saved', (string) $response->getBody());
         }
         $this->assertSame(204, $middleware($req->withMethod('GET'), $handler)->getStatusCode());
