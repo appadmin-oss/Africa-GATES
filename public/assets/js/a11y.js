@@ -59,6 +59,11 @@
   /* 100 / 125 / 150% of the root. Standard is the absence of a class. */
   var SIZES = ['', 'ag-t125', 'ag-t150'];
 
+  /* Appearance: match the device, light, dark, sepia. Matching the device is the absence
+     of a class — the palette's own `prefers-color-scheme` block decides
+     (Support\Accent::css()); the other three override it. */
+  var SCHEMES = ['', 'ag-light', 'ag-dark', 'ag-sepia'];
+
   var root = document.documentElement;
 
   /* Kept between visits only with the visitor's Preferences answer (CookiePrefs, handed
@@ -99,6 +104,17 @@
     s = s || read();
     var c = root.classList, i;
     for (i = 1; i < SIZES.length; i++) c.remove(SIZES[i]);
+    var scheme = SCHEMES[(s.scheme | 0)];
+    var was = '';
+    for (i = 1; i < SCHEMES.length; i++) if (c.contains(SCHEMES[i])) was = SCHEMES[i];
+    if (was !== (scheme || '')) {
+      /* No transitions for the frame the scheme changes in (shell.css `ag-noanim`). */
+      c.add('ag-noanim');
+      for (i = 1; i < SCHEMES.length; i++) c.remove(SCHEMES[i]);
+      if (scheme) c.add(scheme);
+      void root.offsetWidth;
+      (window.requestAnimationFrame || setTimeout)(function () { c.remove('ag-noanim'); });
+    }
     for (i = 0; i < SWITCHES.length; i++) if (SWITCHES[i].cls) c.remove(SWITCHES[i].cls);
 
     var size = SIZES[(s.size | 0)];
@@ -149,6 +165,7 @@
      has something on this device worth adopting. */
   function chosen(s) {
     if ((s.size | 0) !== 0) return true;
+    if ((s.scheme | 0) !== 0) return true;
     for (var i = 0; i < SWITCHES.length; i++) if (s[SWITCHES[i].k]) return true;
     return false;
   }
@@ -287,7 +304,7 @@
     }
   })();
 
-  window.AGA11y = { KEY: KEY, SWITCHES: SWITCHES, SIZES: SIZES, read: read, apply: apply, set: set, autoSubmit: autoSubmit,
+  window.AGA11y = { KEY: KEY, SWITCHES: SWITCHES, SIZES: SIZES, SCHEMES: SCHEMES, read: read, apply: apply, set: set, autoSubmit: autoSubmit,
     keepPlace: function (form, el) { var a = form.getAttribute('action') || location.pathname; form.setAttribute('action', a.split('#')[0] + '#' + placeKey(el)); } };
 
   /* Re-apply in case the head script could not run (a cached document, a CSP failure):

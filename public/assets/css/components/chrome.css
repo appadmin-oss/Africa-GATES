@@ -522,6 +522,27 @@
 .ag-dr__h{ font-weight:700; font-size:var(--ag-fs-15) }
 .ag-dr__seg .ag-seg__opt{ height:44px }
 .ag-dr__size{ font-weight:700; line-height:1 }
+/* Appearance: a label above its control, and each option a swatch of the scheme it picks
+   over its word. The swatch is painted from the scheme's OWN values (`ag-pv-*`, scoped in
+   Accent::css()), so Dark shows dark on a light page and Light shows light on a dark one. */
+.ag-dr__sub{ margin-top:4px; font-size:var(--ag-fs-13-5); font-weight:600; color:var(--ag-soft) }
+.ag-dr__seg--scheme .ag-seg__opt{ height:auto; min-height:64px; padding:8px 2px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px }
+.ag-dr__scheme{ font-size:var(--ag-fs-13-5); font-weight:600 }
+.ag-dr__pv{
+  position:relative; display:block; width:28px; height:28px; border-radius:50%; overflow:hidden;
+  background:var(--ag-ground); box-shadow:inset 0 0 0 1px var(--ag-line-2);
+}
+/* The scheme's ink and its green, as two marks on its ground: what reading in it looks like. */
+.ag-dr__pv::before{ content:''; position:absolute; inset:8px 7px auto; height:3px; border-radius:2px; background:var(--ag-ink) }
+.ag-dr__pv::after{ content:''; position:absolute; inset:auto 9px 8px; height:5px; border-radius:3px; background:var(--ag-green) }
+.ag-dr__pv--split{ display:flex; background:none }
+.ag-dr__pv--split::before, .ag-dr__pv--split::after{ display:none }
+/* Device: each half is its own scheme, with its own ink mark. */
+.ag-dr__pv--split > span{ position:relative; flex:1; background:var(--ag-ground) }
+.ag-dr__pv--split > span::before{ content:''; position:absolute; top:12px; inset-inline:3px; height:3px; border-radius:2px; background:var(--ag-ink) }
+/* A swatch is a PICTURE of a scheme, so forced colours must not repaint it: left to the
+   system, Light and Sepia became empty circles in Windows High Contrast. */
+@media (forced-colors: active){ .ag-dr__pv, .ag-dr__pv *{ forced-color-adjust:none } .ag-dr__pv{ box-shadow:0 0 0 1px CanvasText } }
 .ag-dr__size--0{ font-size:var(--ag-fs-15) }
 .ag-dr__size--1{ font-size:var(--ag-fs-19) }
 .ag-dr__size--2{ font-size:var(--ag-fs-23) }

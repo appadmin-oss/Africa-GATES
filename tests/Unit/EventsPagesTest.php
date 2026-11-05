@@ -279,7 +279,9 @@ final class EventsPagesTest extends TestCase
 
         $this->assertStringContainsString('role="radiogroup"', $html);
         $this->assertSame(2, substr_count(substr($html, (int) strpos($html, 'role="radiogroup" aria-label="Ticket type"'), 6000), 'role="radio" data-ed-tier'));
-        $group = substr($html, (int) strpos($html, 'role="radiogroup"'), 4000);
+        // The TICKET group, by its label: the header's Display & reading controls are also
+        // radiogroups and come first in the page, so "the first radiogroup" was never this one.
+        $group = substr($html, (int) strpos($html, 'role="radiogroup" aria-label="Ticket type"'), 4000);
         $this->assertSame(1, preg_match_all('~role="radio"[^>]*?tabindex="0"~s', $group), 'the group is one tab stop');
         $this->assertMatchesRegularExpression('~--tier-accent:#[0-9A-F]{6};--tier-light:#[0-9A-F]{6};--tier-wash:#[0-9A-F]{6};--tier-deep:#[0-9A-F]{6};--tier-glow:#[0-9A-F]{6};--tier-edge:#[0-9A-F]{6}~i', $html,
             'each row supplies the five DC properties and its edge, from PHP');

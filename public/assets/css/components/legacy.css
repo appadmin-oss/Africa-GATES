@@ -102,7 +102,13 @@
   display:flex; flex-direction:column; align-items:center; gap:12px; padding:48px 20px; text-align:center;
   background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-20);
 }
-.lv-empty img{ opacity:.55 }
+/* The silhouette is a MASK painted in the ink, not an <img>: the file is drawn in black, and
+   an image cannot follow the scheme, so at night it was black on the dark ground. */
+.lv-empty__map{
+  display:block; width:56px; height:56px; background:var(--ag-ink); opacity:.55;
+  -webkit-mask:url(/assets/img/africa-silhouette.svg) center / contain no-repeat;
+  mask:url(/assets/img/africa-silhouette.svg) center / contain no-repeat;
+}
 .lv-empty__t{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-24) }
 .lv-empty__p{ margin:0; max-width:40ch; font-size:var(--ag-fs-15); line-height:1.6; color:var(--ag-ink-2) }
 .lv-empty__go{ height:48px; border-radius:var(--ag-r-14) }

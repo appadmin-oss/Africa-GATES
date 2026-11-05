@@ -99,6 +99,66 @@ final class Contrast
         return $l > 0.36 ? $dark : $light;
     }
 
+    /**
+     * The nearest shade of `$seed` that reads at `$floor` on EVERY ground given — same hue,
+     * same saturation, lightness moved away from the grounds until the worst of them passes.
+     *
+     * This is what lets a colour somebody CHOSE be accepted as it is: their exact colour stays
+     * the identity (a fill, a swatch, a spine), and the words and edges drawn in it come from
+     * this. Refusing a pale brand colour was the old answer, and it answers a taste question
+     * with a correctness rule the platform could have satisfied itself.
+     *
+     * Which way is "away" is decided by the grounds, not the seed: on light grounds the shade
+     * darkens, on dark grounds it lightens, so the same call serves a light page and a dark
+     * one. Lightness steps of 1% to the end of the range, where black or white always clears
+     * 4.5:1 against a light or dark ground respectively — so the answer is never the seed
+     * failing; at worst it is the best shade reachable, and the caller can measure it.
+     *
+     * @param list<string> $grounds hex colours the result will be drawn on
+     */
+    public static function reach(string $seed, array $grounds, float $floor = self::TEXT): string
+    {
+        $seed = self::hex($seed);
+        if ($seed === '' || $grounds === []) return $seed === '' ? '' : '#' . $seed;
+        $worst = static function (string $hex) use ($grounds): float {
+            $w = 21.0;
+            foreach ($grounds as $g) $w = min($w, self::ratio($hex, $g));
+            return $w;
+        };
+        if ($worst('#' . $seed) >= $floor) return '#' . $seed;
+
+        // Away from the grounds: lighter grounds push the shade darker. Decided on the mean
+        // luminance, so a light card and a light wash agree, and a mixed set still moves one way.
+        $mean = array_sum(array_map(static fn (string $g): float => self::luminance($g), $grounds)) / count($grounds);
+        $darker = $mean > 0.18;
+
+        [$h, $s, $l] = \AfricaGates\Services\EventTierPalette::toHsl('#' . $seed);
+        $best = '#' . $seed;
+        $bestSeen = $worst($best);
+        for ($i = 1; $i <= 100; $i++) {
+            $cl = $darker ? $l - $i * 0.01 : $l + $i * 0.01;
+            if ($cl < 0.0 || $cl > 1.0) break;
+            $hex = strtolower(\AfricaGates\Services\EventTierPalette::fromHsl($h, $s, $cl));
+            $got = $worst($hex);
+            if ($got > $bestSeen) { $bestSeen = $got; $best = $hex; }
+            if ($got >= $floor) return $hex;
+        }
+        // The end of the range: black or white, whichever the grounds need.
+        $end = $darker ? '#000000' : '#ffffff';
+        return $worst($end) > $bestSeen ? $end : $best;
+    }
+
+    /**
+     * Whichever of `$dark` and `$light` reads better on `$bg`, by RATIO — for a label on a
+     * fill somebody else chose. {@see inkOn()} is a luminance cut tuned for a printed ticket
+     * and must not move; this one is the general answer, and on a mid-tone it is the side
+     * that actually measures higher.
+     */
+    public static function labelOn(string $bg, string $dark = '#10292c', string $light = '#ffffff'): string
+    {
+        return self::ratio($dark, $bg) >= self::ratio($light, $bg) ? $dark : $light;
+    }
+
     /** `#rgb` or `#rrggbb` expanded to six lower-case digits, or '' if it is neither. */
     public static function hex(string $raw): string
     {
