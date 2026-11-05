@@ -12,7 +12,12 @@
   // undoes when this page is swapped away; elsewhere they are plain (SiteNavTest).
   var pg = window.agPage || { on: function (t, y, f, o) { t.addEventListener(y, f, o); }, every: function (f, ms) { return setInterval(f, ms); }, leave: function () {} };
 
-  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // The site's own switch as well as the system's: html.ag-rm is set by the accessibility
+  // panel's reduce-motion option (a11y.js, applied in the head), for somebody whose device does not offer the setting
+  // or who wants it here only. Reading the media query alone, the hero rotated and the
+  // figures counted up for the people who had asked this site, in so many words, not to.
+  var reduce = document.documentElement.classList.contains('ag-rm') ||
+    !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
   // ── the hero ───────────────────────────────────────────────────────────────
   var hero = document.querySelector('[data-hm-rotate]');

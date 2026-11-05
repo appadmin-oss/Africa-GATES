@@ -132,14 +132,8 @@ final class WalletRisk
                  'Withdrawals above ' . $naira($max) . ' are checked by a person first.')
             : null);
 
-        $since = Carbon::now()->subDay()->toDateTimeString();
-        [$allSum] = self::sentSince($since, null);
         $add('velocity', 'Within the member’s daily limit', self::overDaily((int) $w['user_id'], $amt, $eff));
-        $cap = self::limit($eff, 'wallet_auto_platform_daily_naira') * 100;
-        $add('platform', 'Within the platform’s daily limit', $allSum + $amt > $cap
-            ? $f('Platform daily limit reached', 'Sent automatically today across every member: ' . $naira($allSum)
-                 . ' of ' . $naira($cap) . '. Automatic payouts pause above it until a person looks.')
-            : null);
+        $add('platform', 'Within the platform’s daily limit', self::overPlatform($amt, $eff));
 
         // ── the account ──────────────────────────────────────────────────────
         $resolved = '';
@@ -361,6 +355,24 @@ final class WalletRisk
                 'detail' => 'Sent automatically to this member in 24 hours: ₦' . number_format($sum / 100, 2) . ' in '
                           . $n . ' withdrawal' . ($n === 1 ? '' : 's') . '.',
                 'tell'   => 'You have reached today’s limit for instant withdrawals, so a person will check this one.'];
+    }
+
+    /**
+     * The platform's daily cap, as a finding or null. Public because it has to be asked
+     * twice: once with the other checks, and again at the moment of sending under a lock
+     * (WalletAutoPay::send), or two withdrawals checked together both fit under it.
+     *
+     * @return array{title:string, detail:string, tell:string}|null
+     */
+    public static function overPlatform(int $amountKobo, array $eff): ?array
+    {
+        [$allSum] = self::sentSince(Carbon::now()->subDay()->toDateTimeString(), null);
+        $cap = self::limit($eff, 'wallet_auto_platform_daily_naira') * 100;
+        if ($allSum + $amountKobo <= $cap) return null;
+        return ['title'  => 'Platform daily limit reached',
+                'detail' => 'Sent automatically today across every member: ₦' . number_format($allSum / 100, 2)
+                          . ' of ₦' . number_format($cap / 100, 2) . '. Automatic payouts pause above it until a person looks.',
+                'tell'   => ''];
     }
 
     /** @return array{0:int,1:int} kobo sent automatically since a moment, and how many */

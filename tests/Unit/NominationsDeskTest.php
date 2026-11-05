@@ -397,4 +397,122 @@ class NominationsDeskTest extends TestCase
         $this->assertSame(302, $res->getStatusCode());
         $this->assertNotEmpty($_SESSION['flash_ok'] ?? '');
     }
+
+    /** One nomination row the way the queue reads it. */
+    private function queued(int $id): array
+    {
+        return (array) DB::table('gates_nominations')->where('id', $id)->first();
+    }
+
+    private function nominate(int $id, string $name = 'Ada Obi', array $extra = []): void
+    {
+        DB::table('gates_nominations')->insert($extra + [
+            'id' => $id, 'cycle_id' => 1, 'nominee_name' => $name, 'country_code' => 'NG',
+            'nominator_name' => 'Cee', 'nominator_email' => 'cee' . $id . '@x.io', 'reason' => 'Also great',
+            'status' => 'pending', 'created_at' => '2026-07-02 10:00:00',
+        ]);
+    }
+
+    private function post(int $id, string $action, array $body = []): Response
+    {
+        $req = (new ServerRequestFactory())
+            ->createServerRequest('POST', 'https://x/admin/nominations/' . $id . '/' . $action)
+            ->withHeader('X-Requested-With', 'fetch')
+            ->withParsedBody($body + ['desk' => '1']);
+        return $this->controller()->action($req, new Response(), ['id' => $id, 'action' => $action]);
+    }
+
+    /**
+     * "Not a duplicate" is about the two entries the reviewer was looking at. It used to
+     * take the ruled entry out of every group, so a THIRD Ada Obi arriving later — maybe
+     * a genuine repeat — was never flagged against either.
+     */
+    public function test_a_ruling_is_about_the_pair_and_a_later_entry_is_still_flagged(): void
+    {
+        $this->nominate(11);
+        $before = \AfricaGates\Admin\Services\ReviewQueue::annotate([$this->queued(10), $this->queued(11)]);
+        $this->assertContains('dup', $before[0]['keys'], 'two Ada Obis are raised before any ruling');
+
+        $this->assertTrue($this->json($this->post(11, 'apart'))['ok']);
+        $ruled = \AfricaGates\Admin\Services\ReviewQueue::annotate([$this->queued(10), $this->queued(11)]);
+        $this->assertNotContains('dup', $ruled[0]['keys'], 'the ruled pair is not raised again');
+        $this->assertNotContains('dup', $ruled[1]['keys']);
+
+        $this->nominate(12);
+        $later = \AfricaGates\Admin\Services\ReviewQueue::annotate([$this->queued(10), $this->queued(11), $this->queued(12)]);
+        $this->assertContains('dup', $later[2]['keys'], 'a later same-name entry has been ruled on by nobody');
+        $this->assertEqualsCanonicalizing([10, 11], $later[2]['dup_of']);
+        $this->assertSame([12], $later[1]['dup_of'], 'the ruled entry is flagged against the newcomer only');
+    }
+
+    /** A ruling made before pairs were recorded keeps its old meaning, so nothing starts flagging overnight. */
+    public function test_a_ruling_from_before_pairs_existed_still_clears_its_entry(): void
+    {
+        $this->nominate(11, 'Ada Obi', ['not_duplicate' => 1]);
+        $rows = \AfricaGates\Admin\Services\ReviewQueue::annotate([$this->queued(10), $this->queued(11)]);
+        $this->assertNotContains('dup', $rows[0]['keys']);
+        $this->assertNotContains('dup', $rows[1]['keys']);
+    }
+
+    /**
+     * Two Ada Obis already on the ballot (ruled different people). A third nomination
+     * approved without a decision used to join the LOWER id by name — a guess, with a
+     * stranger's votes at stake. It is refused, and nothing changes.
+     */
+    public function test_approving_into_a_name_two_entries_share_is_refused_not_guessed(): void
+    {
+        $this->nominate(11);
+        $this->assertTrue($this->json($this->post(11, 'apart'))['ok']);
+        $this->assertTrue($this->json($this->post(10, 'approve', ['category_id' => 1]))['ok']);
+        $this->assertTrue($this->json($this->post(11, 'approve', ['category_id' => 1]))['ok']);
+        $this->assertSame(2, (int) DB::table('gates_nominees')->where('category_id', 1)->count(), 'ruled apart: an entry of its own');
+
+        $this->nominate(12);
+        $res = $this->post(12, 'approve', ['category_id' => 1]);
+        $this->assertSame(409, $res->getStatusCode());
+        $this->assertStringContainsString('cannot be joined to one of them by guessing', (string) $this->json($res)['error']);
+        $this->assertSame('pending', DB::table('gates_nominations')->where('id', 12)->value('status'), 'rolled back');
+        $this->assertSame(2, (int) DB::table('gates_nominees')->where('category_id', 1)->count());
+    }
+
+    /** And the duplicate scan stops offering the two as a merge — the one thing the reviewer said is wrong. */
+    public function test_a_ruled_apart_approval_dismisses_the_merge_suggestion(): void
+    {
+        $this->nominate(11);
+        $this->assertTrue($this->json($this->post(10, 'approve', ['category_id' => 1]))['ok']);
+        $this->assertTrue($this->json($this->post(11, 'apart'))['ok']);
+        $this->assertTrue($this->json($this->post(11, 'approve', ['category_id' => 1]))['ok']);
+
+        $ids = DB::table('gates_nominees')->where('category_id', 1)->orderBy('id')->pluck('id')->map(fn ($i) => (int) $i)->all();
+        $this->assertCount(2, $ids);
+        $this->assertTrue(DB::table('gates_merge_dismissals')
+            ->where('pair_key', \AfricaGates\Services\MergeSuggestionService::pairKey($ids[0], $ids[1]))->exists());
+    }
+
+    /**
+     * The answer to "please send more" is single-use. The status change that spends it ran
+     * AFTER the evidence was written, so a double tap wrote every link twice.
+     */
+    public function test_an_answer_to_an_ask_is_kept_once_however_often_it_is_posted(): void
+    {
+        DB::table('gates_nominations')->where('id', 10)->update(['status' => 'needs_details']);
+        $nom = DB::table('gates_nominations')->where('id', 10)->first();
+
+        $first  = \AfricaGates\Services\NominationAsk::answer($nom, ['https://news.example/ada'], []);
+        $second = \AfricaGates\Services\NominationAsk::answer($nom, ['https://news.example/ada'], []);
+
+        $this->assertSame(1, $first);
+        $this->assertSame(0, $second, 'the second submit finds the link spent');
+        $this->assertSame(1, (int) DB::table('gates_nomination_evidence')->where('nomination_id', 10)->count());
+        $this->assertSame('pending', DB::table('gates_nominations')->where('id', 10)->value('status'));
+    }
+
+    /** Nothing usable in the answer: the claim is rolled back, so the link still works. */
+    public function test_an_answer_with_nothing_usable_leaves_the_ask_open(): void
+    {
+        DB::table('gates_nominations')->where('id', 10)->update(['status' => 'needs_details']);
+        $nom = DB::table('gates_nominations')->where('id', 10)->first();
+        $this->assertSame(0, \AfricaGates\Services\NominationAsk::answer($nom, ['not a link'], []));
+        $this->assertSame('needs_details', DB::table('gates_nominations')->where('id', 10)->value('status'));
+    }
 }

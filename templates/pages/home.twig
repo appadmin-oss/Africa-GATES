@@ -152,11 +152,15 @@
     </a>
     {% endif %}
     <div class="hm-topics">
+      {# The shop card promises frames and certificates, so it is drawn only while the
+         shop sells some (HomeFront::framesOnSale) — never a typed promise to a page
+         that may hold neither. #}
       {% for tp in [
         {t: 'Find an event near you', d: 'Galas, ceremonies and community days, with tickets in one place.', tag: 'Events', h: '/events', img: 'community-leader'},
-        {t: 'Run your awards on Africa GATES', d: 'Editions, judging and public voting in one place.', tag: 'For organisers', h: '/partner', img: 'business'},
+        {t: 'Run your awards on Africa GATES', d: 'Editions, judging and public voting in one place.', tag: 'For organisers', h: '/partner', img: 'business'}
+      ]|merge(frames_on_sale ? [
         {t: 'Frame your recognition', d: 'Certificates and frames for the honours on your profile.', tag: 'Shop', h: '/shop', img: 'creative'}
-      ] %}
+      ] : []) %}
         <a class="hm-topic" href="{{ tp.h }}">
           <span class="hm-topic__field">
             <img class="hm-topic__pic hm-topic__pic--{{ loop.index }}" src="{{ asset('/assets/img/honour/' ~ tp.img ~ '-480.webp') }}" alt="" loading="lazy" width="480" height="480">

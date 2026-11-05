@@ -1936,7 +1936,12 @@ class AccountController
         // is for the person's eyes. Nobody to ask is not a reason to stop them.
         $resolved = '';
         $ps = new \AfricaGates\Services\PaymentService();
-        if ($code !== '' && $ps->isEnabled('paystack')) {
+        // The same budget as the live lookup. This path asks the bank the same question
+        // — number in, the holder's NAME out — and counted nothing, so a script posting
+        // the confirm form turned the wallet into an unmetered register of who owns
+        // which account. Over the budget it simply does not ask: the name is a courtesy,
+        // and the send-time checks ask the bank again anyway.
+        if ($code !== '' && $ps->isEnabled('paystack') && $this->mayResolve((int) $user->id, $req)) {
             $r = $ps->resolveAccount($bank['account_number'], $code);
             if (!$r['ok'] && $r['reachable']) {
                 return $back('Your bank did not recognise that account number. Check it and try again.');
@@ -1994,6 +1999,18 @@ class AccountController
     }
 
     /**
+     * One budget for asking a bank whose account a number is, wherever it is asked from:
+     * per member, and per connection so a farm of fresh accounts meets it too.
+     */
+    private function mayResolve(int $userId, Request $req): bool
+    {
+        if ($this->rateLimit === null) return true;
+        $ip = (string) ($req->getServerParams()['REMOTE_ADDR'] ?? '');
+        return $this->rateLimit->check('u:' . $userId, 'wallet_resolve', 20, 3600)
+            && $this->rateLimit->check(hash('sha256', $ip), 'wallet_resolve_ip', 40, 3600);
+    }
+
+    /**
      * GET /account/wallet/resolve.json — the name a bank holds for an account number.
      *
      * For the withdraw form's "Name from your bank" line. Signed-in members only, and
@@ -2010,11 +2027,7 @@ class AccountController
             $q = $req->getQueryParams();
             $num = preg_replace('/\D+/', '', (string) ($q['account_number'] ?? '')) ?? '';
             $code = preg_replace('/[^0-9A-Za-z]/', '', (string) ($q['bank_code'] ?? '')) ?? '';
-            $ip = (string) ($req->getServerParams()['REMOTE_ADDR'] ?? '');
-            $allowed = $this->rateLimit === null || (
-                $this->rateLimit->check('u:' . (int) $user->id, 'wallet_resolve', 20, 3600)
-                && $this->rateLimit->check(hash('sha256', $ip), 'wallet_resolve_ip', 40, 3600));
-            if (!$allowed) {
+            if (!$this->mayResolve((int) $user->id, $req)) {
                 $status = 429;
             } elseif (strlen($num) === 10 && $code !== '') {
                 $ps = new \AfricaGates\Services\PaymentService();

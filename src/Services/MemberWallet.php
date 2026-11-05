@@ -437,22 +437,44 @@ final class MemberWallet
 
             // Votes this page's return paid for (WalletVotes). Their ledger rows are
             // `payout` entries, which the loop above leaves to their own receipts.
-            try {
-                $spends = SchemaHas::table('gates_wallet_votes')
-                    ? DB::table('gates_wallet_votes')->where('source_nominee_id', $nid)->orderByDesc('id')->limit(200)->get()
-                    : collect();
-            } catch (\Throwable) {
-                $spends = collect();
+            //
+            // The member's own spends get the full receipt (below, with their spends on any
+            // other page). One made by an EARLIER holder of this page is still a movement on
+            // this page's balance, so it is listed — but as a bare line: who it was spent on
+            // and the reference are that person's business, not the next holder's.
+            foreach (self::votesFrom($nid) as $v) {
+                if ((int) ($v->user_id ?? 0) === $userId) continue;
+                $out[] = self::tx('crh-wv-' . (int) $v->id, 'out', 'Spent on votes before you held this page', $page,
+                    (int) $v->amount_kobo, self::ST_SPENT, (string) $v->created_at, '', 0, 'return',
+                    [['Pocket', 'Community return · ' . $page]]);
             }
-            foreach ($spends as $v) {
-                $for = self::pageName((int) $v->nominee_id);
-                $t = self::tx('wv-' . (int) $v->id, 'out', 'Spent on votes',
-                    number_format((int) $v->votes) . ' vote' . ((int) $v->votes === 1 ? '' : 's') . ' for ' . $for,
-                    (int) $v->amount_kobo, self::ST_SPENT, (string) $v->created_at, (string) $v->reference, 0, 'return',
-                    [['Pocket', 'Community return · ' . $page], ['Votes', number_format((int) $v->votes) . ' for ' . $for],
-                     ['Fee', 'None. Nothing went to a bank.']]);
-                $out[] = $t;
+            // And the same for money an earlier holder took out: the balance moved, so the
+            // statement says so, without their bank, account or name.
+            foreach (self::othersPaid($nid, $userId) as $w) {
+                $out[] = self::tx('crh-' . (int) $w->id, 'out', 'Paid out before you held this page', $page,
+                    (int) $w->amount_kobo, self::ST_SPENT,
+                    (string) ($w->paid_at ?: $w->requested_at), '', 0, 'return',
+                    [['Pocket', 'Community return · ' . $page]]);
             }
+        }
+
+        // The member's own vote spends, on whichever page — a member who handed a page on
+        // keeps the record of what they spent from it.
+        try {
+            $mine = SchemaHas::table('gates_wallet_votes')
+                ? DB::table('gates_wallet_votes')->where('user_id', $userId)->orderByDesc('id')->limit(200)->get()
+                : collect();
+        } catch (\Throwable) {
+            $mine = collect();
+        }
+        foreach ($mine as $v) {
+            $page = self::pageName((int) $v->source_nominee_id);
+            $for = self::pageName((int) $v->nominee_id);
+            $out[] = self::tx('wv-' . (int) $v->id, 'out', 'Spent on votes',
+                number_format((int) $v->votes) . ' vote' . ((int) $v->votes === 1 ? '' : 's') . ' for ' . $for,
+                (int) $v->amount_kobo, self::ST_SPENT, (string) $v->created_at, (string) $v->reference, 0, 'return',
+                [['Pocket', 'Community return · ' . $page], ['Votes', number_format((int) $v->votes) . ' for ' . $for],
+                 ['Fee', 'None. Nothing went to a bank.']]);
         }
         // Withdrawals are the ASKER's, on whichever page: listed by page, a member who took
         // over a page saw the previous holder's withdrawals — their bank, account number and
@@ -475,6 +497,29 @@ final class MemberWallet
         }
 
         return $out;
+    }
+
+    /** @return list<object> votes paid for from one page's return */
+    private static function votesFrom(int $nid): array
+    {
+        try {
+            return SchemaHas::table('gates_wallet_votes')
+                ? DB::table('gates_wallet_votes')->where('source_nominee_id', $nid)->orderByDesc('id')->limit(200)->get()->all()
+                : [];
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
+    /** @return list<object> paid withdrawals from one page by anybody but this member */
+    private static function othersPaid(int $nid, int $userId): array
+    {
+        try {
+            return DB::table('gates_return_withdrawals')->where('nominee_id', $nid)->where('user_id', '!=', $userId)
+                ->where('status', CommunityReturnWithdrawals::WD_PAID)->orderByDesc('id')->limit(100)->get()->all();
+        } catch (\Throwable) {
+            return [];
+        }
     }
 
     /** @return list<array<string,mixed>> */

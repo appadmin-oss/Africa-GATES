@@ -164,7 +164,14 @@ final class ConsoleAlertLog
         if (!self::ready() || $adminId <= 0) return false;
         $now = date('Y-m-d H:i:s');
         try {
-            $n = DB::table('gates_console_alerts')->where('alert_key', $key)->whereNull('resolved_at')
+            $open = DB::table('gates_console_alerts')->where('alert_key', $key)->whereNull('resolved_at')->first(['id', 'owner_admin_id']);
+            if (!$open) return false;
+            // Taking an alert you already own changes nothing. Pressing it again used to
+            // restamp the time and write a second "assigned" line, so the alert's history
+            // read as a hand-over that never happened — and reset the clock that says how
+            // long it has sat with somebody.
+            if ((int) ($open->owner_admin_id ?? 0) === $adminId) return true;
+            $n = DB::table('gates_console_alerts')->where('id', (int) $open->id)->whereNull('resolved_at')
                 ->update(['owner_admin_id' => $adminId, 'owner_at' => $now]);
             if ($n < 1) return false;
             self::event($key, 'assigned', $adminId, $now);

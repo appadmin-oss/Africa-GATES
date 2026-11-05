@@ -12,7 +12,9 @@
   const $  = (sel, ctx = document) => ctx.querySelector(sel);
   const $$ = (sel, ctx = document) => Array.from(ctx.querySelectorAll(sel));
   const on = (el, ev, fn, opts) => el && el.addEventListener(ev, fn, opts || false);
-  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // The site's own reduce-motion switch (html.ag-rm, a11y.js) as well as the system's.
+  const reduceMotion = document.documentElement.classList.contains('ag-rm') ||
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   /* ─── Toasts — global, accessible, auto-dismissing ───────────
      Usage: window.toast('Saved', { type:'success'|'error'|'info',

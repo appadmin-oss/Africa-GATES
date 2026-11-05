@@ -33,7 +33,8 @@ final class WalletReceiptTest extends TestCase
 
     public function test_numbers_are_masked_before_anything_is_drawn(): void
     {
-        $this->assertSame('012****789', R::maskAccount('0123456789'));
+        $this->assertSame('******6789', R::maskAccount('0123456789'));
+        $this->assertSame('****', R::maskAccount('1234'));
         $this->assertSame('1000042610201605****1234', R::maskSession('100004261020160512341234'));
 
         $f = R::facts(self::T, 'Chioma Obi chioma@example.com');

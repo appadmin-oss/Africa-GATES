@@ -146,7 +146,9 @@
   var cur = art.querySelector('[data-si-cur]');
   var prog = art.querySelector('[data-si-prog]');
   var n = slides.length, i = 0, timer = null, hover = false;
-  var still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // The site's own reduce-motion switch (html.ag-rm, a11y.js) as well as the system's.
+  var still = document.documentElement.classList.contains('ag-rm') ||
+    !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   function show(k) {
     i = (k + n) % n;
     for (var j = 0; j < n; j++) {

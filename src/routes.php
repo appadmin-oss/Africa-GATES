@@ -2951,6 +2951,9 @@ return function(App $app) {
                 'community_pct'    => (int) round($w['community'] * 100),
                 'judge_pct'        => (int) round($w['judge'] * 100),
                 'paid_cap_pct'     => (int) ($eff['max_paid_weight_pct'] ?? 50),
+                // The cap's floor, from the constant that enforces it: "up to 50% of other
+                // support" alone is false for a nominee with none, who may still hold ten.
+                'bonus_floor'      => \AfricaGates\Services\BonusVoteService::MIN_BONUS_CAP,
                 // What a contribution does to the community half, from the one resolver the
                 // ballot and the award page use — never a typed claim (AUDIT 2026-10-05 #10).
                 'paid_sentence'    => \AfricaGates\Services\PaidVoteCopy::sentence(),

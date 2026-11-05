@@ -422,6 +422,26 @@ final class HomeFront
     }
 
     /**
+     * Whether the shop sells anything that frames or prints a recognition — the promise
+     * the homepage's "Frame your recognition" topic makes. It was a typed card linking to
+     * /shop whatever the shop held, so on a store selling caps and mugs the homepage
+     * offered "certificates and frames for the honours on your profile" and delivered a
+     * page with neither. Read from the catalogue by the same kind rule the shop's covers
+     * use (CoverKind), on the category or the name.
+     */
+    public static function framesOnSale(): bool
+    {
+        try {
+            if (!\AfricaGates\Support\SchemaHas::table('gates_products')) return false;
+            foreach (DB::table('gates_products')->where('is_active', 1)->limit(500)->get(['name', 'category']) as $p) {
+                if (\AfricaGates\Support\CoverKind::productKind((string) $p->category) === 'art') return true;
+                if (preg_match('/\b(frames?|framed|certificates?|prints?|plaques?)\b/i', (string) $p->name) === 1) return true;
+            }
+        } catch (\Throwable) {}
+        return false;
+    }
+
+    /**
      * The one wide Featured card: the open challenge closing soonest, or null (the section
      * then hides — "nothing curated: hide the section").
      *
