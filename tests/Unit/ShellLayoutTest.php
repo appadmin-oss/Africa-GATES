@@ -259,7 +259,10 @@ final class ShellLayoutTest extends TestCase
 
     public function test_the_shell_loads_the_base_in_the_bundles_order(): void
     {
-        preg_match_all("~asset\('/(assets/css/[^']+)'\)~", $this->twig('templates/layout/shell.twig'), $m);
+        // The easy-read face is an ADDRESS the shell hands to a11y.js (`data-ag-easy-font`),
+        // linked only for somebody who turns the setting on — not part of the base cascade.
+        $src = (string) preg_replace('~data-ag-easy-font="[^"]*"~', '', $this->twig('templates/layout/shell.twig'));
+        preg_match_all("~asset\('/(assets/css/[^']+)'\)~", $src, $m);
         $shell = $m[1];
         // The base and nothing else: the rules once carved out of components.css
         // (chrome.css, library.css) were destroyed with the old pages, and a rebuilt
