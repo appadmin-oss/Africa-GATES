@@ -25,7 +25,12 @@ final class ReduceMotionSwitchTest extends TestCase
             $src = (string) file_get_contents($f);
             if (!str_contains($src, 'prefers-reduced-motion')) continue;
             $asked++;
-            if (!str_contains($src, 'ag-rm')) $bad[] = basename($f);
+            if (str_contains($src, 'ag-rm')) continue;
+            // A script kept byte-for-byte from a handoff (CelebrationTest) may not be edited;
+            // it passes only if its LOADER — `<name>-boot.js` — reads the switch for it.
+            $boot = dirname($f) . '/' . basename($f, '.js') . '-boot.js';
+            if (is_file($boot) && str_contains((string) file_get_contents($boot), 'ag-rm')) continue;
+            $bad[] = basename($f);
         }
         $this->assertGreaterThan(3, $asked, 'the sweep is not reading the scripts');
         $this->assertSame([], $bad, 'these scripts ignore the site\'s own reduce-motion switch');

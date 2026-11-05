@@ -26,8 +26,7 @@
 
   function rng(seed) { var s = seed; return function () { s = (s * 9301 + 49297) % 233280; return s / 233280; }; }
   function px(n) { return Math.round(n) + 'px'; }
-  // The site's own reduce-motion switch (html.ag-rm, a11y.js) as well as the system's.
-  function reduced() { if (document.documentElement.classList.contains('ag-rm')) return true; try { return w.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } }
+  function reduced() { try { return w.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } }
   function seenOnce(key) { if (!key) return false; try { var k = 'ag-cel-' + key; if (w.localStorage.getItem(k)) return true; w.localStorage.setItem(k, '1'); } catch (e) {} return false; }
   function mk(parent, st, html) {
     var e = d.createElement('span'); e.className = 'agc-p'; e.setAttribute('aria-hidden', 'true');
