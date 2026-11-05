@@ -209,6 +209,9 @@ return [
             // Drives members-only UI (community composer, Gee suppression there).
             'is_member'         => !empty($_SESSION['user_id']),
             'member_name'       => $_SESSION['user_name'] ?? null,
+            // The account's photo (gates_users.photo_path, set by NomineePhoto), for the avatar.
+            // Session-only like the name; Media::url() sizes a hosted image for a 40px circle.
+            'member_photo'      => !empty($_SESSION['user_photo']) ? \AfricaGates\Support\Media::url((string) $_SESSION['user_photo'], 'thumb') : null,
             // Per-request canonical/og:url inputs (were undefined → every page
             // self-reported as the homepage). site_url tracks APP_URL so canonical
             // + Open Graph use the real deployed host.

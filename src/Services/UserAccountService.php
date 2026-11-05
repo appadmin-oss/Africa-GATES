@@ -215,6 +215,8 @@ final class UserAccountService
         $_SESSION['user_id']    = (int) $u->id;
         $_SESSION['user_name']  = $u->name;
         $_SESSION['user_email'] = $u->email;
+        // The account's photo, for the avatar in the header (session-only, like the name).
+        $_SESSION['user_photo'] = NomineePhoto::forUser((int) $u->id);
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
         DB::table('gates_users')->where('id', $u->id)->update([
             'last_login_at' => Carbon::now()->toDateTimeString(),
@@ -226,7 +228,7 @@ final class UserAccountService
     {
         // Roles opened from this account (Account\Roles) close with it.
         \AfricaGates\Services\Account\Roles::signOutOpened();
-        unset($_SESSION['user_id'], $_SESSION['user_name'], $_SESSION['user_email']);
+        unset($_SESSION['user_id'], $_SESSION['user_name'], $_SESSION['user_email'], $_SESSION['user_photo']);
     }
 
     public function current(): ?object
