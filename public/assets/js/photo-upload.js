@@ -7,6 +7,28 @@
   const supported = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
   const managedPreview = '[data-nf-photo],[data-pv-file],[data-flo-photo],[data-pl-media],[data-gee-filein]';
   let sequence = 0;
+
+  /* ── A PHONE PHOTO IS MADE THE RIGHT SIZE BEFORE IT IS SENT (5 Nov 2026) ──────────────
+     Phone cameras produce 3–12 MB photos and shared hosts commonly accept 2 MB per upload, so
+     the photo a nominee chose was discarded by PHP before any of our code saw it — "photos
+     uploaded are not reflecting". The server shrinks every portrait to at most 1600 px anyway,
+     so shrinking it HERE first (longest side SHRINK_SIDE, JPEG) loses nothing anybody would
+     see, fits any limit, and costs a fraction of the data on a mobile connection.
+     `imageOrientation: 'from-image'` keeps the phone's rotation. GIFs (animation) and small
+     files are left alone; a browser that cannot do this sends the original, as before. */
+  const SHRINK_OVER = 1.5 * 1048576, SHRINK_SIDE = 2000;
+  async function shrink(file) {
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type) || file.size <= SHRINK_OVER || !window.createImageBitmap) return file;
+    const bitmap = await createImageBitmap(file, {imageOrientation: 'from-image'});
+    const scale = Math.min(1, SHRINK_SIDE / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(bitmap.width * scale); canvas.height = Math.round(bitmap.height * scale);
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close?.();
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.86));
+    if (!blob || blob.size >= file.size) return file;
+    return new File([blob], file.name.replace(/\.[a-z0-9]+$/i, '') + '.jpg', {type: 'image/jpeg', lastModified: Date.now()});
+  }
   function mount(root = document) {
     root.querySelectorAll('input[type="file"]').forEach(input => {
       if (input.dataset.photoMounted || input.hidden || !/image\//.test(input.accept)) return;
@@ -59,6 +81,21 @@
         return '';
       }
       input.addEventListener('change', () => {
+        // Large photos are shrunk first (see shrink()), then this handler runs again on the
+        // smaller files; the flag stops it shrinking twice.
+        if (imageOnly && input.dataset.photoShrunk !== '1' && window.DataTransfer
+            && Array.from(input.files || []).some(f => f.size > SHRINK_OVER && /^image\/(jpeg|png|webp)$/.test(f.type))) {
+          status.textContent = 'Preparing your photo…';
+          Promise.all(Array.from(input.files).map(f => shrink(f).catch(() => f))).then(out => {
+            const dt = new DataTransfer();
+            out.forEach(f => dt.items.add(f));
+            input.files = dt.files;
+            input.dataset.photoShrunk = '1';
+            input.dispatchEvent(new Event('change', {bubbles: true}));
+          });
+          return;
+        }
+        delete input.dataset.photoShrunk;
         const current = ++generation;
         release(); input.setCustomValidity(''); input.removeAttribute('aria-invalid');
         const files = Array.from(input.files || []);
