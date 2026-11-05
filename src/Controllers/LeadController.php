@@ -209,6 +209,7 @@ final class LeadController
             'work_return' => [TeamLoop::returnProof($int('work'), $me['id'], (string) ($b['why'] ?? '')), '', 'event_work', $int('work')],
             'work_propose' => [$this->propose($me, $b), '', 'event', $int('event')],
             'work_decide' => [TeamLoop::decide($int('work'), $me['id'], (string) ($b['verdict'] ?? ''), (string) ($b['note'] ?? ''), (string) ($b['proof'] ?? 'none')), '', 'event_work', $int('work')],
+            'vtask_add', 'vtask_close', 'vtask_accept' => [$this->volTask($me, $b, $do), '', 'event', $int('event')],
             default => [['ok' => false, 'error' => 'That isn’t something this page can do.'], '', '', 0],
         };
         if (!$r['ok']) return $this->back($res, $back, false, (string) ($r['error'] ?? 'That didn’t work.'));
@@ -341,6 +342,25 @@ final class LeadController
         $v = \Illuminate\Database\Capsule\Manager::table('gates_volunteers')->where('id', (int) ($b['vol'] ?? 0))->first();
         if (!$v) return ['ok' => false, 'error' => 'That volunteer was not found.'];
         $r = $in ? Attendance::arrive($v, $event, Attendance::LEAD, $me['name']) : Attendance::leave($v, $event, Attendance::LEAD, $me['name']);
+        return $r + ['event' => $event];
+    }
+
+    /**
+     * Volunteer tasks for THIS event (EventPages::volTasks): post, close, accept. The member must
+     * hold `volunteers.tasks` here — a lead does; a team role does if its owner ticked it — and
+     * the task or take must be this event's (Tasks::*ForEvent), so a crafted post about another
+     * event's work is refused like a missing one.
+     */
+    private function volTask(array $me, array $b, string $do): array
+    {
+        $event = (int) ($b['event'] ?? 0);
+        if (!Plan::may($me['id'], $event, 'volunteers.tasks')) return ['ok' => false, 'error' => 'Only a lead of this event, or a team role that includes it, can set its volunteer tasks.'];
+        $T = \AfricaGates\Services\Volunteer\Tasks::class;
+        $r = match ($do) {
+            'vtask_add' => $T::postForEvent($event, $b, $me['id'], $me['name']) + ['msg' => 'Posted. The volunteers with a role here see it in their Tasks now.'],
+            'vtask_close' => $T::closeForEvent($event, (int) ($b['task'] ?? 0)) ? ['ok' => true, 'msg' => 'Closed. Nobody new can take it.'] : ['ok' => false, 'error' => 'That task is not open on this event.'],
+            default => $T::acceptForEvent($event, (int) ($b['take'] ?? 0), (float) ($b['hours'] ?? 0), $me['name']) + ['msg' => 'Accepted. The hours are on their record.'],
+        };
         return $r + ['event' => $event];
     }
 

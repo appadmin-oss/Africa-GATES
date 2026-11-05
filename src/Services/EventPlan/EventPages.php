@@ -40,7 +40,7 @@ final class EventPages
 
     public const TABS = [
         'plan' => ['work' => 'Work', 'timeline' => 'Timeline', 'risks' => 'Risks', 'decisions' => 'Decisions'],
-        'people' => ['team' => 'Team', 'volunteers' => 'Volunteers', 'nominees' => 'Nominees', 'seating' => 'Seating', 'invites' => 'Invitations'],
+        'people' => ['team' => 'Team', 'volunteers' => 'Volunteers', 'tasks' => 'Volunteer tasks', 'nominees' => 'Nominees', 'seating' => 'Seating', 'invites' => 'Invitations'],
         'crm' => ['sponsors' => 'Sponsors', 'contacts' => 'Contacts', 'letters' => 'Letters', 'messages' => 'Messages'],
         'money' => ['budget' => 'Budget', 'approvals' => 'Approvals', 'vendors' => 'Vendors', 'income' => 'Income'],
         'night' => ['show' => 'Run of show', 'door' => 'Door', 'safety' => 'Safety'],
@@ -160,7 +160,7 @@ final class EventPages
             },
             'award' => self::award($e),
             'people' => match ($tab) {
-                'volunteers' => self::volunteers($e), 'nominees' => self::invitees($e, 'nominee'), 'seating' => self::seating($e),
+                'volunteers' => self::volunteers($e), 'tasks' => self::volTasks($e), 'nominees' => self::invitees($e, 'nominee'), 'seating' => self::seating($e),
                 'invites' => self::invitees($e, null), default => self::team($e),
             },
             'crm' => match ($tab) {
@@ -530,6 +530,58 @@ final class EventPages
      * volunteer recorded alone. How reliable each person has been comes from Volunteer\Effect, the
      * same figure their own record and the staff list show.
      */
+    /**
+     * VOLUNTEER TASKS, SET BY THE EVENT'S LEAD (owner, 5 Nov 2026: "the event lead should be the
+     * one who does this"). They were posted only by staff from Admin › Volunteers, so the person
+     * who knows what the night needs had to ask somebody else to say it. A lead posts work for
+     * their own event here and it is live at once; only volunteers holding a role at this event
+     * see it (Tasks::library). Accepting a finished task is the check, as it is for staff, and
+     * the hours land on the volunteer's record verified.
+     *
+     * @return array{title:string, secs:list<array<string,mixed>>}
+     */
+    private static function volTasks(object $e): array
+    {
+        $id = (int) $e->id;
+        $secs = [];
+        $tasks = \AfricaGates\Services\Volunteer\Tasks::forEvent($id);
+        $open = array_values(array_filter($tasks, static fn ($t) => $t->status === 'open'));
+        $toAccept = [];
+        foreach ($tasks as $t) foreach ($t->takes as $k) if ($k->status === 'taken') $toAccept[] = [$t, $k];
+
+        if ($toAccept) {
+            $secs[] = ['k' => 'rows', 'h' => 'Taken, waiting to be accepted', 'items' => array_map(static fn ($p) => [
+                't' => Volunteers::name($p[1]) . ' · ' . (string) $p[0]->title,
+                'sub' => 'Taken ' . Workspace::day((string) $p[1]->taken_at) . ' · ' . (\AfricaGates\Services\Volunteer\Tasks::CHECKED_BY[$p[0]->checked_by] ?? ''),
+                'inline' => ['do' => 'vtask_accept', 'hidden' => ['event' => $id, 'take' => (int) $p[1]->take_id], 'id' => 'take' . (int) $p[1]->take_id,
+                             'type' => 'number', 'step' => '0.25', 'min' => '0.25', 'name' => 'hours', 'label' => 'Hours it took',
+                             'placeholder' => (string) ($p[0]->est_minutes ? round($p[0]->est_minutes / 60, 2) : '1'), 'submit' => 'Accept as done']], $toAccept)];
+        }
+        $secs[] = $open
+            ? ['k' => 'rows', 'h' => 'Open tasks', 'items' => array_map(static fn ($t) => [
+                't' => (string) $t->title,
+                'sub' => trim(($t->due_at ? 'Due ' . Workspace::day((string) $t->due_at) . ' · ' : '') . (\AfricaGates\Services\Volunteer\Tasks::CHECKED_BY[$t->checked_by] ?? '')
+                    . (count($t->takes) ? ' · taken by ' . count($t->takes) : ' · nobody yet') . (!empty($t->posted_by_name) ? ' · posted by ' . $t->posted_by_name : ''), ' ·'),
+                'cta' => ['label' => 'Close', 'post' => ['do' => 'vtask_close', 'event' => $id, 'task' => (int) $t->id]]], $open)]
+            : ['k' => 'note', 'tone' => 'mute', 'text' => 'No open tasks for this event yet. Post one below; the volunteers with a role here see it in their Tasks at once.'];
+
+        $modules = ['' => 'No training needed'] + \AfricaGates\Services\Volunteer\Training::titles();
+        $secs[] = ['k' => 'form', 'h' => 'Post a task', 'do' => 'vtask_add', 'hidden' => ['event' => $id], 'submit' => 'Post the task', 'groups' => [
+            ['label' => 'The work', 'fields' => [
+                ['name' => 'title', 'label' => 'What needs doing', 'type' => 'text', 'required' => true, 'placeholder' => 'Fold and pack 200 programmes'],
+                ['name' => 'body', 'label' => 'Details', 'type' => 'textarea', 'placeholder' => 'Where, what to bring, who to ask.']]],
+            ['label' => 'How it is checked', 'fields' => [
+                ['name' => 'checked_by', 'label' => 'Checked by', 'type' => 'select', 'options' => \AfricaGates\Services\Volunteer\Tasks::CHECKED_BY],
+                ['name' => 'module_key', 'label' => 'Training needed first', 'type' => 'select', 'options' => $modules]]],
+            ['label' => 'When', 'fields' => [
+                ['name' => 'due_at', 'label' => 'Due by', 'type' => 'date'],
+                ['name' => 'est_minutes', 'label' => 'About how many minutes', 'type' => 'number'],
+                ['name' => 'from_home', 'label' => 'Can be done from home', 'type' => 'check', 'value' => '1']]],
+        ]];
+        $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => 'Only volunteers holding a role at this event see these tasks. Accepting one adds the hours to their record as verified; closing one stops anybody new taking it.'];
+        return ['title' => 'Volunteer tasks', 'secs' => $secs];
+    }
+
     private static function volunteers(object $e): array
     {
         $id = (int) $e->id;

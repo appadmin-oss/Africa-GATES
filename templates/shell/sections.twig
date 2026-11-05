@@ -141,9 +141,13 @@
             {% if r.inline is defined and r.inline %}
               <form class="sh7-rowform" method="post" action="{{ act }}">
                 <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="back" value="{{ here }}">
-                <input type="hidden" name="do" value="{{ r.inline.do }}"><input type="hidden" name="hour" value="{{ r.inline.hour }}">
-                <label class="sh7-sr" for="p{{ r.inline.hour }}">{{ r.inline.label }}</label>
-                <input class="sh7-input" id="p{{ r.inline.hour }}" type="url" name="{{ r.inline.name }}" placeholder="{{ r.inline.placeholder }}" required>
+                {# `hidden` names what the form carries; a row without it is the proof-link form,
+                   which carries its hour (WorkspacePages). `type` defaults to that form's url. #}
+                {% set _ih = r.inline.hidden is defined ? r.inline.hidden : {hour: r.inline.hour} %}
+                {% set _iid = 'p' ~ (r.inline.id is defined ? r.inline.id : r.inline.hour) %}
+                <input type="hidden" name="do" value="{{ r.inline.do }}">{% for k, v in _ih %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+                <label class="sh7-sr" for="{{ _iid }}">{{ r.inline.label }}</label>
+                <input class="sh7-input" id="{{ _iid }}" type="{{ r.inline.type|default('url') }}" name="{{ r.inline.name }}" placeholder="{{ r.inline.placeholder }}"{% if r.inline.step is defined %} step="{{ r.inline.step }}" min="{{ r.inline.min|default(0) }}"{% endif %} required>
                 <button class="sh7-btn sh7-btn--sm" type="submit">{{ r.inline.submit }}</button>
               </form>
             {% endif %}
