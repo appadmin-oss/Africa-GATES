@@ -174,7 +174,7 @@ final class Outbox
         $now ??= Carbon::now();
         if (MailHealth::open() !== null) return ['n' => 0, 'why' => 'Paused while email is failing; it resumes by itself.'];
         $pace = (int) ceil(self::settings()['per_hour'] / self::TICKS_PER_HOUR);
-        $limit = MailConfig::load()->dailyLimit();
+        $limit = RoadCapacity::bulkTotal();
         if ($limit > 0) {
             $left = (int) floor($limit * SendPolicy::BULK_SHARE) - MailLog::sentSince($now->copy()->subHours(24)->toDateTimeString());
             if ($left <= 0) return ['n' => 0, 'why' => 'Today’s share of the mail account’s allowance is spent; sign-in codes keep the rest. It resumes as the day rolls.'];

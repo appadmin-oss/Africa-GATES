@@ -132,10 +132,12 @@ class OtpService
         // `.env`'s own login, tried after a different one stored in Settings — see
         // MailConfig::load(). Only where SMTP is a road at all.
         $env  = $smtp && is_array($this->smtp['smtp_env'] ?? null);
-        // Apps Script carries one-to-one mail only: MailApp's allowance is about 100
-        // recipients a day, and a newsletter spending it is a sign-in code that cannot go.
+        // Apps Script: one-to-one mail always; an announcement only while more than the
+        // reserve kept for sign-in codes is left (Mail\RoadCapacity::gasMayCarryBulk). It used
+        // to carry no announcement at all, which stranded every campaign and newsletter on a
+        // deployment where Apps Script is the road that works.
         $gasSet = array_key_exists('gas', $this->smtp) ? (bool) $this->smtp['gas'] : AppsScriptMail::configured();
-        $gas  = !$bulk && $gasSet;
+        $gas  = $gasSet && (!$bulk || \AfricaGates\Services\Mail\RoadCapacity::gasMayCarryBulk());
 
         /* ── THIS SERVER'S OWN MAIL IS NOT A FALLBACK ─────────────────────────────
          *
@@ -167,7 +169,10 @@ class OtpService
             $out = array_merge(array_values(array_diff($out, ['smtp', 'smtp-env'])),
                                array_values(array_intersect($out, ['smtp', 'smtp-env'])));
         }
-        return $out;
+        // And a road that has spent its day's allowance, or just said "quota", goes behind
+        // the roads that still have room (Mail\RoadCapacity) — never removed, so a lone road
+        // is still tried.
+        return \AfricaGates\Services\Mail\RoadCapacity::order($out);
     }
 
     /**
@@ -451,11 +456,14 @@ class OtpService
                 if ($road === 'smtp') self::restSmtp(false);
                 $note = $failed === [] ? null : 'via ' . $road . ' after: ' . implode(' | ', $failed);
                 $this->log?->info('[mail] sent', ['to' => $to, 'subject' => $subject, 'via' => $road]);
-                MailLog::write($to, $subject, $category, MailLog::SENT, $note, $bulk);
+                MailLog::write($to, $subject, $category, MailLog::SENT, $note, $bulk, $road);
                 return ['success' => true, 'via' => $road];
             } catch (MailException|\Throwable $e) {
                 $err = $e->getMessage();
                 $cause = MailFailure::classify($err);
+                // "Quota": this road's day is spent. Rest it, so every following message goes
+                // straight to a road with room instead of paying for a refusal first.
+                if ($cause === MailFailure::QUOTA) \AfricaGates\Services\Mail\RoadCapacity::rest($road);
                 $this->log?->error('[mail] send failed via ' . $road . ': ' . $err, ['to' => $to]);
                 if ($cause === MailFailure::RECIPIENT || $i === count($routes) - 1) {
                     $all = $failed === [] ? $err : implode(' | ', array_merge($failed, [$road . ': ' . $err]));
