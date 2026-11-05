@@ -394,6 +394,9 @@ final class EventTeamsTest extends TestCase
         foreach (EventPages::NAV as [, $pages]) {
             foreach (array_keys($pages) as $p) $this->assertSame(200, $this->get($this->owner, $p)[0], "the owner opens $p");
         }
+        [, $structure] = $this->get($this->owner, 'roles');
+        $this->assertStringNotContainsString('name="do" value="team_propose"', $structure);
+        $this->assertStringNotContainsString('name="do" value="role_propose"', $structure);
         [, $plan] = $this->get($this->owner, 'plan');
         $this->assertStringNotContainsString('name="do" value="work_add"', $plan, 'no form the owner cannot use');
         $this->refused($this->owner, ['do' => 'work_add', 'event' => $this->ev, 'title' => 'X']);
@@ -402,6 +405,7 @@ final class EventTeamsTest extends TestCase
         $this->post($this->lead, ['do' => 'role_propose', 'event' => $this->ev, 'name' => 'Treasurer', 'kind' => 'staff', 'perms' => ['money.plan', 'money.approve'], 'ceiling' => '1000']);
         [, $own] = $this->get($this->owner, 'roles', ['tab' => 'decide']);
         $this->assertStringContainsString('name="do" value="decide"', $own);
+        $this->assertStringContainsString('Large change: an owner decides', $own, 'Approval guidance stays on the proposal even when risk notes follow it.');
         $this->assertStringContainsString('Flagged: Adds spend and approves it', $own, 'the risky pair is said to the owner');
         [, $lead] = $this->get($this->lead, 'roles', ['tab' => 'decide']);
         $this->assertStringNotContainsString('name="do" value="decide"', $lead);

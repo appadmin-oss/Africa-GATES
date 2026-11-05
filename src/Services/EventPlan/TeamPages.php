@@ -45,8 +45,8 @@ final class TeamPages
         $secs = [];
         $owners = Teams::owners($id);
         $secs[] = ['k' => 'note', 'tone' => $owners ? 'mute' : 'warn', 'text' => $owners
-            ? 'Owner: ' . implode(', ', array_map(static fn ($o) => $o->name, $owners)) . '. A lead proposes teams, roles and people; an owner who did not propose it decides. Nothing gives anybody access before that.'
-            : 'This event has no owner yet, so the platform’s staff decide what is proposed here. An administrator names an owner on the event’s admin page.'];
+            ? 'Owner: ' . implode(', ', array_map(static fn ($o) => $o->name, $owners)) . '. Leads can create teams and assign routine roles directly. Roles with high-risk permissions need a different owner’s approval before access starts.'
+            : 'Leads can create teams and assign routine roles directly. This event has no owner yet, so platform staff review roles with high-risk permissions. An administrator can name an owner.'];
 
         if ($teams) {
             $secs[] = ['k' => 'rows', 'h' => 'Teams', 'items' => array_map(static fn ($t) => [
@@ -59,7 +59,7 @@ final class TeamPages
             $secs[] = ['k' => 'rows', 'h' => 'Roles', 'items' => array_map(static fn ($r) => [
                 't' => (string) $r->name, 'sub' => self::roleLine($r, $byTeam),
                 'chip' => [Teams::STATUSES[$r->status] ?? $r->status, Teams::TONE[$r->status] ?? 'mute'],
-                'form' => $r->status === 'approved' ? ['id' => 'ra' . $r->id, 'do' => 'role_archive', 'hidden' => ['event' => $id, 'role' => $r->id], 'submit' => 'Archive',
+                'form' => $st['owner'] && $r->status === 'approved' ? ['id' => 'ra' . $r->id, 'do' => 'role_archive', 'hidden' => ['event' => $id, 'role' => $r->id], 'submit' => 'Archive',
                     'fields' => [['name' => 'reason', 'label' => 'Why it is archived', 'required' => true]]] : null], $roles)];
         }
         if ($members) {
@@ -70,25 +70,27 @@ final class TeamPages
                     $m->team_id && isset($byTeam[(int) $m->team_id]) ? $byTeam[(int) $m->team_id]->name : '', $m->until_at ? 'until ' . Workspace::day((string) $m->until_at) : '',
                     $m->reason && $m->status !== 'proposed' ? 'reason: ' . $m->reason : ''])),
                 'chip' => [Teams::STATUSES[$m->status] ?? $m->status, Teams::TONE[$m->status] ?? 'mute'],
-                'form' => in_array($m->status, ['approved'], true) ? ['id' => 'me' . $m->id, 'do' => 'member_end', 'hidden' => ['event' => $id, 'member' => $m->id], 'submit' => 'End',
+                'form' => ($st['owner'] || $st['lead']) && in_array($m->status, ['approved'], true) ? ['id' => 'me' . $m->id, 'do' => 'member_end', 'hidden' => ['event' => $id, 'member' => $m->id], 'submit' => 'End',
                     'fields' => [['name' => 'reason', 'label' => 'Why it ends', 'required' => true]]] : null], $members)];
         }
-        if (!$teams && !$roles) {
-            $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => 'No teams or roles yet. Propose them below, or let Suggest a team draft a structure for you to change.',
+        if (!$teams && !$roles && $st['lead']) {
+            $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => 'No teams or roles yet. Create them below, or let Suggest a team draft a structure for you to change.',
                        'cta' => ['label' => 'Suggest a team', 'href' => EventPages::url($id, EventPermissions::TEAM_PAGE, 'suggest')]];
         }
         $live = array_filter($teams, static fn ($t) => in_array($t->status, ['proposed', 'approved'], true));
         $teamOpts = ['' => 'No team'];
         foreach ($live as $t) $teamOpts[(int) $t->id] = (string) $t->name;
-        $secs[] = self::teamForm($id, [], $teamOpts);
-        $secs[] = self::roleForm($id, [], $teamOpts, 'rp');
+        if ($st['lead']) {
+            $secs[] = self::teamForm($id, [], $teamOpts);
+            $secs[] = self::roleForm($id, [], $teamOpts, 'rp');
+        }
         $roleOpts = [];
         foreach ($roles as $r) if (in_array($r->status, ['proposed', 'approved'], true)) $roleOpts[(int) $r->id] = $r->name . ($r->status === 'proposed' ? ' (waiting)' : '');
-        if ($roleOpts) {
+        if ($roleOpts && ($st['lead'] || $st['teamLeadOf'])) {
             // A team's own lead proposes only into the teams they lead.
             $mine = $st['lead'] ? $teamOpts : array_intersect_key($teamOpts, array_flip($st['teamLeadOf']));
-            $secs[] = ['k' => 'form', 'h' => 'Put somebody in a role', 'do' => 'member_propose', 'hidden' => ['event' => $id], 'submit' => 'Propose them', 'groups' => [
-                ['label' => 'Who', 'help' => 'By email: they need not have an account yet. Nothing reaches them until an owner approves it; then we email them, and it ends by itself on the date below.',
+            $secs[] = ['k' => 'form', 'h' => 'Put somebody in a role', 'do' => 'member_propose', 'hidden' => ['event' => $id], 'submit' => $st['lead'] ? 'Assign role' : 'Propose assignment', 'groups' => [
+                ['label' => 'Who', 'help' => 'By email: they need not have an account yet. A lead can assign an approved role directly; other proposals wait for approval. Once approved, we email them. Access ends on the date below.',
                  'fields' => [['name' => 'email', 'label' => 'Their email', 'type' => 'email', 'required' => true, 'id' => 'mp_email'],
                               ['name' => 'role', 'label' => 'Role', 'type' => 'select', 'options' => $roleOpts, 'id' => 'mp_role'],
                               ['name' => 'team', 'label' => 'Team', 'type' => 'select', 'options' => $mine, 'id' => 'mp_team'],
@@ -119,14 +121,14 @@ final class TeamPages
                 $items = [['t' => $title, 'sub' => $by . ($kind === 'role' ? ' · ' . self::roleLine($r, []) : ($kind === 'team' && $r->purpose ? ' · ' . $r->purpose : '')),
                            'chip' => ['Waiting', 'warn'],
                            'cta' => $mine ? ['label' => 'Withdraw', 'post' => ['do' => 'proposal_withdraw', 'event' => $id, 'subject' => $kind, 'id' => $r->id]] : null]];
+                $tier = $kind === 'role' ? Tiers::forRole((array) $r->perms) : 'medium';
+                $items[0]['sub'] .= ' · ' . Tiers::LABELS[$tier] . ' change: ' . mb_strtolower(Tiers::APPROVER[$tier]);
                 $secs[] = ['k' => 'rows', 'h' => $title, 'items' => $items];
                 if ($kind === 'role') {
                     foreach (EventPermissions::risks($r->perms, (string) $r->kind) as $w) $secs[] = ['k' => 'note', 'tone' => 'warn', 'text' => 'Flagged: ' . $w];
                     foreach ($r->notes as $n) $secs[] = ['k' => 'note', 'tone' => 'info', 'text' => 'The assistant suggests checking: ' . $n];
                 }
                 // A lead decides the medium ones (Tiers); a large one is an owner's.
-                $tier = $kind === 'role' ? Tiers::forRole((array) $r->perms) : 'medium';
-                $secs[array_key_last($secs)]['items'][0]['sub'] .= ' · ' . Tiers::LABELS[$tier] . ' change: ' . mb_strtolower(Tiers::APPROVER[$tier]);
                 if (!$st['owner'] && !($st['lead'] && $tier === 'medium')) continue;
                 if ($mine) {
                     $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => 'You proposed this, so another owner or the platform’s staff decides it.'];
@@ -158,7 +160,7 @@ final class TeamPages
         $id = (int) $e->id;
         $s = $_SESSION[self::SESSION][$id] ?? null;
         $secs = [['k' => 'form', 'h' => 'Suggest a team', 'do' => 'team_suggest', 'hidden' => ['event' => $id], 'submit' => $s ? 'Suggest again' : 'Suggest a team', 'groups' => [
-            ['label' => 'From this event', 'help' => 'Drafts teams and roles from the event’s title, size and plan. It is only a suggestion: you change it, propose what you keep, and an owner decides each one.', 'fields' => []],
+            ['label' => 'From this event', 'help' => 'Drafts teams and roles from the event’s title, size and plan. It is only a suggestion: review and save what you keep. Routine changes apply directly; high-risk roles need owner approval.', 'fields' => []],
         ]]];
         if (!is_array($s)) return $secs;
         $secs[] = ['k' => 'note', 'tone' => 'info', 'text' => ($s['source'] === 'assistant' ? 'Suggested by the assistant. ' : 'Suggested from the platform’s templates (the assistant was not available). ')
@@ -250,8 +252,8 @@ final class TeamPages
         $fields = [['name' => 'name', 'label' => 'Team or committee', 'type' => 'text', 'required' => true, 'value' => $t['name'] ?? '', 'placeholder' => 'Guests and hospitality', 'id' => $p . '_name'],
                    ['name' => 'purpose', 'label' => 'What it is for', 'type' => 'text', 'value' => $t['purpose'] ?? '', 'id' => $p . '_purpose']];
         if (count($teamOpts) > 1) $fields[] = ['name' => 'parent', 'label' => 'Inside', 'type' => 'select', 'options' => $teamOpts, 'id' => $p . '_parent'];
-        return ['k' => 'form', 'h' => $t ? 'Propose the team ' . $t['name'] : 'Propose a team', 'do' => 'team_propose', 'hidden' => ['event' => $id], 'submit' => 'Propose the team',
-                'groups' => [['label' => 'The team', 'help' => 'An owner approves it before anybody can be put in it.', 'fields' => $fields]]];
+        return ['k' => 'form', 'h' => $t ? 'Create the team ' . $t['name'] : 'Create a team', 'do' => 'team_propose', 'hidden' => ['event' => $id], 'submit' => 'Create team',
+                'groups' => [['label' => 'The team', 'help' => 'The team is created immediately. Give each person a role to set what they can access.', 'fields' => $fields]]];
     }
 
     private static function roleForm(int $id, array $r, array $teamOpts, string $p): array
@@ -259,7 +261,7 @@ final class TeamPages
         $pages = [];
         foreach (EventPages::NAV as [, $ps]) foreach ($ps as $k => [$l]) if ($k !== 'today') $pages[$k] = $l;
         unset($pages[EventPermissions::TEAM_PAGE]);
-        return ['k' => 'form', 'h' => $r ? 'Propose the role ' . $r['name'] : 'Define a role', 'do' => 'role_propose', 'hidden' => ['event' => $id], 'submit' => 'Propose the role', 'groups' => [
+        return ['k' => 'form', 'h' => $r ? 'Propose the role ' . $r['name'] : 'Define a role', 'do' => 'role_propose', 'hidden' => ['event' => $id], 'submit' => 'Save role', 'route' => 'Routine roles are ready immediately. High-risk permissions need a different owner’s approval before the role can be used.', 'groups' => [
             ['label' => 'The role', 'fields' => [
                 ['name' => 'name', 'label' => 'Role', 'type' => 'text', 'required' => true, 'value' => $r['name'] ?? '', 'placeholder' => 'Hospitality lead', 'id' => $p . '_name'],
                 ['name' => 'description', 'label' => 'What they do', 'type' => 'text', 'value' => $r['description'] ?? '', 'id' => $p . '_desc'],

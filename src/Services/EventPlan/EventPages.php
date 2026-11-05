@@ -63,7 +63,7 @@ final class EventPages
         'reports' => 'Status for the committee, the post-event report and the audit trail.',
         'requests' => 'Requests about this event, from you and your team.',
         'settings' => 'Date, venue, members, limits and the devices used at the door.',
-        'roles' => 'Teams, committees and roles, and who is in them. A lead proposes; an owner decides.',
+        'roles' => 'Create teams, define roles and assign people. High-risk permissions need owner approval.',
     ];
 
     /** Pages of the first lead build, and where each lives now (a retired address is not a dead one). */
