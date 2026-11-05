@@ -92,6 +92,7 @@
 {% endblock %}
 
 {% block content %}
+{% include 'admin/events/navigation.twig' with {event_id: event.id, current: 'tickets'} only %}
 <p class="tx-sub">
   {{ event.event_date }}{% if event.location %} · {{ event.location }}{% endif %} ·
   <a href="/events/{{ event.slug }}" target="_blank" rel="noopener noreferrer">public page</a> ·

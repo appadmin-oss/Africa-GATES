@@ -9,6 +9,7 @@
 {% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/console/volunteers.css') }}">{% endblock %}
 
 {% block content %}
+{% include 'admin/events/navigation.twig' with {event_id: event.id, current: 'leads'} only %}
 {% if flash_ok %}<p class="vl-ok" role="status">{{ flash_ok }}</p>{% endif %}
 {% if flash_error %}<div class="cn-error" role="alert"><span class="cn-error__t">That didn’t go through</span><span class="cn-error__m">{{ flash_error }}</span></div>{% endif %}
 

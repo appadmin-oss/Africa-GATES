@@ -40,12 +40,11 @@ class EventsController
 
     public function index(Request $req, Response $res): Response
     {
-        $rows = DB::table('gates_site_events')->orderByDesc('event_date')->get()->map(fn($r)=>(array)$r)->all();
+        $directory = \AfricaGates\Admin\Services\EventDirectory::page($req->getQueryParams());
         return $this->view->render($res, 'admin/events/index.twig', [
             'page_title' => 'Events — Admin',
             'admin_page' => 'events',
-            'rows'       => $rows,
-        ]);
+        ] + $directory);
     }
 
     public function form(Request $req, Response $res, array $args = []): Response
@@ -352,6 +351,14 @@ class EventsController
         if ($data['title'] === '' || $data['slug'] === '') {
             $_SESSION['flash_error'] = 'Title and slug are required.';
             return $res->withHeader('Location', $id ? "/admin/events/{$id}" : '/admin/events/new')->withStatus(302);
+        }
+        $cover = $req->getUploadedFiles()['cover_upload'] ?? null;
+        if ($cover instanceof UploadedFileInterface && $cover->getError() !== UPLOAD_ERR_NO_FILE) {
+            try {
+                $data['cover_image'] = \AfricaGates\Admin\Services\EventCoverUpload::save($cover, $id, $this->uploads);
+            } catch (\Throwable) {
+                $_SESSION['flash_error'] = 'The cover could not be uploaded. Choose a JPEG, PNG, WebP or GIF at least 300 pixels on each side, within the displayed size limit. Your other event details were saved.';
+            }
         }
         if ($id) {
             DB::table('gates_site_events')->where('id', $id)->update($data);
