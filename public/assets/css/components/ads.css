@@ -20,12 +20,7 @@
 .am-row__s{ font-size:var(--ag-fs-13); color:var(--ag-soft) }
 .am-row__m{ grid-column:1 / -1; display:flex; flex-wrap:wrap; gap:4px 16px; font-size:var(--ag-fs-13-5); color:var(--ag-ink-2) }
 .am-row__m b{ color:var(--ag-ink); font-weight:600 }
-.am-state{ display:inline-flex; align-items:center; gap:6px; font-size:var(--ag-fs-13); font-weight:600; color:var(--ag-soft) }
-.am-state i{ width:8px; height:8px; border-radius:50%; background:var(--ag-line-2) }
-.am-state--active{ color:var(--ag-green-deep) } .am-state--active i{ background:var(--ag-green) }
 .am-lead{ font-size:inherit; font-weight:700; color:var(--ag-green-deep) }
-.am-state--not_approved{ color:var(--ag-error) } .am-state--not_approved i{ background:var(--ag-error) }
-.am-state--in_review i, .am-state--scheduled i{ background:var(--ag-soft) }
 .am-thead{ display:none }
 @media (hover:hover){ .am-row__a:hover{ background:var(--ag-bar) } }
 

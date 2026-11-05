@@ -228,16 +228,6 @@
   border:1px solid var(--ag-line-2); background:var(--ag-surface); font-size:var(--ag-fs-13-5); font-weight:600; font-variant-numeric:tabular-nums;
 }
 
-.lve-ow{
-  display:grid; grid-template-columns:64px minmax(0,1fr); gap:18px; align-items:center; padding:16px;
-  background:var(--ag-gold-wash); border:1px solid var(--ag-gold-edge); border-radius:var(--ag-r-22);
-}
-.lve-ow__img{ display:block; width:64px; height:64px; border-radius:50%; overflow:hidden; box-shadow:0 0 0 3px var(--ag-surface), 0 0 0 5px var(--ag-gold) }
-.lve-ow__t{ min-width:0; display:flex; flex-direction:column; gap:6px }
-.lve-ow__k{ display:flex; align-items:center; gap:7px; font-size:var(--ag-fs-13-5); font-weight:700; color:var(--ag-gold-ink) }
-.lve-ow__n{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-24); line-height:1.1; overflow-wrap:anywhere }
-.lve-ow__m{ font-size:var(--ag-fs-14-5); color:var(--ag-ink-2) }
-.lve-ow__m b{ color:var(--ag-ink); font-variant-numeric:tabular-nums }
 
 .lve-sec{ display:flex; flex-direction:column; gap:12px }
 .lve-sec__head{ display:flex; align-items:baseline; justify-content:space-between; gap:12px }
@@ -313,7 +303,9 @@
 .lve-tl a.is-current{ font-weight:700 }
 .lve-tl__dot{ width:9px; height:9px; border-radius:50%; background:var(--ag-line-2) }
 .is-current .lve-tl__dot{ background:var(--ag-ink); box-shadow:0 0 0 3px var(--ag-line) }
-.is-live .lve-tl__dot{ background:var(--ag-live) }
+/* A voting edition is said by its note ("Voting now"), so its mark is a ring, not a red
+   fill: a tier-1 page has one colour event and it is the overall winner's gold. */
+.is-live .lve-tl__dot{ background:var(--ag-surface); box-shadow:inset 0 0 0 2px var(--ag-ink-2) }
 .lve-tl__n{ font-size:var(--ag-fs-13); font-weight:500; color:var(--ag-soft) }
 .lve-cite summary{ width:100%; height:46px; list-style:none; border-radius:var(--ag-r-14); font-size:var(--ag-fs-14-5); box-sizing:border-box }
 .lve-cite summary::-webkit-details-marker{ display:none }
@@ -328,9 +320,6 @@
   .lve-head__img .ag-photo{ position:absolute; inset:0 }
   .lve-h1{ font-size:var(--ag-fs-34) }
   .lve-lede{ font-size:var(--ag-fs-17) }
-  .lve-ow{ grid-template-columns:96px minmax(0,1fr); padding:22px 26px }
-  .lve-ow__img{ width:96px; height:96px }
-  .lve-ow__n{ font-size:var(--ag-fs-30) }
   .lve-wins__xp{ display:block }
   .lve-allwin{ align-self:flex-start; padding:0 18px }
   .lve-allwin--phone{ display:none }
