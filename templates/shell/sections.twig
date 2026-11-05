@@ -263,10 +263,12 @@
     <div class="sh7-table">
       {% if s.rows %}
         <table>
+          {% if s.h|default('') %}<caption class="sh7-sr">{{ s.h }}</caption>{% endif %}
           <thead><tr>{% for c in s.cols %}<th scope="col"{% if c.t0 is defined %} class="sh7-t0"{% endif %}>{{ c.l }}</th>{% endfor %}</tr></thead>
           <tbody>
             {% for r in s.rows %}
               <tr>{% for c in r.cells %}<td{% if s.cols[loop.index0].t0 is defined %} class="sh7-t0"{% endif %}>
+                {% if not loop.first %}<span class="sh7-table__label" aria-hidden="true">{{ s.cols[loop.index0].l }}</span>{% endif %}
                 {% if c.chip is defined %}{{ M.chip(c.chip) }}{% elseif loop.first and r.href is defined %}<a class="sh7-table__link" href="{{ r.href }}">{{ c.t }}</a>{% if c.sub is defined and c.sub %}<span class="sh7-table__sub">{{ c.sub }}</span>{% endif %}
                 {% else %}<span{% if c.mono is defined and c.mono %} class="sh7-table__time"{% endif %}>{{ c.t }}</span>{% if c.sub is defined and c.sub %}<span class="sh7-table__sub">{{ c.sub }}</span>{% endif %}{% endif %}
               </td>{% endfor %}</tr>
