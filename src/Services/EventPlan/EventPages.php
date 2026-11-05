@@ -401,7 +401,7 @@ final class EventPages
         $secs[] = ['k' => 'form', 'h' => 'Add work', 'do' => 'work_add', 'hidden' => ['event' => $id], 'submit' => 'Add it', 'groups' => [
             ['label' => 'What', 'fields' => [['name' => 'title', 'label' => 'What has to be done', 'type' => 'text', 'required' => true, 'placeholder' => 'Venue floor plan'],
                                               ['name' => 'detail', 'label' => 'Details', 'type' => 'textarea']]],
-            ['label' => 'Who and when', 'help' => 'Work with nobody on it goes to the leads’ inboxes.',
+            ['label' => 'Who and when', 'help' => 'Work with nobody on it goes to the leads’ inboxes. Somebody not listed? Put them in a role on Team & roles first; it takes effect at once.',
              'fields' => [['name' => 'owner', 'label' => 'Owner', 'type' => 'select', 'options' => $owners],
                           ['name' => 'due_at', 'label' => 'Due', 'type' => 'date'],
                           ['name' => 'est_hours', 'label' => 'Hours it should take', 'type' => 'number', 'min' => 0, 'max' => 500, 'step' => '0.5']]],

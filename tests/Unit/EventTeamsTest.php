@@ -10,6 +10,7 @@ use AfricaGates\Services\EventPlan\Leads;
 use AfricaGates\Services\EventPlan\Plan;
 use AfricaGates\Services\EventPlan\TeamPages;
 use AfricaGates\Services\EventPlan\Teams;
+use AfricaGates\Services\EventPlan\Tiers;
 use AfricaGates\Services\EventPlan\TeamSuggest;
 use AfricaGates\Services\Grants;
 use Illuminate\Database\Capsule\Manager as DB;
@@ -121,6 +122,11 @@ final class EventTeamsTest extends TestCase
         $who = $this->member('Bisi Lawal');
         $this->post($this->lead, ['do' => 'member_propose', 'event' => $this->ev, 'email' => $this->email($who), 'role' => $role, 'team_role' => 'member']);
         $m = (int) DB::table('gates_event_team_members')->value('id');
+        // The lead's assignment applied at once (Tiers); put it back to waiting, holding nothing,
+        // so a decision can race on it as a team lead's proposal would.
+        DB::table('gates_grants')->where('actor_id', $who)->update(['revoked_at' => date('Y-m-d H:i:s')]);
+        DB::table('gates_role_invites')->where('email', $this->email($who))->update(['status' => 'cancelled']);
+        DB::table('gates_event_team_members')->where('id', $m)->update(['status' => 'proposed', 'grant_id' => null, 'invite_id' => null, 'decided_at' => null]);
 
         // Another owner's refusal lands while this approval is in flight — modelled by a
         // trigger that refuses the row the moment anything gives access, but only while it
@@ -163,14 +169,18 @@ final class EventTeamsTest extends TestCase
     {
         $msg = $this->post($this->lead, ['do' => 'role_propose', 'event' => $this->ev, 'name' => $name, 'description' => 'Looks after guests',
             'kind' => $kind, 'perms' => $perms, 'ceiling' => $ceiling] + ($leadWith !== null ? ['lead_with' => explode(',', $leadWith)] : []));
-        $this->assertStringContainsString('Proposed', $msg);
         $role = (int) DB::table('gates_event_roles')->where('name', $name)->max('id');
-        $this->assertStringContainsString('Approved', $this->post($this->owner, ['do' => 'decide', 'event' => $this->ev, 'subject' => 'role', 'id' => $role,
-            'verdict' => 'approve', 'reason' => 'Fits the night', 'perms' => $perms, 'ceiling' => $ceiling]));
+        // A role with a high-risk tick is LARGE and waits for an owner; any other is the lead's (Tiers).
+        if (Tiers::forRole($perms) === 'large') {
+            $this->assertStringContainsString('Proposed', $msg);
+            $this->assertStringContainsString('Approved', $this->post($this->owner, ['do' => 'decide', 'event' => $this->ev, 'subject' => 'role', 'id' => $role,
+                'verdict' => 'approve', 'reason' => 'Fits the night', 'perms' => $perms, 'ceiling' => $ceiling]));
+        } else {
+            $this->assertStringContainsString('Role set up', $msg);
+        }
         $who = $this->member('Ada Obi ' . bin2hex(random_bytes(2)));
-        $this->post($this->lead, ['do' => 'member_propose', 'event' => $this->ev, 'email' => $this->email($who), 'role' => $role, 'team_role' => 'member']);
-        $m = (int) DB::table('gates_event_team_members')->where('role_id', $role)->max('id');
-        $this->assertStringContainsString('Approved', $this->post($this->owner, ['do' => 'decide', 'event' => $this->ev, 'subject' => 'member', 'id' => $m, 'verdict' => 'approve', 'reason' => 'Known to us']));
+        // Putting somebody in an approved role is the lead's medium change: assigned at once.
+        $this->assertStringContainsString('Assigned', $this->post($this->lead, ['do' => 'member_propose', 'event' => $this->ev, 'email' => $this->email($who), 'role' => $role, 'team_role' => 'member']));
         return [$role, $who];
     }
 
@@ -201,38 +211,49 @@ final class EventTeamsTest extends TestCase
         $this->assertStringNotContainsString('CREATE INDEX', $body, 'indexes go through SchemaIndex::ensure');
     }
 
-    public function test_nothing_gives_access_until_an_owner_approves_it(): void
+    /**
+     * Owner, 5 Nov 2026: "Event lead should be able to assign roles and tasks." A lead's MEDIUM
+     * changes apply at once — a team, a role with no high-risk tick, a person into an approved
+     * role — and a LARGE one (a role that can move money, message many people, run the door
+     * or change settings) still gives nothing until an owner approves it (Tiers).
+     */
+    public function test_a_leads_medium_changes_apply_and_large_ones_wait_for_an_owner(): void
     {
-        $this->post($this->lead, ['do' => 'team_propose', 'event' => $this->ev, 'name' => 'Guests and hospitality', 'purpose' => 'The welcome']);
+        $this->assertStringContainsString('Team set up', $this->post($this->lead, ['do' => 'team_propose', 'event' => $this->ev, 'name' => 'Guests and hospitality', 'purpose' => 'The welcome']));
         $team = (int) DB::table('gates_event_teams')->value('id');
+        $this->assertSame('approved', DB::table('gates_event_teams')->where('id', $team)->value('status'));
         $this->post($this->lead, ['do' => 'role_propose', 'event' => $this->ev, 'name' => 'Hospitality lead', 'team' => $team, 'kind' => 'staff', 'perms' => ['guests.manage', 'show.run']]);
         $role = (int) DB::table('gates_event_roles')->value('id');
+        $this->assertSame('approved', DB::table('gates_event_roles')->where('id', $role)->value('status'), 'no high-risk tick: the lead’s');
         $ada = $this->member('Ada Obi');
-        $this->post($this->lead, ['do' => 'member_propose', 'event' => $this->ev, 'email' => $this->email($ada), 'role' => $role, 'team' => $team, 'team_role' => 'lead']);
-        $m = (int) DB::table('gates_event_team_members')->value('id');
-
-        $this->assertSame(0, DB::table('gates_grants')->where('actor_id', $ada)->count(), 'proposed is nothing');
-        $this->assertSame(404, $this->get($ada)[0], 'and the event does not exist for them');
-        $this->assertStringContainsString('Decide the role first', $this->refused($this->owner, ['do' => 'decide', 'event' => $this->ev, 'subject' => 'member', 'id' => $m, 'verdict' => 'approve', 'reason' => 'ok']));
-        $this->assertStringContainsString('Give a reason', $this->refused($this->owner, ['do' => 'decide', 'event' => $this->ev, 'subject' => 'role', 'id' => $role, 'verdict' => 'approve', 'reason' => '', 'perms' => ['show.run']]));
-        $this->assertStringContainsString('Only an owner', $this->refused($this->lead, ['do' => 'decide', 'event' => $this->ev, 'subject' => 'role', 'id' => $role, 'verdict' => 'approve', 'reason' => 'x', 'perms' => ['show.run']]),
-            'a lead never decides');
-        $this->post($this->owner, ['do' => 'decide', 'event' => $this->ev, 'subject' => 'team', 'id' => $team, 'verdict' => 'approve', 'reason' => 'Needed']);
-        $this->post($this->owner, ['do' => 'decide', 'event' => $this->ev, 'subject' => 'role', 'id' => $role, 'verdict' => 'approve', 'reason' => 'Seating only', 'perms' => ['guests.manage']]);
-        $this->assertSame(['guests.manage'], EventPermissions::ticks((string) DB::table('gates_event_roles')->where('id', $role)->value('perms_json')), 'the owner set the ticks');
-        $this->assertSame(['guests.manage', 'show.run'], EventPermissions::ticks((string) DB::table('gates_event_roles')->where('id', $role)->value('proposed_json')), 'and what was asked is kept');
-        $this->assertSame(0, DB::table('gates_grants')->where('actor_id', $ada)->count(), 'an approved role still gives nobody access');
-        $this->assertStringContainsString('Approved', $this->post($this->owner, ['do' => 'decide', 'event' => $this->ev, 'subject' => 'member', 'id' => $m, 'verdict' => 'approve', 'reason' => 'Known to us']));
-
+        $this->assertStringContainsString('Assigned', $this->post($this->lead, ['do' => 'member_propose', 'event' => $this->ev, 'email' => $this->email($ada), 'role' => $role, 'team' => $team, 'team_role' => 'lead']));
         $g = DB::table('gates_grants')->where('actor_id', $ada)->first();
         $this->assertSame('event.role', $g->capability);
         $this->assertNotNull($g->expires_at, 'every grant ends');
-        $this->assertSame((int) $g->id, (int) DB::table('gates_event_team_members')->where('id', $m)->value('grant_id'));
         $st = EventPermissions::standing($ada, $this->ev);
-        $this->assertSame(['guests.manage'], $st['perms']);
-        $this->assertSame([$team], $st['teamLeadOf'], 'a team lead of their team');
+        $this->assertSame(['guests.manage', 'show.run'], $st['perms']);
+        $this->assertSame([$team], $st['teamLeadOf']);
         $this->assertSame(200, $this->get($ada)[0]);
+
+        // LARGE: a role that approves spend waits for an owner, and nobody in it holds anything.
+        $msg = $this->post($this->lead, ['do' => 'role_propose', 'event' => $this->ev, 'name' => 'Treasurer', 'kind' => 'staff', 'perms' => ['money.view', 'money.approve'], 'ceiling' => '50000']);
+        $this->assertStringContainsString('approve spend', $msg, 'the lead is told why it waits');
+        $money = (int) DB::table('gates_event_roles')->where('name', 'Treasurer')->value('id');
+        $this->assertSame('proposed', DB::table('gates_event_roles')->where('id', $money)->value('status'));
+        $this->assertStringContainsString('so an owner decides', $this->refused($this->lead, ['do' => 'decide', 'event' => $this->ev, 'subject' => 'role', 'id' => $money, 'verdict' => 'approve', 'reason' => 'x']), 'a lead never decides a large change');
+        $bola = $this->member('Bola Ade');
+        $this->post($this->lead, ['do' => 'member_propose', 'event' => $this->ev, 'email' => $this->email($bola), 'role' => $money, 'team_role' => 'member']);
+        $m = (int) DB::table('gates_event_team_members')->where('role_id', $money)->value('id');
+        $this->assertSame(0, DB::table('gates_grants')->where('actor_id', $bola)->count(), 'a person into a waiting role holds nothing');
+        $this->assertStringContainsString('Decide the role first', $this->refused($this->owner, ['do' => 'decide', 'event' => $this->ev, 'subject' => 'member', 'id' => $m, 'verdict' => 'approve', 'reason' => 'ok']));
+        $this->assertStringContainsString('Give a reason', $this->refused($this->owner, ['do' => 'decide', 'event' => $this->ev, 'subject' => 'role', 'id' => $money, 'verdict' => 'approve', 'reason' => '', 'perms' => ['money.view']]));
+        $this->post($this->owner, ['do' => 'decide', 'event' => $this->ev, 'subject' => 'role', 'id' => $money, 'verdict' => 'approve', 'reason' => 'Read only this year', 'perms' => ['money.view']]);
+        $this->assertSame(['money.view'], EventPermissions::ticks((string) DB::table('gates_event_roles')->where('id', $money)->value('perms_json')), 'the owner set the ticks');
+        $this->assertSame(['money.view', 'money.approve'], EventPermissions::ticks((string) DB::table('gates_event_roles')->where('id', $money)->value('proposed_json')), 'and what was asked is kept');
         $this->assertSame(1, DB::table('gates_audit_log')->where('action', 'lead.decide')->where('meta', 'like', '%changed%')->count(), 'the change of ticks is audited as a change, with its reason');
+        // The person waiting in it is now a medium decision: the lead's.
+        $this->assertStringContainsString('Approved', $this->post($this->lead, ['do' => 'decide', 'event' => $this->ev, 'subject' => 'member', 'id' => $m, 'verdict' => 'approve', 'reason' => 'Known to us']));
+        $this->assertTrue(Grants::allows('member', $bola, 'event.role', 'event', $this->ev));
     }
 
     public function test_nobody_decides_their_own_proposal_or_their_own_access(): void
@@ -241,14 +262,21 @@ final class EventTeamsTest extends TestCase
         $both = $this->member('Femi Ade');
         $this->give('event.lead', $both);
         $this->give('event.own', $both);
-        $this->post($both, ['do' => 'role_propose', 'event' => $this->ev, 'name' => 'Stage manager', 'kind' => 'staff', 'perms' => ['show.run']]);
+        // A LARGE role (it runs the door), so an owner decides — and never their own.
+        $this->post($both, ['do' => 'role_propose', 'event' => $this->ev, 'name' => 'Stage manager', 'kind' => 'staff', 'perms' => ['door.manage']]);
         $role = (int) DB::table('gates_event_roles')->value('id');
-        $this->assertStringContainsString('You proposed this', $this->refused($both, ['do' => 'decide', 'event' => $this->ev, 'subject' => 'role', 'id' => $role, 'verdict' => 'approve', 'reason' => 'mine', 'perms' => ['show.run']]));
+        $this->assertStringContainsString('You proposed this', $this->refused($both, ['do' => 'decide', 'event' => $this->ev, 'subject' => 'role', 'id' => $role, 'verdict' => 'approve', 'reason' => 'mine', 'perms' => ['door.manage']]));
         $this->assertSame('proposed', DB::table('gates_event_roles')->where('id', $role)->value('status'));
-        $this->assertStringContainsString('Approved', $this->post($this->owner, ['do' => 'decide', 'event' => $this->ev, 'subject' => 'role', 'id' => $role, 'verdict' => 'approve', 'reason' => 'Second pair of eyes', 'perms' => ['show.run']]));
-        // The owner is put in a role by the lead: the owner cannot approve their own access.
-        $this->post($this->lead, ['do' => 'member_propose', 'event' => $this->ev, 'email' => $this->email($this->owner), 'role' => $role, 'team_role' => 'member']);
-        $m = (int) DB::table('gates_event_team_members')->value('id');
+        $this->assertStringContainsString('Approved', $this->post($this->owner, ['do' => 'decide', 'event' => $this->ev, 'subject' => 'role', 'id' => $role, 'verdict' => 'approve', 'reason' => 'Second pair of eyes', 'perms' => ['door.manage']]));
+        // A lead never assigns themselves: their own address waits for somebody else.
+        $this->post($this->lead, ['do' => 'member_propose', 'event' => $this->ev, 'email' => $this->email($this->lead), 'role' => $role, 'team_role' => 'member']);
+        $self = (int) DB::table('gates_event_team_members')->max('id');
+        $this->assertSame('proposed', DB::table('gates_event_team_members')->where('id', $self)->value('status'));
+        $this->assertStringContainsString('Nobody approves access for themselves', $this->refused($this->lead, ['do' => 'decide', 'event' => $this->ev, 'subject' => 'member', 'id' => $self, 'verdict' => 'approve', 'reason' => 'me']));
+        // The owner, proposed by a team lead rather than a lead, cannot approve their own access.
+        DB::table('gates_event_team_members')->insert(['event_id' => $this->ev, 'role_id' => $role, 'email' => strtolower($this->email($this->owner)), 'team_role' => 'member', 'status' => 'proposed',
+            'proposed_kind' => 'member', 'proposed_id' => $this->lead, 'created_at' => date('Y-m-d H:i:s')]);
+        $m = (int) DB::table('gates_event_team_members')->max('id');
         $this->assertStringContainsString('Nobody approves access for themselves', $this->refused($this->owner, ['do' => 'decide', 'event' => $this->ev, 'subject' => 'member', 'id' => $m, 'verdict' => 'approve', 'reason' => 'me']));
         // Staff are the other person.
         $r = Teams::decide('member', $m, 'approve', 'Checked by staff', ['kind' => 'admin', 'id' => 1, 'name' => 'Staff']);
@@ -448,7 +476,7 @@ final class EventTeamsTest extends TestCase
 
     public function test_staff_see_owners_and_teams_and_decide_from_the_events_page(): void
     {
-        $this->post($this->lead, ['do' => 'role_propose', 'event' => $this->ev, 'name' => 'Stage manager', 'kind' => 'staff', 'perms' => ['show.run']]);
+        $this->post($this->lead, ['do' => 'role_propose', 'event' => $this->ev, 'name' => 'Stage manager', 'kind' => 'staff', 'perms' => ['door.manage']]);
         $role = (int) DB::table('gates_event_roles')->value('id');
         $_SESSION['admin_id'] = (int) DB::table('gates_admins')->insertGetId(['email' => 'staff' . bin2hex(random_bytes(3)) . '@example.test', 'name' => 'Staff One',
             'role' => 'superadmin', 'is_active' => 1, 'password_hash' => 'x', 'created_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')]);

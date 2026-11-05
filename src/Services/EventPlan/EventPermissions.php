@@ -92,7 +92,7 @@ final class EventPermissions
     ];
 
     /** Acts only a LEAD has: each gives or removes somebody's access, or proposes it. Never on the menu. */
-    public const LEAD_ACTS = ['vol_invite', 'vol_invite_cancel', 'vol_end', 'team_propose', 'role_propose', 'team_suggest', 'member_propose', 'member_end', 'proposal_withdraw'];
+    public const LEAD_ACTS = ['vol_invite', 'vol_invite_cancel', 'vol_end', 'team_propose', 'role_propose', 'team_suggest', 'member_propose', 'member_end', 'proposal_withdraw', 'decide'];
     /**
      * Acts ANYBODY on the event's team has (EventPlan\TeamLoop): report where things stand,
      * finish their own work with its proof, suggest work for a lead to decide. Each writer

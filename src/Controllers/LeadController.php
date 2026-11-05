@@ -288,8 +288,11 @@ final class LeadController
     {
         $in = array_intersect_key($b, array_flip(['perms', 'ceiling']));
         if (($b['subject'] ?? '') === 'role' && !isset($in['perms'])) $in['perms'] = [];
+        // An owner decides as an owner; a lead who is not one decides the medium changes (Tiers).
+        $event = (int) (\Illuminate\Database\Capsule\Manager::table(Teams::SUBJECTS[(string) ($b['subject'] ?? '')] ?? 'gates_event_teams')->where('id', (int) ($b['id'] ?? 0))->value('event_id') ?? 0);
+        $kind = Teams::isOwner($me['id'], $event) || !Plan::isLead($me['id'], $event) ? Plan::ACTOR : 'lead';
         return Teams::decide((string) ($b['subject'] ?? ''), (int) ($b['id'] ?? 0), (string) ($b['verdict'] ?? ''), (string) ($b['reason'] ?? ''),
-            ['kind' => Plan::ACTOR, 'id' => $me['id'], 'name' => $me['name']], $in);
+            ['kind' => $kind, 'id' => $me['id'], 'name' => $me['name']], $in);
     }
 
     /** A lead's own work goes straight on the plan; anybody else on the team suggests it. */

@@ -17,7 +17,7 @@ use AfricaGates\Services\Volunteer\Workspace;
  */
 final class TeamPages
 {
-    public const TABS = ['structure' => 'Teams and roles', 'decide' => 'Waiting for the owner', 'suggest' => 'Suggest a team'];
+    public const TABS = ['structure' => 'Teams and roles', 'decide' => 'Waiting for a decision', 'suggest' => 'Suggest a team'];
 
     /** Where a suggestion waits between the press and the page, per event. */
     public const SESSION = 'lead_team_suggest';
@@ -124,7 +124,10 @@ final class TeamPages
                     foreach (EventPermissions::risks($r->perms, (string) $r->kind) as $w) $secs[] = ['k' => 'note', 'tone' => 'warn', 'text' => 'Flagged: ' . $w];
                     foreach ($r->notes as $n) $secs[] = ['k' => 'note', 'tone' => 'info', 'text' => 'The assistant suggests checking: ' . $n];
                 }
-                if (!$st['owner']) continue;
+                // A lead decides the medium ones (Tiers); a large one is an owner's.
+                $tier = $kind === 'role' ? Tiers::forRole((array) $r->perms) : 'medium';
+                $secs[array_key_last($secs)]['items'][0]['sub'] .= ' · ' . Tiers::LABELS[$tier] . ' change: ' . mb_strtolower(Tiers::APPROVER[$tier]);
+                if (!$st['owner'] && !($st['lead'] && $tier === 'medium')) continue;
                 if ($mine) {
                     $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => 'You proposed this, so another owner or the platform’s staff decides it.'];
                     continue;
@@ -143,8 +146,8 @@ final class TeamPages
                 $secs[] = ['k' => 'form', 'do' => 'decide', 'hidden' => ['event' => $id, 'subject' => $kind, 'id' => $r->id], 'submit' => 'Record the decision', 'groups' => $groups];
             }
         }
-        if (!$any) $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => 'Nothing is waiting for the owner.'];
-        elseif (!$st['owner']) array_unshift($secs, ['k' => 'note', 'tone' => 'mute', 'text' => 'These wait for an owner. You can withdraw your own.']);
+        if (!$any) $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => 'Nothing is waiting for a decision.'];
+        elseif (!$st['owner']) array_unshift($secs, ['k' => 'note', 'tone' => 'mute', 'text' => 'You decide the medium changes here. Roles that can move money, message many people, run the door or change settings wait for an owner. You can withdraw your own.']);
         return $secs;
     }
 
