@@ -445,7 +445,7 @@ final class Accent
     // `<style>`, and never into a public page: the two palettes share no name, so a
     // public stylesheet can never pick up a console colour by accident, and the reverse.
     //
-    // ── THE VALUES ARE THE DESIGN'S, ±0, AND SO ARE ITS FAILURES ──────────────
+    // ── CONSOLE PALETTE — DESIGN TOKENS WITH MEASURED TEXT CONTRAST ──────────
     //
     // Read off the HTML, which wins on what users see. Every word the console draws is
     // measured at 4.5:1 on every ground it is drawn on (`consoleWords()`); the ones that
@@ -462,9 +462,9 @@ final class Accent
         'ink-2'        => ['value' => '#3a4a4c', 'use' => 'nav items at rest, secondary body text'],
         'ink-3'        => ['value' => '#4b5a5c', 'use' => 'neutral pill text, quieter body text'],
         'ink-deep'     => ['value' => '#26393b', 'use' => 'the toast and tooltip field'],
-        'soft'         => ['value' => '#6b7476', 'use' => 'sub-lines, captions, muted text'],
-        'faint'        => ['value' => '#8a9294', 'use' => 'group labels, table heads, meta'],
-        'faint-2'      => ['value' => '#9aa1a2', 'use' => 'keycap hints, icons at rest, the grey dot'],
+        'soft'         => ['value' => '#5e696b', 'use' => 'sub-lines, captions, muted text'],
+        'faint'        => ['value' => '#5e696b', 'use' => 'group labels, table heads, meta'],
+        'faint-2'      => ['value' => '#5e696b', 'use' => 'keycap hints, icons at rest, the grey dot'],
         'ghost'        => ['value' => '#c3c7c6', 'use' => 'the crumb separator, a disabled fill'],
         'line-strong'  => ['value' => '#cfd3cc', 'use' => 'a toggle that is off, a dashed outline'],
         'line'         => ['value' => '#e3e3de', 'use' => 'control and pill borders, the rail rules'],
@@ -495,7 +495,7 @@ final class Accent
         'red-wash'     => ['value' => '#fdeeeb', 'use' => 'a failed pill, the production pill and bell'],
         'red-wash-2'   => ['value' => '#fdf6f4', 'use' => 'the "affecting production" banner'],
         'red-edge'     => ['value' => '#f3c9c1', 'use' => 'a red pill\'s border'],
-        'slate'        => ['value' => '#5b7a80', 'use' => 'the Content hub, informational words'],
+        'slate'        => ['value' => '#47676d', 'use' => 'the Content hub, informational words'],
         'slate-wash'   => ['value' => '#eaf0f1', 'use' => 'a Content tile\'s field'],
         // ── v7 (consoles handoff, 28 Oct 2026, README §2.1): the tones the volunteer
         // workspace and the event lead console draw. Added under the handoff's own meanings,
@@ -557,7 +557,7 @@ final class Accent
     ];
 
     /**
-     * Words the design draws under 4.5:1 — REPORTED to the owner, not re-valued.
+     * Historical console text failures. Cleared after the owner requested accessibility on 31 October 2026.
      *
      * The test holds this list EXACTLY: a pair that starts passing must leave it, and a
      * new failure must be added here with where it is drawn, which is the report.
@@ -565,14 +565,6 @@ final class Accent
      * @var array<string,array{on:string,where:string}>
      */
     private const CONSOLE_REPORTED = [
-        'soft@ground'      => ['on' => 'ground',     'where' => 'a sub-line on the rail ground ("Programme lead"), 12px (4.31:1)'],
-        'soft@hover'       => ['on' => 'hover',      'where' => 'a sub-line on a hovered rail item, 12px (4.00:1)'],
-        'faint@surface'    => ['on' => 'surface',    'where' => 'table heads, meta and timestamps on the work surface, 11.5–13px (3.17:1)'],
-        'faint@panel'      => ['on' => 'panel',      'where' => 'the brief\'s label and a table head on the panel, 12–13px (3.04:1)'],
-        'faint@ground'     => ['on' => 'ground',     'where' => 'the rail\'s group labels and counts, 11.5px (2.85:1)'],
-        'faint-2@surface'  => ['on' => 'surface',    'where' => 'keycap hints (⌘K, ⌘J) and the search placeholder, 11–13px (2.59:1)'],
-        'faint-2@ground'   => ['on' => 'ground',     'where' => 'keycap hints on the rail, 11px (2.33:1)'],
-        'slate@slate-wash' => ['on' => 'slate-wash', 'where' => 'a Content hub count on its tile, 13px (4.02:1)'],
     ];
 
     /**

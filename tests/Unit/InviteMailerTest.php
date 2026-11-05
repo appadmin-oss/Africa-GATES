@@ -272,7 +272,7 @@ final class InviteMailerTest extends TestCase
     /** And the run itself is reachable from the event it belongs to. */
     public function test_the_invitation_run_is_reachable_from_the_event(): void
     {
-        $form = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/admin/events/form.twig');
+        $form = \Tests\Support\EventEditorSource::read();
 
         $this->assertStringContainsString('/invites', $form,
             'the invitation run has no link from the event screen');

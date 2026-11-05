@@ -953,8 +953,7 @@ final class EventInvitesTest extends TestCase
      */
     public function test_the_cover_field_can_hold_the_local_path_the_mailer_needs(): void
     {
-        $form = (string) file_get_contents(
-            dirname(__DIR__, 2) . '/templates/admin/events/form.twig');
+        $form = \Tests\Support\EventEditorSource::read();
 
         $this->assertDoesNotMatchRegularExpression(
             '/<input[^>]*type="url"[^>]*name="cover_image"/', $form,

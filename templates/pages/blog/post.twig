@@ -59,7 +59,7 @@
   </header>
 
   {% if post.cover %}
-    <figure class="bp__cover">{% include 'partials/photo.twig' with {kind: 'thing', subject: 'blog', src: post.cover, name: post.title, eager: true} only %}</figure>
+    <figure class="bp__cover">{% include 'partials/photo.twig' with {identity: post.id|default(null), kind: 'thing', subject: 'blog', src: post.cover, name: post.title, eager: true} only %}</figure>
   {% endif %}
 
   <div class="bp__body" data-blog-read>{{ post.body|default('')|sanitize_html }}</div>
@@ -87,7 +87,7 @@
       <div class="bl-grid">
         {% for p in more %}
           <a class="bl-card" href="/blog/{{ p.slug }}">
-            <span class="bl-card__img">{% include 'partials/photo.twig' with {kind: 'thing', subject: 'blog', src: p.cover, name: p.title} only %}</span>
+            <span class="bl-card__img">{% include 'partials/photo.twig' with {identity: p.id|default(null), kind: 'thing', subject: 'blog', src: p.cover, name: p.title} only %}</span>
             <span class="bl-card__w">{% if p.tag %}<span class="bl-tag">{{ p.tag }}</span>{% endif %}<span class="bl-card__t">{{ p.title }}</span><span class="bl-meta">{{ '%n% min read'|trans({'%n%': p.read_minutes}) }}</span></span>
           </a>
         {% endfor %}

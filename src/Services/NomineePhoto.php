@@ -100,14 +100,27 @@ final class NomineePhoto
             $want = $current;                       // staff's or the nominator's: kept
             $fromNominee = false;
         } else {
-            $want = self::nominators($nomineeId, $nom);   // nothing, or theirs was removed
+            $want = self::nominators($nomineeId, $nom);
+            if ($want === '' && SchemaHas::table('gates_uploads')) $want = (string) (NomineePortrait::uploads($nomineeId)->orderBy('id')->value('path') ?? '');   // nothing, or theirs was removed
             $fromNominee = false;
         }
 
         if ($want !== $current) {
             DB::table('gates_nominees')->where('id', $nomineeId)->update(['photo_path' => $want !== '' ? $want : null]);
         }
+        // Retire a removed nominee photo from its owner's account too, but never clear
+        // a different portrait they subsequently chose in My Account.
+        if ($current !== '' && !in_array($current, $own, true) && in_array($current, self::everOwn($nomineeId), true)
+            && SchemaHas::table('gates_nominee_details') && SchemaHas::column('gates_users', 'photo_path')) {
+            $uid = (int) DB::table('gates_nominee_details')->where('nominee_id', $nomineeId)->value('user_id');
+            if ($uid > 0) {
+                DB::table('gates_users')->where('id', $uid)->where('photo_path', $current)->update(['photo_path' => null]);
+                if (SchemaHas::column('gates_users', 'avatar_path')) DB::table('gates_users')->where('id', $uid)->where('avatar_path', $current)->update(['avatar_path' => null]);
+                if ((int) ($_SESSION['user_id'] ?? 0) === $uid && ($_SESSION['user_photo'] ?? '') === $current) $_SESSION['user_photo'] = '';
+            }
+        }
         if ($want !== '') self::toAccount($nomineeId, $want, $fromNominee);
+        if ($want !== $current) NomineePortrait::refresh();
         return $want;
     }
 
@@ -121,8 +134,13 @@ final class NomineePhoto
         $userId = (int) DB::table('gates_nominee_details')->where('nominee_id', $nomineeId)->value('user_id');
         if ($userId < 1) return;
         $q = DB::table('gates_users')->where('id', $userId);
-        if (!$fromNominee) $q->where(static fn ($w) => $w->whereNull('photo_path')->orWhere('photo_path', ''));
-        if ($q->update(['photo_path' => $path]) > 0 && (int) ($_SESSION['user_id'] ?? 0) === $userId) {
+        if (!$fromNominee) {
+            $q->where(static fn ($w) => $w->whereNull('photo_path')->orWhere('photo_path', ''));
+            if (SchemaHas::column('gates_users', 'avatar_path')) $q->where(static fn ($w) => $w->whereNull('avatar_path')->orWhere('avatar_path', ''));
+        }
+        $changes = ['photo_path' => $path];
+        if (SchemaHas::column('gates_users', 'avatar_path')) $changes['avatar_path'] = $path;
+        if ($q->update($changes) > 0 && (int) ($_SESSION['user_id'] ?? 0) === $userId) {
             $_SESSION['user_photo'] = $path;
         }
     }

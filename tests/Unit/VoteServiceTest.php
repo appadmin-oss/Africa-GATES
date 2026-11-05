@@ -203,4 +203,37 @@ class VoteServiceTest extends TestCase
         $this->assertSame('Ada Obi', $row->voter_name);
         $this->assertSame('+234 801 234 5678', $row->voter_phone);
     }
+    public function test_a_replay_key_cannot_be_used_for_another_nominee(): void
+    {
+        $this->seedNominee();$this->seedOtp('v@x.io','123456');
+        $service=new VoteService();
+        $this->assertTrue($service->castVote('v@x.io','123456',1,0,'',null,'bound-attempt')['success']);
+        $r=$service->castVote('v@x.io','123456',2,0,'',null,'bound-attempt');
+        $this->assertFalse($r['success']);
+        $this->assertSame('IDEMPOTENCY_CONFLICT',$r['code']);
+        $this->assertSame(1,DB::table('gates_votes')->count());
+    }
+
+    public function test_a_nonduplicate_storage_failure_rolls_back_instead_of_claiming_a_vote_exists(): void
+    {
+        $this->seedNominee();$this->seedOtp('v@x.io','123456');$reject=true;
+        DB::connection()->beforeExecuting(static function($sql,$bindings)use(&$reject){
+            if($reject && preg_match('/^insert into ["`]?gates_votes/i',$sql)){
+                $failure=new \PDOException('simulated storage rejection');
+                $failure->errorInfo=['45000',1644,'simulated storage rejection'];
+                throw new \Illuminate\Database\QueryException('default',$sql,$bindings,$failure);
+            }
+        });
+        try {
+            (new VoteService())->castVote('v@x.io','123456',1,0);
+            $this->fail('The storage failure must propagate to the server error handler');
+        } catch (\Illuminate\Database\QueryException $e) {
+            $this->assertSame(1644,$e->errorInfo[1]);
+        } finally {$reject=false;}
+        $this->assertSame(0,DB::table('gates_votes')->count());
+        $token=DB::table('gates_otp_tokens')->first();
+        $this->assertSame(0,(int)$token->is_used);
+        $this->assertSame(0,(int)$token->attempts);
+    }
+
 }

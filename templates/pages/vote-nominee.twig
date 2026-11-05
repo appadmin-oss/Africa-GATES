@@ -210,7 +210,8 @@
       <form class="vb-free" data-free-form data-e-agree="{{ 'Tick the box to confirm you are voting once and accept the rules.'|trans }}"
             data-e-name="{{ 'Enter your full name (first and last).'|trans }}" data-e-phone="{{ 'Enter a valid phone number.'|trans }}"
             data-e-email="{{ 'Enter a valid email address.'|trans }}" data-e-code="{{ 'Enter the 6-digit code.'|trans }}"
-            data-e-net="{{ 'We couldn’t reach Africa GATES. Nothing was recorded. Try again.'|trans }}"
+            data-e-net="{{ 'We couldn’t request a code. Check your connection and try again.'|trans }}"
+            data-e-confirm-net="{{ 'We couldn’t confirm the response. Your vote may already be counted. Try again to check.'|trans }}"
             data-e-ts="{{ 'The security check is still loading. Try again in a moment.'|trans }}">
         <div data-step="form">
           <p class="vb__p">{{ 'One vote per category, confirmed by a code we email you.'|trans }}</p>
@@ -286,7 +287,7 @@
 <div class="vn{{ _placed ? ' vn--placed' }}">
   <div class="vn__main">
     <div class="vn-top">
-    {% set _portrait = profile.avatar_path|default('') ?: n.photo_path %}
+    {% set _portrait = n.photo_path|default('') ?: profile.avatar_path|default('') %}
     {% if _portrait %}
     <div class="vn-photo">
       {% include 'partials/photo.twig' with {kind: 'person', src: _portrait, name: n.name, id: n.profile_id|default(n.id), size: 160, alt: 'Portrait of %n%'|trans({'%n%': n.name}), eager: true} only %}

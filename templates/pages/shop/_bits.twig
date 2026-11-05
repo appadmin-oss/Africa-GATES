@@ -43,7 +43,7 @@
   <article class="sp-card{{ p.sold_out ? ' is-gone' }}">
     <div class="sp-card__img">
       <a class="sp-card__media" href="/shop/{{ p.slug }}" tabindex="-1" aria-hidden="true">
-        {% include 'partials/photo.twig' with {kind: 'thing', subject: 'product', cover_kind: p.category|default(''), src: p.cover_path|default(''), name: p.name, label: false} only %}
+        {% include 'partials/photo.twig' with {identity: p.id|default(null), kind: 'thing', subject: 'product', cover_kind: p.category|default(''), src: p.cover_path|default(''), name: p.name, label: false} only %}
       </a>
       {% if p.sold_out %}<span class="sp-tag sp-tag--gone">{{ 'Sold out'|trans }}</span>
       {% elseif p.tag|default('') %}<span class="sp-tag">{{ p.tag }}</span>{% endif %}

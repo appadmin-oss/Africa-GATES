@@ -1142,7 +1142,10 @@ final class Maintenance
         try {
             $q = new QueueService();
             $sheets = $this->container?->get(GoogleSheetsService::class);
-            $q->on('vote.sheets_push', function (array $p) use ($sheets) { $sheets?->pushVote($p); });
+            $q->on('vote.sheets_push', function (array $p) use ($sheets) {
+                if (!$sheets) throw new \RuntimeException('Google Sheets delivery is unavailable.');
+                $sheets->pushVote($p);
+            });
             $sms = SmsService::boot();
             $q->on(SmsService::JOB_SMS, function (array $p) use ($sms) {
                 $sms->deliver('sms', (string)($p['to'] ?? ''), (string)($p['body'] ?? ''), (string)($p['template'] ?? 'generic'));

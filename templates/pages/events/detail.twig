@@ -82,7 +82,7 @@
          rises over it on a phone, the title sits on it from 600 — so the cover's type pill was
          half under the sheet on one and under "Eko Hotel" on the other. The type goes in the
          text as a chip instead, as the events index's spotlight does it. #}
-      {% include 'partials/photo.twig' with {kind: 'thing', subject: 'event', cover_kind: ev.cover_kind|default(null), award_linked: ev.award_linked|default(false), src: ev.image, name: ev.title, content: 'none', label: false, logo: ev.host_logo|default(''), eager: true} only %}
+      {% include 'partials/photo.twig' with {identity: ev.id|default(null), kind: 'thing', subject: 'event', cover_kind: ev.cover_kind|default(null), award_linked: ev.award_linked|default(false), src: ev.image, name: ev.title, content: 'none', label: false, logo: ev.host_logo|default(''), eager: true} only %}
     </div>
     <div class="ed-hero__btns">
       <a class="ed-fab" href="/events" aria-label="{{ 'All events'|trans }}">

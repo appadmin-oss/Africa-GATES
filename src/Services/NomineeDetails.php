@@ -388,11 +388,11 @@ final class NomineeDetails
         } catch (\Throwable $e) {
             return ['ok' => false, 'error' => 'That photograph could not be used: ' . $e->getMessage()];
         }
-        self::file($d, 'photo', (string) $up['path'], null, $label);
-        // It is what people see on the ballot — the page says so — so it goes there now, and to
-        // the account that holds this page (NomineePhoto). Before approval there is no ballot
-        // yet; approval picks it up.
-        if ($d->nominee_id) NomineePhoto::sync((int) $d->nominee_id);
+        DB::connection()->transaction(function () use ($d, $up, $label) {
+            self::file($d, 'photo', (string) $up['path'], null, $label);
+            if ($d->nominee_id) NomineePhoto::sync((int) $d->nominee_id);
+        });
+        NomineePortrait::refresh();
         return ['ok' => true];
     }
 
@@ -421,9 +421,11 @@ final class NomineeDetails
     public static function remove(object $d, int $fileId): bool
     {
         $n = self::scope($d)->where('id', $fileId)->whereNull('removed_at')->update(['removed_at' => date('Y-m-d H:i:s')]);
-        if ($n) self::touch($d, []);
-        // A photograph taken down stops showing at once (NomineePhoto falls back).
-        if ($n && $d->nominee_id) NomineePhoto::sync((int) $d->nominee_id);
+        if ($n) {
+            self::touch($d, []);
+            if ($d->nominee_id) NomineePhoto::sync((int) $d->nominee_id);
+            NomineePortrait::refresh();
+        }
         return $n > 0;
     }
 

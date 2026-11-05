@@ -374,3 +374,12 @@ no longer drive it.
 
 Deviation: the reference's "Ask / mode" control and sliders button are not drawn — there is one
 mode, and a control with nothing behind it is worse than none.
+
+
+### 31 October 2026 — member, staff and analytics structure
+
+Owner requested navigation, workflow and visual layout changes. The People & audience group now starts with Members (`/admin/users`); Team continues to mean console staff access. Analytics is a first-level destination under Insights rather than a child of Audit log. These groups do not confer permissions. Members uses DataRegistry's existing users dataset roles and the existing data section gate; the guard and navigation both use Permissions::canOpen.
+
+The member directory has literal name/email search, verification filters and pagination. Established `/admin/data/users/{id}` links now open a member support view with safe account fields, recent ledger entries and the existing audited points adjustment. Staff search is paginated. Analytics adds section links and explicit lifetime/window/cohort scope labels; its layouts and member/staff directories use `console/people.css` and `console/analytics.css`. Tests cover dataset permissions, secrets, literal wildcard search, ledger detail, staff search and password updates.
+
+The final refactor separates MemberAccountsService and StaffDirectoryService from HTTP handling, and extracts chart rendering into `admin/partials/analytics-charts.twig`. Trends expose complete dated values in native expandable tables. Shared `accessibility-focus.js` replaces the older table observer in admin.js, handles errors and skip links, and disconnects observers during console navigation. The owner’s accessibility request supersedes the original report-only treatment of low-contrast text: the console text tokens now pass every declared 4.5:1 pair.

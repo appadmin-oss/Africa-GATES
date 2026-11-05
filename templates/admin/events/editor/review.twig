@@ -1,0 +1,18 @@
+    <section class="af__step" :class="isOn(4) ? 'is-on' : ''" x-data="evReview()">
+      <div class="af__head"><h2>Review and visibility</h2><p>Check the essentials, then choose who can see the event. Save event applies all five sections together.</p></div>
+      <div class="event-editor__review">
+        <h3>Event summary</h3>
+        <dl><dt>Title</dt><dd x-text="summary.title">{{ row.title|default('Not entered') }}</dd>
+          <dt>Starts</dt><dd x-text="summary.starts">{{ row.event_date|default('Not entered') }}</dd>
+          <dt>Timezone</dt><dd x-text="summary.timezone">{{ row.timezone|default('Platform default') }}</dd>
+          <dt>Venue</dt><dd x-text="summary.venue">{{ row.venue|default('Not entered') }}</dd>
+          <dt>Capacity</dt><dd x-text="summary.capacity">{{ row.capacity|default('Unlimited') }}</dd></dl>
+        <label>Status
+          <select name="status">
+            <option value="published" {% if row.status|default('draft') == 'published' %}selected{% endif %}>Published — visible to everybody</option>
+            <option value="draft" {% if row.status|default('draft') == 'draft' %}selected{% endif %}>Draft — only you can see it</option>
+          </select>
+        </label>
+        <p class="af-note">Draft events stay in the admin console. Published events are visible on the public events page.</p>
+      </div>
+    </section>

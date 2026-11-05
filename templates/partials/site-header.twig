@@ -140,7 +140,7 @@
          service holds one. A badge with nothing behind it would be a fake count, so
          there is none until Phase 7 builds the basket (docs/handoff/PHASE-2.md). #}
       {% if is_member %}
-        <a class="ag-head__av" href="/account" aria-label="{{ 'Your account'|trans }}">{% if member_photo|default(null) %}<img class="ag-head__av-img" src="{{ member_photo }}" alt="" width="40" height="40" decoding="async">{% else %}{{ _ini }}{% endif %}</a>
+        <a class="ag-head__av" href="/account" aria-label="{{ 'Your account'|trans }}">{% if member_photo|default('') %}<img class="ag-member-photo" src="{{ member_photo|media_url('avatar') }}" alt="" width="44" height="44">{% else %}{{ _ini }}{% endif %}</a>
       {% else %}
         <a class="ag-head__signin" href="/account/login">{{ 'Sign in'|trans }}</a>
       {% endif %}

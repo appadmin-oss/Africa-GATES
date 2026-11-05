@@ -99,7 +99,7 @@
       {% if _avatar %}
         <button type="button" class="ag-appbar__icon" data-ag-quick aria-haspopup="dialog" aria-expanded="false"
                 aria-controls="ag-quick" aria-label="{{ 'Account, language and display'|trans }}">
-          <span class="ag-appbar__av" aria-hidden="true">{% if member_photo|default(null) %}<img class="ag-appbar__av-img" src="{{ member_photo }}" alt="" width="34" height="34" decoding="async">{% else %}{{ _ini }}{% endif %}</span>
+          <span class="ag-appbar__av" aria-hidden="true">{% if member_photo|default('') %}<img class="ag-member-photo" src="{{ member_photo|media_url('avatar') }}" alt="" width="44" height="44">{% else %}{{ _ini }}{% endif %}</span>
         </button>
       {% endif %}
     </div>

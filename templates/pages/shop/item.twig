@@ -71,7 +71,7 @@
   <div class="sp-gal">
     <div class="sp-gal__track" tabindex="0" role="group" aria-label="{{ 'Photos of %name%. Swipe for more.'|trans({'%name%': p.name}) }}" data-sp-gal>
       {% for g in _shots %}
-        <div class="sp-gal__slide">{% include 'partials/photo.twig' with {kind: 'thing', subject: 'product', cover_kind: p.category|default(''), src: g.path, name: p.name, alt: g.path ? (g.alt ?: p.name) : '', label: false, eager: loop.first} only %}</div>
+        <div class="sp-gal__slide">{% include 'partials/photo.twig' with {identity: p.id|default(null), kind: 'thing', subject: 'product', cover_kind: p.category|default(''), src: g.path, name: p.name, alt: g.path ? (g.alt ?: p.name) : '', label: false, eager: loop.first} only %}</div>
       {% endfor %}
     </div>
     <div class="sp-gal__btns">
@@ -92,7 +92,7 @@
       {# ── TABLET/DESKTOP: the photo and four thumbnails ─────────────────────────── #}
       <div class="sp-photos">
         <div class="sp-photos__main">
-          {% include 'partials/photo.twig' with {kind: 'thing', subject: 'product', cover_kind: p.category|default(''), src: _shots[0].path, name: p.name, alt: _shots[0].path ? (_shots[0].alt ?: p.name) : '', label: false, eager: true} only %}
+          {% include 'partials/photo.twig' with {identity: p.id|default(null), kind: 'thing', subject: 'product', cover_kind: p.category|default(''), src: _shots[0].path, name: p.name, alt: _shots[0].path ? (_shots[0].alt ?: p.name) : '', label: false, eager: true} only %}
           {% if p.sold_out %}<span class="sp-tag sp-tag--lg sp-tag--gone">{{ 'Sold out'|trans }}</span>{% elseif p.tag|default('') %}<span class="sp-tag sp-tag--lg">{{ p.tag }}</span>{% endif %}
         </div>
         {% if _gallery|length > 1 %}
@@ -219,7 +219,7 @@
         <div class="sp-rel__row">
           {% for r in related %}
             <a class="sp-rel__c" href="/shop/{{ r.slug }}">
-              <span class="sp-rel__img">{% include 'partials/photo.twig' with {kind: 'thing', subject: 'product', cover_kind: r.category|default(''), src: r.cover_path|default(''), name: r.name, label: false} only %}</span>
+              <span class="sp-rel__img">{% include 'partials/photo.twig' with {identity: r.id|default(null), kind: 'thing', subject: 'product', cover_kind: r.category|default(''), src: r.cover_path|default(''), name: r.name, label: false} only %}</span>
               <span class="sp-rel__n">{{ r.name }}</span>
               <span class="sp-rel__p{{ r.sold_out ? ' is-gone' }}">{{ r.sold_out ? 'Sold out'|trans : r.price_label }}</span>
             </a>

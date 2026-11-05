@@ -1179,3 +1179,9 @@ tr.ad-out > td { opacity: .62; }
    exactly as the brand it replaced lost its words. The menu still opens at full width. */
 @media (min-width: 600px) and (max-width: 1023px) { .cn-prod__chev { display: none; } }
 body[data-side="closed"] .cn-prod__chev { display: none; }
+
+/* Shared navigation across the event administration workspace. */
+.cn-event-nav{display:flex;flex-wrap:nowrap;gap:8px;margin:0 0 20px;max-width:100%;overflow-x:auto;padding:4px 0 12px}
+.cn-event-nav a{flex:none;display:inline-flex;align-items:center;min-height:44px;padding:8px 14px;border:1px solid var(--cn-line-card);border-radius:999px;color:var(--cn-ink);font-size:13px;text-decoration:none}
+.cn-event-nav a[aria-current=page]{background:var(--cn-ink);color:var(--cn-panel)}
+.cn-event-nav a:focus-visible{outline:3px solid var(--cn-ink);outline-offset:3px}

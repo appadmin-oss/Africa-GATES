@@ -115,10 +115,14 @@ final class NomineePhotoReachesBallotTest extends TestCase
         $this->assertSame('/uploads/nominee-photos/me.webp', DB::table('gates_users')->where('id', $uid)->value('photo_path'), 'and is their account photo');
         $this->assertSame('/uploads/nominee-photos/me.webp', $_SESSION['user_photo'], 'the avatar changes without signing in again');
 
+        $this->assertSame('/uploads/nominee-photos/me.webp', DB::table('gates_users')->where('id', $uid)->value('avatar_path'));
+        $this->assertSame('/uploads/nominee-photos/me.webp', \AfricaGates\Services\AccountPhotoService::currentPath());
+
         // Taken down: it stops showing at once, and the page falls back.
         $d = NomineeDetails::mine($nid, $uid);
         $this->assertTrue(NomineeDetails::remove($d, (int) DB::table('gates_nominee_files')->where('kind', 'photo')->value('id')));
         $this->assertSame('/uploads/nominations/ada.webp', $this->nominee('Ada Obi')->photo_path, 'a removed photo is not kept on the ballot');
+        $this->assertSame('/uploads/nominations/ada.webp', \AfricaGates\Services\AccountPhotoService::currentPath());
     }
 
     public function test_a_nominee_upload_reaches_the_ballot_through_the_real_writer(): void
@@ -132,13 +136,13 @@ final class NomineePhotoReachesBallotTest extends TestCase
 
     public function test_the_header_shows_the_account_photo(): void
     {
-        $_SESSION['user_id'] = 1;
-        $_SESSION['user_photo'] = '/uploads/nominee-photos/me.webp';
+        $_SESSION['user_id'] = (int) DB::table('gates_users')->insertGetId(['name' => 'Photo Owner', 'email' => 'photo-owner@example.test', 'password_hash' => 'x', 'status' => 'active', 'created_at' => date('Y-m-d H:i:s'), 'photo_path' => '/uploads/nominee-photos/me.webp']);
+        $_SESSION['user_photo'] = '/uploads/stale.webp';
         $b = new ContainerBuilder();
         $b->addDefinitions(require dirname(__DIR__, 2) . '/config/container.php');
         $twig = $b->build()->get(Twig::class);
         $this->assertSame('/uploads/nominee-photos/me.webp', $twig->getEnvironment()->getGlobals()['member_photo']);
         $hdr = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/partials/site-header.twig');
-        $this->assertStringContainsString('src="{{ member_photo }}"', $hdr);
+        $this->assertStringContainsString('src="{{ member_photo|media_url(\'avatar\') }}"', $hdr);
     }
 }

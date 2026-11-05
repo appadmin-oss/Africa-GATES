@@ -60,8 +60,7 @@ class NomineesController
         $gallery = [];
         if ($rowIds) {
             try {
-                foreach (DB::table('gates_uploads')
-                    ->where('attached_to_type', 'nominee')->whereIn('attached_to_id', $rowIds)
+                foreach (\AfricaGates\Services\NomineePortrait::uploads($rowIds)
                     ->orderBy('id')->get(['attached_to_id', 'path']) as $u) {
                     $gallery[(int)$u->attached_to_id][] = (string)$u->path;
                 }
@@ -310,6 +309,7 @@ class NomineesController
             }
         }
 
+        \AfricaGates\Services\NomineePortrait::refresh();
         $this->audit->record((int)$_SESSION['admin_id'], 'nominee.photo.add', 'nominee', $id, ['path' => $result['path'], 'primary' => $makePrimary]);
         $_SESSION['flash_ok'] = $makePrimary ? 'Photo added and set as the primary.' : 'Photo added to the gallery.';
         return $res->withHeader('Location', $back)->withStatus(302);
@@ -321,8 +321,7 @@ class NomineesController
         $paths = [];
         if ($primary) $paths[] = $primary;
         try {
-            $rows = DB::table('gates_uploads')
-                ->where('attached_to_type', 'nominee')->where('attached_to_id', $id)
+            $rows = \AfricaGates\Services\NomineePortrait::uploads($id)
                 ->orderBy('id')->pluck('path');
             foreach ($rows as $p) { $p = (string)$p; if ($p !== '' && !in_array($p, $paths, true)) $paths[] = $p; }
         } catch (\Throwable) {}
@@ -348,6 +347,7 @@ class NomineesController
             $_SESSION['flash_error'] = ActionError::dbMessage($e);
             return $res->withHeader('Location', $back)->withStatus(302);
         }
+        \AfricaGates\Services\NomineePortrait::refresh();
         $this->audit->record((int)$_SESSION['admin_id'], 'nominee.photo.primary', 'nominee', $id, ['path' => $path]);
         $_SESSION['flash_ok'] = 'Primary photo updated.';
         return $res->withHeader('Location', $back)->withStatus(302);
@@ -366,12 +366,7 @@ class NomineesController
             return $res->withHeader('Location', $back)->withStatus(302);
         }
         try {
-            DB::table('gates_uploads')->where('attached_to_type', 'nominee')->where('attached_to_id', $id)->where('path', $path)->delete();
-            // If we removed the primary, promote the next remaining gallery photo (or clear).
-            if ((string)($nom->photo_path ?? '') === $path) {
-                $next = $this->galleryFor($id, null)[0] ?? null;
-                DB::table('gates_nominees')->where('id', $id)->update(['photo_path' => $next]);
-            }
+            \AfricaGates\Services\NomineePortrait::remove($id, $path);
         } catch (\Throwable $e) {
             $_SESSION['flash_error'] = ActionError::dbMessage($e);
             return $res->withHeader('Location', $back)->withStatus(302);
@@ -381,6 +376,7 @@ class NomineesController
             $abs = dirname(__DIR__, 3) . '/public' . $path;
             if (is_file($abs)) @unlink($abs);
         }
+        \AfricaGates\Services\NomineePortrait::refresh();
         $this->audit->record((int)$_SESSION['admin_id'], 'nominee.photo.delete', 'nominee', $id, ['path' => $path]);
         $_SESSION['flash_ok'] = 'Photo removed.';
         return $res->withHeader('Location', $back)->withStatus(302);

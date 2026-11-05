@@ -67,6 +67,7 @@
 {% endblock %}
 
 {% block content %}
+{% include 'admin/events/navigation.twig' with {event_id: event.id, current: 'codes'} only %}
 <p class="dc-sub">
   <strong>{{ event.title }}</strong> · {{ event.event_date }} ·
   <a href="/events/{{ event.slug }}" target="_blank" rel="noopener noreferrer">public page</a> ·

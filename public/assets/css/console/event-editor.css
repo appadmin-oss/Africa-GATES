@@ -1,0 +1,188 @@
+
+  /* ── the ticket preview ──────────────────────────────────────────────────
+     A sketch of templates/pages/events/ticket.twig, not a copy of it. It exists so a
+     colour can be judged before saving; the real ticket is rendered server-side from
+     validated values. Everything the accent touches is bound in Alpine, so no rule here
+     may set a `style` on the same tags — AlpineStyleClobberTest fails the build on a tag
+     carrying both a static `style` and a bound `:style`. */
+  .tkp{ --tkp-card:#fff; --tkp-line:rgba(16,41,44,.10); --tkp-text:#10292C;
+    background:var(--tkp-card); border:1px solid var(--tkp-line); border-radius:14px;
+    overflow:hidden; box-shadow:0 12px 30px -22px rgba(16,41,44,.5) }
+  .tkp--dark{ --tkp-card:#0f1c1e; --tkp-line:rgba(255,255,255,.14); --tkp-text:#eef5f0 }
+  .tkp__head{ position:relative; padding:12px 13px 13px; overflow:hidden }
+  .tkp__shot{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover }
+  /* The cropped artwork, at 3:2 — the shape the server bakes. The head is ~236×90, i.e.
+     always wider than 3:2, so a full-width 3:2 box overflows vertically and is clipped by
+     the head's `overflow:hidden`: that IS `cover`, done in a way that lets the identical
+     percentage offsets from artStage() be reused here and in the editor. */
+  .tkp__art{ position:absolute; left:0; right:0; top:50%; transform:translateY(-50%);
+    aspect-ratio:3/2; overflow:hidden }
+  .tkp__stage{ position:absolute }
+  .tkp__scrim{ position:absolute; inset:0 }
+  .tkp__headin{ position:relative }
+  .tkp__eyebrow{ display:block; font-size:10px; font-weight:700; letter-spacing:.14em;
+    text-transform:uppercase; opacity:.85 }
+  .tkp__title{ display:block; margin-top:5px; font-size:13px; font-weight:800; line-height:1.25 }
+  .tkp__when{ display:block; margin-top:4px; font-size:10px; opacity:.9 }
+  .tkp__tear{ position:relative; height:14px; background:var(--tkp-card) }
+  .tkp__tear::before, .tkp__tear::after{ content:""; position:absolute; top:50%; width:13px;
+    height:13px; border-radius:50%; transform:translateY(-50%); background:#f4f7f4;
+    border:1px solid var(--tkp-line) }
+  .tkp--dark .tkp__tear::before, .tkp--dark .tkp__tear::after{ background:#0a1315 }
+  .tkp__tear::before{ left:-7px } .tkp__tear::after{ right:-7px }
+  .tkp__tear i{ position:absolute; left:9px; right:9px; top:50%; height:0;
+    border-top:1.5px dashed var(--tkp-line) }
+  .tkp__stub{ padding:2px 13px 12px; text-align:center }
+  /* A placeholder grid, not a real symbol: generating one per keystroke would be a request
+     per keystroke, and what is being judged here is the colour rather than the code. */
+  .tkp__qr{ display:block; width:52px; height:52px; margin:4px auto 7px; border-radius:6px;
+    background:
+      repeating-linear-gradient(90deg,#10292C 0 4px,#fff 4px 8px),
+      repeating-linear-gradient(0deg,#10292C 0 4px,#fff 4px 8px);
+    background-blend-mode:difference; background-color:#fff;
+    box-shadow:0 0 0 4px #fff, 0 1px 6px -2px rgba(16,41,44,.4) }
+  .tkp__code{ display:inline-block; font-family:var(--ag-font-mono,monospace); font-size:16px;
+    font-weight:700; letter-spacing:.05em; color:var(--tkp-text) }
+  .tkp__note{ display:block; margin-top:6px; font-size:10px; font-weight:600; color:var(--tkp-text) }
+  .tkp__rows{ display:flex; gap:1px; background:var(--tkp-line); border-top:1px solid var(--tkp-line) }
+  .tkp__rows span{ flex:1; background:var(--tkp-card); padding:7px 9px; font-size:10px;
+    font-weight:700; color:var(--tkp-text) }
+  /* The panel's two columns. `min-width:0` is also set on each child inline — a grid item's
+     default `min-width:auto` is its content's minimum, and the form's inputs are width:100%
+     of that, so without it the left column grew past its track and slid under the preview. */
+  .tk-des{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,236px); gap:18px;
+    align-items:start }
+  /* `box-sizing:border-box` on the fields, because the admin stylesheet's inputs are
+     content-box: a `width:100%` input came out exactly 30px wider than its column (measured
+     — 472px track, 502px input), which is its 14px padding and 1px border on each side. In
+     the single-column forms elsewhere that overflow is invisible; beside a preview it puts
+     the field under the card. Scoped here rather than fixed globally, because every other
+     admin form is laid out against the current widths. */
+  .tk-des input, .tk-des select, .tk-des textarea{ box-sizing:border-box; max-width:100% }
+  @media (max-width:720px){
+    /* One column, preview first: on a phone the point of the preview is to be seen at all. */
+    .tk-des{ grid-template-columns:minmax(0,1fr) }
+    .tkp{ max-width:236px }
+  }
+  /* ── the artwork editor ──────────────────────────────────────────────────
+     A 3:2 window with the picture moving behind it, which is the same thing the ticket's
+     hero band does — so what is framed here is literally what prints. The wash and the
+     title sitting over it are the ticket's own, at the ticket's own gradient stops: the
+     one mistake this editor exists to prevent is somebody centring a face in the bottom
+     third, where the type block will cover it.
+
+     Nothing here may set `style` on a tag that also carries a bound `:style` —
+     AlpineStyleClobberTest fails the build over it, and every dynamic value in this
+     editor (the stage offset, the filter, the wash) is bound. */
+  .tka{ margin:2px 0 14px }
+  .tka__frame{ position:relative; width:100%; aspect-ratio:3/2; overflow:hidden;
+    border-radius:12px; border:1px solid var(--cn-line-card); background:#0f1c1e;
+    /* `touch-action:none` or a drag on a phone scrolls the page instead of moving the
+       picture, and the frame becomes decoration on the device most organisers use. */
+    cursor:grab; touch-action:none; user-select:none; -webkit-user-select:none }
+  .tka__frame:active{ cursor:grabbing }
+  .tka__frame:focus-visible{ outline:3px solid #237b22; outline-offset:2px }
+  .tka__stage{ position:absolute }
+  /* `max-width:none` because the admin stylesheet caps images at 100% of their box, which
+     is exactly the opposite of what a zoomed crop needs. */
+  .tka__img{ position:absolute; left:50%; top:50%; max-width:none; pointer-events:none;
+    -webkit-user-drag:none }
+  .tka__wash{ position:absolute; inset:0; pointer-events:none }
+  .tka__over{ position:absolute; left:0; right:0; bottom:0; padding:10px 12px 11px;
+    pointer-events:none }
+  .tka__overk{ display:block; font-family:var(--ag-font-mono,monospace); font-size:10px;
+    font-weight:700; letter-spacing:.2em; text-transform:uppercase; opacity:.88 }
+  .tka__overt{ display:block; margin-top:3px; font-size:16px; font-weight:800; line-height:1.2;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+  /* Thirds, on hover and on focus only. Permanent guides read as part of the picture and
+     get cropped around; guides that appear while you are dragging read as a tool. */
+  .tka__guide{ position:absolute; inset:0; pointer-events:none; opacity:0; transition:opacity .12s }
+  .tka__frame:hover .tka__guide, .tka__frame:focus-within .tka__guide{ opacity:1 }
+  .tka__guide::before{ content:""; position:absolute; inset:0 33.333%;
+    border-left:1px solid rgba(255,255,255,.32); border-right:1px solid rgba(255,255,255,.32) }
+  .tka__guide::after{ content:""; position:absolute; inset:33.333% 0;
+    border-top:1px solid rgba(255,255,255,.32); border-bottom:1px solid rgba(255,255,255,.32) }
+  .tka__drop{ display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:6px; width:100%; aspect-ratio:3/2; box-sizing:border-box; padding:16px; text-align:center;
+    border:2px dashed var(--cn-line-card); border-radius:12px; background:#f7faf9;
+    color:#5a6d6f; font-size:13px; cursor:pointer }
+  .tka__drop:hover, .tka__drop.is-over{ border-color:#237b22; background:#f1f8f1; color:#10292C }
+  .tka__drop strong{ font-size:14px; color:#10292C }
+  /* Visually hidden rather than `display:none`: a hidden input cannot be focused, and the
+     label above it is the only way to reach the picker from a keyboard. */
+  .tka__file{ position:absolute; width:1px; height:1px; opacity:0 }
+  .tka__tools{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:10px }
+  /* 38px, not the 24px SC 2.5.8 floor. These are pressed repeatedly while judging a crop,
+     and a target you hit four times in a row wants more room than a target you hit once. */
+  .tka__btn{ display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    min-width:38px; height:38px; padding:0 11px; box-sizing:border-box; cursor:pointer;
+    border:1px solid var(--cn-line-card); border-radius:9px; background:#fff;
+    color:#10292C; font-size:13px; font-weight:600; line-height:1 }
+  .tka__btn:hover{ border-color:#10292C }
+  .tka__btn:focus-visible{ outline:3px solid #237b22; outline-offset:2px }
+  .tka__btn[aria-pressed="true"]{ background:#10292C; border-color:#10292C; color:#fff }
+  .tka__btn--warn{ color:#8a2b18 }
+  .tka__btn--warn:hover{ border-color:#8a2b18 }
+  .tka__grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+    gap:8px 16px; margin-top:12px }
+  .tka__slide{ display:flex; align-items:center; gap:9px; font-size:12px; color:#5a6d6f }
+  .tka__slide span:first-child{ flex:0 0 66px }
+  .tka__slide input[type=range]{ flex:1 1 auto; min-width:0; width:auto; margin:0; padding:0 }
+  .tka__val{ flex:0 0 38px; text-align:right; font-family:var(--ag-font-mono,monospace);
+    font-size:11px; color:#10292C }
+  .tka__defs{ position:absolute; width:0; height:0; overflow:hidden }
+
+  /* ── the tier reorder arrows ─────────────────────────────────────────────
+     A class, and specifically NOT a bound `:style`. These buttons have one piece of
+     state — whether the row is already at the end of the ladder — and the obvious way
+     to draw it is `:style="i === 0 ? 'opacity:.3' : ''"`. That is the fault
+     AlpineStyleClobberTest exists for: `:style` with a string assigns `el.style`, which
+     REPLACES the whole attribute, so the arrows would keep working while silently
+     losing their border, background, radius and size the instant Alpine booted. The
+     buttons still click, which is exactly why a functional check does not catch it.
+
+     So the state is the native `disabled` attribute and the look is `[disabled]` —
+     nothing to bind, nothing to clobber, and the control is correctly inert for a
+     keyboard and a screen reader rather than merely faded. */
+  .ev-move{ border:1px solid var(--cn-line-card); background:#fff; color:#3d4b4d;
+    font-size:11px; line-height:1; width:26px; height:34px; cursor:pointer }
+  .ev-move:first-child{ border-radius:8px 0 0 8px }
+  .ev-move:last-child{ border-radius:0 8px 8px 0 }
+  .ev-move + .ev-move{ margin-left:-1px }
+  .ev-move:hover:not([disabled]){ background:var(--ag-ground) }
+  .ev-move:focus-visible{ outline:2px solid #f3b416; outline-offset:1px; z-index:1 }
+  .ev-move[disabled]{ opacity:.3; cursor:default }
+  .ev-move__n{ font-size:11px; font-weight:700; color:#8a9a9c;
+    font-variant-numeric:tabular-nums; width:16px; text-align:right }
+
+.event-editor{max-width:1080px;margin-inline:auto}
+.event-editor__intro{margin-bottom:24px}
+.event-editor__intro h2{font-size:24px;line-height:1.25;margin:0 0 8px;overflow-wrap:anywhere}
+.event-editor__intro p{color:var(--cn-soft);line-height:1.6;margin:0;max-width:65ch}
+.event-editor .af__step{padding-block:24px}
+.event-editor .af__head p{max-width:70ch;line-height:1.6}
+.event-editor .row{gap:16px}
+.event-editor input,.event-editor select,.event-editor textarea{max-width:100%;min-width:0}
+.event-editor .af__rail{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;overflow:visible}
+.event-editor .af__tab{white-space:normal;min-height:48px;justify-content:center;padding:10px}
+.event-editor .af__bar{gap:12px;padding-bottom:16px}
+.event-editor__review{border:1px solid var(--cn-line-card);border-radius:12px;padding:20px;margin-block:24px;background:var(--cn-surface)}
+.event-editor__review h3{margin:0 0 12px;font-size:16px}
+.event-editor__review dl{display:grid;grid-template-columns:auto 1fr;gap:8px 20px;margin:0 0 16px}
+.event-editor__review dt{color:var(--cn-soft)}
+.event-editor__review dd{margin:0;overflow-wrap:anywhere}
+@media(max-width:640px){.event-editor .af__rail{grid-template-columns:repeat(2,minmax(0,1fr))}.event-editor .row{grid-template-columns:1fr}.event-editor .af__bar{position:static;padding:16px 0;margin-top:20px;background:var(--cn-card,#fff)}.event-editor__review dl{grid-template-columns:1fr;gap:4px}.event-editor__review dd{margin-bottom:12px}}
+
+.event-directory__filters{display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin:20px 0}.event-directory__filters label{display:grid;gap:6px;flex:1;min-width:150px}.event-directory__filters input,.event-directory__filters select{font:inherit;min-height:44px;padding:10px;border:1px solid var(--cn-line-card);border-radius:8px;background:var(--cn-panel);color:var(--cn-ink)}.event-directory__pages{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-top:20px}.event-directory__actions{display:flex;gap:8px;flex-wrap:wrap}.event-directory__empty{padding:32px;text-align:center}
+.event-editor__optional{margin-block:20px;border:1px solid var(--cn-line-card);border-radius:12px;padding:16px}
+.event-editor__optional>summary{cursor:pointer;min-height:44px;font-weight:600;line-height:1.5}
+.event-editor__optional .af__head h2{font-size:16px}
+.event-directory__actions+details{margin-top:8px}
+.event-directory__actions+details summary{cursor:pointer;min-height:32px;color:var(--cn-soft)}
+.event-editor__cover{border:1px solid var(--cn-line-card);border-radius:12px;padding:20px;margin-block:24px}
+.event-editor__cover>img{max-width:100%;height:auto;border-radius:8px;display:block;margin-bottom:16px}
+.event-editor__cover h3{margin:0 0 16px;font-size:16px}
+.event-editor{width:100%;min-width:0;box-sizing:border-box;padding:24px}
+.event-editor .af{min-width:0;width:100%}
+.event-editor .af__tab span{min-width:0;overflow-wrap:anywhere}
+@media(max-width:640px){.event-editor{padding:16px}.event-editor .af__tab{gap:6px;font-size:12px}.event-editor .af__step{overflow-wrap:anywhere}}

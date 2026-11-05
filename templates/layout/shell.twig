@@ -114,6 +114,7 @@
   <link rel="stylesheet" href="{{ asset('/assets/css/components/cover.css') }}">
   {% if not hide_chrome|default(false) %}<link rel="stylesheet" href="{{ asset('/assets/css/components/footer.css') }}">{% endif %}
   {% if not _gee_off %}<link rel="stylesheet" href="{{ asset('/assets/css/components/gee.css') }}">{% endif %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/photo-upload.css') }}">
   {% endif %}
   {% block head_styles %}{% endblock %}
   {% include 'partials/csrf-fresh.twig' %}
@@ -125,13 +126,13 @@
   <script nonce="{{ csp_nonce }}">window.agPage={_l:[],on:function(t,y,f,o){t.addEventListener(y,f,o);this._l.push(function(){t.removeEventListener(y,f,o)})},every:function(f,ms){var i=setInterval(f,ms);this._l.push(function(){clearInterval(i)});return i},leave:function(f){this._l.push(f)},_reset:function(){var l=this._l;this._l=[];l.forEach(function(f){try{f()}catch(e){}})}};</script>
 </head>
 <body data-page="{{ page_id|default('') }}" data-ag-layout="shell">
-  <a class="ag-skip" href="#main">{{ 'Skip to content'|trans }}</a>
+  <a class="ag-skip" href="#main" data-skip-link>{{ 'Skip to content'|trans }}</a>
 
   <div class="ag-shell">
     {% block header %}{% include 'partials/site-header.twig' %}{% endblock %}
     {% block app_bar %}{% include 'partials/app-bar.twig' with _bar only %}{% endblock %}
 
-    <main class="ag-main" id="main">
+    <main class="ag-main" id="main" tabindex="-1">
       {% if not own_flash|default(false) %}{% include 'partials/flash.twig' %}{% endif %}
       {% block content %}{% endblock %}
       {# The site's only footer (Phase 4), inside the scroller so it is reached by scrolling
@@ -183,6 +184,8 @@
   <script defer src="{{ asset('/assets/js/form-validate.js') }}" data-nav="shell"></script>
   {# In-place navigation (site-nav.js): after the shell's scripts, before the page's. #}
   <script defer src="{{ asset('/assets/js/site-nav.js') }}" data-nav="shell"></script>
+  <script defer src="{{ asset('/assets/js/accessibility-focus.js') }}" data-nav="shell"></script>
+  <script defer src="{{ asset('/assets/js/photo-upload.js') }}" data-nav="shell" data-photo-max-bytes="{{ photo_upload_limit|default(10485760) }}" data-photo-post-bytes="{{ photo_post_limit|default(0) }}"></script>
   {% block foot_scripts %}{% endblock %}
 </body>
 </html>
