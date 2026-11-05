@@ -107,6 +107,58 @@ final class EventTeamsTest extends TestCase
     }
 
     /** A role, approved, with somebody approved into it; returns [roleId, memberUserId]. */
+    /**
+     * Access follows the decision that WON the guarded write, never precedes it. Given first,
+     * an approval racing a refusal could mail somebody "you are in" over a row that ended up
+     * refused. A failure to give access hands the decision back rather than leaving
+     * "approved" over a person who holds nothing.
+     */
+    public function test_access_is_given_only_by_a_decision_that_was_recorded(): void
+    {
+        $this->post($this->lead, ['do' => 'role_propose', 'event' => $this->ev, 'name' => 'Usher', 'kind' => 'staff', 'perms' => ['show.run']]);
+        $role = (int) DB::table('gates_event_roles')->value('id');
+        $this->post($this->owner, ['do' => 'decide', 'event' => $this->ev, 'subject' => 'role', 'id' => $role, 'verdict' => 'approve', 'reason' => 'Needed', 'perms' => ['show.run']]);
+        $who = $this->member('Bisi Lawal');
+        $this->post($this->lead, ['do' => 'member_propose', 'event' => $this->ev, 'email' => $this->email($who), 'role' => $role, 'team_role' => 'member']);
+        $m = (int) DB::table('gates_event_team_members')->value('id');
+
+        // Another owner's refusal lands while this approval is in flight — modelled by a
+        // trigger that refuses the row the moment anything gives access, but only while it
+        // is still waiting. Claimed first, the row is no longer waiting and the trigger never
+        // fires; given first, the refusal wins and the access already given is orphaned.
+        if (DB::connection()->getDriverName() !== 'sqlite') $this->markTestSkipped('the race is modelled with a SQLite trigger');
+        foreach (['gates_grants', 'gates_role_invites'] as $i => $tbl) {
+            DB::statement("CREATE TRIGGER race_$i AFTER INSERT ON $tbl WHEN (SELECT status FROM gates_event_team_members WHERE id = $m) = 'proposed'
+                BEGIN UPDATE gates_event_team_members SET status = 'refused' WHERE id = $m; END");
+        }
+        $grantsBefore = DB::table('gates_grants')->where('actor_id', $who)->count();
+        try {
+            $r = Teams::decide('member', $m, 'approve', 'Known', ['kind' => 'admin', 'id' => 1, 'name' => 'Staff']);
+        } finally {
+            DB::statement('DROP TRIGGER IF EXISTS race_0');
+            DB::statement('DROP TRIGGER IF EXISTS race_1');
+        }
+        $row = DB::table('gates_event_team_members')->where('id', $m)->first();
+        $this->assertTrue($r['ok'], json_encode($r));
+        $this->assertSame('approved', $row->status, 'access was given by a decision that did not stand');
+        $this->assertTrue($row->grant_id !== null || $row->invite_id !== null, 'what was given is recorded on the row that gave it');
+        $this->assertGreaterThanOrEqual($grantsBefore, DB::table('gates_grants')->where('actor_id', $who)->count());
+
+        // End it to start clean for the failure case.
+        DB::table('gates_event_team_members')->where('id', $m)->update(['status' => 'proposed', 'grant_id' => null, 'invite_id' => null, 'decided_at' => null]);
+
+        // Giving access fails: the row goes back to waiting, holding nothing.
+        DB::table('gates_event_team_members')->where('id', $m)->update(['status' => 'proposed']);
+        DB::table('gates_site_events')->where('id', $this->ev)->delete();
+        $r = Teams::decide('member', $m, 'approve', 'Checked', ['kind' => 'admin', 'id' => 1, 'name' => 'Staff']);
+        $this->assertFalse($r['ok']);
+        $row = DB::table('gates_event_team_members')->where('id', $m)->first();
+        $this->assertSame('proposed', $row->status);
+        $this->assertNull($row->decided_at);
+        $this->assertNull($row->grant_id);
+        $this->assertNull($row->invite_id);
+    }
+
     private function roleHolder(array $perms, string $ceiling = '', string $kind = 'staff', string $name = 'Hospitality lead', ?string $leadWith = null): array
     {
         $msg = $this->post($this->lead, ['do' => 'role_propose', 'event' => $this->ev, 'name' => $name, 'description' => 'Looks after guests',

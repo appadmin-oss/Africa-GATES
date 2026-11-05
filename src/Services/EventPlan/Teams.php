@@ -226,14 +226,26 @@ final class Teams
             if ($row->team_id && DB::table('gates_event_teams')->where('id', (int) $row->team_id)->value('status') !== 'approved') {
                 return ['ok' => false, 'error' => 'Decide the team first: a person can only join an approved team.'];
             }
-            $g = self::giveAccess($row, $role, $by);
-            if (!$g['ok']) return $g;
-            $set += array_intersect_key($g, array_flip(['grant_id', 'invite_id']));
-            $extra = !empty($g['granted']) ? ' They have it now.' : ' They are invited; it switches on when they sign in' . ($role->kind === 'volunteer' ? ' as an approved volunteer.' : ' with that address confirmed.');
         }
         $set['status'] = $verdict === 'approve' ? 'approved' : 'refused';
+        // CLAIM, then act. Access is given (and mailed) only by the decision that won the
+        // guarded write: given first, two owners deciding at once — one approving, one
+        // refusing — could tell somebody they were in while the row ended up refused.
         $n = DB::table($t)->where('id', $id)->where('status', 'proposed')->update($set);
         if ($n === 0) return ['ok' => false, 'error' => 'Somebody else decided this a moment ago.'];
+        if ($verdict === 'approve' && $subject === 'member') {
+            $g = self::giveAccess($row, $role, $by);
+            if (!$g['ok']) {
+                // Nothing was given, so the decision is handed back rather than left
+                // reading "approved" over a person who holds nothing.
+                DB::table($t)->where('id', $id)->update(['status' => 'proposed', 'decided_kind' => null, 'decided_id' => null,
+                    'decided_name' => null, 'decided_at' => null, 'reason' => $row->reason, 'updated_at' => date('Y-m-d H:i:s')]);
+                return $g;
+            }
+            $ids = array_intersect_key($g, array_flip(['grant_id', 'invite_id']));
+            if ($ids !== []) DB::table($t)->where('id', $id)->update($ids);
+            $extra = !empty($g['granted']) ? ' They have it now.' : ' They are invited; it switches on when they sign in' . ($role->kind === 'volunteer' ? ' as an approved volunteer.' : ' with that address confirmed.');
+        }
         self::tellProposer($row, $subject, $word, $reason, $by);
         $msg = ['approved' => 'Approved.', 'changed' => 'Approved with your changes. The lead sees what you changed.', 'refused' => 'Refused. The lead sees your reason.'][$word];
         return ['ok' => true, 'event' => $eventId, 'verdict' => $word, 'msg' => $msg . $extra];

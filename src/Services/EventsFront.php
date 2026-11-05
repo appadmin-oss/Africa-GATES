@@ -395,10 +395,6 @@ final class EventsFront
         };
     }
 
-    /**
-     * A stored URL, re-validated on the way OUT: http(s) only, parsed, never trusted because
-     * it was checked when it was saved (CLAUDE.md, OrgBrand). '' when it is not a link.
-     */
     /** The longest map link kept. Far above any share link; a bound, not a format. */
     public const MAX_LINK = 2048;
 
@@ -436,6 +432,10 @@ final class EventsFront
         return ['url' => $ok, 'error' => ''];
     }
 
+    /**
+     * A stored URL, re-validated on the way OUT: http(s) only, parsed, never trusted because
+     * it was checked when it was saved (CLAUDE.md, OrgBrand). '' when it is not a link.
+     */
     public static function link(string $raw): string
     {
         $v = trim($raw);

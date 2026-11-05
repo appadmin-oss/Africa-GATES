@@ -367,7 +367,12 @@ class EventsController
         // A map link that cannot be kept does not cost the organiser the rest of the form:
         // the event saves without it and says why. Refusing the whole save would throw away
         // everything else typed with it.
-        if ($mapLink['error'] !== '') $_SESSION['flash_error'] = $mapLink['error'];
+        // On an edit the link already stored stays: a bad paste must not silently erase a map
+        // link that worked, while the flash says the new one was not kept.
+        if ($mapLink['error'] !== '') {
+            $_SESSION['flash_error'] = $mapLink['error'];
+            if ($id) unset($data['map_embed']);
+        }
         if ($id) {
             DB::table('gates_site_events')->where('id', $id)->update($data);
             $this->audit->record((int)$_SESSION['admin_id'], 'event.update', 'site_event', $id);

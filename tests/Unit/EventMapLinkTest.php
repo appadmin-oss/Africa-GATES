@@ -80,7 +80,7 @@ final class EventMapLinkTest extends TestCase
         $this->save($id, ['title' => 'Founders Night, again', 'map_embed' => 'javascript:alert(1)']);
         $row = DB::table('gates_site_events')->where('id', $id)->first();
         $this->assertSame('Founders Night, again', $row->title, 'everything else on the form was saved');
-        $this->assertNull($row->map_embed, 'the bad link was not');
+        $this->assertSame(self::PLACE, $row->map_embed, 'the bad link was not stored, and did not erase the link that worked');
         $this->assertStringContainsString('map link was not saved', (string) ($_SESSION['flash_error'] ?? ''));
     }
 
