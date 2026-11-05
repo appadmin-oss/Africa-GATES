@@ -3,7 +3,7 @@
 .ag-photo-upload__status{font:inherit;font-size:.875rem;overflow-wrap:anywhere;margin-block:.4rem}
 .ag-photo-upload__status:empty{display:none}
 .ag-photo-upload__preview{display:flex;flex-wrap:wrap;gap:.5rem}
-.ag-photo-upload__preview img{width:6rem;height:6rem;max-width:100%;object-fit:contain;border-radius:.5rem;background:var(--ag-bg,#fafbf8)}
+.ag-photo-upload__preview img{width:6rem;height:6rem;max-width:100%;object-fit:contain;border-radius:.5rem;background:var(--ag-ground)}
 .ag-photo-upload__clear{font:inherit;color:inherit;background:transparent;border:1px solid currentColor;border-radius:.5rem;min-height:44px;padding:.5rem .75rem;margin-top:.5rem;cursor:pointer}
 .ag-photo-upload__clear:focus-visible{outline:3px solid currentColor;outline-offset:3px}
 .ag-photo-upload__clear[hidden]{display:none}
@@ -32,7 +32,7 @@ input[type=file]{max-width:100%;min-width:0}
 .ag-portrait-editor .ag-photo-upload__clear{border:0;padding:0;min-height:44px;margin:0;text-decoration:underline;text-underline-offset:3px}
 .ag-portrait-editor [data-portrait-save]{margin-top:12px}
 .ag-portrait-editor [hidden]{display:none!important}
-.ag-portrait-editor__remove{margin-top:16px;border-top:1px solid var(--ag-line,#e4e3dc);padding-top:8px;font-size:.875rem}
+.ag-portrait-editor__remove{margin-top:16px;border-top:1px solid var(--ag-line);padding-top:8px;font-size:.875rem}
 .ag-portrait-editor__remove summary{cursor:pointer;min-height:44px;display:flex;align-items:center;text-decoration:underline;text-underline-offset:3px}
 .ag-portrait-editor__remove p{margin:0;line-height:1.5}
 .ag-portrait-editor__text-button{font:inherit;color:inherit;background:transparent;border:0;padding:8px 0;min-height:44px;text-decoration:underline;cursor:pointer}

@@ -379,8 +379,12 @@ by name, and an unknown name throws rather than painting a button blank.
 **The admin console has a second set in the same file** (owner, 4 Oct 2026): the admin
 handoff's monochrome palette (README §10) as `Accent::console()`, emitted as `--cn-*` by
 `ag_accents('console')` in the admin layout only — the two surfaces share no name. Its words
-are measured by `ConsolePaletteTest`; four the handoff draws under 4.5:1 are REPORTED in
-`Accent::consoleReported()`, never re-valued.
+are measured by `ConsolePaletteTest`, and every one clears 4.5:1 on every ground it is drawn
+on. The handoff drew `soft`, `faint`, `faint-2` and `slate` below that; they were REPORTED
+and left alone until the owner ruled (31 Oct, confirmed 5 Nov 2026) that the console must
+pass accessibility. They were re-valued to pass, `Accent::consoleReported()` is empty, and
+`AdminContrastTest` keeps the old greys from returning. A new console colour is measured
+like the rest: if it fails, darken it until it passes; do not add it to the reported list.
 
 Why PHP and not a stylesheet: the values the page receives and the values the tests measure
 must be the same values. A colour with two sources is decided by load order, which is how

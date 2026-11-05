@@ -22,7 +22,9 @@ final class AccountPhotoController
         } catch (\Illuminate\Database\QueryException $e) {
             $_SESSION['flash_error'] = 'Your photo could not be saved. Please try again or contact support.';
         } catch (\RuntimeException $e) {
-            $_SESSION['flash_error'] = 'Could not save your photo. ' . $e->getMessage();
+            // Our own refusals (too small, wrong type) read verbatim; anything from underneath
+            // becomes a next step and a reference (Support\PublicFault).
+            $_SESSION['flash_error'] = \AfricaGates\Support\PublicFault::line($e, 'Your photo could not be saved. Please choose another image or try again.', 'account photo');
         } catch (\Throwable $e) {
             $_SESSION['flash_error'] = 'This file could not be used as a photo. Please choose another image.';
         }
