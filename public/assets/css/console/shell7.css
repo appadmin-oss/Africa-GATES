@@ -372,6 +372,7 @@ textarea.sh7-input { height: auto; padding: 10px 12px; line-height: 1.5; }
 /* ── Find, Ask and the switcher (§2.4) ──────────────────────────────────────────── */
 .sh7-find { position: relative; flex: 0 1 300px; display: flex; align-items: center; }
 .sh7-find__q { width: 100%; height: 36px; padding-right: 44px; }
+.sh7-find__ico { display: none; }
 .sh7-find__kbd { position: absolute; right: 10px; font-family: var(--cn-mono); font-size: var(--cn-fs-12); color: var(--cn-soft); pointer-events: none; }
 .sh7-find__list { position: absolute; top: 42px; right: 0; width: min(420px, 90vw); z-index: 35; padding: 6px; background: var(--cn-surface);
   border: 1px solid var(--cn-line); border-radius: var(--cn-r-12); box-shadow: var(--cn-sh-menu); display: flex; flex-direction: column; gap: 2px; }
@@ -422,9 +423,37 @@ textarea.sh7-input { height: auto; padding: 10px 12px; line-height: 1.5; }
      free width and a 44px target (handoff rule 7, SKILL §14). */
   .sh7-find { flex: 1 1 0; min-width: 120px; }
   .sh7-find .sh7-find__q { height: 44px; }
-  /* The page's name keeps its own width (up to half the bar) and Find takes the rest: with
-     Find on `auto` it swallowed the bar and the name shrank to its first letter. */
-  .sh7-apptitle { flex: 0 1 auto; max-width: 50%; }
+  /* Find is an ICON on a phone and opens across the bar when touched (owner, 5 Nov 2026:
+     "this is not clean"). As a 200px box beside the title it cut every page's name to a
+     word ("Alimosho Honours…") to offer a search most visits never use. Pure CSS: the input
+     is still the input — 44px wide, its text and box hidden until it has focus or a query —
+     so a tap focuses it, the keyboard opens, and the title and back arrow step aside. */
+  .sh7-apptitle { flex: 1 1 auto; max-width: none; }
+  .sh7-find { flex: 0 0 44px; min-width: 0; }
+  .sh7-find__ico { display: grid; place-items: center; position: absolute; left: 0; top: 0; width: 44px; height: 44px; pointer-events: none; color: var(--cn-ink); }
+  .sh7-find .sh7-find__q { padding: 0 12px 0 40px; border-color: transparent; background: transparent; color: transparent; cursor: pointer; }
+  .sh7-find .sh7-find__q::placeholder { color: transparent; }
+  .sh7-find:focus-within, .sh7-find:has(.sh7-find__q:not(:placeholder-shown)) { flex: 1 1 auto; }
+  .sh7-find:focus-within .sh7-find__q, .sh7-find .sh7-find__q:not(:placeholder-shown) { color: var(--cn-ink); background: var(--cn-surface); border-color: var(--cn-line); cursor: text; }
+  .sh7-find:focus-within .sh7-find__q::placeholder { color: var(--cn-soft); }
+  .sh7-bar:has(.sh7-find:focus-within) .sh7-apptitle, .sh7-bar:has(.sh7-find:focus-within) .sh7-appback { display: none; }
+
+  /* The tabs get air above and a rule below, so the pills read as the page's own switch and
+     not as part of the bar they used to touch. */
+  .sh7-tabs { height: 56px; padding: 0 16px; border-bottom: 1px solid var(--cn-line-row); scroll-snap-type: x proximity; scroll-padding: 0 16px; }
+  .sh7-tab { scroll-snap-align: start; }
+
+  /* A form's group name is a quiet heading over its fields, not a second label: "What" in
+     the same weight above "What has to be done" read as two questions. */
+  .sh7-form__block { padding: 16px 0; gap: 6px; }
+  .sh7-form__name { font-size: var(--cn-fs-12-5); color: var(--cn-ink-3); }
+  .sh7-form__help { margin-top: 2px; }
+  textarea.sh7-input { min-height: 96px; }
+
+  /* Three figures share one row rather than wrapping two-and-one. */
+  .sh7-stats { grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
+  .sh7-stat { padding: 12px; }
+  .sh7-stat__v { font-size: var(--cn-fs-17); }
 }
 
 /* ── The application page (no shell: an applicant has nothing to navigate yet) ──── */

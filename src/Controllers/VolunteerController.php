@@ -461,6 +461,11 @@ final class VolunteerController
         $v = Volunteers::of((int) $user->id);
         // A break that has run out ends itself on the next read, like a grant does.
         if ($v && $v->status === 'paused' && $v->paused_until && strtotime((string) $v->paused_until) <= time()) { Volunteers::resume($v); $v = Volunteers::of((int) $user->id); }
+        // A role a lead offered this volunteer is theirs on the workspace's next page, not five
+        // minutes later: the workspace is where they go straight after the email says so.
+        if ($v && in_array($v->status, ['active', 'paused'], true)) {
+            try { \AfricaGates\Services\RoleInvites::claimFor((int) $user->id); $_SESSION['role_invites_at'] = time(); } catch (\Throwable) {}
+        }
         return [$user, $v];
     }
 

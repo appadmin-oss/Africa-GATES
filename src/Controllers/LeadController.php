@@ -57,6 +57,7 @@ final class LeadController
     {
         $me = $this->me();
         if ($me === null) return $res->withHeader('Location', '/account/login?next=' . LeadPages::BASE)->withStatus(303);
+        $this->claim($me);
         $page = (string) ($args['page'] ?? 'overview');
         if (!isset(LeadPages::ROOT[$page])) throw new HttpNotFoundException($req);
         $tabs = LeadPages::TABS[$page] ?? [];
@@ -103,6 +104,7 @@ final class LeadController
     {
         $me = $this->me();
         if ($me === null) return $res->withHeader('Location', '/account/login?next=' . LeadPages::BASE)->withStatus(303);
+        $this->claim($me);
         $id = (int) $args['id'];
         $e = Plan::ready() ? Plan::event($id) : null;
         // A lead, an owner, or somebody in one of the event's approved roles; anybody else, it does not exist here.
@@ -257,7 +259,7 @@ final class LeadController
                 if (!isset($roles[$cap])) return ['ok' => false, 'error' => 'Pick one of the night’s roles.'];
                 $r = \AfricaGates\Services\RoleInvites::offer((string) ($b['email'] ?? ''), $cap, $event, (string) ($b['until'] ?? ''), $by);
                 if (!$r['ok']) return $r;
-                return $r + ['event' => $event, 'msg' => (!empty($r['granted']) ? 'They were already an approved volunteer, so the role is theirs now.' : 'Invitation sent. It switches on once they are an approved volunteer.') . $mail($r)];
+                return $r + ['event' => $event, 'msg' => (!empty($r['granted']) ? 'They were already an approved volunteer, so the role is theirs now.' : 'Invitation sent. It is waiting ' . \AfricaGates\Services\RoleInvites::reason((string) ($b['email'] ?? ''), $cap) . ', and switches on by itself after that. It is listed below until then.') . $mail($r)];
             case 'vol_invite_cancel':
                 return \AfricaGates\Services\RoleInvites::cancel((int) ($b['invite'] ?? 0), $event)
                     ? ['ok' => true, 'event' => $event, 'msg' => 'Invitation withdrawn.'] : ['ok' => false, 'error' => 'That invitation had already been used or withdrawn.'];
@@ -357,6 +359,23 @@ final class LeadController
     }
 
     // ── plumbing ────────────────────────────────────────────────────────────────────────
+
+    /**
+     * A role offered to this person's address becomes theirs the moment they open the console,
+     * not up to five minutes later (UserAuthMiddleware's pace for every other page). This is
+     * the page somebody opens straight after being told "you lead this event"; making them
+     * wait, or refresh, on a page saying they lead nothing is how a lead concludes the
+     * invitation was broken (owner, 5 Nov 2026: "it says no event").
+     */
+    private function claim(array $me): void
+    {
+        try {
+            \AfricaGates\Services\RoleInvites::claimFor($me['id']);
+            $_SESSION['role_invites_at'] = time();
+        } catch (\Throwable) {
+            // Never the reason the console fails to open.
+        }
+    }
 
     /** @return ?array{id:int, name:string} the signed-in member, the lead's actor (Plan::ACTOR) */
     private function me(): ?array

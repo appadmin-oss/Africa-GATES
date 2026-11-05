@@ -128,6 +128,7 @@
         {# Find (§2.4, ⌘K). Without script it is a search that posts nowhere: a GET of the results page. #}
         <form class="sh7-find" role="search" method="get" action="{{ sh.find.action }}">
           <label class="sh7-sr" for="sh7FindQ">Find a page, an event or a piece of work</label>
+          <span class="sh7-find__ico" aria-hidden="true">{{ S.icon('search') }}</span>
           <input class="sh7-input sh7-find__q" id="sh7FindQ" type="search" name="q" value="{{ sh.find.q|default('') }}" placeholder="Find…" autocomplete="off"
                  role="combobox" aria-expanded="false" aria-controls="sh7FindList" aria-keyshortcuts="Meta+K Control+K">
           <span class="sh7-find__kbd" aria-hidden="true">⌘K</span>

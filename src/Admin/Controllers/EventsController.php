@@ -1347,7 +1347,7 @@ class EventsController
             $r = \AfricaGates\Services\EventPlan\Leads::giveOwner($id, (string) ($b['email'] ?? ''), (string) ($b['until'] ?? ''), $adminId, (string) ($_SESSION['admin_name'] ?? ''));
             if ($r['ok']) {
                 $mail = !empty($r['emailed']) ? ' We emailed them.' : ' The email could not be sent — tell them yourself; Settings › Mail says why.';
-                $_SESSION['flash_ok'] = (!empty($r['granted']) ? 'Done. They own this event now and decide what its leads propose.' : 'Invitation sent. It switches on when they sign in with that address confirmed.') . $mail;
+                $_SESSION['flash_ok'] = (!empty($r['granted']) ? 'Done. They own this event now and decide what its leads propose.' : 'Invitation sent. It is waiting ' . \AfricaGates\Services\RoleInvites::reason((string) ($b['email'] ?? ''), 'event.own') . ', then switches on by itself.') . $mail;
                 $this->audit->record($adminId, !empty($r['granted']) ? 'event.owner.give' : 'event.owner.invite', 'event', $id,
                     !empty($r['granted']) ? ['grant' => (int) ($r['id'] ?? 0)] : ['invite' => (int) ($r['id'] ?? 0)]);
             } else {
@@ -1386,7 +1386,8 @@ class EventsController
                 $mail = !empty($r['emailed']) ? ' We emailed them.' : ' The email could not be sent — tell them yourself; Settings › Mail says why.';
                 $_SESSION['flash_ok'] = !empty($r['granted'])
                     ? 'Done. They lead this event now, from Events I lead in their account.' . $mail
-                    : 'Invitation sent. It switches on by itself when they sign in with that address confirmed.' . $mail;
+                    : 'Invitation sent. It is waiting ' . \AfricaGates\Services\RoleInvites::reason((string) ($b['email'] ?? ''), 'event.lead')
+                      . ', then switches on by itself. Until then their Events I lead page names this event and what is left to do.' . $mail;
                 $this->audit->record($adminId, !empty($r['granted']) ? 'event.lead.give' : 'event.lead.invite', 'event', $id,
                     !empty($r['granted']) ? ['grant' => (int) ($r['id'] ?? 0)] : ['invite' => (int) ($r['id'] ?? 0)]);
             } else {

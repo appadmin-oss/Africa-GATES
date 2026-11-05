@@ -404,7 +404,7 @@ final class LeadConsoleTest extends TestCase
         $this->assertTrue(Grants::allows('member', $approved, 'vol.door', 'event', $ev), 'an approved volunteer holds it at once');
         // Somebody who is not a volunteer yet: invited, and it waits for the volunteer team's approval.
         $applicant = $this->member('Bola Ade');
-        $this->assertStringContainsString('once they are an approved volunteer', $this->post(['do' => 'vol_invite', 'event' => $ev, 'email' => $this->emailOf($applicant), 'capability' => 'vol.usher']));
+        $this->assertStringContainsString('waiting for them to apply to volunteer', $this->post(['do' => 'vol_invite', 'event' => $ev, 'email' => $this->emailOf($applicant), 'capability' => 'vol.usher']));
         $this->vol($applicant, 'applicant');
         \AfricaGates\Services\RoleInvites::claimFor($applicant);
         $this->assertFalse(Grants::allows('member', $applicant, 'vol.usher', 'event', $ev), 'an applicant is not yet a volunteer');
@@ -424,6 +424,43 @@ final class LeadConsoleTest extends TestCase
         $this->assertStringContainsString('Ended', $this->post(['do' => 'vol_end', 'event' => $ev, 'grant' => $mine]));
         $this->assertFalse(Grants::allows('member', $approved, 'vol.door', 'event', $ev));
         $this->assertGreaterThan(0, DB::table('gates_audit_log')->where('action', 'lead.vol_invite')->count(), 'every recruit is audited against the event');
+    }
+
+    /**
+     * Owner, 5 Nov 2026: "it does not show to the lead that they've been added (it says no
+     * event)". A lead's role waits for a confirmed address; somebody who signs in with a code
+     * texted to their phone never confirms one, and the console said they led nothing.
+     */
+    public function test_a_lead_whose_address_is_unconfirmed_is_shown_the_event_and_how_to_switch_it_on(): void
+    {
+        $ev = $this->event('Alimosho ceremony');
+        $u = $this->member('Ngozi Eze', 0);
+        $this->assertTrue(Leads::give($ev, $this->emailOf($u), '', 1, 'Femi Ade')['pending'] ?? false);
+        $this->as($u);
+        $html = $this->page('root');
+        $this->assertStringContainsString('Lead · Alimosho ceremony', $html, 'the event they were given is named');
+        $this->assertStringContainsString('confirm your email address', $html);
+        $this->assertStringContainsString('action="/account/verify/resend"', $html, 'with the one button that ends the wait');
+        $this->assertStringNotContainsString('You don’t lead an event yet', $html);
+        // Confirmed: it opens on the very next page, not five minutes later.
+        DB::table('gates_users')->where('id', $u)->update(['email_verified' => 1]);
+        $_SESSION['role_invites_at'] = time();
+        $this->assertStringContainsString('Your event', $this->page('root'));
+        $this->assertTrue(Plan::isLead($u, $ev));
+    }
+
+    /** An approved volunteer is vetted; an unconfirmed email must not hold their role for ever. */
+    public function test_an_approved_volunteer_gets_the_role_even_if_they_sign_in_by_phone(): void
+    {
+        $ev = $this->event();
+        $this->lead($ev);
+        $byPhone = $this->member('Emeka Obi', 0); $this->vol($byPhone);
+        $this->assertStringContainsString('role is theirs now', $this->post(['do' => 'vol_invite', 'event' => $ev, 'email' => $this->emailOf($byPhone), 'capability' => 'vol.usher']));
+        $this->assertTrue(Grants::allows('member', $byPhone, 'vol.usher', 'event', $ev));
+        // A lead still needs the confirmed address.
+        $other = $this->member('Ada Lead', 0);
+        $this->assertTrue(!empty(Leads::give($ev, $this->emailOf($other), '', 1)['pending']));
+        $this->assertFalse(Plan::isLead($other, $ev));
     }
 
     public function test_the_volunteers_page_offers_recruiting_by_email_and_never_lists_the_platforms_roster(): void

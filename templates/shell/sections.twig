@@ -35,7 +35,8 @@
   inbox: 'M22 12h-6l-2 3h-4l-2-3H2M5.5 5h13l3.5 7v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-6z',
   card: 'M3 6h18v12H3zM3 10h18M7 15h4',
   chart: 'M4 20V10M10 20V4M16 20v-7M22 20H2',
-  user: 'M20 21a8 8 0 1 0-16 0M12 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10z'
+  user: 'M20 21a8 8 0 1 0-16 0M12 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10z',
+  search: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4'
 } %}<svg class="sh7-ico" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path d="{{ P[name]|default(P.list) }}"/></svg>{% endmacro %}
 
 {# A row's or a header's action: a link, or a one-button form that posts. #}
@@ -47,7 +48,7 @@
 {% macro action(a, here, quiet, act, ctx) %}
   {% set _ctx = ctx|default('') %}
   {% if a.post is defined %}
-    <form class="sh7-inline" method="post" action="{{ act ?: '/volunteer/act' }}">
+    <form class="sh7-inline" method="post" action="{{ a.action|default(act ?: '/volunteer/act') }}">
       <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="back" value="{{ here }}">
       {% for k, v in a.post %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
       <button class="sh7-btn{{ a.primary|default(false) ? ' sh7-btn--primary' }}{{ a.danger|default(false) ? ' sh7-btn--danger' }}{{ quiet ? ' sh7-btn--sm' }}" type="submit"{% if a.confirm is defined %} data-sh7-confirm="{{ a.confirm }}"{% endif %}>{{ a.label }}{% if _ctx %}<span class="sh7-sr">, {{ _ctx }}</span>{% endif %}</button>
