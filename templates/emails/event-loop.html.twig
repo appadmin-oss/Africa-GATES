@@ -1,0 +1,31 @@
+{#- The event team's loop by email · Events.
+    Sender: EventPlan\Rules — 'digest' (the daily summary to each lead) and 'nudge' (a private
+    reminder to whoever owns work due soon with nothing heard).
+    Variables: first_name, place (the event's title), kind ('digest' | 'nudge'),
+      items   list of [title, why] — digest: the decisions waiting (at most three); nudge: the work
+      goals   list of [title, words] — digest only: each goal against plan
+      action_url, action_label.
+    Only what the code does: a digest lists at most three decisions (plan rule 12); a nudge goes
+    to the work's owner alone, never to the team (plan: "private nudges, never a public ranking"). -#}
+{% extends 'emails/_layout.html.twig' %}
+{% block category %}Events{% endblock %}
+{% block hero %}illo-shield{% endblock %}
+{% block transactional %}1{% endblock %}
+{% block why %}{{ kind == 'digest' ? 'You lead an Africa GATES event, and its daily summary is switched on.' : 'Work at an Africa GATES event is yours and due soon.' }}{% endblock %}
+{% block subject %}{{ kind == 'digest' ? place ~ ': ' ~ (items|length ? items|length ~ ' to decide today' : 'nothing to decide today') : 'Due soon at ' ~ place }}{% endblock %}
+{% block preheader %}{{ kind == 'digest' ? 'The day’s decisions and where each goal stands.' : 'A private reminder: only you get this.' }}{% endblock %}
+{% block body %}
+{%- import 'emails/_blocks.html.twig' as b -%}
+{{ b.eyebrow(place) }}
+{% if kind == 'digest' %}
+{{ b.h1('Today, ' ~ first_name) }}
+{% if items|length %}{{ b.p('What needs you, most urgent first:') }}{{ b.facts(items) }}{% else %}{{ b.p('Nothing is waiting for a decision.') }}{% endif %}
+{% if goals|length %}{{ b.h2('Goals against plan') }}{{ b.facts(goals) }}{% endif %}
+{% else %}
+{{ b.h1('Due soon, ' ~ first_name) }}
+{{ b.p('This is yours and nothing has been heard about it lately. A one-tap report is enough — on track, at risk or blocked.') }}
+{{ b.facts(items) }}
+{% endif %}
+{{ b.button(action_label, action_url) }}
+{{ b.note(kind == 'digest' ? 'Sent once a day while the digest rule is on. A lead switches it off under Rules.' : 'Only you get this reminder. Nobody else is told.') }}
+{% endblock %}
