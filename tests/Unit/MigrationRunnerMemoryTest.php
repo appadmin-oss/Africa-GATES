@@ -28,9 +28,13 @@ final class MigrationRunnerMemoryTest extends TestCase
         MigrationRunner::raiseMemoryTo(512 * 1024 * 1024);
         $this->assertSame('2G', ini_get('memory_limit'), 'a larger limit was lowered');
 
-        ini_set('memory_limit', '256M');
-        MigrationRunner::raiseMemoryTo(512 * 1024 * 1024);
-        $this->assertSame(512 * 1024 * 1024, MigrationRunner::bytes((string) ini_get('memory_limit')));
+        // PHP refuses a limit below what the process already uses, and late in the suite
+        // that is several hundred MB — so "low" and the target are relative to now.
+        $low  = memory_get_usage(true) + 32 * 1024 * 1024;
+        $want = $low + 64 * 1024 * 1024;
+        $this->assertNotFalse(ini_set('memory_limit', (string) $low));
+        MigrationRunner::raiseMemoryTo($want);
+        $this->assertSame($want, MigrationRunner::bytes((string) ini_get('memory_limit')));
     }
 
     public function test_run_leaves_an_unlimited_process_unlimited(): void
