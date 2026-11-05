@@ -134,40 +134,27 @@ final class ThirdParties
         ],
         [
             'id' => 'fonts', 'name' => 'Google Fonts',
-            'for' => 'Supplying the easy-read typeface (Atkinson Hyperlegible), and the type on the judges’ console and the event-door scanner.',
-            'gets' => 'Your IP address and browser details, as any font host does.',
-            'when' => 'On the public site, only after you switch on “Easy-read font” in Display & reading. Every other public page uses fonts served from our own files.',
+            'for' => 'Supplying the type on the judges’ console and the event-door scanner.',
+            'gets' => 'The IP address and browser details of a judge or a door steward, as any font host receives.',
+            'when' => 'Only on those two staff screens. Every public page, the easy-read font included, uses fonts served from our own files.',
             'probes' => [],
             'hosts' => ['https://fonts.googleapis.com', 'https://fonts.gstatic.com'],
-        ],
-        [
-            'id' => 'judge-scripts', 'name' => 'unpkg',
-            'for' => 'Serving a script library to the judges’ console.',
-            'gets' => 'The IP address of a judge’s browser.',
-            'when' => 'Only on the judges’ console.',
-            'probes' => [],
-            'hosts' => ['https://unpkg.com'],
         ],
     ];
 
     /**
-     * Origins the browser policy ALLOWS that nothing on the site uses today. Kept in the policy
-     * by an earlier decision (an operator-entered embed, an ad slot that never shipped) and
-     * reported rather than silently removed, because tightening a policy the host serves from
-     * a static copy (public/.htaccess) is a change of its own. `ThirdPartiesTest` fails the day
-     * any of them is referenced, so this cannot become an exemption for a live service.
+     * Origins the browser policy ALLOWS that nothing on the site uses YET. The other unused
+     * ones (jQuery's CDN, unpkg, Spline, Vidzflow, Plyr's CDN) were removed from the policy
+     * on 5 Nov 2026; these stay because the owner is placing AdSense. `ThirdPartiesTest`
+     * fails the day any of them is referenced — which is the day the ad tag ships — so the
+     * declaration of Google AdSense has to be written then, not remembered.
      *
      * @var array<string,string> origin => why it is in the policy
      */
     public const ALLOWED_UNUSED = [
-        'https://code.jquery.com'                => 'no page loads jQuery any more',
-        'https://pagead2.googlesyndication.com'  => 'Google ads were allowed for and never placed; ads here are our own',
+        'https://pagead2.googlesyndication.com'  => 'Google AdSense, kept for the ad placements being built (owner, 5 Nov 2026)',
         'https://googleads.g.doubleclick.net'    => 'as above',
         'https://tpc.googlesyndication.com'      => 'as above',
-        'https://my.spline.design'               => 'a 3D scene embed nothing renders today',
-        'https://prod.spline.design'             => 'as above',
-        'https://r2.vidzflow.com'                => 'a video host nothing plays from today',
-        'https://cdn.plyr.io'                    => 'the video player is served from our own files',
     ];
 
     /** @return list<array<string,mixed>> */

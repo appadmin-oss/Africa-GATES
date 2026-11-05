@@ -79,11 +79,13 @@ final class Csp
      * generated itself (a `+esm` transform, and an on-the-fly minification of a file the
      * package does not even ship), which no SRI hash could have pinned.
      *
-     * `unpkg` stays for Leaflet, which is still remote — but pinned with integrity.
+     * `unpkg` and `code.jquery.com` went on 5 Nov 2026 for the same reason: Leaflet is no
+     * longer loaded from unpkg, no page loads jQuery, and the one script left naming unpkg
+     * was a Spline loader no template could trigger (deleted with them). The Google ads
+     * hosts STAY: the owner is placing AdSense (5 Nov 2026), and ThirdParties lists them as
+     * allowed-not-yet-used until a page loads the tag, when they must be declared.
      */
-    public const SCRIPT_HOSTS = 'https://unpkg.com '
-        . 'https://code.jquery.com '
-        . 'https://challenges.cloudflare.com '
+    public const SCRIPT_HOSTS = 'https://challenges.cloudflare.com '
         . 'https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net '
         . 'https://tpc.googlesyndication.com '
         . self::GA_SCRIPT_HOSTS;
@@ -101,7 +103,7 @@ final class Csp
     public const GA_SCRIPT_HOSTS  = 'https://www.googletagmanager.com';
     public const GA_CONNECT_HOSTS = 'https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com';
 
-    public const STYLE_HOSTS = 'https://unpkg.com https://fonts.googleapis.com';
+    public const STYLE_HOSTS = 'https://fonts.googleapis.com';
 
     public const FONT_HOSTS = 'https://fonts.gstatic.com https://fonts.googleapis.com';
 
@@ -122,22 +124,16 @@ final class Csp
      * fetch target from our own code.
      */
     public const CONNECT_HOSTS = 'https://challenges.cloudflare.com ' . self::PAY_HOSTS
-        . ' https://unpkg.com ' . self::GA_CONNECT_HOSTS;
+        . ' ' . self::GA_CONNECT_HOSTS;
 
     /**
-     * `cdn.plyr.io` stays HERE and only here.
-     *
-     * Plyr's bundled default is `blankVideo: 'https://cdn.plyr.io/static/blank.mp4'` — a
-     * one-frame file it loads as a source-swap workaround on iOS and for YouTube embeds.
-     * Vendoring the library did not change that default, so the host is still a genuine
-     * media dependency and dropping it here would break playback in exactly the cases the
-     * workaround exists for.
-     *
-     * It is out of `script-src`, `style-src` and `connect-src`, which is the part that
-     * matters: nothing from that origin can execute or receive data any more. A media
-     * response is decoded by the browser's media pipeline, not run as code.
+     * Outside origins audio and video may load from. NONE since 5 Nov 2026: `cdn.plyr.io`
+     * was kept for Plyr's blank-video default, and no page loads Plyr any more (its files
+     * are vendored and unlinked); `r2.vidzflow.com` served nothing. Every clip this site
+     * plays is ours, or a blob: the read-aloud makes. Add an origin here, in .htaccess and
+     * in ThirdParties together, or a new host plays in no browser.
      */
-    public const MEDIA_HOSTS = 'https://r2.vidzflow.com https://cdn.plyr.io';
+    public const MEDIA_HOSTS = '';
 
     /**
      * The image CDN's delivery hosts.
@@ -188,7 +184,6 @@ final class Csp
     public const FRAME_HOSTS = 'https://challenges.cloudflare.com '
         . 'https://www.youtube.com https://www.youtube-nocookie.com '
         . 'https://player.vimeo.com '
-        . 'https://my.spline.design https://prod.spline.design '
         . 'https://googleads.g.doubleclick.net https://tpc.googlesyndication.com '
         . 'https://www.google.com ' . self::PAY_HOSTS . ' ' . self::CDN_HOSTS;
 
@@ -238,7 +233,7 @@ final class Csp
             // indistinguishable from the endpoint having failed. A blob can only be
             // minted by a script this same policy already governs, so allowing the scheme
             // grants nothing a page could not already fetch.
-            . "media-src 'self' blob: " . self::MEDIA_HOSTS . '; '
+            . "media-src 'self' blob:" . (self::MEDIA_HOSTS !== '' ? ' ' . self::MEDIA_HOSTS : '') . '; '
             // ── 'self' IS NOT DECORATION HERE ────────────────────────────────
             //
             // The admin console previews an uploaded document by pointing an iframe at
@@ -318,7 +313,7 @@ final class Csp
             // indistinguishable from the endpoint having failed. A blob can only be
             // minted by a script this same policy already governs, so allowing the scheme
             // grants nothing a page could not already fetch.
-            . "media-src 'self' blob: " . self::MEDIA_HOSTS . '; '
+            . "media-src 'self' blob:" . (self::MEDIA_HOSTS !== '' ? ' ' . self::MEDIA_HOSTS : '') . '; '
             // ── 'self' IS NOT DECORATION HERE ────────────────────────────────
             //
             // The admin console previews an uploaded document by pointing an iframe at

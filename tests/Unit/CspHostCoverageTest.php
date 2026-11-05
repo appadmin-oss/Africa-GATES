@@ -44,10 +44,9 @@ class CspHostCoverageTest extends TestCase
      * imagination — these are the URLs a visitor's browser actually asked for.
      */
     private const REFUSED_IN_PRODUCTION = [
-        ['https://code.jquery.com/jquery-3.7.1.slim.min.js', 'script-src'],
-        ['https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', 'script-src'],
         ['https://challenges.cloudflare.com/turnstile/v0/api.js', 'script-src'],
-        ['https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', 'style-src-elem'],
+        // jQuery and Leaflet from this incident moved to RETIRED_SINCE on 5 Nov 2026:
+        // nothing loads either any more, and unpkg and code.jquery.com left the policy.
     ];
 
     /**
@@ -76,6 +75,10 @@ class CspHostCoverageTest extends TestCase
         ['https://unpkg.com/swiper@8/swiper-bundle.min.css', 'style-src-elem'],
         ['https://cdn.jsdelivr.net/npm/@splidejs/splide@4.1.4/dist/css/splide.min.css', 'style-src-elem'],
         ['https://cdn.plyr.io/3.7.8/plyr.css', 'style-src-elem'],
+        // From the ballot-page incident itself, retired 5 Nov 2026 with their hosts.
+        ['https://code.jquery.com/jquery-3.7.1.slim.min.js', 'script-src'],
+        ['https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', 'script-src'],
+        ['https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', 'style-src-elem'],
     ];
 
     /** Directive value as a list of sources, following CSP's fallback chain. */
@@ -129,8 +132,8 @@ class CspHostCoverageTest extends TestCase
         $back = [];
         foreach (self::RETIRED_SINCE as [$url, $directive]) {
             $host = (string) parse_url($url, PHP_URL_HOST);
-            // unpkg is still used by Leaflet, so a host-level check would false-positive.
-            // Compare the whole URL's presence in the templates instead.
+            // Compared by the whole URL's presence in the templates, so a host shared by a
+            // retired and a live resource cannot false-positive.
             if (in_array($host, $referenced, true) && $this->templatesMention($url)) {
                 $back[] = $url;
             }

@@ -250,7 +250,15 @@ final class DisplayReadingTest extends TestCase
         // and by the store when the switch is turned on later — from one address, the one
         // the layout declares.
         $shell = (string) file_get_contents(self::ROOT . 'templates/layout/shell.twig');
-        $this->assertMatchesRegularExpression('~data-ag-easy-font="https://fonts\.googleapis\.com/css2\?family=Atkinson\+Hyperlegible~', $shell);
+        // Served from here (fonts-easy.css), not Google Fonts: switching on an accessibility
+        // setting must not send the reader's address to a third party.
+        $this->assertStringContainsString("data-ag-easy-font=\"{{ asset('/assets/css/fonts-easy.css') }}\"", $shell);
+        $this->assertStringNotContainsString('fonts.googleapis.com', $shell);
+        $css = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/css/fonts-easy.css');
+        preg_match_all("~url\('(/assets/fonts/[^']+)'\)~", $css, $files);
+        $this->assertCount(6, $files[1], 'regular, italic and bold, latin and latin-ext');
+        foreach ($files[1] as $f) $this->assertFileExists(dirname(__DIR__, 2) . '/public' . $f);
+        $this->assertStringContainsString("font-family:'Atkinson Hyperlegible'", $css);
 
         $head = (string) file_get_contents(self::ROOT . 'templates/partials/a11y-head.twig');
         $this->assertMatchesRegularExpression("~if\(s\.easy&&f\)\{var l=document\.createElement\('link'\)~", $head);
