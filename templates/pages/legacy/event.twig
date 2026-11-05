@@ -27,7 +27,7 @@
 {% set _name = e.award ~ (e.edition ? ' · ' ~ e.edition : '') %}
 {% set _cover = e.cover ? e.cover|media_url : '' %}
 
-{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/legacy.css') }}">{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/legacy.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/legacy-winner.css') }}">{% endblock %}
 
 {% block app_bar %}{% endblock %}
 
@@ -145,4 +145,4 @@
 </div>
 {% endblock %}
 
-{% block foot_scripts %}<script defer src="{{ asset('/assets/js/legacy.js') }}"></script>{% endblock %}
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/legacy.js') }}" data-nav="rerun"></script>{% endblock %}

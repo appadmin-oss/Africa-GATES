@@ -98,6 +98,8 @@ abstract class TestCase extends BaseTestCase
         // "1st Edition · 2019" — every one of them green on its own, which is what makes
         // this family of fault expensive to place.
         \AfricaGates\Services\PublicResults::forget();
+        // Today's ad prices and measurements are memoised per process (AdMarket).
+        \AfricaGates\Services\Ads\AdMarket::forget();
     }
 
     /**

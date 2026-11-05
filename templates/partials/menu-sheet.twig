@@ -72,9 +72,9 @@
 {% set _m = menu_shortcuts() %}
 {% set _chev %}<span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>{% endset %}
 
-<div class="ag-scrim ag-menu-scrim" data-ag-menu-scrim></div>
+<div class="ag-scrim ag-menu-scrim" data-ag-menu-scrim data-nav-keep="menu-scrim"></div>
 
-<div class="ag-sheet ag-menu" id="ag-menu" data-ag-menu-sheet role="dialog" aria-modal="true"
+<div class="ag-sheet ag-menu" id="ag-menu" data-ag-menu-sheet data-nav-keep="menu" role="dialog" aria-modal="true"
      aria-labelledby="ag-menu-title" inert
      data-ag-menu-who="{{ is_member ? 'member' : 'guest' }}"
      data-ag-menu-params="{{ _m.params|json_encode }}"

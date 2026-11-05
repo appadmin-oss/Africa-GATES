@@ -138,5 +138,5 @@
 {% endblock %}
 
 {% block foot_scripts %}
-  {% if minted and reference %}<script defer src="{{ asset('/assets/js/receipt.js') }}"></script>{% endif %}
+  {% if minted and reference %}<script defer src="{{ asset('/assets/js/receipt.js') }}" data-nav="rerun"></script>{% endif %}
 {% endblock %}

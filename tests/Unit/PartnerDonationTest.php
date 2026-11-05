@@ -61,8 +61,10 @@ class PartnerDonationTest extends TestCase
         $this->pendingDonation('AFG-GIVE-aaaa1111', $id);
 
         $this->assertSame($id, PaymentDestination::partnerOrgIdForReference('AFG-GIVE-aaaa1111'));
+        // The organisation bears the gateway's fee, as on every giving platform (owner,
+        // 3 Nov 2026); with no bearer Paystack charged it to the platform's account.
         $this->assertSame(
-            ['subaccount' => 'ACCT_partner01'],
+            ['subaccount' => 'ACCT_partner01', 'bearer' => 'subaccount'],
             PaymentDestination::initFieldsForPartner($id)
         );
     }

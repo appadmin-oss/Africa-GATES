@@ -53,7 +53,7 @@
       {% for sl in hero_slides %}
         <div class="hm-slide{{ loop.first ? ' is-on' }}" data-hm-slide role="group" aria-label="{{ 'Slide %n% of %total%'|trans({'%n%': loop.index, '%total%': hero_slides|length}) }}"{% if not loop.first %} aria-hidden="true" hidden{% endif %}>
           <div class="hm-slide__img">
-            {% include 'partials/selected-image.twig' with {image: sl.image, class: 'hm-slide__photo', sizes: '(min-width: 1024px) 560px, 100vw', eager: loop.first} only %}
+            {% include 'partials/selected-image.twig' with {image: sl.image, class: 'hm-slide__photo', sizes: '(min-width: 1024px) 560px, 100vw', eager: loop.first, deferred: not loop.first} only %}
           </div>
         </div>
       {% endfor %}
@@ -261,6 +261,6 @@
 {% endblock %}
 
 {% block foot_scripts %}
-  <script defer src="{{ asset('/assets/js/we-are-africa.js') }}"></script>
-  <script defer src="{{ asset('/assets/js/home.js') }}"></script>
+  <script defer src="{{ asset('/assets/js/we-are-africa.js') }}" data-nav="rerun"></script>
+  <script defer src="{{ asset('/assets/js/home.js') }}" data-nav="rerun"></script>
 {% endblock %}

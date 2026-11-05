@@ -1,0 +1,11 @@
+/* A campaign's and an ad's delivery state, as a word and a small mark (Ads Manager:
+   /account/ads and one campaign). Its own sheet because components/ads.css is also linked by
+   the public Ad Library (/advertise/library), which draws no state and is a tier-1 page:
+   ColourBudgetTest charges a page every family in the sheets it links, so leaving the green
+   and the error marks there charged the library for colour only the manager spends. The
+   word carries the state; the mark is never the only signal. */
+.am-state{ display:inline-flex; align-items:center; gap:6px; font-size:var(--ag-fs-13); font-weight:600; color:var(--ag-soft) }
+.am-state i{ width:8px; height:8px; border-radius:50%; background:var(--ag-line-2) }
+.am-state--active{ color:var(--ag-green-deep) } .am-state--active i{ background:var(--ag-green) }
+.am-state--not_approved{ color:var(--ag-error) } .am-state--not_approved i{ background:var(--ag-error) }
+.am-state--in_review i, .am-state--scheduled i{ background:var(--ag-soft) }

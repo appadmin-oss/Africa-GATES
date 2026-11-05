@@ -176,7 +176,9 @@ final class ShopOrderService
                     'shop_order',
                     (int) $order->id,
                     (string) ($order->referral_code ?? ''),
-                    (int) $order->subtotal_naira,
+                    // Goods only: `subtotal_naira` is goods − discount + DELIVERY, and commission on
+                    // the courier's fee paid a referrer 10% of a cost the platform passes on.
+                    max(0, (int) $order->subtotal_naira - (int) ($order->shipping_naira ?? 0)),
                     null,
                     // A shop order has no account column, so the buyer is the address on
                     // it. Without this the shop paid commission on a member's own link.

@@ -233,6 +233,12 @@ final class ChallengeAdmin
 
         if ((int) $c->target < 1) $out[] = 'The target has to be at least 1.';
 
+        // `top` qualifies people and nothing ever ranks them: no code orders a top race at
+        // its close, so a published one would take entries and could never produce a winner.
+        if ((string) $c->mode === E::MODE_TOP) {
+            $out[] = 'A "top" challenge cannot be published yet — nothing ranks the entries when it '
+                . 'closes, so it would never have a winner. Use first-to-finish or a draw.';
+        }
         if ((string) $c->mode === E::MODE_DRAW) {
             if ((int) ($c->draw_count ?? 0) < 1) $out[] = 'A draw needs a number of winners.';
         } elseif ((int) ($c->cap ?? 0) < 1) {

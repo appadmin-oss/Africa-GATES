@@ -59,6 +59,7 @@
   });
   window.addEventListener('resize', function () { updates.forEach(function (update) { update(); }); });
   load(document);
+  document.addEventListener('ag:load', function (event) { load(event.detail && event.detail.root || document); });
   document.addEventListener('cn:load', function (event) { load(event.detail && event.detail.root || document); });
   document.addEventListener('cn:unload', function () {
     observers.forEach(function (observer) { observer.disconnect(); });

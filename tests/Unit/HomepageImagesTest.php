@@ -27,11 +27,11 @@ final class HomepageImagesTest extends TestCase
         $this->assertCount(1, $plan['hero_slides']);
         $this->assertFalse($plan['hero_slides'][0]['real']);
         foreach ($plan['honour'] as $tile) {
-            $expected = $tile['image']['kind'] === 'photo' ? $tile['key'] : ImageCatalog::PEOPLE[$tile['key']][3];
+            $expected = $tile['image']['kind'] === 'utility' ? ImageCatalog::PEOPLE[$tile['key']][3] : $tile['key'];
             $this->assertSame($expected, $tile['image']['key'], 'a category must not borrow an unrelated photograph');
         }
         foreach (array_merge($plan['topics'], $plan['audiences']) as $card) {
-            $this->assertSame('utility', $card['image']['kind']);
+            $this->assertSame('cover', $card['image']['kind']);
             $this->assertSame('', $card['image']['alt'], 'adjacent text describes these decorative utility images');
         }
     }
@@ -80,7 +80,7 @@ final class HomepageImagesTest extends TestCase
         $records[1]['photo'] = $records[0]['photo'];
         $duplicate = $service->build($records, '2026-10-31');
         $this->assertSame('Recipient 1', $duplicate['hero_slides'][1]['name']);
-        $this->assertSame('utility', $duplicate['hero_slides'][1]['image']['kind']);
+        $this->assertSame('cover', $duplicate['hero_slides'][1]['image']['kind']);
         $this->assertSame('/results/record-1', $duplicate['hero_slides'][1]['url']);
     }
 
@@ -96,35 +96,29 @@ final class HomepageImagesTest extends TestCase
         $this->assertCount(6, $plan['honour']);
     }
 
-    public function test_generated_utility_art_has_responsive_raster_sources(): void
+    public function test_rejected_utility_art_is_not_selected(): void
     {
-        $image = (new ImageCatalog())->utility('teacher-book');
-        $this->assertNotNull($image);
-        $this->assertSame('utility:teacher-book', $image['id']);
-        $this->assertStringEndsWith('-512.webp', $image['src']);
-        $this->assertSame(512, $image['width']);
-        $this->assertSame(512, $image['height']);
-        foreach ([256, 512, 960] as $width) {
-            $this->assertStringContainsString('teacher-book-' . $width . '.webp ' . $width . 'w', $image['srcset']);
+        $this->assertNull((new ImageCatalog())->utility('teacher-book'));
+        foreach ($this->images((new HomepageImages(new ImageCatalog()))->build([])) as $image) {
+            $this->assertNotSame('utility', $image['kind']);
         }
-        $this->assertSame('', $image['alt']);
     }
 
     public function test_a_missing_raster_resolution_does_not_create_a_broken_candidate(): void
     {
         $root = sys_get_temp_dir() . '/afg-raster-' . bin2hex(random_bytes(5));
-        $directory = $root . '/assets/img/utility';
+        $directory = $root . '/assets/img/honour';
         mkdir($directory, 0700, true);
-        $filename = $directory . '/teacher-book-256.webp';
-        copy(dirname(__DIR__, 2) . '/public/assets/img/utility/teacher-book-256.webp', $filename);
+        $filename = $directory . '/teacher-480.webp';
+        copy(dirname(__DIR__, 2) . '/public/assets/img/honour/teacher-480.webp', $filename);
         try {
-            $image = (new ImageCatalog($root))->utility('teacher-book');
+            $image = (new ImageCatalog($root))->photo('teacher');
             $this->assertNotNull($image);
-            $this->assertSame('/assets/img/utility/teacher-book-256.webp', $image['src']);
-            $this->assertSame('/assets/img/utility/teacher-book-256.webp 256w', $image['srcset']);
-            $this->assertSame(256, $image['width']);
+            $this->assertSame('/assets/img/honour/teacher-480.webp', $image['src']);
+            $this->assertSame(\AfricaGates\Support\Assets::url('/assets/img/honour/teacher-480.webp') . ' 480w', $image['srcset']);
+            $this->assertSame(480, $image['width']);
             unlink($filename);
-            $this->assertNull((new ImageCatalog($root))->utility('teacher-book'));
+            $this->assertNull((new ImageCatalog($root))->photo('teacher'));
         } finally {
             if (is_file($filename)) unlink($filename);
             rmdir($directory);

@@ -22,15 +22,38 @@
 {% block content %}
 <div class="fl">
   <header class="fl-head">
-    <h1 class="vs-h1">{{ 'A flier for %n%'|trans({'%n%': f.name}) }}</h1>
-    <p class="vs-p">{{ 'Ready for WhatsApp, Instagram or a group chat, with %n%’s real standing.'|trans({'%n%': f.name}) }}</p>
+    <h1 class="vs-h1">{{ 'Share kit for %n%'|trans({'%n%': f.name}) }}</h1>
+    <p class="vs-p">{{ 'Pick a size and a style, download, and post it where your people already are. Every nominee gets the same kit.'|trans }}</p>
   </header>
   <div class="fl-grid">
     <figure class="fl-fig">
-      <img class="fl-img" src="{{ png_url }}" width="1080" height="1350" alt="{{ 'Flier for %n% in %c%. %h%. %r% Vote at %u%.'|trans({'%n%': f.name, '%c%': f.category, '%h%': f.headline, '%r%': f.rally, '%u%': f.short_url}) }}">
-      <figcaption class="vs-fine">{{ '1080 × 1350 — the largest crop Instagram and WhatsApp both keep.'|trans }}</figcaption>
+      <img class="fl-img fl-img--{{ card.format }}" src="{{ png_url }}" width="{{ card.W }}" height="{{ card.H }}" alt="{{ 'Share card for %n% in %c%. %h%. Vote at %u%.'|trans({'%n%': f.name, '%c%': f.category, '%h%': f.headline, '%u%': f.short_url}) }}">
+      <figcaption class="vs-fine">{{ '%w% × %h%'|trans({'%w%': card.W, '%h%': card.H}) }}</figcaption>
     </figure>
     <div class="fl-side">
+      {# The nominee's choices. Each is a plain link to this page with one parameter
+         changed, so the kit works with JavaScript off and every preview is the real PNG. #}
+      <nav class="fl-pick" aria-label="{{ 'Card options'|trans }}">
+        <p class="fl-pick__k" id="fl-pick-size">{{ 'Size'|trans }}</p>
+        <ul class="fl-pick__sizes" aria-labelledby="fl-pick-size">
+          {% for c in choices.size %}<li><a class="fl-pick__size" href="{{ c.href }}"{% if c.on %} aria-current="true"{% endif %}><span class="fl-pick__l">{{ c.label|trans }}</span><span class="fl-pick__h">{{ c.hint|trans }}</span></a></li>{% endfor %}
+        </ul>
+        <p class="fl-pick__k" id="fl-pick-style">{{ 'Style'|trans }}</p>
+        <ul class="fl-pick__row" aria-labelledby="fl-pick-style">
+          {% for c in choices.style %}<li><a class="fl-pick__chip" href="{{ c.href }}"{% if c.on %} aria-current="true"{% endif %}>{{ c.label|trans }}</a></li>{% endfor %}
+        </ul>
+        {# Its own row: in one row with the style, "Photo" and "Bold" read as two answers to
+           one question (docs/SHARE-KIT.md names it Ground). #}
+        <p class="fl-pick__k" id="fl-pick-mode">{{ 'Ground'|trans }}</p>
+        <ul class="fl-pick__row" aria-labelledby="fl-pick-mode">
+          {% for c in choices.mode %}<li><a class="fl-pick__chip" href="{{ c.href }}"{% if c.on %} aria-current="true"{% endif %}>{{ c.label|trans }}</a></li>{% endfor %}
+        </ul>
+        <p class="fl-pick__k" id="fl-pick-tone">{{ 'Colour'|trans }}</p>
+        <ul class="fl-pick__row" aria-labelledby="fl-pick-tone">
+          {% for c in choices.tone %}<li><a class="fl-pick__sw fl-pick__sw--{{ c.value }}" href="{{ c.href }}"{% if c.on %} aria-current="true"{% endif %}><span class="ag-sr">{{ c.label|trans }}{% if c.value == default_tone %} {{ '(your award’s colour)'|trans }}{% endif %}</span></a></li>{% endfor %}
+        </ul>
+        {% if card.statement %}<p class="vs-fine">{{ 'The Statement style shows the line from your nominee profile.'|trans }}</p>{% endif %}
+      </nav>
       <div class="fl-stat">
         <p class="fl-stat__h">{{ f.headline }}</p>
         {% if f.standing.field >= 2 %}
@@ -83,4 +106,4 @@
 </div>
 {% endblock %}
 
-{% block foot_scripts %}<script defer src="{{ asset('/assets/js/vote.js') }}"></script>{% endblock %}
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/vote.js') }}" data-nav="rerun"></script>{% endblock %}

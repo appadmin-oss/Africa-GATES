@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\Accent;
 use AfricaGates\Support\Contrast;
 
 use Illuminate\Database\Capsule\Manager as DB;
@@ -41,24 +42,31 @@ use Illuminate\Database\Capsule\Manager as DB;
  * where they could remove the credit is one where the platform funding it disappears from
  * the only place it is ever mentioned. {@see GATES_CREDIT}.
  *
- * ── AND THE ACCENT IS VALIDATED, NOT JUST STORED ─────────────────────────────
+ * ── ANY ACCENT IS ACCEPTED, AND THE PAGE STAYS READABLE ───────────────────────
  *
- * {@see contrast()} refuses an accent that cannot be read against white. This is the one
- * place a taste question becomes a correctness question: the accent is the colour of the
- * donate button's label and of every link on the page, so #f2f2c0 is not a bold choice, it
- * is a button whose text has vanished. WCAG 2.2 AA wants 4.5:1 for body text and the same
- * ratio governs white-on-accent, so one check covers both uses.
+ * An organisation's colour is their identity, and the one they have is the one they have:
+ * a children's charity in sunflower yellow does not have a "darker version" of its brand.
+ * This class used to REFUSE any accent under 4.5:1 on white, which answered a taste
+ * question with a correctness rule the platform can satisfy itself. So the choice is kept
+ * exactly as picked, and {@see css()} splits it into roles:
  *
- * An organisation that picks an unreadable colour is TOLD, with the ratio and the
- * threshold, rather than having their choice silently discarded — a setting that appears to
- * save and then does not is worse than a refusal.
+ *   accent       their colour, exactly — fills, the play button, a spine: identity
+ *   accent_on    the label drawn ON that fill, ink or white, whichever measures higher
+ *   accent_ink   the same hue moved until it reads at 4.5:1 as WORDS on every ground the
+ *                page draws them on (white card, page ground, the accent's own wash)
+ *   accent_edge  the same hue at 3:1 on white, for a border that has to hold (SC 1.4.11)
+ *   *_night      the same two on the dark ground, for a reader whose device is in dark mode
+ *
+ * So #f2f2c0 is no longer a vanished label: its button is pale yellow with ink text, its
+ * figures are an olive that reads, and what the organisation sees is their own colour.
+ * {@see Contrast::reach()} is the one place a shade is found.
  */
 final class OrgBrand
 {
     /** The house accent, used when an organisation has not chosen one. */
     public const DEFAULT_ACCENT = '#237b22';
 
-    /** WCAG 2.2 AA for normal text, and the floor for white-on-accent buttons. */
+    /** WCAG 2.2 AA for normal text: what every word derived from the accent clears. */
     public const MIN_CONTRAST = 4.5;
 
     public const MAX_TAGLINE = 140;
@@ -305,7 +313,7 @@ final class OrgBrand
         }
 
         $accent = self::normaliseHex((string) ($raw['accent'] ?? ''));
-        if ($accent === '' || !self::readable($accent)) $accent = self::DEFAULT_ACCENT;
+        if ($accent === '') $accent = self::DEFAULT_ACCENT;
 
         $gallery = [];
         foreach ((array) ($raw['gallery'] ?? []) as $g) {
@@ -355,13 +363,16 @@ final class OrgBrand
     }
 
     /**
-     * A hex the page can drop into a CSS custom property, and a darker one for hover.
+     * The organisation's accent, split into the roles a page draws it in (see the class
+     * docblock). Every derived value is MEASURED here, so the template never needs to know
+     * whether the colour it was handed was pale, dark or anything between.
      *
-     * Returned as a pair because a single accent gives a flat button; the darker shade is
-     * computed rather than asked for, since nobody choosing a brand colour also wants to
-     * choose its pressed state.
+     * Kept a flat array of hexes because it reaches the page as inline custom properties on
+     * one element: data, never a palette token (CLAUDE.md, "A bare hex is not a colour").
      *
-     * @return array{accent:string, accent_dark:string, accent_wash:string}
+     * @return array{accent:string, accent_on:string, accent_ink:string,
+     *               accent_edge:string, accent_wash:string, accent_ink_night:string,
+     *               accent_edge_night:string}
      */
     public static function css(array $brand): array
     {
@@ -369,16 +380,46 @@ final class OrgBrand
              ?: self::DEFAULT_ACCENT;
         [$r, $g, $b] = self::rgb($hex);
 
-        $dark = sprintf('#%02x%02x%02x',
-            (int) round($r * 0.78), (int) round($g * 0.78), (int) round($b * 0.78));
+        $surface = Accent::hex('surface');
+        $ground  = Accent::hex('ground');
+        // The wash as it actually lands: 10% of the accent over the ground. Words in the
+        // accent sit on it (the impact figures), so it is one of the grounds they must clear.
+        $wash = self::mix($hex, $ground, 0.10);
+        // Sepia is a light scheme with darker paper: the day shade is measured on it too, so
+        // one day value serves both rather than a third set of properties.
+        $paper = [Accent::sepia('surface'), Accent::sepia('ground'), self::mix($hex, Accent::sepia('ground'), 0.10)];
+
+        // The dark scheme's grounds, read from the same table the page's dark tokens come
+        // from, so the night shade is measured against what a dark-mode reader actually sees.
+        $nSurface = Accent::night('surface');
+        $nGround  = Accent::night('ground');
+        $nWash    = self::mix($hex, $nGround, 0.10);
+
+        // The label drawn on their own fill (an icon), ink or white, whichever measures higher.
+        $on = Contrast::labelOn($hex, Accent::hex('ink'), $surface);
 
         return [
-            'accent'      => $hex,
-            'accent_dark' => $dark,
-            // rgba rather than a mixed hex, so it sits correctly on both the paper ground
-            // and a white card without being computed twice.
-            'accent_wash' => sprintf('rgba(%d,%d,%d,.10)', $r, $g, $b),
+            'accent'            => $hex,
+            'accent_on'         => $on,
+            'accent_ink'        => Contrast::reach($hex, array_merge([$surface, $ground, $wash], $paper), self::MIN_CONTRAST),
+            'accent_edge'       => Contrast::reach($hex, [$surface, $paper[0]], Contrast::UI),
+            // rgba rather than a mixed hex, so it sits correctly on both the ground and a
+            // white card without being computed twice; the dark scheme mixes its own.
+            'accent_wash'       => sprintf('rgba(%d,%d,%d,.10)', $r, $g, $b),
+            'accent_ink_night'  => Contrast::reach($hex, [$nSurface, $nGround, $nWash], self::MIN_CONTRAST),
+            'accent_edge_night' => Contrast::reach($hex, [$nSurface], Contrast::UI),
         ];
+    }
+
+    /** `$a` laid over `$b` at `$alpha`, as the opaque hex the eye sees. */
+    private static function mix(string $a, string $b, float $alpha): string
+    {
+        [$ar, $ag, $ab] = self::rgb($a);
+        [$br, $bg, $bb] = self::rgb($b);
+        return sprintf('#%02x%02x%02x',
+            (int) round($ar * $alpha + $br * (1 - $alpha)),
+            (int) round($ag * $alpha + $bg * (1 - $alpha)),
+            (int) round($ab * $alpha + $bb * (1 - $alpha)));
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -625,15 +666,8 @@ final class OrgBrand
                     'message' => 'That is not a colour we can read. Use a six-digit hex code '
                                . 'like #1a6118 — your designer or your logo file will have one.'];
         }
-        if ($accent !== '' && !self::readable($accent)) {
-            $ratio = self::contrast($accent, '#ffffff');
-            return ['ok' => false, 'field' => 'accent',
-                    'message' => 'That colour cannot be read on a white page — it scores '
-                               . number_format($ratio, 1) . ':1 against white and needs at least '
-                               . number_format(self::MIN_CONTRAST, 1) . ':1. It is the colour of '
-                               . 'your donate button and every link, so a lighter shade would '
-                               . 'leave people unable to see them. Try a darker version.'];
-        }
+        // Any colour is kept as chosen: css() derives the readable shades from it, so a pale
+        // brand colour is no longer a refusal (see the class docblock).
         if ($accent === '') $accent = self::DEFAULT_ACCENT;
 
         // ── the words ────────────────────────────────────────────────────────
@@ -903,7 +937,11 @@ final class OrgBrand
     // COLOUR
     // ═══════════════════════════════════════════════════════════════════════
 
-    /** True when this accent can carry white text and be read as a link on white. */
+    /**
+     * True when this accent, AS PICKED, can carry white text and be read as a link on white.
+     * No longer a gate on saving — css() makes any colour readable — but it is still the
+     * honest answer to "will my exact colour be used for words", which the editor states.
+     */
     public static function readable(string $hex): bool
     {
         return self::contrast($hex, '#ffffff') >= self::MIN_CONTRAST;

@@ -395,6 +395,43 @@ final class EventsFront
         };
     }
 
+    /** The longest map link kept. Far above any share link; a bound, not a format. */
+    public const MAX_LINK = 2048;
+
+    /**
+     * What the organiser pasted into "Map link", made into something we can store and link to.
+     *
+     * Two things people paste and one we must refuse:
+     *   · a Google Maps PLACE link copied from the address bar. These run long — the `data=`
+     *     and `g_ep` parameters alone are often several hundred characters — and the column
+     *     was VARCHAR(500) on MySQL, so strict mode refused the save with "Data too long" and
+     *     the event form answered 500 (4 Nov 2026). SQLite has no width, so dev and the suite
+     *     never saw it. The column is TEXT now (2027_05_09_event_link_columns_widen.php);
+     *     MAX_LINK still bounds it, because a link longer than that is not one a browser shares;
+     *   · Google's "Embed a map" code, `<iframe src="…">`, because the field used to be called
+     *     map_embed. The address inside it is kept; nothing is embedded;
+     *   · anything that is not an http(s) address — `javascript:` above all, since this value
+     *     is an `href` on the public event page.
+     *
+     * @return array{url:?string, error:string} url null with an error when it cannot be kept
+     */
+    public static function mapLink(string $raw): array
+    {
+        $v = trim($raw);
+        if ($v === '') return ['url' => null, 'error' => ''];
+        if (preg_match('~<iframe\b[^>]*\bsrc\s*=\s*["\']([^"\']+)["\']~i', $v, $m)) {
+            $v = html_entity_decode(trim($m[1]), ENT_QUOTES | ENT_HTML5);
+        }
+        if (strlen($v) > self::MAX_LINK) {
+            return ['url' => null, 'error' => 'The map link was not saved: it is longer than any map link a browser shares. Use the Share → Copy link button in Google Maps, which gives a short maps.app.goo.gl address.'];
+        }
+        $ok = self::link($v);
+        if ($ok === '') {
+            return ['url' => null, 'error' => 'The map link was not saved: it is not a web address starting with https://. In Google Maps, use Share → Copy link and paste that.'];
+        }
+        return ['url' => $ok, 'error' => ''];
+    }
+
     /**
      * A stored URL, re-validated on the way OUT: http(s) only, parsed, never trusted because
      * it was checked when it was saved (CLAUDE.md, OrgBrand). '' when it is not a link.
@@ -467,12 +504,25 @@ final class EventsFront
      * results") and a vote still open. Released is the STATUS (CLAUDE.md: a results date is
      * a promise, not an announcement); open voting is the COMPUTED phase.
      *
-     * @return array{results:?string, voting:?array{url:string, detail:string}}
+     * And WHICH awards it is for (owner, 1 Nov 2026: "events do not display their awards").
+     * The operator ticks them on the event form; the page used to say so only while a vote was
+     * open or a result was out, so for most of an event's life its awards were invisible. An
+     * inactive programme is not named — the sandbox lives in one.
+     *
+     * @return array{results:?string, voting:?array{url:string, detail:string}, list:list<array{title:string,url:string}>}
      */
     public static function awards(int $eventId): array
     {
-        $out = ['results' => null, 'voting' => null];
+        $out = ['results' => null, 'voting' => null, 'list' => []];
         if (!SchemaHas::table('gates_event_programmes')) return $out;
+        try {
+            foreach (DB::table('gates_event_programmes as ep')->join('gates_award_programmes as p', 'p.id', '=', 'ep.programme_id')
+                         ->where('ep.event_id', $eventId)->where('p.is_active', 1)->orderBy('p.sort_order')->orderBy('p.title')
+                         ->get(['p.title', 'p.slug']) as $p) {
+                $out['list'][] = ['title' => (string) $p->title, 'url' => '/awards/' . rawurlencode((string) $p->slug)];
+            }
+        } catch (\Throwable) {
+        }
         try {
             $cycles = DB::table('gates_event_programmes as ep')
                 ->join('gates_award_programmes as p', 'p.id', '=', 'ep.programme_id')

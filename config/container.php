@@ -40,8 +40,22 @@ use AfricaGates\Admin\Controllers\{
 return [
     Twig::class => function(ContainerInterface $c) {
         $isDev = Env::get('APP_ENV', 'production') !== 'production';
-        $twig = Twig::create(__DIR__.'/../templates', [
-            'cache' => Env::bool('TWIG_CACHE') ? __DIR__.'/../var/cache/twig' : false,
+        // ── COMPILED TEMPLATES, ON UNLESS SOMEBODY SAID NO ──────────────────────
+        // The cache was on only when `.env` said TWIG_CACHE=true, and production has no shell
+        // to check that line with — without it every request compiles every template it
+        // touches, 90–165ms of server time a page against 22–37ms (measured). So it is on in
+        // production by default, `TWIG_CACHE=false` still turns it off, and it is used only
+        // where the directory can be written: Twig answers every page with an error when it
+        // cannot write its cache, which is a far worse failure than a slow page.
+        // `auto_reload` alone does not keep it right across a deploy — a zip restores OLDER
+        // file times — so Support\TemplateLoader keys each compiled template by its file's size
+        // and time as well as its name (it says why). Off under the test harness.
+        $twigCacheDir = __DIR__.'/../var/cache/twig';
+        $twigCache = defined('PHPUNIT_COMPOSER_INSTALL') ? false
+            : Env::bool('TWIG_CACHE', !$isDev);
+        if ($twigCache && !((is_dir($twigCacheDir) || @mkdir($twigCacheDir, 0775, true)) && is_writable($twigCacheDir))) $twigCache = false;
+        $twig = new Twig(new \AfricaGates\Support\TemplateLoader(__DIR__.'/../templates'), [
+            'cache' => $twigCache ? $twigCacheDir : false,
             'auto_reload' => true,
             'debug' => $isDev,
         ]);
@@ -57,6 +71,9 @@ return [
         $settings = [];
         try { $settings = $c->get(SettingsService::class)->all(); } catch (\Throwable $e) {}
 
+        // Fetched ahead of a click (site-nav, console-nav, the browser's own prefetch): see
+        // the flash globals below for why this matters.
+        $ahead = \AfricaGates\Support\Speculative::is() || \AfricaGates\Admin\Support\ConsoleShell::prefetch();
         $globals = [
             // Flags for embedding data in <script> blocks: hex-escape < ' " &
             // (defense-in-depth over Twig's default slash-escaping).
@@ -233,20 +250,31 @@ return [
             // somewhere that rendered nothing. Nor was it ever consumed, so the org
             // dashboard replayed the same message on every reload for the rest of the
             // session.
-            'flash_ok'          => $_SESSION['flash_ok'] ?? $_SESSION['flash'] ?? $_SESSION['org_flash_ok'] ?? null,
+            // ── A PAGE FETCHED AHEAD SHOWS NO ONE-SHOT MESSAGE, AND SPENDS NONE ──
+            //
+            // Both navigation scripts fetch pages before anybody asks for them — a hovered
+            // link, and every tab of a tab bar once the page is idle (owner, 3 Nov 2026). A
+            // flash is spent by whichever page renders first, so a background fetch could be
+            // the page that ate "Saved" or "Merged 3 duplicates", and the person never sees
+            // it. Ahead, it is neither shown nor cleared: the next page somebody actually
+            // looks at has it.
+            'flash_ok'          => $ahead ? null : ($_SESSION['flash_ok'] ?? $_SESSION['flash'] ?? $_SESSION['org_flash_ok'] ?? null),
             // The per-request CSP nonce. Every inline <script> must carry it or the
             // browser refuses to run it — see AfricaGates\Support\Csp.
             'csp_nonce'         => \AfricaGates\Support\Csp::nonce(),
-            'flash_error'       => $_SESSION['flash_error'] ?? $_SESSION['org_flash_error'] ?? null,
-            'flash_notice'      => $_SESSION['flash_notice'] ?? null,
+            'flash_error'       => $ahead ? null : ($_SESSION['flash_error'] ?? $_SESSION['org_flash_error'] ?? null),
+            'flash_notice'      => $ahead ? null : ($_SESSION['flash_notice'] ?? null),
             // What a refused form had in it, for the page it is sent back to (FormReplay,
             // CsrfMiddleware). Consumed by reading, like the flash beside it.
-            'form_replay'       => \AfricaGates\Support\FormReplay::take(),
+            'form_replay'       => $ahead ? null : \AfricaGates\Support\FormReplay::take(),
             // The built CSS bundle, or null when the layout must fall back to the
             // fifteen individual stylesheets. Null on ANY doubt — no manifest, missing
             // file, or a source edited since the build — because stale CSS is a far
             // worse failure than nine extra requests. See Support\AssetBundle.
-            'css_bundle'        => \AfricaGates\Support\AssetBundle::url(),
+            // Never under the test harness: what a page links would then depend on whether some
+            // earlier run left a current build in public/, and the suite would render one page
+            // two ways. ShellLayoutTest renders the bundled head on purpose instead.
+            'css_bundle'        => defined('PHPUNIT_COMPOSER_INSTALL') ? null : \AfricaGates\Support\AssetBundle::current(),
         ];
         foreach ($globals as $k => $v) $twig->getEnvironment()->addGlobal($k, $v);
         // ── THE CONSENT NOTICE, AS A FUNCTION AND NOT A GLOBAL ──────────────
@@ -637,6 +665,17 @@ return [
             'asset',
             [\AfricaGates\Support\Assets::class, 'url']
         ));
+        // Image profiles (Support\ImageProfiles): the attributes image-tool.js reads off a
+        // file input, and the srcset of the sizes uploadProcessed() wrote beside an image.
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'image_profile_attrs',
+            [\AfricaGates\Support\ImageProfiles::class, 'attrs'],
+            ['is_safe' => ['html']]
+        ));
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'image_srcset',
+            static fn (?string $p): ?string => \AfricaGates\Support\ImageProfiles::srcset($p)
+        ));
         // ── WHICH NATIONS GATES IS ACTUALLY LIVE IN ──────────────────────────
         //
         // `{{ nations_live() }}` → 'Nigeria' · 'Nigeria and Ghana' · '12 nations'.
@@ -709,7 +748,7 @@ return [
             [\AfricaGates\Admin\Support\ConsoleShell::class, 'context']
         ));
         // Consume one-shot flash. `flash` included — it was leaking for the whole session.
-        unset($_SESSION['flash_ok'], $_SESSION['flash'],
+        if (!$ahead) unset($_SESSION['flash_ok'], $_SESSION['flash'],
               $_SESSION['flash_error'], $_SESSION['flash_notice'],
               $_SESSION['org_flash_ok'], $_SESSION['org_flash_error']);
         return $twig;

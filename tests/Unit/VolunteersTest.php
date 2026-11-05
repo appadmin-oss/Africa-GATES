@@ -165,11 +165,11 @@ final class VolunteersTest extends TestCase
         $l = Level::of($v);
         $this->assertSame(12.0, $l['hours']);
         $this->assertSame(2, $l['level'], '10 verified hours, by default');
-        $this->assertContains('Team lead training', $l['next']['needs']);
+        $this->assertContains('team lead training', $l['next']['needs'], 'lower case: it is read after "Needs … and"');
 
         DB::table('gates_settings')->insert(['key_name' => 'vol_level2_hours', 'value' => '20']);
         Rules::reset();
         $this->assertSame(1, Level::of($v)['level'], 'the threshold is a setting, read on every computation');
-        $this->assertStringContainsString('8h verified', implode(' ', Level::of($v)['next']['needs']));
+        $this->assertStringContainsString('8h more verified hours', implode(' ', Level::of($v)['next']['needs']));
     }
 }

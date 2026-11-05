@@ -1009,7 +1009,7 @@ final class HelpCentre
             'audience' => ['nominee'],
             'cat'  => 'results',
             'title' => 'The community return: a share of what your supporters raised',
-            'summary' => 'A nominee keeps a share of the contributions made in their name — win or lose.',
+            'summary' => 'How a share of what supporters contribute comes back to nominees, under each edition’s rule.',
             'keywords' => ['community return', 'do nominees get paid', 'my share', 'earnings', 'payout',
                            'withdraw', 'money back to nominee', 'supporters raised', 'what do i earn',
                            'nominee earnings'],
@@ -1027,7 +1027,7 @@ final class HelpCentre
                 ['when' => 'rate_zero',
                  'note' => 'The share is currently set to <strong>0%</strong>, so no new contribution is '
                          . 'accruing anything. Shares already recorded are unaffected.'],
-                ['p' => 'When supporters contribute in a nominee\'s name, a share of that money is set '
+                ['p' => 'Under the house rule, when supporters contribute in a nominee\'s name, a share of that money is set '
                       . 'aside <strong>for the nominee</strong>. It is not a prize and it does not depend '
                       . 'on winning — they raised it either way, and a nominee who mobilised a community '
                       . 'and came second mobilised a community.'],
@@ -1058,7 +1058,9 @@ final class HelpCentre
                     'Under this rule, nothing is payable until that cycle has ended and its results have been announced.',
                 ]],
                 ['p' => 'Some editions run a <strong>different rule</strong>, chosen before the edition opens '
-                      . 'and fixed once anything is earned under it: a <strong>two-stage</strong> rule (a '
+                      . 'and fixed once anything is earned under it: a <strong>target pool</strong> (every '
+                      . 'nominee has the same vote target; when voting closes, those who reached it share the '
+                      . 'edition\'s pool by their votes, and below it nothing is paid), a <strong>two-stage</strong> rule (a '
                       . 'smaller share held locked until the edition\'s collective milestone is confirmed '
                       . 'by a person, then the full share), a <strong>flat</strong> share on every '
                       . 'contribution, or a <strong>tiered</strong> or <strong>custom</strong> ladder whose '
@@ -1066,10 +1068,9 @@ final class HelpCentre
                       . 'how far it has got are on <a href="/integrity#return">the integrity page</a>.'],
                 ['p' => 'To be paid, open your <strong>Wallet</strong> and choose Withdraw. A request is '
                       . 'checked before anything is sent — the money is released, you hold the page\'s '
-                      . 'verified claim, your bank confirms the account is in your own name, every share '
-                      . 'traces to a valid contribution, and you accepted the published terms. Where '
-                      . 'nothing needs a closer look it is sent automatically, usually within minutes; '
-                      . 'otherwise a person checks it first. The smallest amount, the fee, the timeline, '
+                      . 'verified claim, your account\'s email address is verified, your bank confirms the '
+                      . 'account is in your own name, every share traces to a valid contribution, and you '
+                      . 'accepted the published terms. {payout_speed} The smallest amount, the fee, the timeline, '
                       . 'appeals and the tax position are published on the integrity page; withdrawals '
                       . 'open once they are.'],
                 ['note' => 'The share, the threshold and the per-supporter ceiling are all per-cycle '
@@ -1353,23 +1354,32 @@ final class HelpCentre
             'audience' => ['organisation'],
             'cat'  => 'organisations',
             'title' => 'When your money arrives, and what Africa GATES takes',
-            'summary' => 'Gifts settle to your own account. Our fee is agreed in advance and comes out of the gift; a donor tip is added on top and never comes out of yours.',
+            'summary' => 'Gifts settle to your own account. Our fee is agreed in advance; the payment processing fee comes out of the gift unless the donor covers it; a donor tip is added on top and never comes out of yours.',
             'keywords' => ['payout', 'settlement', 'when do we get paid', 'platform fee', 'our cut',
                            'commission', 'withdraw', 'minimum payout', 'subaccount', 'tip'],
             'body' => [
                 ['p' => 'Gifts to your appeal settle into <strong>your own account</strong>, not ours. '
                       . 'We hold a settlement destination for your organisation with the payment '
                       . 'provider, resolved against your CAC name when you were verified.'],
-                ['p' => 'Two separate amounts get confused constantly, so here they are apart:'],
+                ['p' => 'Three separate amounts get confused constantly, so here they are apart:'],
                 ['steps' => [
                     '<strong>The platform fee</strong> is the cut agreed with you before you went live. '
                         . 'It comes <em>out of</em> the gift, and it is the same percentage on every '
-                        . 'gift until it is renegotiated. Your console shows it on each donation.',
+                        . 'gift. It is set when your account is attached; changing it is a new agreement '
+                        . 'with us, and never alters a gift already made. Your console shows it on each donation.',
+                    '<strong>The payment processing fee</strong> is the payment provider’s, not ours: '
+                        . '{processing_fee}. {processing_fee_payer} Every donor is offered the exact '
+                        . 'amount that covers it, and when they tick it you receive their gift to the '
+                        . 'naira. It is never ticked for them.',
                     '<strong>A donor’s tip to Africa GATES</strong> is <em>added on top</em> of what '
                         . 'they gave you, never taken from it. It is off by default, the donor has to '
                         . 'choose it, and it is capped. You receive exactly the number the donor typed '
                         . 'for you whether the tip is zero or the largest we allow.',
                 ]],
+                ['p' => 'Most gifts need nothing from you: the provider settles them straight to your '
+                      . 'bank. A gift made before your account was attached, or one the provider could '
+                      . 'not route, reaches our account instead, and that is what your console offers '
+                      . 'to request. We pay it by bank transfer and record the reference.'],
                 ['p' => 'You request a payout from the payouts section of your console. The smallest '
                       . 'payout is <strong>₦{min_payout}</strong>, and only an account owner can '
                       . 'request one — not every user you have added.'],
@@ -1384,16 +1394,17 @@ final class HelpCentre
             'audience' => ['organisation'],
             'cat'  => 'organisations',
             'title' => 'Getting into your organisation console',
-            'summary' => 'It is a separate sign-in from a member account, on purpose.',
+            'summary' => 'Sign in to your Africa GATES account with the address your organisation registered.',
             'keywords' => ['org login', 'partner login', 'organisation sign in', 'vendor dashboard',
                            'cannot find dashboard', 'console', 'where do i log in'],
             'body' => [
-                ['p' => 'Your console is at <a href="/org">africagates.org/org</a>. Sign in there with '
-                      . 'the address you gave us when you applied.'],
-                ['p' => 'It is a <strong>different sign-in from a personal member account</strong>, and '
-                      . 'deliberately so: an organisation console can move money, and a shared front '
-                      . 'door is the thing that makes one of these a target. Having a member account '
-                      . 'does not sign you into your organisation, and it should not.'],
+                ['p' => 'There is one sign-in, at <a href="/account/login">africagates.org/account/login</a>. '
+                      . 'Your console opens from the Africa GATES account that has <strong>verified</strong> '
+                      . 'the address your organisation was registered with; nobody links or adds anything. '
+                      . 'Your console is then at <a href="/org">africagates.org/org</a>.'],
+                ['p' => 'Moving money asks again: a payout needs <strong>the organisation’s own '
+                      . 'password</strong>, not only the account’s, because an email alone must never '
+                      . 'move a charity’s money.'],
                 ['p' => 'The console holds your documents, your applications, your donations, your '
                       . 'appeals, your payouts and the fee on each gift.'],
                 ['note' => 'Only an account owner can request a payout. Add colleagues as users so they '
@@ -1890,6 +1901,17 @@ final class HelpCentre
             // around, and a number in prose outlives the rule it describes — which is why
             // HelpCentreTest refuses a naira figure written into an article at all.
             '{min_payout}' => number_format(\AfricaGates\Services\OrgPayout::MIN_NAIRA),
+            // The gateway's schedule and who bears it, read from the one place the charge is
+            // worked out (GatewayFee), so the article cannot quote a fee nobody is charged.
+            '{processing_fee}' => (static function (): string {
+                $f = \AfricaGates\Services\GatewayFee::schedule();
+                return rtrim(rtrim(number_format($f['pct'], 2), '0'), '.') . '%'
+                    . ($f['flat'] > 0 ? ' plus ₦' . number_format($f['flat']) . ($f['flat_from'] > 0 ? ' (the ₦' . number_format($f['flat']) . ' is waived under ₦' . number_format($f['flat_from']) . ')' : '') : '')
+                    . ($f['cap'] > 0 ? ', never more than ₦' . number_format($f['cap']) . ' a gift' : '');
+            })(),
+            '{processing_fee_payer}' => \AfricaGates\Services\GatewayFee::organisationBears()
+                ? 'It comes out of the gift, as on every giving platform.'
+                : 'Africa GATES pays it for you, so it does not come out of the gift.',
             '{ad_trial_views}' => number_format(\AfricaGates\Services\Ads\AdRules::TRIAL_VIEWS),
             '{ad_trial_days}'  => (string) \AfricaGates\Services\Ads\AdRules::TRIAL_DAYS,
 
@@ -1908,6 +1930,12 @@ final class HelpCentre
             '{return_cap_pct}'    => (string) $ret['cap_pct'],
             '{return_cap_votes}'  => number_format($ret['cap_votes']),
             '{return_people}'     => (string) $ret['min_supporters'],
+            // Said as it is running, never as it might: the article told every nominee their
+            // withdrawal is "sent automatically, usually within minutes" while automatic
+            // payouts are off by default and every request waits for a person.
+            '{payout_speed}'      => \AfricaGates\Services\WalletAutoPay::enabled()
+                ? 'Where nothing needs a closer look it is sent automatically, usually within minutes; otherwise a person checks it first.'
+                : 'A person checks every request before it is paid.',
         ];
     }
 }

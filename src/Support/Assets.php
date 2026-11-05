@@ -126,8 +126,22 @@ final class Assets
         }
 
         $sep = str_contains($tail, '?') ? '&' : '?';
+        $hash = self::hashOf($file);
 
-        return self::$hashes[$path] = $path . $sep . 'v=' . self::hashOf($file);
+        // The minified twin of this exact content, when one has been made (MinifiedAssets).
+        // Its name carries the hash, so it needs no token and can never be stale.
+        if ($tail === '' && $hash !== self::$fallback) {
+            $twin = MinifiedAssets::twin($file, $hash, self::$publicDir ?? (dirname(__DIR__, 2) . '/public'));
+            if ($twin !== null) return self::$hashes[$path] = $twin;
+        }
+
+        return self::$hashes[$path] = $path . $sep . 'v=' . $hash;
+    }
+
+    /** The content hash `url()` uses for a public file — what a minified twin is named by. */
+    public static function contentHash(string $urlPath): string
+    {
+        return self::hashOf($urlPath);
     }
 
     /**

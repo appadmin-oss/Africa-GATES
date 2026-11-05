@@ -134,7 +134,7 @@
     </div>
   </div>
 
-  <nav class="aw-tabs" aria-label="{{ 'Award sections'|trans }}">
+  <nav class="aw-tabs" aria-label="{{ 'Award sections'|trans }}" data-tabs="award">
     {% for k, label in tabs %}
       <a class="aw-tab" href="/awards/{{ a.slug }}{{ k == 'overview' ? (_ed ? '?edition=' ~ _ed) : '?tab=' ~ k ~ _q }}"{% if tab == k %} aria-current="page"{% endif %}>{{ label|trans }}</a>
     {% endfor %}
@@ -173,9 +173,21 @@
       {% if _d.judging_note %}{% for para in _d.judging_note|split("\n\n") %}<p>{{ para|nl2br }}</p>{% endfor %}{% endif %}
     </section>
     <section class="aw-doc__s"><h2 class="aw-doc__h">{{ 'Voting'|trans }}</h2>
-      <p>{{ 'Each person verified by an email code has one free vote per category.'|trans }}{% if a.paid %} {{ 'Supporters can also add contributed votes on a nominee’s page.'|trans }} {{ a.paid }}{% endif %}</p>
+      <p>{% if a.paid_only|default(false) %}{{ 'On this award, every vote is a contribution that helps fund the awards. You back a nominee from their page.'|trans }} {{ a.paid }}{% else %}{{ 'Each person verified by an email code has one free vote per category.'|trans }}{% if a.paid %} {{ 'Supporters can also add contributed votes on a nominee’s page.'|trans }} {{ a.paid }}{% endif %}{% endif %}</p>
       {% if _d.voting_note %}{% for para in _d.voting_note|split("\n\n") %}<p>{{ para|nl2br }}</p>{% endfor %}{% endif %}
     </section>
+    {# Generated from this edition's own community-return rule (AwardsFront::detail(), the
+       voting letter's rows). Each award sets its own, so the rule is published here and not
+       on /integrity, which links to this section. #}
+    {% if a.community_return %}
+    <section class="aw-doc__s" id="community-return"><h2 class="aw-doc__h">{{ 'Community return'|trans }}</h2>
+      <dl class="aw-prizes">{% for r in a.community_return %}<div class="aw-prizes__r"><dt>{{ r[0] }}</dt><dd>{{ r[1] }}</dd></div>{% endfor %}</dl>
+    </section>
+    {% elseif a.community_return_pending %}
+    <section class="aw-doc__s" id="community-return"><h2 class="aw-doc__h">{{ 'Community return'|trans }}</h2>
+      <p>{{ 'The community return rule for this edition has not been published yet. It will be stated here before anything is earned under it.'|trans }}</p>
+    </section>
+    {% endif %}
     <section class="aw-doc__s"><h2 class="aw-doc__h">{{ 'After the results'|trans }}</h2>
       <p>{{ 'Every result is published with its working and sealed; later rule changes cannot alter it.'|trans }} <a href="/integrity">{{ 'How results are checked'|trans }}</a></p>
       {% if _d.after_note %}{% for para in _d.after_note|split("\n\n") %}<p>{{ para|nl2br }}</p>{% endfor %}{% endif %}
@@ -238,15 +250,19 @@
     {% endif %}
     {% if a.phase and a.phase.detail %}<p class="aw-ed__detail">{{ a.phase.detail }}</p>{% endif %}
     {% if a.pool and a.pool.nominees > 0 %}
-    {# The target pool: one target for the edition, the votes toward it and the gap. #}
+    {# The target pool. Each nominee qualifies on their OWN target, so the figure that means
+       something is how many have reached it. The combined "595 of 1,200 votes · 605 to go" it
+       replaces named a total at which nothing happens: the pool pays as soon as one nominee
+       reaches the target, and closing that gap triggers nothing. #}
+    {% set _won = a.pool.settled ? a.pool.settled.winners|default(0) : a.pool.reached %}
     <div class="aw-pool">
       <p class="aw-pool__h">{{ 'Community return'|trans }}</p>
-      <p class="aw-pool__n">{{ '%v% of %t% votes'|trans({'%v%': a.pool.combined_votes|number_format, '%t%': a.pool.combined_target|number_format}) }}</p>
-      <span class="aw-pool__bar" role="img" aria-label="{{ '%p% per cent of the way'|trans({'%p%': a.pool.pct}) }}"><span style="width:{{ a.pool.pct }}%"></span></span>
-      <p class="aw-pool__s">{{ (a.pool.settled ? 'Settled. ' : (a.pool.gap|number_format ~ ' ' ~ 'votes to go'|trans ~ '. '))
-        ~ (a.pool.settled
-            ? 'Every nominee had the same target of %t% votes. Those who reached it shared the community return by their votes.'|trans({'%t%': a.pool.target|number_format})
-            : 'Every nominee has the same target of %t% votes today. It falls as more nominees are approved. Those who reach it share the community return by their votes.'|trans({'%t%': a.pool.target|number_format})) }}</p>
+      <p class="aw-pool__n">{{ (a.pool.settled ? 'Target: %t% votes each' : 'Target today: %t% votes each')|trans({'%t%': a.pool.target|number_format}) }}</p>
+      {% set _pct = a.pool.nominees > 0 ? (100 * _won / a.pool.nominees)|round(0, 'floor') : 0 %}
+      <span class="aw-pool__bar" role="img" aria-label="{{ '%r% of %n% nominees have reached it'|trans({'%r%': _won, '%n%': a.pool.nominees}) }}"><span style="width:{{ _pct }}%"></span></span>
+      <p class="aw-pool__s">{{ a.pool.settled
+        ? (_won > 0 ? '%r% of %n% nominees reached it and shared the pool by votes.'|trans({'%r%': _won, '%n%': a.pool.nominees}) : 'Nobody reached it, so nothing was shared.'|trans)
+        : '%r% of %n% nominees have reached it. They share the pool by votes when voting closes.'|trans({'%r%': _won, '%n%': a.pool.nominees}) }}</p>
     </div>
     {% endif %}
     {% if a.delay %}
@@ -317,4 +333,4 @@
 {% endif %}
 {% endblock %}
 
-{% block foot_scripts %}<script defer src="{{ asset('/assets/js/awards.js') }}"></script>{% endblock %}
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/awards.js') }}" data-nav="rerun"></script>{% endblock %}

@@ -115,7 +115,7 @@
 
       {% if vault.groups is empty %}
         <div class="lv-empty">
-          <img src="{{ asset('/assets/img/africa-silhouette.svg') }}" width="56" height="56" alt="">
+          <span class="lv-empty__map" aria-hidden="true"></span>
           {% if vault.filtered %}
             <h2 class="lv-empty__t">{{ 'No edition matches that'|trans }}</h2>
             <a class="ag-btn ag-btn--secondary" href="/legacy">{{ 'Show every edition'|trans }}</a>
@@ -166,4 +166,4 @@
 </div>
 {% endblock %}
 
-{% block foot_scripts %}<script defer src="{{ asset('/assets/js/legacy.js') }}"></script>{% endblock %}
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/legacy.js') }}" data-nav="rerun"></script>{% endblock %}

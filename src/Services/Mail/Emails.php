@@ -54,6 +54,8 @@ final class Emails
         'winner'     => 'CycleAnnouncer::email (winner and runner-up, at the release)',
         'final'      => 'NomineeBroadcast (the fixed final-hours message)',
         'ad-review'  => 'Ads\\AdNotice::decided (approved, refused or taken down, to the advertiser)',
+        'role'       => 'RoleInvites::tell (an event lead or volunteer role given, or offered to an address)',
+        'event-team' => 'EventPlan\\Teams (a team, role or person proposed to the owner, and the decision back to the lead)',
     ];
 
     /**

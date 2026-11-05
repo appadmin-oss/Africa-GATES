@@ -39,7 +39,8 @@
 <div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Ads<small>{{ ads|length }} awaiting review · shown labelled Sponsored once approved</small></div></div><div class="ad-card__body">
   {% for a in ads %}
   <div style="display:flex;gap:14px;border:1px solid var(--cn-line-card);border-radius:10px;padding:14px;margin-bottom:10px">
-    {% if a.image %}<img src="{{ a.image }}" alt="" width="96" height="96" style="flex:none;width:96px;height:96px;object-fit:cover;border-radius:8px">{% endif %}
+    {# The image is what a reviewer most needs to judge, so it opens at full size. #}
+    {% if a.image %}<a href="{{ a.image_full|default(a.image) }}" target="_blank" rel="noopener" style="flex:none" aria-label="Open the ad image full size (new tab)"><img src="{{ a.image }}" alt="" width="128" height="128" style="display:block;width:128px;height:128px;object-fit:cover;border-radius:8px"></a>{% endif %}
     <div style="min-width:0">
       <div style="font-size:12px;color:var(--cn-soft)">{{ a.advertiser }}{% if a.trial %} · free trial{% endif %} · {{ a.placements|join(', ') }}</div>
       <div style="font-size:14px;font-weight:700;color:var(--cn-ink);margin-top:2px">{{ a.headline }}</div>
@@ -62,7 +63,7 @@
 <div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Reported ads<small>{{ ads_reported|length }} running ad(s) with reports from readers</small></div></div><div class="ad-card__body">
   {% for a in ads_reported %}
   <div style="display:flex;gap:14px;border:1px solid var(--cn-line-card);border-radius:10px;padding:14px;margin-bottom:10px">
-    {% if a.image %}<img src="{{ a.image }}" alt="" width="72" height="72" style="flex:none;width:72px;height:72px;object-fit:cover;border-radius:8px">{% endif %}
+    {% if a.image %}<a href="{{ a.image_full|default(a.image) }}" target="_blank" rel="noopener" style="flex:none" aria-label="Open the ad image full size (new tab)"><img src="{{ a.image }}" alt="" width="96" height="96" style="display:block;width:96px;height:96px;object-fit:cover;border-radius:8px"></a>{% endif %}
     <div style="min-width:0">
       <div style="font-size:12px;color:var(--cn-soft)">{{ a.advertiser }} · {{ a.reports }} report(s)</div>
       <div style="font-size:14px;font-weight:700;color:var(--cn-ink);margin-top:2px">{{ a.headline }}</div>

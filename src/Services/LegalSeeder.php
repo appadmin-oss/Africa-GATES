@@ -485,8 +485,8 @@ HTML;
 </ul>
 <p>Unverified profiles score nothing. No votes or impact points attach to a profile until it has cleared review, so a fabricated entry cannot accumulate a standing while it waits.</p>
 
-<h2>Voting &mdash; free</h2>
-<p>Free voting is open to the public and is the vote that determines a nominee&rsquo;s community score.</p>
+<h2>Voting &mdash; the free vote</h2>
+<p>An award may offer a free vote, open to the public, alongside contributions &mdash; or it may run on contributions alone, in which case there is no free vote and the rules in this section do not apply to it. Each award&rsquo;s own page says which. A free vote and a contributed vote count towards the community part of the score in the same way; the larger share of that part counts separate verified people, so each person counts once however they took part.</p>
 <ul>
 <li>Every vote requires a <strong>one-time code</strong> sent to a working email address. An unconfirmed code is not a vote.</li>
 <li><strong>One identity, one vote, per category.</strong> You may vote in as many categories as you wish, but only once in each.</li>
@@ -504,7 +504,7 @@ HTML;
 <p><strong>It does:</strong></p>
 <ul>
 <li>Add to the nominee&rsquo;s public tally, shown on their page and on the leaderboard.</li>
-<li><strong>Count in the community part of the score.</strong> Bought votes add to the nominee&rsquo;s total tally, and the total tally is one of the two things the community part measures.</li>
+<li><strong>Count in the community part of the score.</strong> Contributed votes add to the nominee&rsquo;s total tally, and the total tally is one of the two things the community part measures.</li>
 <li>Place the supporter&rsquo;s name on the nominee&rsquo;s supporters list, if the supporter chose to be named.</li>
 <li>Set aside a share for the nominee once they qualify.</li>
 <li>Fund the programme.</li>
@@ -518,13 +518,13 @@ HTML;
 <p>Money can make a nominee look more popular and can move the community part of their score. It cannot buy the judges&rsquo; part, and it cannot make somebody eligible to win. The current weightings and the judging quorum are published at <a href="/integrity">/integrity</a>, read live from the scoring configuration rather than restated here, so that page is always the authoritative figure.</p>
 
 <h2>The community return</h2>
-<p>Where a nominee&rsquo;s supporters raise contributions in their name, a share is set aside for the nominee &mdash; win or lose, because they raised it either way.</p>
+<p>Where a nominee&rsquo;s supporters raise contributions in their name, a share of that money can come back to nominees, under the rule each edition publishes at <a href="/integrity">/integrity</a> before it opens. Under the house rule the share is set aside for the nominee &mdash; win or lose, because they raised it either way. Under a <strong>target pool</strong>, every nominee has the same vote target; when voting closes, those who reached it share the edition&rsquo;s pool by their votes, and a nominee below the target receives nothing.</p>
 <ul>
-<li>A nominee begins earning only after reaching a <strong>qualifying-support threshold</strong>, counted in votes.</li>
+<li>Under the house rule, a nominee begins earning only after reaching a <strong>qualifying-support threshold</strong>, counted in votes.</li>
 <li><strong>No single supporter can carry the threshold.</strong> One supporter&rsquo;s contribution counts only up to a capped proportion of it, so qualifying requires support from several different verified people however much any one person spends.</li>
 <li>Crossing the threshold does not reach backwards. Earlier contributions stay unshared.</li>
 <li>The share is held as an <strong>append-only ledger</strong>. If a contribution is refunded or charged back, the share accrued on it is reversed and the reversal stays on the record beside the original.</li>
-<li>Nothing is payable until the cycle has ended and its results have been announced. A nominee cannot cash out mid-race.</li>
+<li>Nothing is payable before the edition&rsquo;s rule allows it: under the house rule, until the cycle has ended and its results have been announced; under a target pool, until the pool is settled after voting closes. A nominee cannot cash out mid-race.</li>
 <li>A nominee may withdraw an available return to a bank account in their own name, for the published service fee, or spend it on votes for any nominee. <strong>Votes paid from a return earn no return and do not count towards qualifying for one</strong>; otherwise they count exactly like any bought vote.</li>
 </ul>
 <p>The current share, threshold and per-supporter cap are published at <a href="/integrity">/integrity</a>. Eligibility requirements and payment arrangements are communicated to qualifying nominees directly.</p>
@@ -546,7 +546,7 @@ HTML;
 <ul>
 <li>All payments are verified <strong>server-side with the gateway</strong> before any vote is recorded. We do not take a browser&rsquo;s word for it.</li>
 <li><strong>If the ballot was open when you paid, the votes are yours</strong> even if the confirmation reached us late. We use the time you started the payment, not the moment our system noticed it.</li>
-<li>Card contribution closes a short time before free voting does, so payments already in flight have time to land before the ballot shuts.</li>
+<li>Card contribution closes a short time before voting ends, so payments already in flight have time to land before the ballot shuts.</li>
 <li><strong>Where votes genuinely cannot be delivered</strong> &mdash; the nominee left the ballot, or a payment confirmed long after voting closed &mdash; the order is refunded. We do not keep money for votes we did not deliver.</li>
 <li>Every order carries a reference beginning <code>AFG-</code>. Give it to the <a href="/support/assistant">support assistant</a> and it re-checks the payment with the gateway directly, adding the votes on the spot if the money arrived.</li>
 <li>Contributions are otherwise non-refundable once the corresponding votes have been delivered, because the recognition process they funded has taken place.</li>
@@ -569,8 +569,8 @@ HTML;
 <p>Africa GATES is <strong>not</strong> a Ponzi scheme, pyramid scheme, multi-level marketing programme, investment scheme, get-rich-quick scheme or fraudulent fundraising operation.</p>
 <ul>
 <li>No participant is promised a financial return for recruiting other participants.</li>
-<li>No participant earns anything by introducing another person into the programme.</li>
-<li>There is no chain, no downline, no tier to climb and no referral commission.</li>
+<li>No participant earns anything for bringing another person into the programme: nobody is paid because somebody else registered, was nominated or voted.</li>
+<li>There is no chain, no downline and no tier to climb. The one referral reward is a published retail commission on event tickets and shop orders bought through a member&rsquo;s own link, paid on what those buyers actually paid and reversed if they are refunded. It is never paid for recruitment, and never on votes.</li>
 <li>Any community-return arrangement is a programme-based allocation subject to stated eligibility requirements. It is <strong>not</strong> an investment return, interest, profit share, or a promise of financial appreciation, and it is not payable simply because money was spent.</li>
 </ul>
 <p>If anyone tells you otherwise &mdash; particularly if they ask you to pay them directly, or promise you earnings for signing others up &mdash; they are not acting for Africa GATES. Report it.</p>

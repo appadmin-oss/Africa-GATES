@@ -7,7 +7,7 @@
   {% set _next = {verify: ['Verify your email'|trans, ''], name: ['Add your full name'|trans, '#p-name'], phone: ['Add a phone number'|trans, '#p-phone'], headline: ['Say what you do'|trans, '#p-headline'], based_in: ['Say where you’re based'|trans, '#p-based']} %}
   <section class="acx-card acx-hero" aria-labelledby="acx-me-h">
     <div class="acx-hero__who">
-      {% include 'partials/avatar.twig' with {name: _u.name, id: _u.id|default(null), src: _u.avatar_path|default(''), size: 96, verified: _u.email_verified|default(0) == 1} only %}
+      {% include 'partials/avatar.twig' with {name: _u.name, id: _u.id|default(null), src: _u.photo_path|default('') ?: _u.avatar_path|default(''), size: 96, verified: _u.email_verified|default(0) == 1} only %}
       <div class="acx-hero__t">
         <h2 class="acx-hero__n" id="acx-me-h">{{ _u.name }}</h2>
         <p class="acx-hero__s">{{ [_u.headline|default(''), _u.based_in|default('')]|filter(x => x)|join(' · ') ?: 'Tell people what you do and where you’re based'|trans }}</p>

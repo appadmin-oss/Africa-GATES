@@ -262,6 +262,115 @@ class UploadService
     }
 
     /**
+     * An image made into the shape it is FOR (Support\ImageProfiles): oriented, cut to the
+     * profile's aspect where the person chose (or the centre, with no script), checked for
+     * size ON THE CUT, scaled to the profile's size, written as WebP with narrower copies
+     * beside it for srcset, and every byte of metadata dropped — a phone photo's EXIF carries
+     * the GPS position it was taken at, and an advertiser's shop photo is often their home.
+     *
+     * The same hardening as uploadImage(): finfo on the bytes, never the client's type; a full
+     * decode and re-encode, so nothing the client sent survives as sent. GIF is not accepted
+     * here: every profile is a still.
+     *
+     * @param ?string $crop the editor's field (ImageProfiles::parseCrop()), or null
+     * @return array{path:string,url:string,local:string,width:int,height:int,size:int,variants:list<string>}
+     */
+    public function uploadProcessed(
+        UploadedFileInterface $file,
+        string $bucket,
+        string $profile,
+        ?string $crop = null,
+        ?int $adminId = null,
+        ?string $attachedToType = null,
+        ?int $attachedToId = null,
+    ): array {
+        $p = \AfricaGates\Support\ImageProfiles::get($profile);
+        if ($file->getError() !== UPLOAD_ERR_OK) {
+            throw new \RuntimeException('Upload failed: error code ' . $file->getError());
+        }
+        if ($file->getSize() && $file->getSize() > 15 * 1024 * 1024) {
+            throw new \RuntimeException('Image larger than 15MB');
+        }
+        $tmp = tempnam(sys_get_temp_dir(), 'ag_up_');
+        $file->moveTo($tmp);
+        $mime = (string) (new \finfo(FILEINFO_MIME_TYPE))->file($tmp);
+        if (!in_array($mime, ['image/jpeg', 'image/png', 'image/webp'], true)) {
+            @unlink($tmp);
+            throw new \RuntimeException('Upload a JPEG, PNG or WebP photo.');
+        }
+        try {
+            // Intervention applies the photo's own EXIF orientation on read (autoOrientation),
+            // so the fractions the editor sends — measured on the photo as a browser draws it,
+            // which is also oriented — land on the same pixels here.
+            $image = $this->img->read($tmp);
+        } finally {
+            @unlink($tmp);
+        }
+
+        $c = \AfricaGates\Support\ImageProfiles::parseCrop($crop);
+        if ($c !== null && $c['r'] !== 0) $image->rotate(-$c['r']); // the editor's turn is clockwise
+        $W = $image->width(); $H = $image->height();
+        if ($c !== null) {
+            $cx = (int) round($c['x'] * $W); $cy = (int) round($c['y'] * $H);
+            $cw = max(1, min($W - $cx, (int) round($c['w'] * $W))); $ch = max(1, min($H - $cy, (int) round($c['h'] * $H)));
+        } else {
+            [$cx, $cy, $cw, $ch] = [0, 0, $W, $H];
+        }
+        // Then the profile's shape, whatever was sent: a field from an old page, a rounding
+        // error, no script at all. The centre of what was chosen, at the profile's aspect.
+        $aspect = (float) $p['aspect'];
+        if (abs($cw / $ch - $aspect) > 0.01) {
+            if ($cw / $ch > $aspect) { $nw = (int) round($ch * $aspect); $cx += intdiv($cw - $nw, 2); $cw = $nw; }
+            else { $nh = (int) round($cw / $aspect); $cy += intdiv($ch - $nh, 2); $ch = $nh; }
+        }
+        if (min($cw, $ch) < $p['min']) {
+            throw new \RuntimeException(sprintf('The %s you chose is %d × %d px; it needs at least %d px on each side. Zoom out, or use a larger photo.',
+                $p['label'], $cw, $ch, $p['min']));
+        }
+        if ($cx !== 0 || $cy !== 0 || $cw !== $W || $ch !== $H) $image->crop($cw, $ch, $cx, $cy);
+        if ($image->width() > $p['out'] || $image->height() > $p['out']) {
+            $aspect >= 1 ? $image->scaleDown(width: $p['out']) : $image->scaleDown(height: $p['out']);
+        }
+
+        $uuid = Uuid::uuid4()->toString();
+        $relDir = sprintf('uploads/%s/%s/%s', $bucket, date('Y'), date('m'));
+        $absDir = $this->publicRoot . '/' . $relDir;
+        if (!is_dir($absDir)) @mkdir($absDir, 0775, true);
+        $this->ensureUploadsGuard();
+        $relPath = $relDir . '/' . $uuid . '.webp';
+        $absPath = $this->publicRoot . '/' . $relPath;
+        // GD writes no metadata at all, which is the strip: nothing from the original file
+        // reaches the stored one but its pixels.
+        $image->toWebp((int) $p['quality'])->save($absPath);
+        $w = $image->width(); $h = $image->height();
+
+        $variants = [];
+        foreach ($p['variants'] as $vw) {
+            if ($vw >= $w) continue;
+            $v = clone $image;
+            $v->scaleDown(width: $vw);
+            $vRel = $relDir . '/' . $uuid . '-' . $vw . 'w.webp';
+            $v->toWebp((int) $p['quality'])->save($this->publicRoot . '/' . $vRel);
+            $variants[] = '/' . $vRel;
+        }
+        $size = filesize($absPath) ?: 0;
+
+        $remote = $this->toCloud($absPath, $bucket, $relPath);
+        $stored = $remote !== null ? $remote['url'] : '/' . $relPath;
+        try {
+            DB::table('gates_uploads')->insert([
+                'uploader_id' => $adminId, 'uploader_type' => 'admin', 'path' => $stored, 'mime' => 'image/webp',
+                'size_bytes' => $size, 'width' => $w, 'height' => $h,
+                'attached_to_type' => $attachedToType, 'attached_to_id' => $attachedToId,
+                'created_at' => Carbon::now()->toDateTimeString(),
+            ] + $this->providerColumns($remote, $relPath));
+        } catch (\Throwable $e) { /* non-fatal, as in uploadImage() */ }
+
+        return ['path' => $stored, 'url' => $stored, 'local' => '/' . $relPath, 'width' => $w, 'height' => $h,
+                'size' => $size, 'variants' => $variants];
+    }
+
+    /**
      * Take a file THIS CODEBASE produced and put it in the uploads tree.
      *
      * The difference from {@see uploadImage()} is provenance, and it is the whole reason this

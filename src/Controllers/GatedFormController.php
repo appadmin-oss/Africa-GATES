@@ -23,7 +23,8 @@ class GatedFormController
         $status = GatedFormService::status($row);
         // A nominee's link sent before 30 Oct 2026 opens the account page that replaced this form
         // (NomineeDetails), so nobody holding an old email meets a form that no longer counts.
-        if ($row && $row->purpose === 'nominee' && preg_match('/^[a-f0-9]{40}$/', $raw)) {
+        // A nominee's link from before approval (`nomination`) is only ever that page's too.
+        if ($row && in_array($row->purpose, ['nominee', 'nomination'], true) && preg_match('/^[a-f0-9]{40}$/', $raw)) {
             return $res->withHeader('Location', '/nominee/start/' . $raw)->withStatus(302);
         }
         $name   = $row ? GatedFormService::subjectName((string) $row->purpose, (int) $row->subject_id) : '';

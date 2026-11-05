@@ -2,13 +2,17 @@
   The registration card — every state of EventSales (see detail.twig's header). Included
   inside `.ed-card`, which carries the selected tier's colour properties.
 
-  The glow (§8.10): `@property --ev-a` turned 0→360° over 3.2s, a blurred halo (inset −10px,
-  blur 22px, .55, breathing) and a 2px conic ring (white padding-box over a conic
-  border-box). event-detail.js replays it on each pick by replacing the element — a finished
-  CSS animation does not restart when the same name is re-applied — and it settles to .35.
-  Without @property the angle does not interpolate and the ring is a static gradient border,
-  which is the specified fallback. aria-hidden and untouchable: the border, the wash and the
-  radio say everything it says, which is what makes it safe to remove under reduced motion.
+  The glow: the card's rim, after Google's AI-mode glow, in the chosen tier's one colour
+  (owner, 2 Nov 2026, superseding §8.10's two-ended ring). A comet sweeps a 1.5px ring (the
+  card's face on padding-box over the comet on border-box) that is the card's own hairline
+  everywhere but where the light is, with a tight blurred copy of the comet alone behind it
+  as the glow. Two eased laps on every pick and the first time the card is in view with a
+  tier chosen, then it fades and the card is left as drawn; paused off screen.
+  event-detail.js replays it by replacing the element — a finished CSS animation does not
+  restart when the same name is re-applied. Without @property the angle does not interpolate
+  and the sweep is a still gradient fading in and out. aria-hidden and untouchable: the
+  border, the wash and the radio say everything it says, which is what makes it safe to
+  remove under reduced motion.
 #}
 {% if st in ['open', 'waitlist'] and tiers|length %}
   <span class="ed-glow" data-ev-glow aria-hidden="true" hidden><span class="ed-glow__halo"></span><span class="ed-glow__ring"></span></span>

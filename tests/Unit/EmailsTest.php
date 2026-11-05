@@ -68,6 +68,12 @@ final class EmailsTest extends TestCase
             'ad-review' => ['first_name' => 'Kemi', 'decision' => 'refused', 'campaign' => 'Mama Put Kitchen',
                           'headline' => 'Jollof by the tray', 'reason' => 'The link goes to a ballot.', 'ends_on' => '',
                           'manage_url' => 'https://x.test/account/ads/3#ad-4', 'policy_url' => 'https://x.test/legal/advertising'],
+            'role'     => ['first_name' => 'Chika', 'role' => 'Lead', 'place' => 'Alimosho ceremony', 'when' => '20 November 2026',
+                          'until' => '21 November 2026', 'inviter' => 'Femi Ade', 'state' => 'account',
+                          'action_url' => 'https://x.test/account/register', 'action_label' => 'Create your account'],
+            'event-team' => ['first_name' => 'Ngozi', 'place' => 'Alimosho ceremony', 'what' => 'The role Hospitality lead', 'state' => 'changed',
+                          'by' => 'Femi Ade', 'reason' => 'Seating only; messages stay with communications.',
+                          'action_url' => 'https://x.test/lead/event/4/roles', 'action_label' => 'Open Team & roles'],
             default   => self::fail("no sample for $key — add one when the key is added"),
         };
     }

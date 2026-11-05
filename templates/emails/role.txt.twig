@@ -1,0 +1,23 @@
+{#- Plain-text part for role.html.twig. -#}
+{{ place }}
+
+{{ state == 'given' ? 'You’re on, ' ~ first_name : 'You’re invited, ' ~ first_name }}
+
+{% if state == 'given' %}{{ inviter ? inviter ~ ' has made you ' : 'You are now ' }}{{ role == 'Lead' ? 'a lead' : role|lower }} for {{ place }}. It’s in your Africa GATES account now.
+{% elseif state == 'account' %}{{ inviter ? inviter ~ ' has asked you to be ' : 'You’ve been asked to be ' }}{{ role == 'Lead' ? 'a lead' : role|lower }} for {{ place }}. Create an Africa GATES account with this email address and confirm it — the role switches on by itself the next time you sign in.
+{% elseif state == 'confirm' %}{{ inviter ? inviter ~ ' has asked you to be ' : 'You’ve been asked to be ' }}{{ role == 'Lead' ? 'a lead' : role|lower }} for {{ place }}. Your account’s email address isn’t confirmed yet: confirm it, and the role switches on the next time you sign in.
+{% else %}{{ inviter ? inviter ~ ' has asked you to be ' : 'You’ve been asked to be ' }}{{ role|lower }} for {{ place }}. Volunteers apply once, and the volunteer team checks every application. Once yours is approved, this role switches on by itself the next time you sign in.
+{% endif %}
+Role: {{ role }}
+Event: {{ place }}{% if when %}
+Date: {{ when }}{% endif %}
+Ends: {{ until }}
+
+{{ action_label }}: {{ action_url }}
+
+The role ends by itself on {{ until }}. If you weren’t expecting this, you can ignore it — nothing happens unless you sign in.
+
+—
+{{ inviter ? inviter ~ ' gave' : 'You were given' }} a role at an Africa GATES event.
+{{ postal_address }}
+Help: {{ site_url }}/help · Privacy: {{ site_url }}/privacy

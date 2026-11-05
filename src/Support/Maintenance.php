@@ -139,6 +139,18 @@ final class Maintenance
             $ran[] = ['queue',  $this->task('queue',  fn() => $this->drainJobs())];
             $ran[] = ['cycles', $this->task('cycles', fn() => $this->advanceCycles())];
             $ran[] = ['cache',  $this->task('cache',  fn() => $this->pruneCache())];
+            // The public layout's base stylesheets as ONE request (AssetBundle). Nothing else
+            // ever built it on a host with no shell, so every page linked ten blocking files;
+            // built here whenever the layout would otherwise fall back (missing, or a source
+            // edited since), so a deploy is bundled within a tick. 0 when it is current.
+            // Not under the test harness, which must never write into the real public/.
+            $ran[] = ['assets', $this->task('assets', fn() => defined('PHPUNIT_COMPOSER_INSTALL') || \AfricaGates\Support\AssetBundle::url() !== null ? 0
+                : (\AfricaGates\Support\AssetBundle::build()['ok'] ? 1 : self::TASK_FAILED))];
+            // And the minified twin of every stylesheet edited since (MinifiedAssets): the host
+            // has no Node, so scripts are minified where the code is built, but CSS is
+            // minified here in PHP and an edited sheet is small again within the hour.
+            $ran[] = ['assets-min', $this->task('assets-min', fn() => defined('PHPUNIT_COMPOSER_INSTALL') ? 0
+                : \AfricaGates\Support\MinifiedAssets::buildCss(dirname(__DIR__, 2) . '/public')['made'])];
             // ORDER IS LOAD-BEARING. Reconciliation re-verifies stale pending payments
             // against the gateway and confirms the genuinely-paid ones; the recovery
             // mail then tells whoever is STILL pending that they did not finish. Run
@@ -305,6 +317,11 @@ final class Maintenance
                 // reported for the page it was drawn on (Services\Ads\AdDelivery).
                 $ran[] = ['adevents', $this->task('adevents',
                     fn() => \AfricaGates\Services\Ads\AdDelivery::prune())];
+                // Paid campaigns that have finished: what they did not spend goes back, with
+                // its VAT (Services\Ads\AdCheckout::settle). Claimed before the gateway is
+                // asked, so two runs cannot refund one campaign.
+                $ran[] = ['adrefunds', $this->task('adrefunds',
+                    fn() => \AfricaGates\Services\Ads\AdCheckout::settle(new \AfricaGates\Services\PaymentService()))];
                 // Expired Gemini file-upload handles. The provider deletes the file itself
                 // after 48 hours; this drops OUR record of it, which is the half that
                 // matters — a stale row would be handed to generateContent as a live
@@ -731,6 +748,15 @@ final class Maintenance
             if ($g > 0) $this->log("Door greetings pruned: $g clips");
             $c += $g;
         } catch (\Throwable) { /* a cache that will not prune must never stop the pass */ }
+
+        // ── AND THE COMPILED TEMPLATES A DEPLOY SUPERSEDED ──────────────────
+        // Support\TemplateLoader names a new compiled class whenever a template file
+        // changes, so every deploy leaves the previous copies behind, never read again.
+        try {
+            $t = TemplateLoader::pruneCompiled(dirname(__DIR__, 2) . '/var/cache/twig');
+            if ($t > 0) $this->log("Compiled templates pruned: $t files");
+            $c += $t;
+        } catch (\Throwable) { /* as above */ }
 
         return $c;
     }

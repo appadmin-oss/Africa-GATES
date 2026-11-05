@@ -29,9 +29,9 @@
   DisplayReading's, the chips at the AppBar DC's borders (2px ink chosen, 1px line-2).
 #}
 {% set _ini = member_name ? (member_name|split(' ')|filter(w => w != '')|map(w => w|first)|join|upper|slice(0, 2)) : 'AG' %}
-<div class="ag-scrim" data-ag-quick-scrim></div>
+<div class="ag-scrim" data-ag-quick-scrim data-nav-keep="quick-scrim"></div>
 
-<div class="ag-sheet ag-qs" id="ag-quick" data-ag-quick-sheet role="dialog" aria-modal="true"
+<div class="ag-sheet ag-qs" id="ag-quick" data-ag-quick-sheet data-nav-keep="quick" role="dialog" aria-modal="true"
      aria-label="{{ 'Account, language and display'|trans }}" inert>
 
   <span class="ag-sheet__grabber" aria-hidden="true"></span>

@@ -88,7 +88,7 @@
       {% set _vl = voting_letter|default(null) %}
       <div class="ad-card" style="margin-bottom:14px">
         <div class="ad-card__head">
-          <div class="ad-card__title">Nominee voting letter<small>Sent automatically to verified nominees while voting is open</small></div>
+          <div class="ad-card__title">Nominee voting letter<small>Sent automatically to every approved nominee while voting is open</small></div>
           {% if _vl %}<span class="ad-chip ad-chip--{{ not _vl.on ? 'grey' : (_vl.voting ? 'green' : 'gold') }}">{{ not _vl.on ? 'Off' : (_vl.voting ? 'Sending' : 'Waits for voting') }}</span>{% endif %}
         </div>
         <div class="ad-card__body">
@@ -98,11 +98,18 @@
           </p>
           {% else %}
           <p style="margin:0;font-size:14px;color:var(--cn-ink)">
+            On the ballot: <strong>{{ _vl.ballot|default(0) }}</strong> ·
             Verified nominees: <strong>{{ _vl.verified }}</strong> ·
             Letters sent: <strong>{{ _vl.sent }}</strong>{% if _vl.voting and _vl.on %} ·
             Due on the next run: <strong>{{ _vl.due }}</strong>{% endif %}
             {% if _vl.failed %} · Failed: <strong>{{ _vl.failed }}</strong>{% endif %}
           </p>
+          {% if _vl.audience|default('ballot') == 'verified' and _vl.unverified|default(0) > 0 %}
+          <p style="margin:8px 0 0;font-size:13px;color:var(--cn-ink)">
+            <strong>{{ _vl.unverified }} {{ _vl.unverified == 1 ? 'nominee has' : 'nominees have' }} not verified</strong>, so they receive no letter.
+            To write to every approved nominee, choose “Every approved nominee on the ballot” in <a href="/admin/settings#f-vl_title">Settings</a>.
+          </p>
+          {% endif %}
           {% if _vl.unreachable %}
           <p style="margin:8px 0 0;font-size:13px;color:var(--cn-soft)">
             {{ _vl.unreachable }} verified {{ _vl.unreachable == 1 ? 'nominee has' : 'nominees have' }} no
@@ -113,8 +120,32 @@
           <p style="margin:8px 0 0;font-size:13px">
             <a href="/admin/programmes/{{ programme.id }}/cycle/letter?cycle={{ cycle.id }}"><strong>Write or change the letter</strong></a>
             · <a href="/admin/programmes/{{ programme.id }}/cycle/voting-letter?cycle={{ cycle.id }}">See it as a PDF</a>
-            · Signatory and on/off are in <a href="/admin/settings#f-vl_title">Settings</a>.
+            · Signatory, who receives it and on/off are in <a href="/admin/settings#f-vl_title">Settings</a>.
           </p>
+          {% if _vl and _vl.held|default('') %}
+          <p class="ad-callout ad-callout--warn" style="margin:10px 0 0">{{ _vl.held }}</p>
+          {% endif %}
+          {% if _vl and _vl.correction_due|default(0) > 0 %}
+          {# A letter stated a community-return rule this edition no longer runs
+             (NomineeVotingNotice::correctionPlan()). The correction says so, apologises, states
+             the rule and reissues the letter; it is sent only from here, with a reason. #}
+          <p class="ad-callout ad-callout--warn" style="margin:10px 0 0">
+            <strong>{{ _vl.correction_due }} {{ _vl.correction_due == 1 ? 'nominee was' : 'nominees were' }} sent the letter before this edition’s community-return rule changed</strong>,
+            so {{ _vl.correction_due == 1 ? 'their letter states' : 'their letters state' }} a rule the edition does not run.
+          </p>
+          <p style="margin:10px 0 0">
+            <button class="ad-btn" type="submit" formnovalidate data-confirm="Send the correction to {{ _vl.correction_due }} {{ _vl.correction_due == 1 ? 'nominee' : 'nominees' }}? It says the earlier letter was wrong, states the rule that applies, and attaches a corrected letter."
+                    formaction="/admin/programmes/{{ programme.id }}/cycle/voting-letter/correct?cycle={{ cycle.id }}">Send the correction to {{ _vl.correction_due }} {{ _vl.correction_due == 1 ? 'nominee' : 'nominees' }}</button>
+          </p>
+          {% endif %}
+          {% if _vl and _vl.on and _vl.voting and _vl.due > 0 and not _vl.held|default('') %}
+          {# Inside the cycle form: a nested <form> would be dropped by the parser and this
+             button would save the cycle instead, so it carries its own formaction. #}
+          <p style="margin:10px 0 0">
+            <button class="ad-btn ad-btn--primary" type="submit" formnovalidate
+                    formaction="/admin/programmes/{{ programme.id }}/cycle/voting-letter/send?cycle={{ cycle.id }}">Send the {{ _vl.due }} due {{ _vl.due == 1 ? 'letter' : 'letters' }} now</button>
+          </p>
+          {% endif %}
         </div>
       </div>
       {% endif %}

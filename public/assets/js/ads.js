@@ -18,6 +18,9 @@
    ══════════════════════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
+  // Page-wide listeners and timers go through agPage (layout/shell.twig), which site-nav.js
+  // undoes when this page is swapped away; elsewhere they are plain (SiteNavTest).
+  var pg = window.agPage || { on: function (t, y, f, o) { t.addEventListener(y, f, o); }, every: function (f, ms) { return setInterval(f, ms); }, leave: function () {} };
 
   // An image that does not arrive folds away rather than leaving a square box with a
   // broken-image icon, the largest thing on a phone screen. The link bar still says
@@ -59,7 +62,7 @@
     for (var i = 0; i < cards.length; i++) io.observe(cards[i]);
   }
 
-  document.addEventListener('submit', function (e) {
+  pg.on(document, 'submit', function (e) {
     var f = e.target;
     var act = f && f.getAttribute && f.getAttribute('data-ad-act');
     if (!act) return;
@@ -82,10 +85,10 @@
     var open = document.querySelectorAll('.ag-ad__menu[open]');
     for (var j = 0; j < open.length; j++) if (open[j] !== except) open[j].removeAttribute('open');
   }
-  document.addEventListener('click', function (e) {
+  pg.on(document, 'click', function (e) {
     closeMenus(e.target.closest ? e.target.closest('.ag-ad__menu') : null);
   });
-  document.addEventListener('keydown', function (e) {
+  pg.on(document, 'keydown', function (e) {
     if (e.key !== 'Escape') return;
     var m = document.querySelector('.ag-ad__menu[open]');
     if (m) { m.removeAttribute('open'); var s = m.querySelector('summary'); if (s) s.focus(); }

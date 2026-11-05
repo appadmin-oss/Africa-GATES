@@ -83,8 +83,36 @@
 .ag-foot__legal{ display:flex; align-items:center; gap:0 18px; flex-wrap:wrap }
 .ag-foot__legal a{ display:inline-block; padding-block:4px; font-size:var(--ag-fs-13); color:var(--ag-soft) }
 
+/* A phone folds each column to one 52px row (site-footer.twig says why); from 600 the
+   summary is a plain heading again and the fold is held open (shell.js). */
+.ag-foot__h{ list-style:none }
+.ag-foot__h::-webkit-details-marker{ display:none }
+@media (max-width:599px){
+  .ag-foot__in{ grid-template-columns:minmax(0, 1fr); gap:0; padding-bottom:20px }
+  .ag-foot__brand{ margin-bottom:20px }
+  .ag-foot__col{ border-top:1px solid var(--ag-line) }
+  .ag-foot__col:last-of-type{ border-bottom:1px solid var(--ag-line) }
+  .ag-foot__h{
+    margin:0; min-height:52px; display:flex; align-items:center; justify-content:space-between;
+    font-size:var(--ag-fs-15); cursor:pointer;
+  }
+  .ag-foot__h::after{
+    content:""; width:8px; height:8px; margin-inline-end:6px;
+    border:solid var(--ag-soft); border-width:0 2px 2px 0; transform:rotate(45deg);
+    transition:transform var(--ag-dur-2) var(--ag-ease);
+  }
+  .ag-foot__fold[open] > .ag-foot__h::after{ transform:rotate(-135deg) }
+  .ag-foot__list{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); column-gap:16px; padding-bottom:12px }
+  .ag-foot__list .ag-foot__a{ display:block; padding-block:13px }
+  .ag-foot__bar{ padding-top:16px; border-top:0 }
+}
+@media (min-width:600px){
+  .ag-foot__h{ pointer-events:none }
+}
+
 /* The house focus ring. */
-.ag-foot a:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
+.ag-foot a:focus-visible,
+.ag-foot__h:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
 
 @media (min-width:600px){
   .ag-foot__in{ padding:54px 40px 30px; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:40px }

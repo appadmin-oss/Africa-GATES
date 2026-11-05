@@ -34,8 +34,9 @@ use Illuminate\Database\Capsule\Manager as DB;
  * ── PACING ──────────────────────────────────────────────────────────────────
  *
  * A campaign's views (trial) or budget (paid) is spread evenly over the days it has left, so
- * a week's budget is not spent by Monday lunchtime. Of the campaigns with room today, the one
- * furthest behind its day's share is shown first: on a rate card that is the fair order.
+ * a week's budget is not spent by Monday lunchtime. Paid campaigns are served before trials;
+ * among each, the one furthest behind its day's share is shown first: on a rate card that is
+ * the fair order.
  */
 final class AdDelivery
 {
@@ -60,7 +61,10 @@ final class AdDelivery
         if (!isset(AdRules::PLACEMENTS[$placement]) || !self::ready()) return null;
         if (!($ctx['reader'] ?? false)) return null;
         $day = date('Y-m-d');
-        self::countSlot($placement, $day);
+        // A prefetched page is drawn, not seen (Support\Speculative): it must not fill the slot
+        // count or spend this visitor's frequency cap on an ad they never had in front of them.
+        $ahead = \AfricaGates\Support\Speculative::is();
+        if (!$ahead) self::countSlot($placement, $day);
 
         try {
             $now  = date('Y-m-d H:i:s');
@@ -84,24 +88,36 @@ final class AdDelivery
             if ($room === null) continue;
             $ad = self::rotate((int) $s->id, $day);
             if ($ad === null || self::seenToday((int) $ad->id, $day) >= AdRules::FREQUENCY_CAP) continue;
-            if ($best === null || $room < $best['room'] || ($room === $best['room'] && random_int(0, 1) === 1)) {
-                $best = ['room' => $room, 'set' => $s, 'ad' => $ad];
+            // ── PAID FIRST ─────────────────────────────────────────────────────
+            // A slot shown to a free trial while a paying campaign had room was money the
+            // platform declined and an advertiser who paid for delivery did not get. Among
+            // campaigns of the same kind the one furthest behind today's share goes first,
+            // which is what lets a paid budget finish on time: an undelivered budget is
+            // refunded, so every view it misses is revenue that goes back.
+            $paid = (int) $s->trial !== 1;
+            $better = $best === null
+                || ($paid && !$best['paid'])
+                || ($paid === $best['paid'] && ($room < $best['room'] || ($room === $best['room'] && random_int(0, 1) === 1)));
+            if ($better) {
+                $best = ['room' => $room, 'set' => $s, 'ad' => $ad, 'paid' => $paid];
             }
         }
         if ($best === null) return null;
 
         $ad = $best['ad'];
-        self::noteSeen((int) $ad->id, $day);
+        if (!$ahead) self::noteSeen((int) $ad->id, $day);
         $token = self::mint((int) $ad->id, $placement, $day);
         $set = $best['set'];
         $mark = array_slice(\AfricaGates\Support\AvatarMark::letters((string) $set->advertiser), 0, 2);
         return [
             'id' => (int) $ad->id, 'placement' => $placement, 'advertiser' => (string) $set->advertiser,
             'initials' => mb_strtoupper(implode('', $mark)) ?: '?',
-            'logo' => Media::url($set->logo_path ? (string) $set->logo_path : null, 'thumb'),
+            'logo' => Media::url($set->logo_path ? (string) $set->logo_path : null, 'avatar'),
+            'logo_srcset' => \AfricaGates\Support\ImageProfiles::srcset($set->logo_path ? (string) $set->logo_path : null),
             'headline' => (string) $ad->headline, 'body' => (string) $ad->body,
             'cta' => AdRules::CTAS[(string) $ad->cta] ?? 'Learn more',
-            'image' => Media::url($ad->image_path ? (string) $ad->image_path : null, 'thumb'),
+            'image' => Media::url($ad->image_path ? (string) $ad->image_path : null, 'ad'),
+            'image_srcset' => \AfricaGates\Support\ImageProfiles::srcset($ad->image_path ? (string) $ad->image_path : null),
             'offer' => $ad->offer ? (string) $ad->offer : null, 'offer_code' => $ad->offer_code ? (string) $ad->offer_code : null,
             'domain' => AdRules::displayDomain((string) $ad->url),
             'href' => '/ads/go/' . $token, 'token' => $token, 'external' => !str_starts_with((string) $ad->url, '/'),
@@ -264,6 +280,17 @@ final class AdDelivery
     {
         $ads = DB::table('gates_ads')->where('ad_set_id', $setId)->where('review', 'approved')->get()->all();
         if ($ads === []) return null;
+        // Versions (AdCampaigns::leader()): once one is measurably ahead it is shown
+        // LEAD_SHARE of the time, and the others share the rest in turn.
+        if (count($ads) > 1) {
+            $lead = AdCampaigns::leader(AdCampaigns::adTotals(array_map(static fn ($a) => (int) $a->id, $ads)));
+            if ($lead !== null) {
+                if (random_int(1, 100) <= AdCampaigns::LEAD_SHARE) {
+                    foreach ($ads as $a) if ((int) $a->id === $lead) return $a;
+                }
+                $ads = array_values(array_filter($ads, static fn ($a) => (int) $a->id !== $lead));
+            }
+        }
         $views = [];
         foreach (DB::table('gates_ad_stats')->whereIn('ad_id', array_map(static fn ($a) => (int) $a->id, $ads))
                      ->where('day', $day)->groupBy('ad_id')->selectRaw('ad_id, SUM(views) as v')->get() as $r) {

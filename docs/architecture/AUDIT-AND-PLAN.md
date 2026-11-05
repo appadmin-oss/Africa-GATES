@@ -1413,8 +1413,11 @@ work items.
   - **Nominees may advertise what they do** under four rules: never about the award; any
     offer open to everyone and never tied to voting; off the vote page while their own award
     is open; the same price as everyone.
-  - **Not yet:** paid checkout, which needs advertising money to have its own stream in
-    CACENTRE finance before it can be taken (`CfisCatalogue`), and a VAT decision.
+  - **Paid checkout (3 Nov 2026, `Ads\AdCheckout`):** its own stream, `ads`
+    (`CfisCatalogue::BUILT_IN`, references `AFG-ADS-…`); VAT added on top at `ads_vat_bps`
+    (7.5% by default), shown as its own line and on the receipt; prepaid, starting when both
+    paid and approved for the days bought; unspent budget refunded with its VAT by the
+    maintenance run. Prices are set daily by `Ads\AdMarket`.
   - **Codes:** one promotion-code system replaces today's three (event codes, shop codes,
     `PromoCode`).
 - **Promotions never touch awards' results.** The rule "money buys the tally, never the

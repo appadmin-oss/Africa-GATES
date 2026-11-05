@@ -279,7 +279,9 @@ final class EventsPagesTest extends TestCase
 
         $this->assertStringContainsString('role="radiogroup"', $html);
         $this->assertSame(2, substr_count(substr($html, (int) strpos($html, 'role="radiogroup" aria-label="Ticket type"'), 6000), 'role="radio" data-ed-tier'));
-        $group = substr($html, (int) strpos($html, 'role="radiogroup"'), 4000);
+        // The TICKET group, by its label: the header's Display & reading controls are also
+        // radiogroups and come first in the page, so "the first radiogroup" was never this one.
+        $group = substr($html, (int) strpos($html, 'role="radiogroup" aria-label="Ticket type"'), 4000);
         $this->assertSame(1, preg_match_all('~role="radio"[^>]*?tabindex="0"~s', $group), 'the group is one tab stop');
         $this->assertMatchesRegularExpression('~--tier-accent:#[0-9A-F]{6};--tier-light:#[0-9A-F]{6};--tier-wash:#[0-9A-F]{6};--tier-deep:#[0-9A-F]{6};--tier-glow:#[0-9A-F]{6};--tier-edge:#[0-9A-F]{6}~i', $html,
             'each row supplies the five DC properties and its edge, from PHP');
@@ -293,18 +295,47 @@ final class EventsPagesTest extends TestCase
         $this->assertStringNotContainsString('loop.index', $tpl, 'rank is a price question, never a list position');
     }
 
-    public function test_the_glow_is_the_specified_one_and_leaves_under_reduced_motion(): void
+    /**
+     * The card's rim (owner, 2 Nov 2026: Google's AI-mode glow in one colour, then "cleaner,
+     * like Google's"), each clause a way it was or could be wrong while rendering perfectly
+     * well: a second colour in the comet, a glow washing round the whole card, a rim turning
+     * for ever beside a form, two clocks drifting apart, a linear turn, a sweep running off
+     * screen or pausing while a quarter of it was in view, and a double edge over the card's
+     * hairline.
+     */
+    public function test_the_glow_is_a_one_colour_sweep_round_the_card_that_rests_after(): void
     {
         $css = ChromeRender::code('public/assets/css/components/events.css');
-        $this->assertMatchesRegularExpression("~@property --ev-a\{\s*syntax:'<angle>'~", $css);
-        $this->assertMatchesRegularExpression('~\.ed-glow__halo\{[^}]*inset:-10px[^}]*filter:blur\(22px\)[^}]*opacity:\.55[^}]*3\.2s linear infinite~s', $css);
-        $this->assertMatchesRegularExpression('~\.ed-glow__ring\{[^}]*padding-box[^}]*border-box~s', $css);
-        $this->assertMatchesRegularExpression('~@keyframes edGlow\{[^\n]*?100%\{ opacity:\.35 \}~', $css, 'it settles to .35');
+        $this->assertMatchesRegularExpression("~@property --ev-a\{\s*syntax:'<angle>'; initial-value:0deg; inherits:true \}~", $css, 'the halo and the ring need one clock');
+        $this->assertSame(1, preg_match('~\.ed-glow\{(.*?)\n\}~s', $css, $g));
+        $glow = $g[1];
+        $this->assertMatchesRegularExpression('~animation:edAngle [0-9.]+s cubic-bezier\([^)]*\) 2 both;~', $glow, 'two eased laps, then rest — not linear, not for ever');
+        $this->assertStringNotContainsString('infinite', substr($css, (int) strpos($css, '@property --ev-a'), 4000), 'a rim turning for ever beside a form');
+        $this->assertMatchesRegularExpression('~inset:-1px~', $glow, 'the ring is a second edge inside the card\'s own');
+
+        // The comet is the tier's colour on the card's own hairline; the halo is the comet alone.
+        preg_match('~--ev-head:([^;]*);~', $glow, $h);
+        $this->assertNotEmpty($h);
+        preg_match_all('~var\((--[a-z0-9-]+)\)~', $h[1], $v);
+        $this->assertSame([], array_values(array_filter(array_unique($v[1]), fn($n) => !str_starts_with($n, '--tier-'))), 'the comet is drawn in a colour that is not the tier\'s');
+        $this->assertStringContainsString('--ev-cg:conic-gradient(from var(--ev-a), var(--ag-line) 0deg 190deg, var(--ev-head), var(--ag-line) 360deg);', $glow, 'away from the comet the rim is the ordinary card edge');
+        $this->assertStringContainsString('--ev-halo:conic-gradient(from var(--ev-a), transparent 0deg 220deg, var(--ev-head), transparent 360deg);', $glow, 'a halo of the whole ring washes round the card');
+        $this->assertDoesNotMatchRegularExpression('~\.ed-glow__(halo|ring)\{[^}]*edAngle~', $css, 'a second clock on a child drifts from the first');
+
+        $this->assertMatchesRegularExpression('~\.ed-glow__halo\{[^}]*inset:-3px[^}]*filter:blur\(10px\)~s', $css, 'the glow sits tight to the card');
+        $this->assertMatchesRegularExpression('~\.ed-glow__ring\{[^}]*padding-box, var\(--ev-cg\) border-box~s', $css);
+        $this->assertMatchesRegularExpression('~@keyframes edSweep\{[^\n]*100%\{ opacity:0 \} \}~', $css, 'the card is left as it was drawn');
+        $this->assertMatchesRegularExpression('~@keyframes edHalo\{[^\n]*100%\{ opacity:0;~', $css);
+        $this->assertStringContainsString('.ed-card[data-ev-idle] .ed-glow > *{ animation-play-state:paused }', $css, 'a sweep nobody can see');
         $this->assertMatchesRegularExpression('~prefers-reduced-motion:reduce\)\{ \[data-ev-glow\]\{ display:none \} \}~', $css);
+        $this->assertStringContainsString('html.ag-rm [data-ev-glow]{ display:none }', $css, 'the site\'s own reduce-motion setting left the rim drawn, still');
         $this->assertStringContainsString('aria-hidden="true" hidden><span class="ed-glow__halo">', ChromeRender::source('templates/pages/events/_card.twig'),
-            'the effect is hidden from assistive tech and does not play before the first pick');
+            'the effect is hidden from assistive tech and does not play before it is seen');
+
         $js = ChromeRender::code('public/assets/js/event-detail.js');
         $this->assertStringContainsString('replaceChild(fresh, g)', $js, 'a pick replays by replacing the element');
+        $this->assertStringContainsString('{ threshold: [0, 0.25] }', $js, 'under one .25 threshold a card 24% in view reads as off screen and stands still');
+        $this->assertMatchesRegularExpression("~intersectionRatio > 0\) card\.removeAttribute\('data-ev-idle'\)~", $js);
     }
 
     public function test_the_phone_order_and_the_fixed_bar(): void
@@ -322,6 +353,23 @@ final class EventsPagesTest extends TestCase
         $this->assertStringContainsString('From', $html);
         $this->assertStringNotContainsString('class="ed-bar"', ChromeRender::html('/events/ev-past'), 'nothing to get, no bar');
         $this->assertStringNotContainsString('data-ag-appbar', ChromeRender::html('/events/ev-open'), 'the phone detail is full-bleed: no app bar');
+    }
+
+    /**
+     * The event's type is in the hero's own text, never the cover's pill: the hero writes its
+     * heading over the cover's foot — the sheet rises 22px over it on a phone, the title sits
+     * on it from 600 — so the pill was half under the sheet on one and under the venue on the
+     * other.
+     */
+    public function test_the_type_is_named_in_the_hero_text_not_under_it(): void
+    {
+        $this->world();
+        $html = ChromeRender::html('/events/ev-open');
+        $hero = preg_match('~<header class="ed-hero">.*?</header>~s', $html, $m) ? $m[0] : '';
+        $this->assertNotSame('', $hero, 'no hero');
+        $this->assertStringNotContainsString('ag-cover__pill', $hero, 'the cover draws its pill where the hero text covers it');
+        $this->assertMatchesRegularExpression('~<div class="ed-hero__text">\s*<span class="ed-kind ed-kind--[a-z]+"><i aria-hidden="true"></i>[^<]+</span>~', $hero,
+            'the type is named, first, in the hero text');
     }
 
     public function test_the_fundraiser_reading_is_derived_and_hoisted_and_never_calls_a_ticket_a_gift(): void

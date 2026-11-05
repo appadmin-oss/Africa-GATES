@@ -8,6 +8,9 @@
  */
 (function () {
   'use strict';
+  // Page-wide listeners and timers go through agPage (layout/shell.twig), which site-nav.js
+  // undoes when this page is swapped away; elsewhere they are plain (SiteNavTest).
+  var pg = window.agPage || { on: function (t, y, f, o) { t.addEventListener(y, f, o); }, every: function (f, ms) { return setInterval(f, ms); }, leave: function () {} };
 
   var motion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
   var reduced = function () { return !!(motion && motion.matches) || document.documentElement.classList.contains('ag-rm'); };
@@ -23,6 +26,13 @@
     var live = hero.querySelector('.hm-rec-box');
     var i = 0, timer = null, hover = false, focused = false, userPaused = false;
 
+    var wake = function (n) {
+      var im = slides[(n + slides.length) % slides.length].querySelector('img[data-hm-src]');
+      if (!im) return;
+      if (im.getAttribute('data-hm-srcset')) im.srcset = im.getAttribute('data-hm-srcset');
+      im.src = im.getAttribute('data-hm-src');
+      im.removeAttribute('data-hm-src'); im.removeAttribute('data-hm-srcset');
+    };
     var updateControl = function () {
       if (play) {
         play.hidden = reduced();
@@ -32,6 +42,7 @@
     };
     var show = function (n) {
       i = (n + slides.length) % slides.length;
+      wake(i); wake(i + 1);
       for (var k = 0; k < slides.length; k++) {
         var on = k === i;
         slides[k].classList.toggle('is-on', on);
@@ -52,9 +63,8 @@
       stop();
       updateControl();
       if (slides.length < 2 || reduced() || userPaused || hover || focused || document.hidden) return;
-      // Automatic changes must not repeatedly interrupt a screen reader.
       if (live) live.setAttribute('aria-live', 'off');
-      timer = setInterval(function () { show(i + 1); }, 5500);
+      timer = pg.every(function () { show(i + 1); }, 5500);
     };
     for (var d = 0; d < dots.length; d++) {
       dots[d].addEventListener('click', function (event) {
@@ -76,13 +86,11 @@
     hero.addEventListener('focusout', function (event) {
       if (!hero.contains(event.relatedTarget)) { focused = false; start(); }
     });
-    document.addEventListener('visibilitychange', start);
-    document.addEventListener('ag:a11y', start);
-    if (motion) {
-      if (motion.addEventListener) motion.addEventListener('change', start);
-      else if (motion.addListener) motion.addListener(start);
-    }
+    pg.on(document, 'visibilitychange', start);
+    pg.on(document, 'ag:a11y', start);
+    if (motion && motion.addEventListener) pg.on(motion, 'change', start);
     if (controls) controls.hidden = false;
+    pg.leave(stop);
     start();
   }
 

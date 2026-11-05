@@ -33,15 +33,36 @@ final class AdsController
         private readonly ?UploadService $uploads = null,
     ) {}
 
+    private ?\AfricaGates\Services\PaymentService $ps = null;
+
+    /** The gateway, made once per request and only on the pages that take money. */
+    private function payments(): \AfricaGates\Services\PaymentService
+    {
+        return $this->ps ??= new \AfricaGates\Services\PaymentService();
+    }
+
     /** GET /advertise — what an ad is, where it runs and what it costs, before anybody signs up. */
     public function advertise(Request $req, Response $res): Response
     {
         $host = (string) (parse_url(SiteUrl::base($req), PHP_URL_HOST) ?: 'africagates.org');
+        // The planner answers a GET, so a plan has an address an advertiser can send on, and
+        // it works with no script (AdPlanner).
+        $q = $req->getQueryParams();
+        $plan = null;
+        if (isset($q['goal'], $q['n']) && (int) $q['n'] > 0) {
+            $plan = \AfricaGates\Services\Ads\AdPlanner::plan((string) $q['goal'], (int) $q['n'], (int) ($q['days'] ?? 14));
+        }
         return $this->view->render($res, 'pages/advertise.twig', [
+            'market' => \AfricaGates\Services\Ads\AdMarket::card(), 'plan' => $plan,
+            'goals' => \AfricaGates\Services\Ads\AdPlanner::GOALS,
+            'plan_in' => ['goal' => (string) ($q['goal'] ?? 'visits'), 'n' => (int) ($q['n'] ?? 0) ?: '', 'days' => (int) ($q['days'] ?? 14) ?: 14],
+            'max_days' => AdRules::MAX_DAYS,
+            'pricing' => ['dynamic' => \AfricaGates\Services\Ads\AdMarket::dynamic(), 'floor' => (int) round(100 * \AfricaGates\Services\Ads\AdMarket::FLOOR),
+                          'ceil' => (int) round(100 * \AfricaGates\Services\Ads\AdMarket::CEIL), 'horizon' => \AfricaGates\Services\Ads\AdMarket::HORIZON,
+                          'assumed_ctr' => round(100 * \AfricaGates\Services\Ads\AdMarket::ASSUMED_CTR, 1)],
             'app_bar' => ['variant' => 'child', 'title' => 'Advertise', 'back' => '/', 'share' => false],
             'page_title' => 'Advertise — Africa GATES',
             'meta_description' => 'Put your business, product or event in front of the people on Africa GATES.',
-            'placements' => AdRules::PLACEMENTS, 'rates' => AdRateCard::all(),
             'trial' => ['days' => AdRules::TRIAL_DAYS, 'views' => AdRules::TRIAL_VIEWS],
             // A drawn example, in the real card, so an advertiser sees the format before
             // signing up. Labelled an example; it links nowhere. It is OUR OWN ad, drawn from
@@ -106,6 +127,12 @@ final class AdsController
             'trial_left' => !AdCampaigns::trialUsed((int) $user->id),
             'nominee_open' => AdRules::inOpenAward((int) $user->id),
             'rules' => self::rules(), 'estimate' => $est,
+            // Where each place sits, its tier and today's price: the builder states the same
+            // market /advertise does (AdMarket::card), keyed for the checkbox loop.
+            'market' => array_column(\AfricaGates\Services\Ads\AdMarket::card(), null, 'key'),
+            'paid' => ['open' => \AfricaGates\Services\Ads\AdCheckout::open($this->payments()),
+                       'min' => \AfricaGates\Services\Ads\AdCheckout::MIN_BUDGET_NAIRA,
+                       'vat_pct' => \AfricaGates\Services\Ads\AdCheckout::vatBps() / 100],
             'errors' => $form['errors'] ?? [], 'old' => $form['old'] ?? [], 'summary' => $form['summary'] ?? '',
         ]);
     }
@@ -122,15 +149,23 @@ final class AdsController
             $f->summary('That is a lot of campaigns for one day. Try again tomorrow.')->flash();
             return $this->back($res);
         }
-        if (AdCampaigns::trialUsed((int) $user->id)) {
-            // Paid campaigns are not open yet: the money needs its own line in finance before
-            // it can be taken (see the commit that added this). Said, not hidden.
-            $f->summary('Your free trial is used. Paid campaigns open soon.')->flash();
+        $paid = (string) ($b['kind'] ?? '') === 'paid' || AdCampaigns::trialUsed((int) $user->id);
+        if ($paid && !\AfricaGates\Services\Ads\AdCheckout::open($this->payments())) {
+            $f->summary('Your free trial is used, and paid campaigns are not on sale right now.')->flash();
             return $this->back($res);
         }
 
         $image = $this->image($req, $f);
-        $logo  = $this->image($req, $f, 'logo', 200);
+        $logo  = $this->image($req, $f, 'logo');
+        if ($paid) {
+            $r = \AfricaGates\Services\Ads\AdCheckout::create((int) $user->id, $b, $image, $logo);
+            if (!$r['ok']) {
+                foreach ($r['errors'] ?? [] as $k => $m) { $k === 'form' ? $f->summary($m) : $f->add($k, $m); }
+                $f->flash();
+                return $this->back($res);
+            }
+            return $this->toCheckout($req, $res, (int) $r['id'], $user);
+        }
         $r = AdCampaigns::createTrial((int) $user->id, $b, $image, $logo);
         if (!$r['ok']) {
             foreach ($r['errors'] ?? [] as $k => $m) { $k === 'form' ? $f->summary($m) : $f->add($k, $m); }
@@ -139,6 +174,48 @@ final class AdsController
         }
         $_SESSION['flash_ok'] = 'Sent for review. Your trial starts when a person approves it.';
         return $res->withHeader('Location', '/account/ads/' . (int) $r['id'])->withStatus(303);
+    }
+
+    /** Open the gateway for one unpaid campaign, or say why not and show the campaign. */
+    private function toCheckout(Request $req, Response $res, int $id, object $user): Response
+    {
+        $cb = SiteUrl::base($req) . '/account/ads/' . $id . '/paid';
+        $r = \AfricaGates\Services\Ads\AdCheckout::start($this->payments(), $id, (int) $user->id, (string) ($user->email ?? ''), $cb);
+        if ($r['ok']) return $res->withHeader('Location', (string) $r['url'])->withStatus(303);
+        $_SESSION['flash_error'] = $r['message'];
+        return $res->withHeader('Location', '/account/ads/' . $id)->withStatus(303);
+    }
+
+    /** POST /account/ads/{id}/pay — pay for a saved campaign (a checkout left, or one that would not open). */
+    public function pay(Request $req, Response $res, array $args): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $this->toLogin($res, '/account/ads');
+        return $this->toCheckout($req, $res, (int) ($args['id'] ?? 0), $user);
+    }
+
+    /**
+     * GET /account/ads/{id}/paid — back from the gateway. Asks the gateway (never the query
+     * string) and says what it found; the webhook confirms the same payment if this page is
+     * never reached.
+     */
+    public function paid(Request $req, Response $res, array $args): Response
+    {
+        $user = $this->accounts->current();
+        $id = (int) ($args['id'] ?? 0);
+        if (!$user) return $this->toLogin($res, '/account/ads/' . $id);
+        $c = \Illuminate\Database\Capsule\Manager::table('gates_ad_campaigns')->where('id', $id)->where('user_id', (int) $user->id)->first();
+        if ($c && $c->payment_ref) {
+            $r = \AfricaGates\Services\Ads\AdCheckout::confirm((string) $c->payment_ref, $this->payments());
+            if (in_array($r['state'], ['confirmed', 'already'], true)) {
+                $_SESSION['flash_ok'] = 'Paid. A person checks your ad next; it runs from when it is approved. Your receipt is in your email.';
+            } elseif ($r['state'] === 'pending') {
+                $_SESSION['flash_ok'] = 'Your payment has not cleared yet. This page updates when it does; nothing runs before then.';
+            } else {
+                $_SESSION['flash_error'] = 'That payment did not match the campaign. Nothing was started; contact us with your reference.';
+            }
+        }
+        return $res->withHeader('Location', '/account/ads/' . $id)->withStatus(303);
     }
 
     /** GET /account/ads/{id} — one campaign: its ads, its results by day, its controls. */
@@ -150,12 +227,14 @@ final class AdsController
         if ($c === null) return $res->withHeader('Location', '/account/ads')->withStatus(302);
         unset($c['_set']);
         $form = FormErrors::take('ad_fix');
+        $new = FormErrors::take('ad_new');
 
         return $this->view->render($res, 'pages/account/ads-campaign.twig', [
             'app_bar' => ['variant' => 'child', 'title' => $c['name'], 'back' => '/account/ads', 'share' => false],
             'page_title' => $c['name'] . ' — Ads — Africa GATES', 'gates_page' => 'account',
             'c' => $c, 'rules' => self::rules(),
             'errors' => $form['errors'] ?? [], 'old' => $form['old'] ?? [], 'fixing' => (int) ($form['old']['ad_id'] ?? 0),
+            'new_errors' => $new['errors'] ?? [], 'new_old' => $new['old'] ?? [], 'new_summary' => $new['summary'] ?? '',
         ]);
     }
 
@@ -197,6 +276,25 @@ final class AdsController
             ? ['paused' => 'Paused.', 'submitted' => 'Running again.', 'cancelled' => 'Cancelled.'][$to]
             : 'That did not change anything.';
         return $res->withHeader('Location', '/account/ads/' . $id)->withStatus(303);
+    }
+
+    /** POST /account/ads/{id}/ads — another version of the campaign's ad, sent for review. */
+    public function addVersion(Request $req, Response $res, array $args): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $this->toLogin($res, '/account/ads');
+        $id = (int) ($args['id'] ?? 0);
+        $b = (array) $req->getParsedBody();
+        $f = FormErrors::for('ad_new')->keep($b);
+        $image = $this->image($req, $f);
+        $r = AdCampaigns::addAd($id, (int) $user->id, $b, $image);
+        if (!$r['ok']) {
+            foreach ($r['errors'] ?? [] as $k => $m) { $k === 'form' ? $f->summary($m) : $f->add($k, $m); }
+            $f->flash();
+            return $res->withHeader('Location', '/account/ads/' . $id . '#ad-version')->withStatus(303);
+        }
+        $_SESSION['flash_ok'] = 'New version sent for review. It joins the rotation once a person approves it.';
+        return $res->withHeader('Location', '/account/ads/' . $id . '#ad-' . (int) $r['id'])->withStatus(303);
     }
 
     /** POST /account/ads/ad/{id} — an ad edited (or a refused one fixed) and sent for review again. */
@@ -280,24 +378,38 @@ final class AdsController
         return [
             'headline' => AdRules::HEADLINE_MAX, 'body_min' => AdRules::BODY_MIN, 'body' => AdRules::BODY_MAX,
             'name' => AdRules::NAME_MAX, 'offer' => AdRules::OFFER_MAX, 'code' => AdRules::CODE_MAX,
-            'image' => AdRules::IMAGE_MIN, 'days' => AdRules::TRIAL_DAYS, 'views' => AdRules::TRIAL_VIEWS,
+            'image' => AdRules::IMAGE_MIN, 'logo' => \AfricaGates\Support\ImageProfiles::get('ad_logo')['min'], 'days' => AdRules::TRIAL_DAYS, 'views' => AdRules::TRIAL_VIEWS,
+            'max_days' => AdRules::MAX_DAYS,
             'freq' => AdRules::FREQUENCY_CAP,
             'placements' => AdRules::PLACEMENTS, 'objectives' => AdRules::OBJECTIVES, 'ctas' => AdRules::CTAS,
             'categories' => AdRules::CATEGORIES, 'approvals' => AdRules::APPROVALS, 'beta' => AdRules::inBeta(),
             'standards' => AdRules::STANDARDS,
+            'versions' => AdRules::ADS_PER_SET, 'test_views' => AdCampaigns::TEST_VIEWS, 'lead_share' => AdCampaigns::LEAD_SHARE,
         ];
     }
 
-    /** An uploaded image (`image`, or the `logo`), stored, or null with the reason added to the form. */
-    private function image(Request $req, FormErrors $f, string $field = 'image', int $min = AdRules::IMAGE_MIN): ?string
+    /**
+     * An uploaded image (`image`, or the `logo`), made into its profile's shape and stored
+     * (UploadService::uploadProcessed()), or null with the reason added to the form.
+     *
+     * The editor (image-tool.js) sends either the chosen square itself or the original with
+     * the cut in `<field>_crop`; with no script the server cuts the centre. A cut too small
+     * for the profile is refused in the editor's own words — the pixels it has and the
+     * pixels it needs — rather than "use a larger image" about a photo that may be 4000px.
+     */
+    private function image(Request $req, FormErrors $f, string $field = 'image'): ?string
     {
+        $min = \AfricaGates\Support\ImageProfiles::get($field === 'logo' ? 'ad_logo' : 'ad')['min'];
         $file = $req->getUploadedFiles()[$field] ?? null;
         if (!$file || $file->getError() === UPLOAD_ERR_NO_FILE) return null;
+        $crop = (string) (((array) $req->getParsedBody())[$field . '_crop'] ?? '');
         try {
-            $r = ($this->uploads ?? new UploadService())->uploadImage($file, 'ads', $field === 'logo' ? 400 : 1200, 82, null, 'ad', null, $min);
+            $r = ($this->uploads ?? new UploadService())->uploadProcessed($file, 'ads', $field === 'logo' ? 'ad_logo' : 'ad', $crop, null, 'ad', null);
             return (string) ($r['path'] ?? $r['url'] ?? '') ?: null;
         } catch (\Throwable $e) {
-            $f->add($field, sprintf('Use a JPEG, PNG or WebP at least %dpx on each side.', $min));
+            $m = $e->getMessage();
+            $f->add($field, str_starts_with($m, 'The ') || str_starts_with($m, 'Upload a ') || str_starts_with($m, 'Image larger')
+                ? $m : sprintf('Use a JPEG, PNG or WebP photo, at least %dpx on each side.', $min));
             return null;
         }
     }

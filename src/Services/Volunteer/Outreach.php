@@ -457,4 +457,89 @@ If you have a question, just reply to this email.";
         }
         return $out;
     }
+
+    /**
+     * THE CONTACT REPORT, READ BACK (owner, 31 Oct 2026: "build the lead and admin views of the
+     * contact reports"). Every contact a volunteer logs is the report; this is the one reader of
+     * them, for a lead's team page and for staff alike, so the two cannot count differently.
+     *
+     * Layers, as the programme reads them: how many nominees the award has and how many anybody
+     * has reached; each volunteer's contacts, nominees and conversations; and the contacts
+     * themselves, newest first. A nominee is "reached" when anybody actually spoke to them, not
+     * when somebody tried. A fixed number of queries whatever the size of the award.
+     *
+     * @param list<int> $cycles   the awards to report on
+     * @param int       $days     0 for all time; otherwise the contacts of the last N days
+     * @return array{totals:array<string,int>, outcomes:array<string,int>, channels:array<string,int>,
+     *               coverage:list<array<string,mixed>>, people:list<array<string,mixed>>, recent:list<object>}
+     */
+    public static function report(array $cycles, int $days = 0, int $limit = 200): array
+    {
+        $out = ['totals' => ['contacts' => 0, 'nominees' => 0, 'reached' => 0, 'volunteers' => 0, 'due' => 0],
+                'outcomes' => array_fill_keys(array_keys(self::OUTCOMES), 0), 'channels' => array_fill_keys(array_keys(self::CHANNELS), 0),
+                'coverage' => [], 'people' => [], 'recent' => []];
+        $cycles = array_values(array_unique(array_map('intval', $cycles)));
+        if (!$cycles || !self::ready()) return $out;
+        $since = $days > 0 ? date('Y-m-d H:i:s', strtotime('-' . $days . ' days')) : null;
+        $base = static fn () => DB::table('gates_vol_outreach as o')->whereIn('o.cycle_id', $cycles)
+            ->when($since, static fn ($q) => $q->where('o.created_at', '>=', $since));
+
+        foreach ($base()->groupBy('o.outcome')->selectRaw('o.outcome as k, COUNT(*) as n')->get() as $r) $out['outcomes'][(string) $r->k] = (int) $r->n;
+        foreach ($base()->groupBy('o.channel')->selectRaw('o.channel as k, COUNT(*) as n')->get() as $r) $out['channels'][(string) $r->k] = (int) $r->n;
+        $out['totals']['contacts'] = array_sum($out['outcomes']);
+
+        // Per volunteer: one grouped query, names in a second.
+        $people = $base()->groupBy('o.volunteer_id')
+            ->selectRaw("o.volunteer_id as id, COUNT(*) as contacts, COUNT(DISTINCT o.nominee_id) as nominees, SUM(CASE WHEN o.outcome = 'reached' THEN 1 ELSE 0 END) as reached, MAX(o.created_at) as last_at")
+            ->get()->all();
+        $names = [];
+        if ($people) {
+            foreach (DB::table('gates_volunteers as v')->leftJoin('gates_users as u', 'u.id', '=', 'v.user_id')
+                         ->whereIn('v.id', array_map(static fn ($p) => (int) $p->id, $people))->get(['v.id', 'v.display_name', 'u.name']) as $v) {
+                $names[(int) $v->id] = (string) ($v->display_name ?: $v->name ?: 'Volunteer #' . $v->id);
+            }
+        }
+        foreach ($people as $p) {
+            $out['people'][] = ['id' => (int) $p->id, 'name' => $names[(int) $p->id] ?? 'Volunteer #' . $p->id, 'contacts' => (int) $p->contacts,
+                                'nominees' => (int) $p->nominees, 'reached' => (int) $p->reached, 'last_at' => (string) $p->last_at];
+        }
+        usort($out['people'], static fn ($a, $b) => $b['contacts'] <=> $a['contacts'] ?: strcasecmp($a['name'], $b['name']));
+        $out['totals']['volunteers'] = count($out['people']);
+
+        // Coverage per award, against every nominee standing in it.
+        $titles = [];
+        foreach (DB::table('gates_award_cycles as c')->leftJoin('gates_award_programmes as p', 'p.id', '=', 'c.programme_id')
+                     ->whereIn('c.id', $cycles)->get(['c.id', 'p.title', 'c.edition_label', 'c.year']) as $c) {
+            $titles[(int) $c->id] = trim((string) $c->title . ' · ' . ($c->edition_label ?: $c->year), ' ·');
+        }
+        $standing = [];
+        foreach (DB::table('gates_nominees as n')->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+                     ->whereIn('c.cycle_id', $cycles)->whereIn('n.status', ['approved', 'winner', 'runner_up'])->whereNull('n.merged_into')
+                     ->groupBy('c.cycle_id')->selectRaw('c.cycle_id as k, COUNT(*) as n')->get() as $r) $standing[(int) $r->k] = (int) $r->n;
+        $touched = $spoke = [];
+        foreach ($base()->groupBy('o.cycle_id')->selectRaw('o.cycle_id as k, COUNT(DISTINCT o.nominee_id) as n')->get() as $r) $touched[(int) $r->k] = (int) $r->n;
+        foreach ($base()->where('o.outcome', 'reached')->groupBy('o.cycle_id')->selectRaw('o.cycle_id as k, COUNT(DISTINCT o.nominee_id) as n')->get() as $r) $spoke[(int) $r->k] = (int) $r->n;
+        foreach ($cycles as $c) {
+            $out['coverage'][] = ['id' => $c, 'title' => $titles[$c] ?? 'Award #' . $c, 'total' => $standing[$c] ?? 0,
+                                  'contacted' => $touched[$c] ?? 0, 'reached' => $spoke[$c] ?? 0];
+            $out['totals']['nominees'] += $touched[$c] ?? 0;
+            $out['totals']['reached'] += $spoke[$c] ?? 0;
+        }
+
+        // Follow-ups now due: the newest contact per nominee carries a date that has come.
+        $last = DB::table('gates_vol_outreach')->whereIn('cycle_id', $cycles)->groupBy('nominee_id')->selectRaw('MAX(id)');
+        $out['totals']['due'] = (int) DB::table('gates_vol_outreach')->whereIn('id', $last)->where('outcome', '!=', 'stop')
+            ->whereNotNull('follow_up_on')->where('follow_up_on', '<=', date('Y-m-d'))->count();
+
+        $out['recent'] = $base()->join('gates_nominees as n', 'n.id', '=', 'o.nominee_id')
+            ->orderByDesc('o.id')->limit(max(1, min(5000, $limit)))
+            ->get(['o.id', 'o.volunteer_id', 'o.nominee_id', 'o.cycle_id', 'o.channel', 'o.outcome', 'o.note', 'o.follow_up_on', 'o.subject', 'o.created_at', 'n.name as nominee'])->all();
+        foreach ($out['recent'] as $r) {
+            $r->volunteer = $names[(int) $r->volunteer_id] ?? 'Volunteer #' . $r->volunteer_id;
+            $r->award = $titles[(int) $r->cycle_id] ?? '';
+            $r->channel_label = self::CHANNELS[$r->channel] ?? (string) $r->channel;
+            $r->outcome_label = self::OUTCOMES[$r->outcome] ?? (string) $r->outcome;
+        }
+        return $out;
+    }
 }

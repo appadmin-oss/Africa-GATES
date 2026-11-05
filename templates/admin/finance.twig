@@ -882,10 +882,17 @@
             <div class="fi-kpi__v">₦{{ referral.paid_out_naira|number_format }}</div>
             <div class="fi-kpi__s">stamped on the credit row</div>
           </div>
+          {% if referral.paid_then_reversed_naira|default(0) > 0 %}
+          <div class="fi-kpi fi-kpi--warn">
+            <div class="fi-kpi__l">Paid, then refunded</div>
+            <div class="fi-kpi__v">₦{{ referral.paid_then_reversed_naira|number_format }}</div>
+            <div class="fi-kpi__s">commission paid out before the sale behind it was refunded — decide whether to recover it</div>
+          </div>
+          {% endif %}
           <div class="fi-kpi fi-kpi--good">
             <div class="fi-kpi__l">Referred ticket sales</div>
             <div class="fi-kpi__v">₦{{ referral.gross_naira|number_format }}</div>
-            <div class="fi-kpi__s">{{ referral.referrals|number_format }} paid referral{{ referral.referrals == 1 ? '' : 's' }} by {{ referral.earners|number_format }} member{{ referral.earners == 1 ? '' : 's' }}</div>
+            <div class="fi-kpi__s">{{ referral.referrals|number_format }} paying {{ referral.referrals == 1 ? 'person' : 'people' }} referred by {{ referral.earners|number_format }} member{{ referral.earners == 1 ? '' : 's' }}</div>
           </div>
         </div>
 

@@ -225,11 +225,26 @@ and the decision's single reversal each fail it.
   no grant check, no note for "Something else", a vote on another award counting, the owner
   counting, and an undecided nomination counting towards agreement.
 
+**3 Nov 2026 — the desk's nominator signals stay with moderators.** `NominationChecks::view()`
+copied the peek's whole `check_list` to the volunteer, and that list carries the nominator
+signals as well as the desk's checks: "The nominator has the nominee's name", "Sent from the
+same device as N other nominators", "The nominee's contact is a nominator's own". No contact
+detail, but each is a moderation judgement ABOUT the nominator, and §7 gives a volunteer the
+reason, the category and the evidence. The view now builds from the row's keyed checks and
+leaves out the `signal` kind by key, so a reworded signal stays out too; a duplicate (about
+the nominee) still shows. `VolunteerAwardPlacesTest::test_the_desks_signals_about_the_nominator_never_reach_a_volunteer`
+fails on the code before the change.
+
 ### Not yet (next slices)
 
-- **Door scans as hours** (G1): a volunteer's own pass at the gate stamping
-  `gates_vol_signups.check_in_at` / `check_out_at`. Staff "Came / Didn't come" is the source
-  until then.
+- **Door scans as hours** (G1), as the DC draws it — a volunteer's own pass scanned at the
+  gate — is **not built, and the question changed under it.** Shifts were removed at the
+  owner's request (29 Oct), so there is no sign-up for a pass to belong to. Hours on site come
+  from `Volunteer\Attendance` instead (30 Oct): the volunteer checks in and out from the
+  event's page, or the event lead does it from People › Volunteers; a lead's tap counts at
+  once, the volunteer's own waits for a lead. Whether the DOOR should also do it — a signed
+  pass per role at the event, recognised by the scanner the way it tells an invitation from a
+  ticket — is for the owner.
 - **Shell behaviours** still to build: the drawer, remembered page per scope, smart group
   collapse.
 - **Event Role guide**: the event place has no Role guide page yet.
@@ -244,3 +259,91 @@ staff to an email address, and the account that has verified it holds it; nothin
 opens on the way in from the account. The top of the rail is a product switcher (after
 ElevenLabs) on the volunteer and lead shell and the staff console, in More on a phone. Rules
 and reasons: AUDIT-AND-PLAN §7.1; `AccountRolesTest` holds them.
+
+### 3 Nov 2026 — leads are told, invited by address, findable; leads recruit
+
+- **Told.** Giving a lead (or a volunteer role) emails the person (`Emails` key `role`), saying the
+  role, the event and the day it ends. The admin toast says whether the email went.
+- **Invited by address.** `gates_role_invites` (`2027_05_06_role_invites.php`) holds a role for an
+  email address with no eligible account yet. `RoleInvites::claimFor()` turns it into a grant the
+  next time an account that has CONFIRMED that address is signed in (UserAuthMiddleware, at most
+  every five minutes a session) — a volunteer role only once their volunteer record is approved.
+  Withdrawn and past-their-end invitations never switch on.
+- **Findable.** The Events list has a Leads column and link; `/admin/events/leads` lists every
+  lead and waiting invitation across events.
+- **Leads recruit.** Event › People › Volunteers: "Add somebody to the team" by email (approved
+  volunteer → role at once; anybody else → invited to apply, vetting never skipped), end a role,
+  withdraw an invitation. By email, never from a list: a lead may be an outside organisation's
+  person and the platform's roster is not theirs to browse. A lead never makes a lead.
+- Tests: `LeadConsoleTest` (five new, and the "give by email" test rewritten to the new promise).
+
+---
+
+## 3 Nov 2026 — Event owners, teams, custom roles, the permission menu
+
+Owner's words: "The event lead manages this. Can create and define their role and so on. Can
+set up committees or teams, assigns lead and so on (event owner approves, event owner can set
+permission as they like). AI helps underground. It also helps tailor the portals properly for
+whatever kind of role." Answers: an owner is a role PER EVENT, given by staff; custom role
+permissions come from a FIXED MENU the code enforces, nothing invented.
+
+**Who is who at an event** (all `gates_grants`, all ending, all read live):
+
+| | Grant | Sees | Does |
+|---|---|---|---|
+| Lead | `event.lead` | every page | every menu permission; proposes teams, roles and people; recruits volunteers |
+| Owner | `event.own` (staff give it, by address) | every page | decides proposals (approve, change the ticks, refuse), ends a person's role, archives a role. Runs nothing |
+| Custom role | `event.role`, or `vol.event_role` for a volunteer role (vetting kept) | only the pages its ticks open | only its ticks |
+| Team lead | a custom role held with `team_role = lead` | as their role | as their role, plus proposing a member into their own team |
+| Staff | the admin console | the event's Leads page lists owners, teams, roles, people | decide or end anything, always with a reason |
+
+**One registry: `EventPlan\EventPermissions::MENU`.** Each entry names its label, risk, the
+pages/tabs it opens and the console writes (`do`) it allows. Derived from it: the verb →
+permission map, `Plan::may()` (which every writer in Plan, Scope, Outreach and LeadController
+now asks on the row's event), the rail and tabs a role sees, which forms and buttons are drawn
+(`EventPermissions::filter`), the owner's tick boxes, and the vocabulary the assistant may use.
+The menu as shipped: `plan.view`, `plan.edit`, `decisions.record`, `guests.manage`,
+`volunteers.checkin`, `sponsors.manage`, `messages.send`, `money.view`, `money.plan`,
+`money.approve` (with a ceiling, never above the lead's `lead_spend_limit_naira`),
+`show.run`, `safety.manage`, `door.manage`, `reports.view`, `requests.make`, `settings.edit`.
+No entry opens an act that gives anybody access (`LEAD_ACTS`, `OWNER_ACTS`), by construction.
+
+**Two people for anything that gives access.** Teams, roles and people start `proposed`
+(`gates_event_teams`, `gates_event_roles`, `gates_event_team_members`, migration
+`2027_05_07_event_teams.php`, VARCHAR statuses, SchemaIndex indexes). `Teams::decide` refuses
+a non-owner, the proposer, and an owner approving their own address; a person is approved only
+into an approved role and team, and only then does `RoleInvites::offer` give or invite the
+grant. Every decision carries a reason, is audited (`lead.decide` with the verdict — `changed`
+when the owner altered the ticks — or `event.team.*` for staff), and is emailed (`Emails`
+key `event-team`; the person given the role gets `role` with the role's own name).
+
+**Tailored portals.** A custom role opens `/lead/event/{id}` and sees Today rebuilt for the
+role (`TeamPages::roleToday`: its roles, its pages in the order the role leads with, the facts
+it may see) and a rail and tabs cut to its ticks; any other page is a 404. Owners and role
+holders who lead nothing find their events on `/lead` and in the account switcher
+("My event roles").
+
+**The assistant, underground** (`EventPlan\TeamSuggest`, capabilities `event.team_suggest`
+and `event.role_review`, both advisory and DEGRADE). "Suggest a team" drafts teams and roles
+with ticks and `lead_with` pages as pre-filled proposal forms the lead edits and presses; the
+answer is kept to the menu (invented permissions dropped, money planning and approval split).
+Each proposed role gets the assistant's notes for the owner, written once at proposal; the
+fixed risky pairs (`EventPermissions::RISKY`) are always shown beside them. With no provider
+the templates answer and the notes are empty — nothing waits on a model and nothing is applied.
+
+**Tests.** `tests/Unit/EventTeamsTest.php` (12): owner approval required; nobody decides their
+own proposal or access; every menu act, lead act and owner act crafted by a role without the
+tick writes nothing (one fingerprint over every table a write can touch); a role can never give
+access, an invented permission is refused; the money ceiling; the tailored rail/tabs/404 and
+lead-with order; an owner reads every page and runs none; ending and archiving take access
+away; a team lead's limits; the no-provider suggestion and `clean()`; staff decide from the
+admin page. Mutation-checked: a role allowed every write, an owner deciding their own proposal,
+a ceiling above the lead's, the ceiling ignored on approval, a role seeing every page, invented
+permissions kept, a person approved into an unapproved role, a lead deciding, and one writer
+checking the wrong permission — each fails the suite.
+
+**Left out, deliberately.** An owner "carried by the organisation that created the event":
+`gates_site_events` has no organisation link, so staff name the organisation's person by
+address instead (it works for people without an account). The volunteer workspace is not
+re-tailored: a volunteer-type role is a `vol.` grant (so the vetting rule holds and it is
+listed there) and its tailored console is the same `/lead/event/{id}`.

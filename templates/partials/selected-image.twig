@@ -5,8 +5,8 @@
   </span>
 {% else %}
   <img class="{{ class|default('') }}{{ image.kind == 'utility' ? ' hm-image--utility' : '' }}"
-       src="{{ image.kind == 'media' ? image.src|media_url(preset|default('portrait')) : asset(image.src) }}"
-       {% if image.srcset %}srcset="{{ image.srcset }}" sizes="{{ sizes|default('100vw') }}"{% endif %}
+       {{ deferred|default(false) ? 'data-hm-src' : 'src' }}="{{ image.kind == 'media' ? image.src|media_url(preset|default('portrait')) : asset(image.src) }}"
+       {% if image.srcset %}{{ deferred|default(false) ? 'data-hm-srcset' : 'srcset' }}="{{ image.srcset }}" sizes="{{ sizes|default('100vw') }}"{% endif %}
        alt="{{ decorative|default(false) or image.kind == 'utility' ? '' : (image.kind == 'media' ? 'Photo of %name%'|trans({'%name%': image.alt}) : image.alt|trans) }}"
        {% if image.width and image.height %}width="{{ image.width }}" height="{{ image.height }}"{% endif %}
        {% if image.id|default('') %}data-image-id="{{ image.id }}"{% endif %}

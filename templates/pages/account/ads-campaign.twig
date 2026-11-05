@@ -19,13 +19,25 @@
 {% set colour_tier = '2' %}
 {% set _review = {pending: 'In review', approved: 'Approved', rejected: 'Not approved'} %}
 
-{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/ads.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/ad-slot.css') }}">{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/ads.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/ads-state.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/ad-slot.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/image-tool.css') }}">{% endblock %}
 
 {% block content %}
+{% import 'partials/image-tool.twig' as imgtool %}
 <div class="am">
   <header class="am-head">
     <h1 class="am-h1">{{ c.name }}</h1>
     <p class="am-p"><span class="am-state am-state--{{ c.delivery }}">{{ c.delivery_label|trans }}</span>{% if c.delivery_note %} · {{ c.delivery_note|trans }}{% endif %}</p>
+    {# A paid campaign's money, as its receipt states it (AdCheckout). #}
+    {% if c.payment %}
+    <p class="am-note">
+      {{ 'Budget %b%'|trans({'%b%': c.budget_label}) }}{% if c.payment.days %} · {{ '%d% days'|trans({'%d%': c.payment.days}) }}{% endif %}
+      {% if c.payment.paid %} · {{ 'Paid %p%, including %v% VAT at %r%%'|trans({'%p%': c.payment.paid_label, '%v%': c.payment.vat_label, '%r%': c.payment.vat_pct}) }} · {{ 'Reference %r%'|trans({'%r%': c.payment.ref}) }}{% endif %}
+      {% if c.payment.refunded %} · {{ 'Returned to you: %a%'|trans({'%a%': c.payment.refunded_label}) }}{% endif %}
+    </p>
+    {% if c.delivery == 'unpaid' %}
+    <form method="post" action="/account/ads/{{ c.id }}/pay"><input type="hidden" name="_token" value="{{ csrf_token }}"><button type="submit" class="ag-btn ag-btn--primary ag-btn--pill">{{ 'Pay and send for review'|trans }}</button></form>
+    {% endif %}
+    {% endif %}
     <p class="am-note">{{ c.objective_label|trans }}{% if c.trial %} · {{ 'Free trial'|trans }}{% endif %}
       · {% for p in c.placements %}{{ rules.placements[p]|default(p)|trans }}{% if not loop.last %}, {% endif %}{% endfor %}</p>
   </header>
@@ -71,12 +83,14 @@
   {% endif %}
 
   <section aria-labelledby="am-ads-h" class="am-head">
-    <h2 class="am-h2" id="am-ads-h">{{ 'Ads'|trans }}</h2>
+    <h2 class="am-h2" id="am-ads-h">{{ c.ads|length > 1 ? 'Versions'|trans : 'Ads'|trans }}</h2>
+    {# Versions (AdCampaigns::leader()): what the rotation does, in its own numbers. #}
+    {% if c.ads|length > 1 %}<p class="am-note">{{ 'Each version is shown in turn until it has %n% views. Then the one people click most, if it is clearly ahead, is shown %s%% of the time; the others keep running, so the result keeps being checked.'|trans({'%n%': rules.test_views|number_format, '%s%': rules.lead_share}) }}</p>{% endif %}
   </section>
   <div class="am-ads">
     {% for a in c.ads %}
     <div class="am-ad" id="ad-{{ a.id }}">
-      <p class="am-ad__r"><span class="am-state am-state--{{ a.review == 'approved' ? 'active' : (a.review == 'rejected' ? 'not_approved' : 'in_review') }}">{{ _review[a.review]|default(a.review)|trans }}</span> · {{ a.views|number_format }} {{ 'views'|trans }} · {{ a.clicks|number_format }} {{ 'clicks'|trans }}</p>
+      <p class="am-ad__r"><span class="am-state am-state--{{ a.review == 'approved' ? 'active' : (a.review == 'rejected' ? 'not_approved' : 'in_review') }}">{{ _review[a.review]|default(a.review)|trans }}</span>{% if c.leader == a.id %} <span class="am-lead">{{ 'Leading'|trans }}</span>{% endif %} · {{ a.views|number_format }} {{ 'views'|trans }} · {{ a.clicks|number_format }} {{ 'clicks'|trans }}{% if a.ctr is not null %} · {{ '%r%% click rate'|trans({'%r%': a.ctr}) }}{% endif %}</p>
       {% include 'partials/ad-slot.twig' with {ad: a, preview: true} only %}
       {% if a.review == 'rejected' %}<p class="am-err">{{ a.reason }}</p>{% endif %}
       {% if c.editable %}
@@ -117,7 +131,7 @@
         </div>
         <div class="am-field">
           <label class="ag-label" for="fx-i-{{ a.id }}">{{ 'New image'|trans }} <span class="am-opt">{{ '(optional)'|trans }}</span></label>
-          <input class="am-input am-input--file" id="fx-i-{{ a.id }}" name="image" type="file" accept="image/jpeg,image/png,image/webp">
+          <input class="am-input am-input--file" id="fx-i-{{ a.id }}" name="image" type="file" accept="image/jpeg,image/png,image/webp" {{ imgtool.attrs('ad') }}>
           {% if fixing == a.id and errors.image %}<p class="am-err" role="alert">{{ errors.image|trans }}</p>{% endif %}
         </div>
         {# The approvals this kind of ad carries, prefilled, so an edit neither loses one that
@@ -138,6 +152,64 @@
     {% endfor %}
   </div>
 
+  {% if c.can_add %}
+  {# Another version (up to rules.versions): its own words and picture, the same link and
+     button prefilled from the first, because a version usually changes one thing. #}
+  {% set _f = c.ads|first %}
+  {% set _n = new_old %}
+  <details class="am-edit am-version" id="ad-version"{% if new_errors or new_summary %} open{% endif %}>
+    <summary class="am-edit__s">{{ 'Add another version'|trans }} <span class="am-opt">{{ '(%n% of %m%)'|trans({'%n%': c.ads|length + 1, '%m%': rules.versions}) }}</span></summary>
+    <p class="am-note">{{ 'Try a different picture or headline. A person checks it first, then it joins the rotation.'|trans }}</p>
+    {% if new_summary %}<p class="am-err" role="alert">{{ new_summary|trans }}</p>{% endif %}
+    <form class="am-step" method="post" action="/account/ads/{{ c.id }}/ads" enctype="multipart/form-data" novalidate data-ag-validate>
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <div class="am-field">
+        <label class="ag-label" for="nv-i">{{ 'Image'|trans }}</label>
+        <input class="am-input am-input--file" id="nv-i" name="image" type="file" accept="image/jpeg,image/png,image/webp" required {{ imgtool.attrs('ad') }}{% if new_errors.image|default(false) %} aria-invalid="true" aria-describedby="nv-i-e"{% endif %}>
+        {% if new_errors.image|default(false) %}<p class="am-err" id="nv-i-e" role="alert">{{ new_errors.image|trans }}</p>{% endif %}
+      </div>
+      <div class="am-field">
+        <label class="ag-label" for="nv-h">{{ 'Headline'|trans }}</label>
+        <input class="am-input" id="nv-h" name="headline" type="text" required maxlength="{{ rules.headline }}" value="{{ _n.headline|default('') }}"{% if new_errors.headline|default(false) %} aria-invalid="true"{% endif %}>
+        {% if new_errors.headline|default(false) %}<p class="am-err" role="alert">{{ new_errors.headline|trans }}</p>{% endif %}
+      </div>
+      <div class="am-field">
+        <label class="ag-label" for="nv-b">{{ 'Text'|trans }}</label>
+        <textarea class="am-input am-input--area" id="nv-b" name="body" rows="3" required minlength="{{ rules.body_min }}" maxlength="{{ rules.body }}"{% if new_errors.body|default(false) %} aria-invalid="true"{% endif %}>{{ _n.body|default(_f.body|default('')) }}</textarea>
+        {% if new_errors.body|default(false) %}<p class="am-err" role="alert">{{ new_errors.body|trans }}</p>{% endif %}
+      </div>
+      <div class="am-field">
+        <label class="ag-label" for="nv-c">{{ 'Button'|trans }}</label>
+        <select class="am-input" id="nv-c" name="cta">
+          {% for k, label in rules.ctas %}<option value="{{ k }}"{% if (_n.cta|default(_f.cta_key|default('learn_more'))) == k %} selected{% endif %}>{{ label|trans }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="am-field">
+        <label class="ag-label" for="nv-u">{{ 'Link'|trans }}</label>
+        <input class="am-input" id="nv-u" name="url" type="url" inputmode="url" required value="{{ _n.url|default(_f.url|default('')) }}"{% if new_errors.url|default(false) %} aria-invalid="true"{% endif %}>
+        {% if new_errors.url|default(false) %}<p class="am-err" role="alert">{{ new_errors.url|trans }}</p>{% endif %}
+      </div>
+      <div class="am-field">
+        <label class="ag-label" for="nv-o">{{ 'Offer'|trans }} <span class="am-opt">{{ '(optional)'|trans }}</span></label>
+        <input class="am-input" id="nv-o" name="offer" type="text" maxlength="{{ rules.offer }}" value="{{ _n.offer|default(_f.offer|default('')) }}"{% if new_errors.offer|default(false) %} aria-invalid="true"{% endif %}>
+        {% if new_errors.offer|default(false) %}<p class="am-err" role="alert">{{ new_errors.offer|trans }}</p>{% endif %}
+      </div>
+      <div class="am-field">
+        <label class="ag-label" for="nv-k">{{ 'Offer code'|trans }} <span class="am-opt">{{ '(optional)'|trans }}</span></label>
+        <input class="am-input" id="nv-k" name="offer_code" type="text" maxlength="{{ rules.code }}" value="{{ _n.offer_code|default(_f.offer_code|default('')) }}">
+      </div>
+      {% for k in ['arcon']|merge(c.needs|filter(n => n != 'arcon' and n != 'licence')) %}
+      <div class="am-field">
+        <label class="ag-label" for="nv-{{ k }}">{{ rules.approvals[k][0]|trans }}{% if k not in c.needs %} <span class="am-opt">{{ '(optional)'|trans }}</span>{% endif %}</label>
+        <input class="am-input" id="nv-{{ k }}" name="{{ k }}_ref" type="text" maxlength="40" value="{{ attribute(_n, k ~ '_ref')|default(attribute(_f, k ~ '_ref')|default('')) }}"{% if attribute(new_errors, k ~ '_ref')|default(false) %} aria-invalid="true"{% endif %}>
+        {% if attribute(new_errors, k ~ '_ref')|default(false) %}<p class="am-err" role="alert">{{ attribute(new_errors, k ~ '_ref')|trans }}</p>{% endif %}
+      </div>
+      {% endfor %}
+      <button type="submit" class="ag-btn ag-btn--primary ag-btn--pill">{{ 'Send this version for review'|trans }}</button>
+    </form>
+  </details>
+  {% endif %}
+
   {% if c.delivery not in ['completed', 'cancelled'] %}
   <div class="am-actions">
     {% if c.status == 'submitted' %}
@@ -154,3 +226,5 @@
   {% endif %}
 </div>
 {% endblock %}
+
+{% block foot_scripts %}{% if c.editable %}<script defer src="{{ asset('/assets/js/image-tool.js') }}" data-nav="rerun"></script>{% endif %}{% endblock %}

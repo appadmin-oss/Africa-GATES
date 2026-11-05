@@ -196,13 +196,22 @@
 /* ══ An organisation's own blocks (partials/org-page.twig) ══════════════════ */
 .ob{ display:flex; flex-direction:column; gap:18px }
 .ob-figs{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px }
+/* The organisation's accent, by role. Their exact colour is the fill; WORDS and EDGES take the
+   shade OrgBrand::css() measured for the scheme in force, so any colour they pick stays
+   readable on a light page and a dark one. The day/night pick is here because an inline
+   style cannot hold a media query. */
+.ob{ --ob-ink:var(--ob-accent-ink-day, var(--ag-green-deep)); --ob-edge:var(--ob-accent-edge-day, var(--ag-green)) }
+@media (prefers-color-scheme:dark){
+  :root:where(:not(.ag-light)) .ob{ --ob-ink:var(--ob-accent-ink-night, var(--ag-green-deep)); --ob-edge:var(--ob-accent-edge-night, var(--ag-green)) }
+}
+:root:where(.ag-dark) .ob{ --ob-ink:var(--ob-accent-ink-night, var(--ag-green-deep)); --ob-edge:var(--ob-accent-edge-night, var(--ag-green)) }
 .ob-fig{ display:flex; flex-direction:column; gap:4px; padding:16px; border-radius:var(--ag-r-16); background:var(--ob-accent-wash, var(--ag-green-wash)) }
-.ob-fig__n{ font-weight:700; font-size:var(--ag-fs-24); color:var(--ob-accent-dark, var(--ag-green-deep)); font-variant-numeric:tabular-nums }
+.ob-fig__n{ font-weight:700; font-size:var(--ag-fs-24); color:var(--ob-ink); font-variant-numeric:tabular-nums }
 .ob-fig__l{ font-size:var(--ag-fs-13-5); line-height:1.45; color:var(--ag-ink-2) }
 .ob-vids{ display:grid; gap:12px }
 .ob-vid{ margin:0; display:flex; flex-direction:column; gap:8px }
 .ob-vid__play{ position:relative; display:flex; align-items:flex-end; gap:12px; aspect-ratio:16 / 9; width:100%; padding:16px; box-sizing:border-box; border:0; border-radius:var(--ag-r-16); background:var(--ag-ink); color:var(--ag-surface); font:inherit; text-align:start; cursor:pointer }
-.ob-vid__icon{ flex:none; width:52px; height:52px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:var(--ob-accent, var(--ag-green)); color:var(--ag-surface) }
+.ob-vid__icon{ flex:none; width:52px; height:52px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:var(--ob-accent, var(--ag-green)); color:var(--ob-accent-on, var(--ag-surface)) }
 .ob-vid__meta{ display:flex; flex-direction:column; gap:3px }
 .ob-vid__t{ font-weight:700; font-size:var(--ag-fs-15) }
 .ob-vid__p{ font-size:var(--ag-fs-12-5); color:var(--ag-line-2) }
@@ -212,7 +221,7 @@
 .ob-shots{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px }
 .ob-shots img{ width:100%; aspect-ratio:4 / 3; object-fit:cover; border-radius:var(--ag-r-12) }
 .ob-quotes{ display:flex; flex-direction:column; gap:12px }
-.ob-quote{ margin:0; padding:16px 18px; border-radius:var(--ag-r-16); background:var(--ag-surface); border:1px solid var(--ag-line); border-inline-start:3px solid var(--ob-accent, var(--ag-green)) }
+.ob-quote{ margin:0; padding:16px 18px; border-radius:var(--ag-r-16); background:var(--ag-surface); border:1px solid var(--ag-line); border-inline-start:3px solid var(--ob-edge) }
 .ob-quote p{ margin:0 0 8px; font-size:var(--ag-fs-15-5); line-height:1.55 }
 .ob-quote cite{ font-style:normal; font-size:var(--ag-fs-13); color:var(--ag-soft) }
 .ob-track{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:12px }

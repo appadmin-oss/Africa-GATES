@@ -139,7 +139,7 @@ Options -MultiViews
   # Kept identical to Csp::staticPolicy() by CspStaticFallbackTest, which fails if either
   # side is edited alone.
   Header always unset Content-Security-Policy
-  Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://code.jquery.com https://challenges.cloudflare.com https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net https://tpc.googlesyndication.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com; img-src 'self' data: blob: https:; font-src 'self' data: https://fonts.gstatic.com https://fonts.googleapis.com; connect-src 'self' https://challenges.cloudflare.com https://*.paystack.com https://*.paystack.co https://*.flutterwave.com https://flutterwave.com https://unpkg.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com; media-src 'self' blob: https://r2.vidzflow.com https://cdn.plyr.io; frame-src 'self' https://challenges.cloudflare.com https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://my.spline.design https://prod.spline.design https://googleads.g.doubleclick.net https://tpc.googlesyndication.com https://www.google.com https://*.paystack.com https://*.paystack.co https://*.flutterwave.com https://flutterwave.com https://res.cloudinary.com https://*.res.cloudinary.com; object-src 'none'; base-uri 'self'; form-action 'self' https://*.paystack.com https://*.paystack.co https://*.flutterwave.com https://flutterwave.com; frame-ancestors 'self'"
+  Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net https://tpc.googlesyndication.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://challenges.cloudflare.com https://*.paystack.com https://*.paystack.co https://*.flutterwave.com https://flutterwave.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com; media-src 'self' blob:; frame-src 'self' https://challenges.cloudflare.com https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://googleads.g.doubleclick.net https://tpc.googlesyndication.com https://www.google.com https://*.paystack.com https://*.paystack.co https://*.flutterwave.com https://flutterwave.com https://res.cloudinary.com https://*.res.cloudinary.com; object-src 'none'; base-uri 'self'; form-action 'self' https://*.paystack.com https://*.paystack.co https://*.flutterwave.com https://flutterwave.com; frame-ancestors 'self'"
 
   # ── WHY A CSP IS SET HERE AFTER ALL — read together with the block above ──
   #
@@ -201,6 +201,7 @@ Options -MultiViews
 <IfModule mod_mime.c>
   AddType application/manifest+json .webmanifest
   AddType image/vnd.microsoft.icon  .ico
+  AddType font/woff2 .woff2
 </IfModule>
 
 # Compression
@@ -220,6 +221,9 @@ Options -MultiViews
   ExpiresByType image/png "access plus 6 months"
   # A favicon is fetched on nearly every navigation and changes about once a rebrand.
   ExpiresByType image/vnd.microsoft.icon "access plus 6 months"
+  # The house faces (assets/fonts). A face never changes under its name — a new cut is a new
+  # file — so a year; without this every page view revalidated 60KB of fonts.
+  ExpiresByType font/woff2 "access plus 1 year"
   ExpiresByType text/html "access plus 0 seconds"
 </IfModule>
 

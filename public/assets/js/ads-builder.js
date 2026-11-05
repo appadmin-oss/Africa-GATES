@@ -92,8 +92,17 @@
     if (t.hasAttribute && t.hasAttribute('maxlength')) count(t);
     render();
   });
+  // An input with the image editor sends its own preview of the CUT (image-tool.js), which is
+  // what will run; reading the raw file would preview a photo that is not the ad.
+  form.addEventListener('ag:image', function (e) {
+    var t = e.target, target = t && t.getAttribute && slot(t.getAttribute('data-pv-file'));
+    if (!target || !e.detail || !e.detail.url) return;
+    var img = target.querySelector('img') || document.createElement('img');
+    img.alt = ''; img.src = e.detail.url;
+    if (!img.parentNode) { target.textContent = ''; target.appendChild(img); }
+  });
   form.addEventListener('change', function (e) {
-    if (e.target.hasAttribute && e.target.hasAttribute('data-pv-file')) showFile(e.target);
+    if (e.target.hasAttribute && e.target.hasAttribute('data-pv-file') && !e.target.hasAttribute('data-ag-image')) showFile(e.target);
     if (e.target.name === 'category') approvals();
     render();
   });

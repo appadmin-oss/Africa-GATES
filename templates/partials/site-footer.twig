@@ -22,6 +22,11 @@
     consent.js) and is a plain link to /cookies#choices without script — the way back to
     the choices at ≥600px that Phase 2 left waiting for this footer (GAPS §8c item 10).
   · Social links open a new tab and say so in their names.
+  · On a phone each column folds (owner, 2 Nov 2026: "the site feels cluttered on mobile"):
+    twenty-nine links stacked were a second page under every page. The folds are
+    `<details open>`, so without script every link is shown as before; shell.js closes them
+    under 600px and holds them open from 600, where the columns sit side by side. Every link
+    stays in the markup either way, which is what the reachability sweeps read.
 
   No capitals: the DC's column titles are 11px uppercase tracked; here they are sentence
   case at 12.5 (§6.2, owner Q4/Q5). Every link is a literal `href` in the markup, so the
@@ -33,7 +38,7 @@
   <div class="ag-foot__in">
     <div class="ag-foot__brand">
       <a class="ag-foot__logo" href="/" aria-label="{{ 'Africa GATES home'|trans }}">
-        <img class="ag-foot__mark" src="{{ asset('/assets/img/logo-mark.png') }}" width="34" height="34" alt="">
+        <img class="ag-foot__mark" src="{{ asset('/assets/img/logo-mark-96.webp') }}" width="34" height="34" alt="">
         <span class="ag-foot__word" aria-hidden="true"><b>Africa</b><span>GATES</span></span>
       </a>
       <p class="ag-foot__tag">{{ 'An Afrovanguard initiative — live in %live%, building toward %n% nations.'|trans({'%live%': nations_live(), '%n%': nations_count|number_format}) }}</p>
@@ -41,7 +46,8 @@
     {# Awards and Explore are the header's two panels, page for page (owner, 28 Oct 2026:
        "Two menus"); SiteHeaderTest holds the three surfaces to MenuShortcuts' groups. #}
     <nav class="ag-foot__col" aria-labelledby="ag-foot-h1">
-      <p class="ag-foot__h" id="ag-foot-h1">{{ 'Awards'|trans }}</p>
+      <details class="ag-foot__fold" open data-ag-foot>
+      <summary class="ag-foot__h" id="ag-foot-h1">{{ 'Awards'|trans }}</summary>
       <ul class="ag-foot__list">
           <li><a class="ag-foot__a" href="/nominate">{{ 'Nominate'|trans }}</a></li>
           <li><a class="ag-foot__a" href="/vote">{{ 'Vote'|trans }}</a></li>
@@ -52,9 +58,11 @@
           <li><a class="ag-foot__a" href="/challenges">{{ 'Challenges'|trans }}</a></li>
           <li><a class="ag-foot__a" href="/integrity">{{ 'Integrity Centre'|trans }}</a></li>
       </ul>
+      </details>
     </nav>
     <nav class="ag-foot__col" aria-labelledby="ag-foot-h2">
-      <p class="ag-foot__h" id="ag-foot-h2">{{ 'Explore'|trans }}</p>
+      <details class="ag-foot__fold" open data-ag-foot>
+      <summary class="ag-foot__h" id="ag-foot-h2">{{ 'Explore'|trans }}</summary>
       <ul class="ag-foot__list">
           <li><a class="ag-foot__a" href="/discover">{{ 'Discover'|trans }}</a></li>
           <li><a class="ag-foot__a" href="/pulse">{{ 'Pulse'|trans }}</a></li>
@@ -66,9 +74,11 @@
           <li><a class="ag-foot__a" href="/shop">{{ 'Shop'|trans }}</a></li>
           <li><a class="ag-foot__a" href="/giving">{{ 'Give'|trans }}</a></li>
       </ul>
+      </details>
     </nav>
     <nav class="ag-foot__col" aria-labelledby="ag-foot-h3">
-      <p class="ag-foot__h" id="ag-foot-h3">{{ 'Initiative'|trans }}</p>
+      <details class="ag-foot__fold" open data-ag-foot>
+      <summary class="ag-foot__h" id="ag-foot-h3">{{ 'Initiative'|trans }}</summary>
       <ul class="ag-foot__list">
           <li><a class="ag-foot__a" href="https://afrovanguard.org.ng/about/">{{ 'About Afrovanguard'|trans }}</a></li>
           <li><a class="ag-foot__a" href="/philosophy">{{ 'Our philosophy'|trans }}</a></li>
@@ -83,6 +93,7 @@
           <li><a class="ag-foot__a" href="/status">{{ 'Platform status'|trans }}</a></li>
           <li><a class="ag-foot__a" href="https://afrovanguard.org.ng/contact/">{{ 'Contact'|trans }}</a></li>
       </ul>
+      </details>
     </nav>
   </div>
   <div class="ag-foot__bar">

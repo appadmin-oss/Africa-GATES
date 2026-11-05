@@ -34,6 +34,12 @@
 #}
 {% set own_flash = true %}
 {% set tab = 'pulse' %}{# the shell's tab bar; the page's own tab is `view` #}
+{# The page's own tab. The controller passes `pulse_tab` (`foryou|following|alerts|saved`) and
+   this template was written against `view` with a hyphenated `for-you` — a name nothing
+   ever set. Unset in Twig is null, silently: every tab drew the same page, with no tab
+   marked current, no composer, no alerts list and no Saved heading. Resolved once, here,
+   at template scope so every block below can read it. #}
+{% set view = pulse_tab|default('foryou') == 'foryou' ? 'for-you' : pulse_tab %}
 {% set app_bar = {variant: 'root', title: reels ? 'Videos'|trans : 'Pulse'|trans} %}
 {% set colour_tier = '2' %}
 {% set _signed = member is not null %}
@@ -93,7 +99,7 @@
       <div class="pl-title"><h1 class="pl-title__h">{{ 'Saved'|trans }}</h1></div>
     {% else %}
       <h1 class="ag-sr">{{ 'Pulse'|trans }}</h1>
-      <nav class="pl-tabs" aria-label="{{ 'Pulse'|trans }}">
+      <nav class="pl-tabs" aria-label="{{ 'Pulse'|trans }}" data-tabs="pulse">
         {% for t in _tabs %}
           {% if _signed or t.k == 'for-you' %}
             <a class="pl-tabs__t{{ t.k == 'alerts' ? ' pl-tabs__t--alerts' }}" href="/pulse{{ t.k != 'for-you' ? '?tab=' ~ t.k }}"{% if view == t.k %} aria-current="page"{% endif %}>
@@ -178,11 +184,9 @@
             <span class="pl-empty__ic" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.6-.7L3 21l1.9-5A8.2 8.2 0 0 1 4 11.5 8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5Z"/></svg></span>
             <h2 class="pl-empty__t">{{ 'Pulse is quiet so far'|trans }}</h2>
             <p>{{ 'Nominations, results and news from every award appear here as they happen.'|trans }}</p>
-            {% if _signed %}
-              <a class="pl-go" href="/nominate">{{ 'Nominate someone'|trans }}</a>
-            {% else %}
-              <a class="pl-go" href="/account/login?next=%2Fpulse">{{ 'Sign in to post'|trans }}</a>
-            {% endif %}
+            {# The same next step signed in or out: a guest already has "Sign in or join" in
+               the banner above, and a second sign-in button under it said one thing twice. #}
+            <a class="pl-go" href="/nominate">{{ 'Nominate someone'|trans }}</a>
           {% endif %}
         </div>
       {% endif %}
@@ -244,5 +248,5 @@
 {% endblock %}
 
 {% block foot_scripts %}
-  <script defer src="{{ asset('/assets/js/social.js') }}"></script>
+  <script defer src="{{ asset('/assets/js/social.js') }}" data-nav="rerun"></script>
 {% endblock %}

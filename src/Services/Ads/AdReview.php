@@ -34,7 +34,11 @@ final class AdReview
         return array_map(static fn ($r) => [
             'id' => (int) $r->id, 'advertiser' => (string) $r->advertiser, 'trial' => (int) $r->trial === 1,
             'headline' => (string) $r->headline, 'body' => (string) $r->body, 'url' => (string) $r->url,
-            'cta' => AdRules::CTAS[(string) $r->cta] ?? '', 'image' => $r->image_path ? (string) $r->image_path : null,
+            'cta' => AdRules::CTAS[(string) $r->cta] ?? '',
+            // The reviewer judges the IMAGE — shock, nudity, somebody else's logo — so the queue
+            // carries the full stored file as well as the card's size, and the screen links it.
+            'image' => \AfricaGates\Support\Media::url($r->image_path ? (string) $r->image_path : null, 'ad'),
+            'image_full' => $r->image_path ? (string) $r->image_path : null,
             'offer' => $r->offer ? (string) $r->offer : null, 'offer_code' => $r->offer_code ? (string) $r->offer_code : null,
             'arcon_ref' => $r->arcon_ref ? (string) $r->arcon_ref : null,
             'nafdac_ref' => $r->nafdac_ref ? (string) $r->nafdac_ref : null,
@@ -77,6 +81,8 @@ final class AdReview
                     'updated_at' => $now,
                 ]);
             }
+            // A paid campaign starts when it is both paid and approved, whichever is second.
+            if ($set && (int) $set->trial !== 1) AdCheckout::schedule((int) $set->id);
         }
         return ['ok' => true];
     }
@@ -113,7 +119,9 @@ final class AdReview
             ->select('a.*', 'c.advertiser')->get()->all();
         $out = array_map(static fn ($a) => [
             'id' => (int) $a->id, 'advertiser' => (string) $a->advertiser, 'headline' => (string) $a->headline,
-            'body' => (string) $a->body, 'url' => (string) $a->url, 'image' => $a->image_path ? (string) $a->image_path : null,
+            'body' => (string) $a->body, 'url' => (string) $a->url,
+            'image' => \AfricaGates\Support\Media::url($a->image_path ? (string) $a->image_path : null, 'ad'),
+            'image_full' => $a->image_path ? (string) $a->image_path : null,
             'reports' => $by[(int) $a->id]['n'], 'reasons' => $by[(int) $a->id]['reasons'],
         ], $ads);
         usort($out, static fn ($x, $y) => $y['reports'] <=> $x['reports']);

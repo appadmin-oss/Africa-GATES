@@ -835,43 +835,6 @@
     tiles.forEach(t => obs.observe(t));
   }
 
-  /* ─── Spline 3D — desktop-only, lazy-loaded when in view ─────── */
-  function bindSpline() {
-    const host = $('[data-spline-host]');
-    if (!host) return;
-    const url = host.getAttribute('data-spline-url');
-    if (!url) return;
-    const isDesktop = window.matchMedia('(min-width: 992px)').matches
-                   && window.matchMedia('(pointer: fine)').matches;
-    if (!isDesktop || reduceMotion) return; // mobile/touch/reduced-motion: never load the runtime
-
-    let loaded = false;
-    const load = () => {
-      if (loaded) return;
-      loaded = true;
-      // Inject the (heavy) viewer runtime only now, then mount the element.
-      const s = document.createElement('script');
-      s.type = 'module';
-      s.src = 'https://unpkg.com/@splinetool/viewer@1.9.48/build/spline-viewer.js';
-      s.onload = () => {
-        const v = document.createElement('spline-viewer');
-        v.setAttribute('url', url);
-        v.setAttribute('loading-anim-type', 'spinner-small-light');
-        v.setAttribute('events-target', 'global');
-        host.insertBefore(v, host.firstChild);
-      };
-      document.head.appendChild(s);
-    };
-
-    if ('IntersectionObserver' in window) {
-      const obs = new IntersectionObserver((entries) => {
-        entries.forEach(e => { if (e.isIntersecting) { load(); obs.disconnect(); } });
-      }, { rootMargin: '200px' });
-      obs.observe(host);
-    } else {
-      load();
-    }
-  }
 
   /* ─── Mega nav — accessible hover + click dropdowns ──────────── */
   function bindMegaNav() {
@@ -1015,7 +978,6 @@
     injectAuroraCanvases();
     bindAtlasHero();
     bindFaceMosaic();
-    bindSpline();
     bindMegaNav();
     bindImmersiveStack();
     bindSpotlight();

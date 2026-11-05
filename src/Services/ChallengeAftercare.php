@@ -80,9 +80,8 @@ final class ChallengeAftercare
         $u = DB::table('gates_users')->where('id', $e->user_id)->first(['name', 'email', 'phone']);
         if (!$u) return [];
 
-        $copy  = ChallengeCopy::for((array) $c);
         $first = explode(' ', trim((string) ($u->name ?? '')))[0] ?: 'there';
-        $prize = trim($copy['prize_big'] . ' ' . $copy['prize_unit']);
+        $prize = ChallengeCopy::perWinner((array) $c);
 
         // What they are owed, where to look, and what happens next. No exclamation
         // mark, and no "congratulations" doing the work of a fact.
@@ -124,6 +123,26 @@ final class ChallengeAftercare
             (int) $c->id, $entryId, 'dq_notified');
     }
 
+    /**
+     * After a decision: tell whoever it concerned. tellWinner(), tellDisqualified() and
+     * postWinners() were each complete, idempotent and called by nothing, so a winner was
+     * never told they had won, somebody removed was never told why, and the Pulse never
+     * heard — while the challenge page promised all three. Never throws: a message that
+     * fails must not undo the decision it describes.
+     *
+     * @param list<int> $won    entries that now hold a place
+     * @param list<int> $out    entries just disqualified
+     */
+    public static function after(int $challengeId, array $won = [], array $out = [], bool $announce = false): void
+    {
+        try {
+            foreach ($out as $id) self::tellDisqualified((int) $id);
+            foreach ($won as $id) self::tellWinner((int) $id);
+            if ($announce) self::postWinners($challengeId);
+        } catch (\Throwable) {
+        }
+    }
+
     // ══════════════════════════════════════════════════════════════════════════
     // Everybody else
     // ══════════════════════════════════════════════════════════════════════════
@@ -158,8 +177,7 @@ final class ChallengeAftercare
         $winners = ChallengeService::winners($challengeId, 20);
         if ($winners === []) return ['ok' => false, 'code' => 'NO_WINNERS'];
 
-        $copy  = ChallengeCopy::for((array) $c);
-        $prize = trim($copy['prize_big'] . ' ' . $copy['prize_unit']);
+        $prize = ChallengeCopy::perWinner((array) $c);
 
         $lines = [];
         foreach ($winners as $w) {
@@ -249,6 +267,10 @@ final class ChallengeAftercare
         $email = trim((string) ($u->email ?? ''));
 
         $sms ??= SmsService::boot();
+        // No caller passed a mailer, so the email channel was skipped for every message.
+        if ($mail === null) {
+            try { $mail = OtpService::boot(); } catch (\Throwable) { $mail = null; }
+        }
         $used  = [];
 
         foreach (SmsService::channelPlan($email !== '' ? $email : null, $phone, $sms) as $channel) {

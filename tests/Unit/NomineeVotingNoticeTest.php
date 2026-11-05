@@ -136,12 +136,49 @@ final class NomineeVotingNoticeTest extends TestCase
 
     public function test_approval_alone_is_not_verification(): void
     {
+        // Only where the operator has chosen to write to verified nominees alone.
+        (new RuleEngine())->merge('global', null, ['voting_letter_audience' => 'verified']);
         $this->nominee('Ada Obi', confirmed: false);
         $m = $this->recorder();
 
         NomineeVotingNotice::sweep($m);
 
         $this->assertSame([], $m->sent, 'a moderator approving the form is not word from the person');
+    }
+
+    /**
+     * Owner, 2 Nov 2026: "the voting letter was not sent". On an award whose nominees were approved
+     * without confirming, the letter reached nobody and the screen gave no reason. The operator can
+     * now write to every approved nominee, the edition's page counts who was left out, and the due
+     * letters can be sent from that page without waiting for the maintenance tick.
+     */
+    public function test_the_operator_can_write_to_every_approved_nominee_and_send_now(): void
+    {
+        (new RuleEngine())->merge('global', null, ['voting_letter_audience' => 'verified']);
+        $this->nominee('Ada Obi', confirmed: false);
+        $this->nominee('Bayo Ade', confirmed: true, email: 'bayo@example.com');
+        $cycle = DB::table('gates_award_cycles')->where('id', $this->cycleId)->first();
+
+        $st = NomineeVotingNotice::status($cycle);
+        $this->assertSame([2, 1, 1, 'verified', 1], [$st['ballot'], $st['verified'], $st['unverified'], $st['audience'], $st['due']]);
+
+        (new RuleEngine())->merge('global', null, ['voting_letter_audience' => 'ballot']);
+        $this->assertSame(2, NomineeVotingNotice::status($cycle)['due'], 'every approved nominee with an address');
+        $this->assertSame('ballot', NomineeVotingNotice::settings()['audience'] ?? null);
+
+        $m = $this->recorder();
+        $r = NomineeVotingNotice::sendNow($cycle, $m);
+        $this->assertSame(2, $r['sent']);
+        $this->assertSame(0, NomineeVotingNotice::sendNow($cycle, $m)['sent'], 'never twice');
+        $this->assertSame(0, NomineeVotingNotice::status($cycle)['due']);
+    }
+
+    public function test_by_default_every_approved_nominee_is_written_to(): void
+    {
+        $this->nominee('Ada Obi', confirmed: false);
+        $m = $this->recorder();
+        NomineeVotingNotice::sweep($m);
+        $this->assertCount(1, $m->sent, 'owner, 2 Nov 2026: every approved nominee');
     }
 
     public function test_a_claimed_page_is_verification_and_the_letter_goes_to_the_claimant(): void
@@ -184,6 +221,7 @@ final class NomineeVotingNoticeTest extends TestCase
 
     public function test_a_verified_nominee_is_told_when_they_verify_after_voting_opened(): void
     {
+        (new RuleEngine())->merge('global', null, ['voting_letter_audience' => 'verified']);
         $this->nominee('Ada Obi', confirmed: false);
         $m = $this->recorder();
         NomineeVotingNotice::sweep($m);

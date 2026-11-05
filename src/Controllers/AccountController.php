@@ -878,7 +878,8 @@ class AccountController
         // Remember where the visitor was headed (e.g. a gate redirected them here)
         // so every sign-in path — password, code, or email verify — can return them.
         $next = $this->safeNext($req->getQueryParams()['next'] ?? null);
-        if ($next !== null) $_SESSION['login_next'] = $next;
+        // Not on a prefetch: hovering another sign-in link must not change where this one returns.
+        if ($next !== null && !\AfricaGates\Support\Speculative::is($req)) $_SESSION['login_next'] = $next;
         $q = $req->getQueryParams();
         $channels = $this->phoneChannels();
         $phoneOk  = $channels['sms'] || $channels['whatsapp'];
@@ -1341,8 +1342,12 @@ class AccountController
 
         \AfricaGates\Services\ReferralService::codeFor($id);
 
-        // Back to the dashboard, anchored on the panel, so the answer is on screen rather
-        // than at the top of a long page.
+        // Back where it was asked from when that is an event page (its "Get my link"), else
+        // the dashboard, anchored on the panel. Only an /events/ path: never an open redirect.
+        $next = (string) (((array) $req->getParsedBody())['next'] ?? '');
+        if (preg_match('~^/events/[A-Za-z0-9_-]+$~', $next)) {
+            return $res->withHeader('Location', $next . '#h-earn')->withStatus(303);
+        }
         return $res->withHeader('Location', '/account?tab=referral#me-referral')->withStatus(303);
     }
 
@@ -1367,17 +1372,11 @@ class AccountController
             return $res->withHeader('Location', '/account/login')->withStatus(302);
         }
 
-        $b = (array) $req->getParsedBody();
-        $r = \AfricaGates\Services\ReferralPayout::request(
-            $id,
-            (string) ($b['bank'] ?? ''),
-            (string) ($b['account_name'] ?? ''),
-            (string) ($b['account_number'] ?? '')
-        );
-
-        $_SESSION[$r['ok'] ? 'flash' : 'flash_error'] = $r['message'];
-
-        return $res->withHeader('Location', '/account?tab=referral#me-referral')->withStatus(303);
+        // Retired: a referral withdrawal goes through the wallet (MemberWallet::withdraw), which
+        // records the bank change, tells the member, keeps the bank code and runs the checks.
+        // This posted straight to ReferralPayout::request() and did none of that. A page still
+        // holding the old form is sent to the wallet, never to an unchecked request.
+        return $res->withHeader('Location', '/account/wallet/withdraw?pocket=ref')->withStatus(303);
     }
 
     /**
@@ -1555,7 +1554,7 @@ class AccountController
             $out[] = ['key' => 'nominee', 'd' => 'M6 4h12v4a6 6 0 0 1-12 0zM9 20h6M12 14v6M6 6H3v1a4 4 0 0 0 4 4M18 6h3v1a4 4 0 0 1-4 4', 'icon' => 'gold',
                       'pct' => (int) round(100 * (count(\AfricaGates\Services\NomineeDetails::STEPS) - $left) / count(\AfricaGates\Services\NomineeDetails::STEPS)),
                       'label' => 'Nominee' . ($d->category ? ': ' . $d->category : ''), 'state' => $left ? $left . ' ' . ($left === 1 ? 'step' : 'steps') . ' to finish' : 'Profile complete',
-                      'tone' => $left ? 'warn' : 'ok', 'href' => '/account/nomination/' . $d->nominee_id, 'cta' => $left ? 'Finish' : 'Review'];
+                      'tone' => $left ? 'warn' : 'ok', 'href' => \AfricaGates\Services\NomineeDetails::href($d), 'cta' => $left ? 'Finish' : 'Review'];
         }
         $v = \AfricaGates\Services\Volunteer\Volunteers::of((int) $user->id);
         $vs = $v ? (string) $v->status : '';
@@ -1973,6 +1972,17 @@ class AccountController
         $bank = ['bank' => (string) ($b['bank'] ?? ''), 'account_name' => (string) ($b['account_name'] ?? ''),
                  'account_number' => (string) ($b['account_number'] ?? ''), 'bank_code' => (string) ($b['bank_code'] ?? '')];
         $amount = ($b['amount_kobo'] ?? '') === '' ? null : max(0, (int) $b['amount_kobo']);
+        // The bank code and its name come off a hidden field, so they are checked against
+        // the bank list here rather than trusted: a reviewer reads the NAME, an automatic
+        // transfer is built from the CODE, and a posted pair that disagrees would show one
+        // bank to the person and pay another. A code not on the list is dropped — the request
+        // then goes to a person, which is what a request without a code always did.
+        if ($bank['bank_code'] !== '') {
+            $listed = array_values(array_filter(\AfricaGates\Services\WalletAutoPay::banks(),
+                static fn ($x) => (string) ($x['code'] ?? '') === $bank['bank_code']));
+            if ($listed) $bank['bank'] = (string) $listed[0]['name'];
+            else $bank['bank_code'] = '';
+        }
 
         $r = $W::withdraw((int) $user->id, $key, $amount, $bank, ($b['accept'] ?? '') === '1');
         if (!$r['ok']) {

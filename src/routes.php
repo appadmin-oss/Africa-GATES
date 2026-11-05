@@ -2031,6 +2031,7 @@ return function(App $app) {
 
         $g->get('/opportunities',  OpportunityController::class.':index');
         $g->get('/events',         EventsController::class.':index');
+        $g->get('/events.ics',     EventsController::class.':feedCalendar');
         // ── PAID TICKETS ─────────────────────────────────────────────────────
         //
         // BEFORE `/events/{slug}`, and that ordering is load-bearing: Slim matches in
@@ -2957,20 +2958,16 @@ return function(App $app) {
                 'fraud_block'      => (int) ($eff['fraud_block'] ?? 80),
                 'fraud_flag'       => (int) ($eff['fraud_flag'] ?? 60),
                 'fraud_monitor'    => (int) ($eff['fraud_monitor'] ?? 30),
-                'return_pct'       => $ret['pct'],
                 'return_on'        => $ret['on'],
                 // WHY it is off, not just that it is. The section prints a different
                 // note for "the share is 0%" than for "this site sells no votes", and
                 // a template deriving that itself would be a second reader of a
                 // setting the service already resolves.
                 'return_off_reason'=> $ret['off_reason'],
-                'return_threshold' => $ret['threshold'],
-                'return_cap_pct'   => $ret['cap_pct'],
-                'return_cap_votes' => $ret['cap_votes'],
-                'return_people'    => $ret['min_supporters'],
-                // The two-stage editions and the withdrawal terms, from the resolvers the
-                // ledger and the withdrawals use — never typed into the page.
-                'return_editions'  => \AfricaGates\Services\CommunityReturnMilestone::publicEditions(),
+                // The house rule in one sentence, whatever its model, or that none is running.
+                'return_sentence'  => $ret['sentence'],
+                // The withdrawal terms, from the resolver the withdrawals use — never typed
+                // into the page. No edition's rule: each award publishes its own.
                 'return_terms'     => \AfricaGates\Services\CommunityReturnWithdrawals::terms($eff),
             ];
         };
@@ -3606,6 +3603,8 @@ return function(App $app) {
         // X-API-Version header (see ApiVersionMiddleware).
         $apiRoutes = function(RouteCollectorProxy $a) {
             $a->get('/registry',         ApiController::class.':registry');
+            // The events calendar for other sites (Afrovanguard). See EventsFeed.
+            $a->get('/events',           EventsController::class.':feed');
 
             /**
              * GET /api/v1/promos?placement=account — the band's own slides.
@@ -3841,6 +3840,8 @@ return function(App $app) {
         // bio, on their account for good. The nominator's reason is shown and never editable.
         $a->get('/nomination[/{id:[0-9]+}]',  \AfricaGates\Controllers\NomineeProfileController::class . ':page');
         $a->post('/nomination/{id:[0-9]+}',   \AfricaGates\Controllers\NomineeProfileController::class . ':save');
+        $a->get('/nomination/pending/{nid:[0-9]+}',  \AfricaGates\Controllers\NomineeProfileController::class . ':pending');
+        $a->post('/nomination/pending/{nid:[0-9]+}', \AfricaGates\Controllers\NomineeProfileController::class . ':save');
         $a->post('/referral', AccountController::class . ':referral');
         // Ask to be paid what the referrals earned. Creates a request; an admin settles it
         // against a real transfer reference — see ReferralPayout.
@@ -3889,6 +3890,11 @@ return function(App $app) {
         // A campaign's results by day and place, for the advertiser's own spreadsheet.
         $a->get('/ads/{id:[0-9]+}/results.csv', \AfricaGates\Controllers\AdsController::class.':export');
         $a->post('/ads/{id:[0-9]+}/{action:pause|resume|cancel}', \AfricaGates\Controllers\AdsController::class.':status');
+        // Another version of a campaign's ad (up to AdRules::ADS_PER_SET), for review.
+        $a->post('/ads/{id:[0-9]+}/ads', \AfricaGates\Controllers\AdsController::class.':addVersion');
+        // A paid campaign: pay for it (again, if a checkout was left), and the gateway's return.
+        $a->post('/ads/{id:[0-9]+}/pay', \AfricaGates\Controllers\AdsController::class.':pay');
+        $a->get('/ads/{id:[0-9]+}/paid', \AfricaGates\Controllers\AdsController::class.':paid');
         // The wallet: one balance across every pocket (MemberWallet), each movement's receipt,
         // and the three-step withdrawal. The JSON is what an open wallet polls, so money that
         // arrives while it is on screen says so. Every one reads the member from the session.
@@ -3920,6 +3926,8 @@ return function(App $app) {
     // The link approval emails a nominee. Open signed-out: its first job is the sign-in.
     $app->get('/nominee/start/{token:[a-f0-9]{40}}', \AfricaGates\Controllers\NomineeProfileController::class . ':start');
     $app->get('/volunteer/apply', \AfricaGates\Controllers\VolunteerController::class . ':applyForm');
+    // The Volunteer academy: open signed-out so a coordinator can share it (owner, 31 Oct 2026).
+    $app->get('/volunteer/academy', \AfricaGates\Controllers\VolunteerController::class . ':academy');
     $app->group('/volunteer', function (RouteCollectorProxy $v) {
         $c = \AfricaGates\Controllers\VolunteerController::class;
         $v->post('/apply',                        $c . ':apply');
@@ -4228,6 +4236,8 @@ return function(App $app) {
             ->add(new RoleMiddleware('superadmin'));
         $a->get('/programmes/{id:[0-9]+}/cycle',     AdminProgrammesController::class.':cycleEdit')->add(new RoleMiddleware('superadmin'));
         $a->get('/programmes/{id:[0-9]+}/cycle/voting-letter', AdminProgrammesController::class.':votingLetterPreview')->add(new RoleMiddleware('superadmin'));
+        $a->post('/programmes/{id:[0-9]+}/cycle/voting-letter/send', AdminProgrammesController::class.':votingLetterSend')->add(new RoleMiddleware('superadmin'));
+        $a->post('/programmes/{id:[0-9]+}/cycle/voting-letter/correct', AdminProgrammesController::class.':votingLetterCorrect')->add(new RoleMiddleware('superadmin'));
         // The voting letter's words, per edition: the editor, and its autosave/publish/restore.
         $a->get('/programmes/{id:[0-9]+}/cycle/letter',  AdminProgrammesController::class.':letterEditor')->add(new RoleMiddleware('superadmin'));
         $a->post('/programmes/{id:[0-9]+}/cycle/letter', AdminProgrammesController::class.':letterSave')->add(new RoleMiddleware('superadmin'));
@@ -4453,6 +4463,7 @@ return function(App $app) {
         // Door passes: minted and revoked on the event's own tickets screen, because a door
         // belongs to an event and the person who needs one is already on that page an hour
         // before the gates open. See EventScanPass.
+        $a->get('/events/leads',                    AdminEventsController::class.':allLeads');
         $a->get('/events/{id:[0-9]+}/leads',        AdminEventsController::class.':leads');
         $a->post('/events/{id:[0-9]+}/leads',       AdminEventsController::class.':leadsAct');
         $a->post('/events/{id:[0-9]+}/door',        AdminEventsController::class.':issueDoorPass');
@@ -4527,6 +4538,10 @@ return function(App $app) {
         $a->post('/payouts/{id:[0-9]+}/reject',  \AfricaGates\Admin\Controllers\PayoutsController::class.':reject');
         // Release a request the automatic checks held, to be paid by transfer.
         $a->post('/payouts/{id:[0-9]+}/send',    \AfricaGates\Admin\Controllers\PayoutsController::class.':send');
+        // An ORGANISATION's request for money that reached our account rather than theirs
+        // (OrgPayout::heldForOrg). Settled by hand with the transfer reference, or refused.
+        $a->post('/payouts/org/{id:[0-9]+}/pay',    \AfricaGates\Admin\Controllers\PayoutsController::class.':orgPay');
+        $a->post('/payouts/org/{id:[0-9]+}/refuse', \AfricaGates\Admin\Controllers\PayoutsController::class.':orgRefuse');
         // ── COMMUNITY RETURN ──────────────────────────────────────────────
         //
         // An edition's return rules and milestone confirmation, and the nominees'

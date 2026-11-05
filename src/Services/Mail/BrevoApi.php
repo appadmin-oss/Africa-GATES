@@ -91,7 +91,8 @@ final class BrevoApi
             'subject' => $m->Subject,
         ];
         if (BuiltMessage::isHtml($m)) {
-            $p['htmlContent'] = $m->Body;
+            // With our images as links again: this API cannot carry an inline part (InlineImages).
+            $p['htmlContent'] = InlineImages::html($m);
             if (trim((string) $m->AltBody) !== '') $p['textContent'] = $m->AltBody;
         } else {
             $p['textContent'] = $m->Body;

@@ -30,12 +30,14 @@ final class Level
 
         $next = null;
         if ($level === 1) {
-            $next = ['level' => 2, 'hours_to' => max(0.0, $l2h - $hours), 'needs' => [self::h($l2h - $hours) . ' verified'],
+            // What is still to DO, never a bare figure: printed as a caption under "To Level 2",
+            // "10h verified" read as a fact about somebody with none.
+            $next = ['level' => 2, 'hours_to' => max(0.0, $l2h - $hours), 'needs' => [self::h($l2h - $hours) . ' more verified hours'],
                      'pct' => $l2h > 0 ? (int) min(100, round($hours * 100 / $l2h)) : 100];
         } elseif ($level === 2) {
             $needs = [];
-            if ($hours < $l3h) $needs[] = self::h($l3h - $hours);
-            if (!$leadOk) $needs[] = 'Team lead training';
+            if ($hours < $l3h) $needs[] = self::h($l3h - $hours) . ' more verified hours';
+            if (!$leadOk) $needs[] = 'team lead training';
             $next = ['level' => 3, 'hours_to' => max(0.0, $l3h - $hours), 'needs' => $needs,
                      'pct' => $l3h > 0 ? (int) min(100, round($hours * 100 / $l3h)) : 100];
         }

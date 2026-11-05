@@ -488,7 +488,10 @@ button.ag-list__row{ width:100%; cursor:pointer }
   font-weight:600; cursor:pointer;
   transition:background-color var(--ag-dur-1) var(--ag-ease);
 }
-.ag-seg__opt[aria-checked="true"]{ background:var(--ag-surface) }
+/* The chosen option is a card AND a ring: on a dark track the card alone sits at about
+   1.3:1, so the state rested on a difference nobody could see. The ring is `soft`, which
+   clears 3:1 on the track in every scheme (SC 1.4.11). */
+.ag-seg__opt[aria-checked="true"]{ background:var(--ag-surface); box-shadow:inset 0 0 0 1.5px var(--ag-soft) }
 .ag-seg__opt:is([disabled],[aria-disabled="true"]){ color:var(--ag-mute); cursor:not-allowed }
 
 

@@ -52,7 +52,19 @@
       <span class="ag-icon-tile ag-consent__ico" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><circle cx="9" cy="10" r="1.2" fill="currentColor"></circle><circle cx="14.5" cy="14" r="1.2" fill="currentColor"></circle><circle cx="15" cy="8.5" r="1" fill="currentColor"></circle></svg></span>
       <div class="ag-consent__words">
         <h2 class="ag-consent__t" id="ag-consent-t">{{ 'Your privacy, your choice'|trans }}</h2>
-        <p class="ag-consent__p">
+        {# Two lengths of the same facts. On a phone the full paragraph took about 40% of the
+           screen above the tab bar, so it says only what decides the answer — what is on now
+           and what OK adds — and Details carries the rest. Neither drops the counting
+           posture: under `exempt` the phone still says visits are counted unless they say no. #}
+        <p class="ag-consent__p ag-consent__phone">
+          {{ 'Essential cookies keep you signed in.'|trans }}
+          {% if _counting and _exempt %}{{ 'We count visits ourselves unless you say no.'|trans }}
+          {% elseif _counting %}{{ 'With your OK we also remember settings and count visits.'|trans }}
+          {% else %}{{ 'With your OK we also remember your settings.'|trans }}{% endif %}
+          {% if _c.google %}{{ 'Analytics includes Google Analytics.'|trans }}{% endif %}
+          <a class="ag-consent__more" href="/cookies">{{ 'Details'|trans }}</a>
+        </p>
+        <p class="ag-consent__p ag-consent__wide">
           {{ 'Essential cookies keep you signed in.'|trans }}
           {% if _counting and not _exempt %}{{ 'With your OK we also remember your settings on this device and count visits ourselves.'|trans }}
           {% else %}{{ 'With your OK we also remember your settings on this device.'|trans }}{% endif %}
@@ -89,7 +101,7 @@
    markup for the same reason — a browser without the script could not lift it — and is
    hidden by the base sheet's `visibility` until it is opened. consent.js adds `inert` at
    rest, as every other sheet has. #}
-<div class="ag-consent-layer" id="ag-consent">
+<div class="ag-consent-layer" id="ag-consent" data-nav-keep="consent">
   <div class="ag-scrim" data-ag-consent-scrim></div>
   <div class="ag-sheet ag-consent-sheet" id="ag-consent-sheet" role="dialog" aria-modal="true"
        aria-labelledby="ag-consent-p" data-ag-consent-sheet>

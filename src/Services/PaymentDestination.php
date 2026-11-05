@@ -85,7 +85,7 @@ final class PaymentDestination
      * in, saying the opposite on the one screen an operator checks. Those rows now say plainly
      * that nothing here takes that money, and are never counted as routed.
      */
-    public const CHECKOUT_STREAMS = ['events', 'shop', 'votes'];
+    public const CHECKOUT_STREAMS = ['events', 'shop', 'votes', 'ads'];
 
     /** Does any checkout on this platform take this kind of money? */
     public static function usedHere(string $stream): bool
@@ -248,6 +248,36 @@ final class PaymentDestination
     }
 
     /**
+     * Everything the platform keeps from a partner gift — the agreed fee plus the donor's tip —
+     * as written on the donation row when it was made. Read off the row for the same reason as
+     * the tip: a figure a caller passed would be a number a browser chose.
+     */
+    public static function platformShareForReference(string $reference): int
+    {
+        $reference = trim($reference);
+        if ($reference === '' || !str_starts_with(strtoupper($reference), 'AFG-GIVE')) return 0;
+        try {
+            return max(0, (int) (DB::table('gates_donations')->where('payment_ref', $reference)
+                ->value('platform_fee_naira') ?? 0));
+        } catch (\Throwable) {
+            return 0;
+        }
+    }
+
+    /** The donor's fee cover on a gift, as written on its row. */
+    public static function coverForReference(string $reference): int
+    {
+        $reference = trim($reference);
+        if ($reference === '' || !str_starts_with(strtoupper($reference), 'AFG-GIVE')) return 0;
+        try {
+            if (!\AfricaGates\Support\SchemaHas::column('gates_donations', 'fee_cover_naira')) return 0;
+            return max(0, (int) (DB::table('gates_donations')->where('payment_ref', $reference)->value('fee_cover_naira') ?? 0));
+        } catch (\Throwable) {
+            return 0;
+        }
+    }
+
+    /**
      * Route a partner donation to the organisation's OWN subaccount.
      *
      * ── THE ORGANISATION'S ELIGIBILITY IS CHECKED HERE, NOT ONLY ON THE PAGE ──
@@ -262,7 +292,7 @@ final class PaymentDestination
      *
      * @return array<string,string>
      */
-    public static function initFieldsForPartner(int $orgId, int $platformTipNaira = 0): array
+    public static function initFieldsForPartner(int $orgId, int $platformTipNaira = 0, int $platformShareNaira = 0, int $coverNaira = 0): array
     {
         if (!self::enabled() || $orgId < 1) return [];
 
@@ -273,10 +303,20 @@ final class PaymentDestination
         }
         if (!\AfricaGates\Services\PartnerOrg::canReceive($org)) return [];
 
-        // No `bearer` here. Who absorbs Paystack's cut on a partner donation is set by the
-        // subaccount's own percentage_charge at creation, and sending a conflicting bearer
-        // is how a partner discovers their share is not what they agreed to.
         $out = ['subaccount' => (string) $org->subaccount_code];
+
+        // ── WHO PAYS THE GATEWAY'S FEE: THE RECIPIENT, AS EVERYWHERE ─────────
+        // Owner, 3 Nov 2026: "do the modern standards". With no `bearer` Paystack charges its
+        // fee to the MAIN account, so this platform paid the processing on every gift to
+        // every organisation — including to the many whose agreed platform share is 0%,
+        // where each gift cost us money. GoFundMe, JustGiving and Givebutter all deduct the
+        // processing fee from the gift and let the donor cover it; so does this now, and the
+        // donor's cover (GatewayFee::cover) is exactly what keeps the organisation whole.
+        // A setting (`partner_fee_bearer = platform`) keeps the old arrangement for an
+        // operator who has promised it.
+        if (\AfricaGates\Services\GatewayFee::organisationBears()) {
+            $out['bearer'] = 'subaccount';
+        }
 
         // ── A DONOR'S VOLUNTARY GIFT TO THE PLATFORM RIDES AS A FLAT CHARGE ──
         //
@@ -294,8 +334,24 @@ final class PaymentDestination
         // Kobo, and clamped: a value in naira here silently settles a hundredth of the
         // intended amount, and a charge above the transaction is refused by the gateway,
         // which would turn a generous donor into a failed checkout.
-        if ($platformTipNaira > 0) {
-            $out['transaction_charge'] = (string) ($platformTipNaira * 100);
+        //
+        // And it carries the agreed FEE as well as the tip. Paystack documents
+        // `transaction_charge` as overriding the split for that payment, so the subaccount's
+        // percentage_charge does not ALSO apply: a charge of the tip alone settled the tip to
+        // us and the whole gift — fee included — to the organisation, while the donation row
+        // recorded `platform_fee_naira` as ours. Every tipped gift to a fee-charging partner
+        // under-settled the platform by exactly its fee, and the ledger said otherwise.
+        // `$platformShareNaira` is that row's figure (fee + tip, {@see DonationController}).
+        //
+        // And it is sent whenever the charge holds money that is NOT the gift — a tip or a
+        // fee cover — because the subaccount's percentage would otherwise apply to the whole
+        // charge: a cover meant for the gateway would be part-paid to us as a fee on it.
+        // Only when our share is above zero: at a 0% share with no tip the subaccount's own
+        // percentage is already zero, and a zero charge is a value not worth testing on a
+        // gateway whose refusal sends the gift out unrouted.
+        $ours = max($platformTipNaira, $platformShareNaira);
+        if (($platformTipNaira > 0 || $coverNaira > 0) && $ours > 0) {
+            $out['transaction_charge'] = (string) ($ours * 100);
         }
 
         return $out;
@@ -574,6 +630,7 @@ final class PaymentDestination
         // Every value returned here must be in CHECKOUT_STREAMS — a test holds the two together.
         if (str_starts_with($r, 'AFG-EVT')) return 'events';
         if (str_starts_with($r, 'AFG-SHP')) return 'shop';
+        if (str_starts_with($r, 'AFG-ADS')) return 'ads';      // Ads\AdCheckout::REF_PREFIX
         if (str_starts_with($r, 'AFG-'))    return 'votes';
         return '';
     }

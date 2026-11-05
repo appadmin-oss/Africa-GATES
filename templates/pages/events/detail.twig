@@ -78,7 +78,11 @@
   {# ── The head: a 4:3 photo with floating buttons and a sheet on a phone; a hero from 600 ── #}
   <header class="ed-hero">
     <div class="ed-hero__media">
-      {% include 'partials/photo.twig' with {identity: ev.id|default(null), kind: 'thing', subject: 'event', cover_kind: ev.cover_kind|default(null), award_linked: ev.award_linked|default(false), src: ev.image, name: ev.title, content: 'none', logo: ev.host_logo|default(''), eager: true} only %}
+      {# No pill on the cover: this hero writes its own text over the cover's foot — the sheet
+         rises over it on a phone, the title sits on it from 600 — so the cover's type pill was
+         half under the sheet on one and under "Eko Hotel" on the other. The type goes in the
+         text as a chip instead, as the events index's spotlight does it. #}
+      {% include 'partials/photo.twig' with {identity: ev.id|default(null), kind: 'thing', subject: 'event', cover_kind: ev.cover_kind|default(null), award_linked: ev.award_linked|default(false), src: ev.image, name: ev.title, content: 'none', label: false, logo: ev.host_logo|default(''), eager: true} only %}
     </div>
     <div class="ed-hero__btns">
       <a class="ed-fab" href="/events" aria-label="{{ 'All events'|trans }}">
@@ -97,6 +101,8 @@
       </span>
     </div>
     <div class="ed-hero__text">
+      {% set _kind = cover_kind('event', ev.cover_kind|default(null), ev.award_linked|default(false)) %}
+      <span class="ed-kind ed-kind--{{ _kind.tone }}"><i aria-hidden="true"></i>{{ _kind.label|trans }}</span>
       <span class="ev-dateline ed-hero__date">{{ ev.when }}</span>
       <h1 class="ed-hero__h1">{{ event.title }}</h1>
       <span class="ed-hero__by">
@@ -116,6 +122,15 @@
   <div class="ed-grid">
     {# ══ MAIN ══════════════════════════════════════════════════════════════ #}
     <div class="ed-main">
+      {% if awards.list|default([]) is not empty %}
+      <section class="ed-sec" aria-labelledby="h-awards">
+        <h2 class="ed-sec__h" id="h-awards">{{ 'Awards presented'|trans }}</h2>
+        <ul class="ed-awards">
+          {% for a in awards.list %}<li><a href="{{ a.url }}">{{ a.title }}</a></li>{% endfor %}
+        </ul>
+      </section>
+      {% endif %}
+
       {% if event.description %}
       <section class="ed-sec" aria-labelledby="h-about">
         <h2 class="ed-sec__h" id="h-about">{{ 'About this event'|trans }}</h2>
@@ -168,7 +183,7 @@
         <h2 class="ed-sec__h" id="h-venue">{{ 'Venue'|trans }}</h2>
         <span class="ed-venue"><b>{{ event.venue|default(event.location) }}</b>
           {% if event.venue and event.location %}<span>{{ event.location }}</span>{% endif %}</span>
-        <a class="ed-link" href="{{ event.map_embed ?: 'https://www.google.com/maps/search/?api=1&query=' ~ ([event.venue, event.location]|filter(v => v)|join(', '))|url_encode }}" target="_blank" rel="noopener">{{ 'View on map'|trans }} <span class="ag-ico-dir" aria-hidden="true">→</span></a>
+        <a class="ed-link" href="{{ map_link }}" target="_blank" rel="noopener">{{ 'View on map'|trans }} <span class="ag-ico-dir" aria-hidden="true">→</span></a>
       </section>
       {% endif %}
 
@@ -294,7 +309,16 @@
               <a href="/account?tab=referral#me-referral">{{ 'Your referrals'|trans }}</a></p>
           {% else %}
             <p class="ed-box__p">{{ 'Earn %pct%% of every ticket bought through your link.'|trans({'%pct%': referral.pct}) }}</p>
+            {% if referral.signed_in|default(false) %}
+              {# Asked for, not minted by looking at the page: a POST, back to this event. #}
+              <form method="post" action="/account/referral">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                <input type="hidden" name="next" value="/events/{{ event.slug }}">
+                <button class="ed-earn__btn" type="submit">{{ 'Get my link'|trans }}</button>
+              </form>
+            {% else %}
             <a class="ed-earn__btn" href="/account/login?next=/events/{{ event.slug|url_encode }}">{{ 'Sign in to get your link'|trans }}</a>
+            {% endif %}
             <p class="ed-box__alt">{{ 'Free, and your link works on every event.'|trans }}</p>
           {% endif %}
         </section>
@@ -334,7 +358,7 @@
 
 {% block foot_scripts %}
   <script type="application/json" id="ed-flier-data" nonce="{{ csp_nonce }}">{{ {styles: flier_styles, defaults: flier_style_default, title: event.title, date: event.event_date|slice(0, 10), pct: referral ? referral.pct : 0}|json_encode(constant('JSON_HEX_TAG') b-or constant('JSON_UNESCAPED_UNICODE'))|raw }}</script>
-  <script defer src="{{ asset('/assets/js/event-detail.js') }}"></script>
-  {% if st != 'ended' %}<script defer src="{{ asset('/assets/js/event-flier.js') }}"></script>{% endif %}
-  {% if ad|default(null) %}<script defer src="{{ asset('/assets/js/ads.js') }}"></script>{% endif %}
+  <script defer src="{{ asset('/assets/js/event-detail.js') }}" data-nav="rerun"></script>
+  {% if st != 'ended' %}<script defer src="{{ asset('/assets/js/event-flier.js') }}" data-nav="rerun"></script>{% endif %}
+  {% if ad|default(null) %}<script defer src="{{ asset('/assets/js/ads.js') }}" data-nav="rerun"></script>{% endif %}
 {% endblock %}

@@ -140,7 +140,7 @@ final class NominationAftercare
         $catLine = $catName !== '' ? ($progName . ' · ' . $catName) : $progName;
 
         self::email($data, $mailer, $files, $baseUrl, $reference,
-                    $nomName, $nomEmail, $byName, $byEmail, $catLine, $watchUrl, $catTitles);
+                    $nomName, $nomEmail, $byName, $byEmail, $catLine, $watchUrl, $catTitles, $nominationId);
         self::text($data, $reference, $nomName, $nomEmail, $catLine, $watchUrl);
 
         // Advisory AI triage (score / summary / duplicates) for the review desk.
@@ -253,7 +253,7 @@ final class NominationAftercare
     private static function email(
         array $data, ?OtpService $mailer, array $files, string $baseUrl, string $reference,
         string $nomName, string $nomEmail, string $byName, string $byEmail,
-        string $catLine, string $watchUrl, array $catTitles = [],
+        string $catLine, string $watchUrl, array $catTitles = [], int $nominationId = 0,
     ): void {
         if ($mailer === null) return;
 
@@ -348,7 +348,16 @@ final class NominationAftercare
             // award" would arrive looking like ours, which is exactly the forgery the voting
             // letter tells nominees to report. Nothing they wrote is sent to the nominee
             // from here; NominationAftercareTest holds that.
-            try {
+            //
+            // ── AND IT ASKS FOR WHAT THIS NOMINATION LACKS ───────────────────────
+            //
+            // The nominee knows the work best, so they are asked now, while it can still decide
+            // the review, for exactly what the row is missing (evidence first, then the places
+            // the award needs, then the blanks), with a link to the same page approval later
+            // hands them (NomineeDetails::early). Computed from the stored row, never quoted.
+            // A repeat folded into a nomination they were sent a link for today is not mailed.
+            $early = NomineeDetails::forEmail($nominationId);
+            if (!$early['skip']) try {
                 \AfricaGates\Services\Mail\Emails::send($mailer, $nomEmail, 'nominated', [
                     'programme'  => $progOnly,
                     'first_name' => $nomFirst,
@@ -358,7 +367,7 @@ final class NominationAftercare
                     'watch_url'  => $watchUrl,
                     'help_url'   => $base . '/support',
                     'site_url'   => $base,
-                ]);
+                ] + $early);
             } catch (\Throwable) {}
         }
     }

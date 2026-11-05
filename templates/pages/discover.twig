@@ -295,5 +295,5 @@
   {% endif %}
 {% endblock %}
 
-{% block foot_scripts %}<script defer src="{{ asset('/assets/js/discover.js') }}"></script>
-{% if ad|default(null) %}<script defer src="{{ asset('/assets/js/ads.js') }}"></script>{% endif %}{% endblock %}
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/discover.js') }}" data-nav="rerun"></script>
+{% if ad|default(null) %}<script defer src="{{ asset('/assets/js/ads.js') }}" data-nav="rerun"></script>{% endif %}{% endblock %}

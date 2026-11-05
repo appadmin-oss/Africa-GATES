@@ -34,7 +34,7 @@
   · The recent-gifts ledger is held back below three rows and says WHEN each gift came.
   · A closed appeal says it is closed and that nothing was charged — even with no providers.
   · Every amount the donor sees is recomputed by the server; the browser's figure is shown,
-    never trusted (PlatformTip, processing_fee_pct).
+    never trusted (PlatformTip, GatewayFee).
 
   Colour tier 2: green is the give action and the progress; gold is not spent here.
 #}
@@ -58,11 +58,14 @@
                   title: _step == 'give' ? 'Give'|trans : (campaign ? 'Appeal'|trans : (org ? org.name : 'Giving'|trans)),
                   sub: _step == 'give' ? _title : null,
                   back: _step == 'give' ? _base : '/'} %}
-{% set _presets = [1000, 2000, 5000, 10000] %}
+{% set _presets = fee.covers|keys %}
 {% set _pick = 5000 %}
 {# Hoisted: the recap (content) and the phone bar (bottom_bar) both print it, and a set
    inside a block is invisible to every other block (TwigBlockScopeTest). #}
-{% set _fee0 = (_pick * (1 + processing_fee_pct|default(0) / 100))|round(0, 'ceil') - _pick %}
+{# The cover is opt-in, so the first paint carries none; its exact figure for the default
+   amount is GatewayFee::cover(), worked out server-side, never a percentage typed here. #}
+{% set _fee0 = 0 %}
+{% set _cover0 = fee.covers[_pick]|default(0) %}
 {% macro ngn(n) %}₦{{ n|number_format }}{% endmacro %}
 {% import _self as m %}
 
@@ -78,7 +81,7 @@
   {% if _step == 'give' and _give %}
   {# ══ THE CHECKOUT ══════════════════════════════════════════════════════════ #}
   <form class="gv-co" id="give" method="post" action="/giving" data-favicon-busy data-gv-form
-        data-min="{{ min_naira }}" data-max="{{ max_naira }}" data-fee="{{ processing_fee_pct }}" data-org-fee="{{ org_fee_bps }}"
+        data-min="{{ min_naira }}" data-max="{{ max_naira }}" data-fee-pct="{{ fee.schedule.pct }}" data-fee-flat="{{ fee.schedule.flat }}" data-fee-from="{{ fee.schedule.flat_from }}" data-fee-cap="{{ fee.schedule.cap }}" data-org-fee="{{ org_fee_bps }}"
         data-w-once="{{ 'Give %a%'|trans }}" data-w-monthly="{{ 'Give %a% every month'|trans }}" data-w-busy="{{ 'Opening the secure checkout…'|trans }}" data-w-short="{{ 'Give'|trans }}"
         data-e-min="{{ 'The smallest gift we can process is %m%.'|trans({'%m%': m.ngn(min_naira)}) }}"
         data-e-max="{{ 'That is above our limit here. Contact us to arrange it.'|trans }}">
@@ -169,11 +172,16 @@
       <p class="gv-note">{{ 'You choose card, bank transfer or USSD on %p%’s secure page next.'|trans({'%p%': providers[0].label}) }}</p>
     {% endif %}
 
-    {# Offsets the GATEWAY's cut and nothing else — on a partner appeal with a platform
-       share it says what it covers and stops, rather than promising 100%. #}
+    {# ── COVER THE PROCESSING FEE: OPT-IN, IN NAIRA, EXACT (GatewayFee) ────────
+       Never pre-ticked: an added charge the donor did not choose is the pattern consumer
+       law forbids (EU Consumer Rights Directive art. 22, FCCPA 2018), and a donor who finds
+       it on their statement disputes the whole gift. The figure is the exact amount that
+       leaves the recipient with the gift to the naira — the fee is charged on the whole
+       transaction, so it is not a percentage of the gift. It offsets the GATEWAY's cut and
+       nothing else: on a partner appeal with a platform share it says so. #}
     <label class="gv-check">
-      <input type="checkbox" name="cover_fees" value="1" checked data-gv-cover>
-      <span>{% if org and org_fee_bps > 0 %}{{ 'Add %p%% for processing, so %o% gets all but the Africa GATES share.'|trans({'%p%': processing_fee_pct, '%o%': org.name}) }}{% else %}{{ 'Add %p%% to cover processing, so 100% of my donation reaches %o%.'|trans({'%p%': processing_fee_pct, '%o%': org ? org.name : 'the programmes'|trans}) }}{% endif %}</span>
+      <input type="checkbox" name="cover_fees" value="1" data-gv-cover>
+      <span>{{ 'Add %c% to cover the payment processing fee'|trans|replace({'%c%': '<b data-gv-cover-amt>' ~ m.ngn(_cover0) ~ '</b>'})|raw }}{% if org and org_fee_bps > 0 %}{{ ', so %o% receives your gift less only the Africa GATES share.'|trans({'%o%': org.name}) }}{% else %}{{ ', so %o% receives your full gift.'|trans({'%o%': org ? org.name : 'the programmes'|trans}) }}{% endif %}</span>
     </label>
 
     {# ── A VOLUNTARY GIFT TO AFRICA GATES ─────────────────────────────────────
@@ -199,7 +207,7 @@
        amount; giving.js keeps it true as the donor changes anything. #}
     <dl class="gv-recap" aria-live="polite">
       <div><dt data-gv-freq-word data-once="{{ 'Your gift'|trans }}" data-monthly="{{ 'Your gift, every month'|trans }}">{{ pick_monthly ? 'Your gift, every month'|trans : 'Your gift'|trans }}</dt><dd data-gv-amt>{{ m.ngn(_pick) }}</dd></div>
-      <div data-gv-fee-row><dt>{{ 'Processing cover'|trans }}</dt><dd data-gv-fee>{{ m.ngn(_fee0) }}</dd></div>
+      <div data-gv-fee-row hidden><dt>{{ 'Processing cover'|trans }}</dt><dd data-gv-fee>{{ m.ngn(_fee0) }}</dd></div>
       {% if platform_tip.offered %}<div data-gv-tip-row hidden><dt>{{ 'Gift to Africa GATES'|trans }}</dt><dd data-gv-tipv>₦0</dd></div>{% endif %}
       <div class="gv-recap__t"><dt>{{ 'Total today'|trans }}</dt><dd data-gv-total>{{ m.ngn(_pick + _fee0) }}</dd></div>
     </dl>
@@ -466,4 +474,4 @@
   {% endif %}
 {% endblock %}
 
-{% block foot_scripts %}<script defer src="{{ asset('/assets/js/giving.js') }}"></script>{% endblock %}
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/giving.js') }}" data-nav="rerun"></script>{% endblock %}

@@ -132,78 +132,46 @@ class OgCardTest extends TestCase
     }
 
     /**
-     * A real photograph in the column, and the seam that fades it into the panel.
+     * The photo column is a clean, full-height panel beside the words.
      *
-     * The fade is checked because the obvious implementation — one flat colour per column
-     * — leaves a visible bright or dark band at one end, since the background behind it is
-     * a vertical gradient. That reads as a rendering fault, and on a link preview it is the
-     * entire first impression.
+     * The old card faded its photo into a gradient and was tested for the seam; the share
+     * card system (ShareCardSpec) gives the photo its own column with a straight edge, so
+     * what matters now is that the photo really fills that column and stops at its edge.
      */
-    public function test_a_photo_fades_into_the_panel_with_no_hard_seam(): void
+    public function test_the_photo_fills_its_column_and_stops_at_its_edge(): void
     {
         if (!$this->renderable()) $this->markTestSkipped('GD/FreeType or the bundled fonts are unavailable.');
 
-        $tmp = tempnam(sys_get_temp_dir(), 'agcard_') . '.png';
-        $src = imagecreatetruecolor(480, 630);
-        // Saturated magenta: nothing in the brand palette is close, so any surviving
-        // photo pixel is unmistakable.
+        $tmp = tempnam(sys_get_temp_dir(), 'og') . '.png';
+        $src = imagecreatetruecolor(400, 400);
         imagefill($src, 0, 0, imagecolorallocate($src, 255, 0, 255));
         imagepng($src, $tmp);
         imagedestroy($src);
-
-        $png = (new FlierService())->ogCard($this->payload(['photo_card' => $tmp]));
+        $png = (new FlierService())->ogCard($this->payload(['photo_card' => $tmp]), ['mode' => 'bold']);
         @unlink($tmp);
-        $this->assertIsString($png);
-
-        $im = imagecreatefromstring($png);
+        $im = imagecreatefromstring((string) $png);
         $this->assertNotFalse($im);
-
-        $at = static function ($im, int $x, int $y): array {
+        $magenta = static function ($im, int $x, int $y): bool {
             $c = imagecolorat($im, $x, $y);
-            return [($c >> 16) & 0xFF, ($c >> 8) & 0xFF, $c & 0xFF];
+            return (($c >> 16) & 0xFF) > 200 && ($c & 0xFF) > 200 && (($c >> 8) & 0xFF) < 60;
         };
-
-        // Left of the fade band: the photo, essentially untouched.
-        [$r, $g, $b] = $at($im, 40, 315);
-        $this->assertGreaterThan(180, $r, 'the photo must survive at the left edge');
-        $this->assertGreaterThan(180, $b);
-
-        // At the seam: the panel colour, with no magenta left.
-        [$r2, , $b2] = $at($im, FlierService::OG_PHOTO_W - 1, 315);
-        $this->assertLessThan(60, $r2, 'the fade must reach the panel colour by the seam');
-        $this->assertLessThan(80, $b2);
-
-        // And ACROSS the seam there must be no step: the last faded column and the first
-        // panel column have to match, at the top and the bottom of the card, because the
-        // background gradient differs by ~11 levels per channel between them.
-        foreach ([20, 315, 610] as $y) {
-            [$lr, $lg, $lb] = $at($im, FlierService::OG_PHOTO_W - 1, $y);
-            [$pr, $pg, $pb] = $at($im, FlierService::OG_PHOTO_W + 1, $y);
-            $this->assertLessThanOrEqual(6, abs($lr - $pr), "seam step in red at y={$y}");
-            $this->assertLessThanOrEqual(6, abs($lg - $pg), "seam step in green at y={$y}");
-            $this->assertLessThanOrEqual(6, abs($lb - $pb), "seam step in blue at y={$y}");
+        foreach ([300, 315, 600] as $y) {
+            $this->assertTrue($magenta($im, 10, $y), "the photo reaches the left edge at y={$y}");
+            $this->assertTrue($magenta($im, FlierService::OG_PHOTO_W - 2, $y), "the photo reaches its column edge at y={$y}");
+            $this->assertFalse($magenta($im, FlierService::OG_PHOTO_W + 2, $y), "the photo stops at its column at y={$y}");
         }
         imagedestroy($im);
     }
 
-    // ── The three geometry bugs the first renders exposed ───────────────────
-
-    /**
-     * No ink in the right margin. This is the "Wolde-Giorgis ran off the edge" test: at
-     * 76px that surname is wider than the 608px column, and `wrapMeasured` places an
-     * over-wide word rather than break it, so the size has to shrink until it fits.
-     */
+    /** Long names step down or wrap; nothing is drawn into the right margin. */
     public function test_nothing_is_drawn_past_the_right_margin(): void
     {
         if (!$this->renderable()) $this->markTestSkipped('GD/FreeType or the bundled fonts are unavailable.');
-
         foreach (['Tsehaynesh Wolde-Giorgis', 'Nomvula Dlamini-Khumalo', 'Ọlásùnkànmí Adébáyọ̀ Ogundimu'] as $name) {
-            $png = (new FlierService())->ogCard($this->payload(['name' => $name]));
+            // Bold, so the ground is dark and every piece of type is light.
+            $png = (new FlierService())->ogCard($this->payload(['name' => $name]), ['mode' => 'bold']);
             $im  = imagecreatefromstring((string) $png);
             $this->assertNotFalse($im);
-
-            // The rightmost 24px is margin. Anything bright there is overflow — the
-            // background at that edge is a dark green, and every text colour is light.
             $bright = 0;
             for ($x = FlierService::OG_W - 24; $x < FlierService::OG_W; $x++) {
                 for ($y = 0; $y < FlierService::OG_H; $y++) {
@@ -217,87 +185,39 @@ class OgCardTest extends TestCase
     }
 
     /**
-     * A name's ink starts at the same row whether or not it carries diacritics.
-     *
-     * That is the invariant {@see FlierService::ascent()} buys, and it is worth stating
-     * carefully because the obvious assertion is the wrong way round.
-     *
-     * Measured on the bundled Playfair Display Bold at 76px: "Olasunkanmi" has an ink
-     * ascent of 79px and "Ọlásùnkànmí" 84px. With a baseline derived from the POINT SIZE
-     * (`top + $size`) both names share a baseline, so the accented one's ink starts those
-     * 5px HIGHER — it grows UPWARD, toward the kicker. Measuring the real extent instead
-     * pins the top and pushes the baseline down, so the two agree to within a pixel.
-     *
-     * Verified in both directions: correct code gives tops of 219/220, and reverting to
-     * `top + $size` gives 216/212. Hence a tolerance of 2 — 4 would have let the bug
-     * through, which it did on the first attempt at this test.
+     * The name keeps clear of the category above it, accented or not. Tone marks sit
+     * above the cap height, and a baseline that ignored them pushed the name into the
+     * line above it.
      */
-    public function test_a_names_ink_starts_at_the_same_row_with_or_without_diacritics(): void
+    public function test_a_gap_survives_between_the_category_and_the_name(): void
     {
         if (!$this->renderable()) $this->markTestSkipped('GD/FreeType or the bundled fonts are unavailable.');
-
-        $svc = new FlierService();
-        $topOfInk = static function (string $png): int {
-            $im = imagecreatefromstring($png);
-            // Scan the name's column band only, so the kicker and the chip cannot answer.
-            for ($y = 140; $y < 500; $y++) {
-                for ($x = FlierService::OG_PHOTO_W + 56; $x < FlierService::OG_W - 60; $x++) {
-                    $c = imagecolorat($im, $x, $y);
-                    if ((($c >> 16) & 0xFF) > 200 && (($c >> 8) & 0xFF) > 200 && ($c & 0xFF) > 200) {
-                        imagedestroy($im);
-                        return $y;
-                    }
-                }
-            }
-            imagedestroy($im);
-            return PHP_INT_MAX;
-        };
-
-        // Same character count, so the same size is chosen; only the marks differ.
-        $plain    = $topOfInk((string) $svc->ogCard($this->payload(['name' => 'Olasunkanmi'])));
-        $accented = $topOfInk((string) $svc->ogCard($this->payload(['name' => 'Ọlásùnkànmí'])));
-
-        $this->assertLessThan(PHP_INT_MAX, $plain, 'the plain name must render');
-        $this->assertLessThan(PHP_INT_MAX, $accented, 'the accented name must render');
-
-        // Within a few pixels. A gap of ~14px — the height of the marks — means the
-        // baseline ignored them and the accented name grew upward into the kicker.
-        $this->assertLessThanOrEqual(2, abs($accented - $plain),
-            "the accented name starts at row {$accented} and the plain one at {$plain}: the "
-            . 'baseline is not accounting for the marks, so the name grows upward into the kicker');
-
-        // And both sit inside the band the block is centred in, never above it.
-        $this->assertGreaterThanOrEqual(150, min($accented, $plain));
-    }
-
-    /**
-     * The name must not collide with the kicker above it.
-     *
-     * The first render put "Adaeze Nwosu" — twelve characters, so nominally the largest
-     * size — on two lines whose ascenders ran straight through the programme line, because
-     * the size ladder was copied from the flier's 952px column into a 608px one. Checked as
-     * a clear horizontal band of background between the two blocks.
-     */
-    public function test_a_gap_survives_between_the_kicker_and_the_name(): void
-    {
-        if (!$this->renderable()) $this->markTestSkipped('GD/FreeType or the bundled fonts are unavailable.');
-
         $svc = new FlierService();
         foreach (['Adaeze Nwosu', 'Ọlásùnkànmí Adébáyọ̀ Ogundimu', 'Ada'] as $name) {
-            $im = imagecreatefromstring((string) $svc->ogCard($this->payload(['name' => $name])));
+            $im = imagecreatefromstring((string) $svc->ogCard($this->payload(['name' => $name]), ['mode' => 'bold']));
             $this->assertNotFalse($im);
-
-            // Rows 132..150 are the gap: the programme baseline is at 120, and the name's
-            // band starts at OG_BAND_TOP (152).
-            $ink = 0;
-            for ($y = 132; $y < 150; $y++) {
-                for ($x = FlierService::OG_PHOTO_W + 56; $x < FlierService::OG_W - 60; $x++) {
+            // Rows of the name column: find the category's last inked row and the name's
+            // first WHITE row (the category is the tone label colour, the name is white).
+            $x0 = FlierService::OG_PHOTO_W + 40; $x1 = FlierService::OG_W - 40;
+            $rows = [];
+            for ($y = 100; $y < 450; $y++) {
+                $white = false; $ink = false;
+                for ($x = $x0; $x < $x1; $x += 2) {
                     $c = imagecolorat($im, $x, $y);
-                    if ((($c >> 16) & 0xFF) > 190 && (($c >> 8) & 0xFF) > 190 && ($c & 0xFF) > 190) $ink++;
+                    [$r, $g, $b] = [($c >> 16) & 0xFF, ($c >> 8) & 0xFF, $c & 0xFF];
+                    if ($r > 235 && $g > 235 && $b > 235) $white = true;
+                    elseif ($r + $g + $b > 300) $ink = true;
                 }
+                $rows[$y] = $white ? 'w' : ($ink ? 'i' : '.');
             }
             imagedestroy($im);
-            $this->assertLessThan(40, $ink, "'{$name}' collides with the kicker above it");
+            $this->assertContains('w', $rows, "'{$name}' must render");
+            // The first inked run from the top is the category; then clear rows; then the
+            // name. Its own anti-aliased edge is not mistaken for the category this way.
+            $seq = implode('', $rows);
+            $this->assertMatchesRegularExpression('/^\.*i+(\.+)[iw]/', $seq, 'the category sits above the name');
+            preg_match('/^\.*i+(\.+)[iw]/', $seq, $m);
+            $this->assertGreaterThanOrEqual(4, strlen($m[1]), "'{$name}' collides with the category above it");
         }
     }
 

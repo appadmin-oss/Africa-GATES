@@ -218,6 +218,42 @@ final class VolunteerController
             ->withHeader('Content-Disposition', 'attachment; filename="my-volunteering.json"')->withHeader('Cache-Control', 'no-store');
     }
 
+    /**
+     * GET /volunteer/academy — the Volunteer academy: how to use the portal, step by step, with
+     * screenshots. Open signed out (registered outside the member group, like /apply) so a
+     * coordinator can share the link in a group chat. It reads nothing from the database: the
+     * labels it names come from Workspace's constants, and VolunteerAcademyTest holds every
+     * other button it names to the workspace's own sources.
+     */
+    public function academy(Request $req, Response $res): Response
+    {
+        return $this->view->render($res, 'volunteer/academy.twig', [
+            'page_title' => 'Volunteer academy — Africa GATES', 'report' => Workspace::REPORT, 'hours_log' => Workspace::HOURS_LOG,
+            'shots' => self::SHOTS,
+        ]);
+    }
+
+    /**
+     * The academy's screenshots: file stem => [alt text, caption]. Each is
+     * public/assets/img/academy/{stem}.webp, made by scripts/academy-shots.mjs at 1366×768 and
+     * cropped to the part of the screen the step is about.
+     */
+    public const SHOTS = [
+        'start'        => ['The volunteer application: an email box, the Continue with email button, and four steps — Account, Apply, Check, Start.', 'Applying: start with your email.'],
+        'today'        => ['The Today page. At the top right are three buttons: Log a contact with a nominee, Log hours by hand, and How to use this portal.', 'Today: the report buttons are at the top.'],
+        'nominees'     => ['The Nominees page for an award, with tabs All, Follow up and Not reached yet, and a list of nominees with how each was last reached.', 'Nominees: pick the person you contacted.'],
+        'log-contact'  => ['A nominee’s page with the Log a contact form: how you reached them, how it went, a note and a follow-up date, and the Log this contact button.', 'Log a contact: fill it in and press Log this contact.'],
+        'follow-up'    => ['The Follow up tab, listing nominees whose follow-up date has come.', 'Follow up: who to reach again today.'],
+        'hours-log'    => ['The Log hours by hand form: what you did, the day, the hours, who saw it and a proof link.', 'Hours by hand: for work nobody saw.'],
+        'hours-review' => ['The In review tab, with a report waiting for a lead and an Add proof box.', 'In review: where your hours wait for a lead.'],
+        'event'        => ['An event page with the Check in button at the top.', 'At an event: Check in when you arrive, Check out when you leave.'],
+        'requests'     => ['The New request form with types Time off, Correct my hours, Access to a role and Travel refund.', 'Requests: pick the type, then send.'],
+        'tasks'        => ['The Tasks page, with tabs for tasks open to you and the ones you have taken.', 'Tasks: take one that fits your week.'],
+        'record'       => ['Your record: verified hours, your level, and the tabs for your history and reference letters.', 'Your record: verified hours and reference letters.'],
+        'break'        => ['Take a break or leave: buttons for a 2, 4 or 8 week break, and Leave for good.', 'Take a break: pick how long. Your record stays yours.'],
+        'team'         => ['A lead’s To confirm tab: each report of hours with a reason box and the Confirm hours and Decline hours buttons.', 'For leads: confirm or decline your team’s hours.'],
+    ];
+
     /** GET /volunteer/apply */
     public function applyForm(Request $req, Response $res): Response
     {
@@ -227,7 +263,8 @@ final class VolunteerController
         if (!$user || !Volunteers::accountReady((int) $user->id)) {
             // The email box on this page posts straight to the code request, so the way back is
             // held here, where every sign-in path (code, password, verify link) reads it.
-            if (!$user) $_SESSION['login_next'] = '/volunteer/apply';
+            // Not on a prefetch (Support\Speculative): a hovered nav link is not where anybody was going.
+            if (!$user && !\AfricaGates\Support\Speculative::is()) $_SESSION['login_next'] = '/volunteer/apply';
             $team = Volunteers::ready() ? (int) \Illuminate\Database\Capsule\Manager::table('gates_volunteers')->where('status', 'active')->count() : 0;
             return $this->view->render($res, 'volunteer/apply.twig', [
                 'team' => $team,
@@ -283,7 +320,7 @@ final class VolunteerController
             'leave' => ($k = Attendance::leave($v, (int) ($b['event'] ?? 0), Attendance::SELF, $name))['ok']
                 ? $ok('Checked out. ' . Level::h((float) $k['hours']) . ($k['review'] ? ' sent to a lead to confirm.' : ' added to your hours.')) : $no((string) $k['error']),
             'outreach_agree' => Outreach::agree($v, (int) ($b['cycle'] ?? 0)) ? $ok('Thanks. You can reach nominees on this award now.') : $no('That award isn’t one you reach nominees on.'),
-            'outreach_log' => ($k = Outreach::log($v, (int) ($b['nominee'] ?? 0), $b))['ok'] ? $ok('Logged. The team can see it.') : $no((string) $k['error']),
+            'outreach_log' => ($k = Outreach::log($v, (int) ($b['nominee'] ?? 0), $b))['ok'] ? $ok('Contact logged. Everybody on this award sees it on the nominee’s page; a follow-up date puts them under Follow up.') : $no((string) $k['error']),
             'outreach_email' => ($k = Outreach::email($v, (int) ($b['nominee'] ?? 0), $b, $this->mailer))['ok'] ? $ok('Sent and logged.') : $no((string) $k['error']),
             'meet' => $active ? (($k = Meetings::schedule($v, $b, $this->mailer))['ok'] ? $ok('Scheduled. ' . ($k['invited'] === 1 ? 'One person is' : $k['invited'] . ' people are') . ' invited by email.') : $no((string) $k['error'])) : $no('Meetings open once you’re approved.'),
             'meet_answer' => Meetings::answer($v, (int) ($b['meeting'] ?? 0), (string) ($b['answer'] ?? '')) ? $ok(($b['answer'] ?? '') === 'yes' ? 'Thanks. They know you’re going.' : 'Thanks. They know you can’t come.') : $no('That meeting can’t be answered now.'),
@@ -292,7 +329,7 @@ final class VolunteerController
             'take' => $active ? (($t = Tasks::take($v, (int) ($b['task'] ?? 0)))['ok'] ? $ok('It’s yours. It’s in Tasks › Mine.') : $no((string) $t['error'])) : $no('Tasks open once you’re approved.'),
             'droptask' => Tasks::drop($v, (int) ($b['task'] ?? 0)) ? $ok('Dropped.') : $no('That task is not yours to drop.'),
             'log' => ($l = Hours::log($v, (string) ($b['date'] ?? ''), (string) ($b['what'] ?? ''), (float) ($b['hours'] ?? 0), (string) ($b['witness'] ?? ''), (string) ($b['proof'] ?? '')))['ok']
-                ? $ok('Sent for confirming. It shows under In review.') : $no((string) $l['error']),
+                ? $ok('Sent for confirming. It’s under Hours › In review until a lead answers; then it shows Confirmed, or their reason.') : $no((string) $l['error']),
             'proof' => Hours::addProof($v, (int) ($b['hour'] ?? 0), (string) ($b['proof'] ?? '')) ? $ok('Proof added. Your lead sees it next to the hours.') : $no('A proof link starts with https://'),
             'train' => $this->train($v, $b),
             'referee' => Volunteers::changeReferee($v, (string) ($b['ref_name'] ?? ''), (string) ($b['ref_contact'] ?? '')) ? $ok('We’ve asked them instead.') : $no('Add their name and a phone or email.'),
@@ -306,7 +343,8 @@ final class VolunteerController
             'save_profile' => $this->saved(Volunteers::save($v, 'profile', $b)),
             'save_availability' => $this->saved(Volunteers::save($v, 'availability', $b)),
             'save_notifications' => $this->saved(Volunteers::save($v, 'notifications', $b)),
-            'pause' => Volunteers::pause($v, (int) ($b['weeks'] ?? 0)) ? $ok('You’re on a break. Invites pause until then.') : $no('Pick 2, 4 or 8 weeks.'),
+            'pause' => Volunteers::pause($v, (int) ($b['weeks'] ?? 0)) ? $ok('You’re on a break. Invites pause until then.')
+                : $no($v->status === 'active' ? 'Pick 2, 4 or 8 weeks.' : 'Only an active volunteer can take a break.'),
             'resume' => Volunteers::resume($v) ? $ok('Welcome back.') : $no('You’re not on a break.'),
             'leave' => Volunteers::leave($v) ? $ok('You’ve stepped back. Your record stays yours.') : $no('That could not be done.'),
             default => $no('That isn’t something this page can do.'),
@@ -315,6 +353,11 @@ final class VolunteerController
         if (($b['do'] ?? '') === 'request' && $r['ok']) $back = '/volunteer/requests';
         if (($b['do'] ?? '') === 'leave' && $r['ok']) $back = '/volunteer/me/leave';
         if (($b['do'] ?? '') === 'meet' && $r['ok']) $back = '/volunteer/meetings/' . (int) ($k['id'] ?? 0);
+        // A sent hours log lands where its status is shown; a refused one comes back as typed.
+        if (($b['do'] ?? '') === 'log') {
+            if ($r['ok']) $back = Workspace::HOURS_LOG['status'];
+            else $_SESSION['vol_old'] = array_intersect_key($b, array_flip(['date', 'what', 'hours', 'witness', 'proof']));
+        }
         if (($b['do'] ?? '') === 'meet' && !$r['ok']) {
             $_SESSION['vol_old'] = array_intersect_key($b, array_flip(['title', 'date', 'time', 'minutes', 'repeats', 'times', 'mode', 'link', 'location', 'people', 'agenda']));
         }

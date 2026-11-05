@@ -173,6 +173,42 @@ html.ag-hc{
   --ag-chevron:var(--ag-ink);
   --ag-grabber:var(--ag-ink);
 }
+/* The device's own "increase contrast" setting asks for the same thing as the switch, so it
+   gets the same remap without anybody finding the switch first. Kept as its own block
+   rather than a shared selector because a media query cannot sit in a selector list. */
+@media (prefers-contrast: more){
+  html{
+    --ag-soft:var(--ag-ink); --ag-ink-2:var(--ag-ink);
+    --ag-line:var(--ag-ink); --ag-line-2:var(--ag-ink); --ag-line-3:var(--ag-ink);
+    --ag-mute:color-mix(in srgb, var(--ag-ink) 72%, var(--ag-surface));
+    --ag-chevron:var(--ag-ink); --ag-grabber:var(--ag-ink);
+  }
+}
+
+/* ── Forced colours (Windows High Contrast and the like) ───────────────────────
+   The system repaints every background as Canvas, so anything that showed a STATE by a
+   fill alone loses it silently: the chosen filter chip, the selected tab, the page you are
+   on, how far a progress bar has got. An outline survives forced colours; a fill does not.
+   The shared controls (switch, segmented control) have their own blocks in components.css. */
+@media (forced-colors: active){
+  :is(button, a, [role="tab"], [role="option"], [role="radio"])[aria-pressed="true"],
+  :is(button, a, [role="tab"], [role="option"])[aria-selected="true"],
+  :is([role="radio"], [role="menuitemradio"])[aria-checked="true"],
+  :is(nav, [role="tablist"], [data-tabs]) a[aria-current]{
+    outline:2px solid Highlight; outline-offset:-2px;
+  }
+  [role="progressbar"]{ border:1px solid CanvasText }
+  [role="progressbar"] > *{ forced-color-adjust:none; background:Highlight }
+  /* A decorative mark drawn only as a fill (a status dot beside its word) keeps a shape. */
+  :is(.am-state i, .lb-eyebrow__dot, .lve-tl__dot){ forced-color-adjust:none; background:CanvasText }
+}
+
+/* For the instant a scheme changes, nothing animates: a card that eases its background
+   from white to dark while its text has already turned light is a white pill with
+   invisible words for 150ms (a11y.js adds this class for one frame). */
+/* No `!important` (REFERENCE §4.6 keeps it for reduced motion): `html.ag-noanim *` already
+   outranks a single-class transition, which is every transition on a coloured control. */
+html.ag-noanim *, html.ag-noanim *::before, html.ag-noanim *::after{ transition:none }
 html.ag-hc ::placeholder{ color:var(--ag-mute); opacity:1 }
 html.ag-easy body{ font-family:'Atkinson Hyperlegible',var(--ag-font-ui); letter-spacing:.01em }
 html.ag-ls p, html.ag-ls li{ line-height:1.8 }
@@ -194,6 +230,29 @@ html.ag-saver video[autoplay]{ display:none }
 html.ag-saver img[data-saver-hide]{ visibility:hidden }
 
 
+/* ══ Page changes ══════════════════════════════════════════════════════════════
+   Every public page is a full load, and without this the screen went blank and the chrome
+   was drawn again on every tap — the site read as reloading on almost every navigation. A
+   cross-document view transition fades the content instead, and the chrome is NAMED, so the
+   app bar, the tab bar and the site header are carried across in place rather than faded.
+   Each name is used once per page. A browser without view transitions loads as before;
+   reduced motion (either signal) turns it off below. The partner: instant-nav.twig. */
+@media (prefers-reduced-motion:no-preference){
+  @view-transition{ navigation:auto }
+}
+::view-transition-old(root),
+::view-transition-new(root){ animation-duration:var(--ag-dur-1); animation-timing-function:var(--ag-ease) }
+/* NAMED ONLY WHILE A TRANSITION RUNS. An element with a view-transition-name is a backdrop
+   root, so a `backdrop-filter` INSIDE it can only blur what is inside it: named all the
+   time, the header made its own frosted bar and the mega panel hanging from it sample
+   nothing, and both drew as a flat tint over the page (owner, 3 Nov 2026: "you've removed
+   the megamenu blur"). Nothing on either rule changed, which is why it read as a removal.
+   A browser with view transitions but without this pseudo-class cross-fades the chrome
+   with the page instead — the chrome is identical on both sides, so nothing visibly moves. */
+html:active-view-transition .ag-appbar{ view-transition-name:ag-appbar }
+html:active-view-transition .ag-tabbar{ view-transition-name:ag-tabbar }
+html:active-view-transition .ag-head{ view-transition-name:ag-head }
+
 /* ══ Reduced motion · REFERENCE §4.7, §6.6 ═══════════════════════════════════
    Both the operating system's signal and the in-app switch, and both show the
    FINAL state at once rather than a slower version of the motion. `!important` is
@@ -208,6 +267,9 @@ html.ag-saver img[data-saver-hide]{ visibility:hidden }
     scroll-behavior:auto!important;
   }
 }
+html.ag-rm::view-transition-group(*),
+html.ag-rm::view-transition-old(*),
+html.ag-rm::view-transition-new(*),
 html.ag-rm *,
 html.ag-rm *::before,
 html.ag-rm *::after{
@@ -215,3 +277,15 @@ html.ag-rm *::after{
   transition:none!important;
   scroll-behavior:auto!important;
 }
+
+/* ── In-place navigation's progress line (site-nav.js) ─────────────────────────
+   Only a wait somebody would notice gets it (120ms); a page from memory gets none. A
+   transform, never a width, so it costs no layout. Under reduced motion it simply shows. */
+.ag-navbar{
+  position:fixed; inset-inline:0; top:0; z-index:var(--ag-z-header); height:2px; pointer-events:none;
+  background:var(--ag-green); transform-origin:0 50%; transform:scaleX(0); opacity:0;
+}
+[dir="rtl"] .ag-navbar{ transform-origin:100% 50% }
+.ag-navbar[data-on]{ opacity:1; transform:scaleX(.7); transition:transform 1.6s var(--ag-ease), opacity var(--ag-dur-1) var(--ag-ease) }
+.ag-navbar[data-done]{ transform:scaleX(1); transition:transform var(--ag-dur-1) var(--ag-ease) }
+@media (prefers-reduced-motion:reduce){ .ag-navbar[data-on]{ transition:none } }

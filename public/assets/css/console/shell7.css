@@ -77,7 +77,22 @@
 
 /* ── The page header (§2.3) ───────────────────────────────────────────────────── */
 .sh7-head { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
-.sh7-head__words { flex: 1; min-width: 0; }
+/* Page changes: every page of the workspace and the lead console is a full load, so a click
+   blanked the screen and drew the rail again. A cross-document view transition fades the page
+   instead, with the rail, the top bar and the phone tabs named so they hold still. Reduced
+   motion turns it off. The partner: partials/instant-nav.twig (prefetch on intent). */
+@media (prefers-reduced-motion: no-preference) {
+  @view-transition { navigation: auto; }
+}
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 180ms; animation-timing-function: cubic-bezier(.2, 0, 0, 1); }
+.sh7-rail { view-transition-name: sh7-rail; }
+.sh7-bar { view-transition-name: sh7-bar; }
+.sh7-phonetabs { view-transition-name: sh7-phonetabs; }
+
+/* A basis, not just `flex:1`: with min-width 0 and no basis the title column shrank to a few
+   letters on a phone so two actions could share its row ("To" for "Today", one word a line).
+   Below ~280px of title the actions wrap underneath instead. */
+.sh7-head__words { flex: 1 1 280px; min-width: 0; }
 .sh7-head__kicker { margin: 0 0 4px; font-size: var(--cn-fs-13); color: var(--cn-soft); }
 .sh7-head__title { margin: 0; font-size: var(--cn-fs-28); font-weight: 600; letter-spacing: -.01em; line-height: 1.2; }
 .sh7-head__purpose { margin: 6px 0 0; color: var(--cn-ink-3); font-size: var(--cn-fs-14); line-height: 1.5; max-width: 70ch; }
@@ -453,3 +468,18 @@ textarea.sh7-input { height: auto; padding: 10px 12px; line-height: 1.5; }
 @container shell (min-width: 600px) and (max-width: 1023px) {
   .sh7-prod__chev { display: none; }
 }
+
+/* ── a finger, not a cursor (owner, 31 Oct 2026: "improve the responsiveness of the entire
+   volunteer"). On a touch screen every control the shell draws reaches 44px — buttons were 36,
+   tabs and row titles under 30, the bell 36 — measured at 360px wide. Keyed on the POINTER, not
+   on a width: a tablet in landscape is as much a finger as a phone, and a narrow desktop window is
+   still a mouse. Box sizes only; the type stays on the ladder. */
+@media (pointer: coarse) {
+  .sh7-btn { height: auto; min-height: 44px; }
+  .sh7-bell { width: 44px; height: 44px; }
+  .sh7-tabs { height: 48px; }
+  .sh7-tab { min-height: 44px; }
+  a.sh7-row__t { padding-block: 14px; margin-block: -14px; }
+  .sh7-root input[type="radio"], .sh7-root input[type="checkbox"] { width: 22px; height: 22px; }
+}
+.sh7-badge { font-size: var(--cn-fs-12); }

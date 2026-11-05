@@ -26,6 +26,9 @@
    ══════════════════════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
+  // Page-wide listeners and timers go through agPage (layout/shell.twig), which site-nav.js
+  // undoes when this page is swapped away; elsewhere they are plain (SiteNavTest).
+  var pg = window.agPage || { on: function (t, y, f, o) { t.addEventListener(y, f, o); }, every: function (f, ms) { return setInterval(f, ms); }, leave: function () {} };
 
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
@@ -116,7 +119,7 @@
           });
         }).catch(function () {});
       };
-      setInterval(poll, 10000);
+      pg.every(poll, 10000);
     }
   }
 
@@ -146,12 +149,12 @@
         callback: function (t) { tsToken = t; }, 'expired-callback': function () { tsToken = ''; }, 'error-callback': function () { tsToken = ''; } });
       return true;
     }
-    if (tsKey && !tsBoot()) { var tries = 0, iv = setInterval(function () { if (tsBoot() || ++tries > 150) clearInterval(iv); }, 100); }
+    if (tsKey && !tsBoot()) { var tries = 0, iv = pg.every(function () { if (tsBoot() || ++tries > 150) clearInterval(iv); }, 100); }
     function tsReset() { tsToken = ''; try { if (tsWidget !== null && window.turnstile) window.turnstile.reset(tsWidget); } catch (e) {} }
     function tsWait() {
       return new Promise(function (resolve) {
         if (!tsKey) return resolve('');
-        var i = 0, t = setInterval(function () { if (tsToken || ++i > 80) { clearInterval(t); resolve(tsToken || null); } }, 100);
+        var i = 0, t = pg.every(function () { if (tsToken || ++i > 80) { clearInterval(t); resolve(tsToken || null); } }, 100);
       });
     }
 
@@ -196,7 +199,7 @@
           if (secs <= 0) { clearInterval(waitTimer); resend.disabled = false; resend.textContent = label; return; }
           resend.textContent = fill(resend.getAttribute('data-wait'), { n: secs }); secs--;
         };
-        tick(); waitTimer = setInterval(tick, 1000);
+        tick(); waitTimer = pg.every(tick, 1000);
       }
 
       function requestCode(btn, box, after) {
@@ -350,7 +353,7 @@
       if (ch && get('cheer:' + tok)) ch.setAttribute('aria-pressed', 'true');
       if (rp && get('report:' + tok)) { rp.textContent = rp.getAttribute('data-done'); rp.disabled = true; }
     });
-    document.addEventListener('click', function (e) {
+    pg.on(document, 'click', function (e) {
       var ch = e.target.closest && e.target.closest('[data-vmi-cheer]');
       var rp = e.target.closest && e.target.closest('[data-vmi-report]');
       var li = (ch || rp) && (ch || rp).closest('[data-vmi]'); if (!li) return;

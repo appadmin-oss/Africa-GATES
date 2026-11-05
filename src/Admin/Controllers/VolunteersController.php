@@ -7,6 +7,8 @@ use AfricaGates\Admin\Services\AuditService;
 use AfricaGates\Admin\Support\Permissions;
 use AfricaGates\Services\Grants;
 use AfricaGates\Services\Volunteer\Hours;
+use AfricaGates\Support\Csv;
+use AfricaGates\Services\Volunteer\Outreach;
 use AfricaGates\Services\Volunteer\Level;
 use AfricaGates\Services\Volunteer\Workspace;
 use AfricaGates\Services\Volunteer\Tasks;
@@ -34,7 +36,7 @@ use Slim\Views\Twig;
 final class VolunteersController
 {
     public const TABS = ['applications' => 'Applications', 'roster' => 'Roster', 'tasks' => 'Tasks',
-                         'training' => 'Training', 'hours' => 'Hours to confirm'];
+                         'training' => 'Training', 'hours' => 'Hours to confirm', 'reports' => 'Contact reports'];
 
     public function __construct(private readonly Twig $view, private readonly AuditService $audit) {}
 
@@ -47,12 +49,19 @@ final class VolunteersController
             'applications' => (int) DB::table('gates_volunteers')->where('status', 'applicant')->count(),
             'hours' => count(Hours::waiting()),
         ] : [];
+        $qp = $req->getQueryParams();
+        if ($ready && $tab === 'reports') {
+            [$cycles, $cycle, $days] = $this->reportScope($qp);
+            if (($qp['csv'] ?? '') === '1') return $this->reportCsv($res, $cycles, $days);
+        }
         $data = $ready ? match ($tab) {
             'applications' => ['rows' => $this->applications()],
             'roster' => ['rows' => $this->roster((string) ($req->getQueryParams()['sort'] ?? 'name')), 'sort' => (string) ($req->getQueryParams()['sort'] ?? 'name'), 'caps' => Grants::CAPABILITIES, 'places' => $this->places()],
             'tasks' => ['rows' => $this->tasks(), 'checked' => Tasks::CHECKED_BY, 'places' => $this->places(), 'modules' => Training::titles()],
             'training' => ['rows' => DB::table('gates_vol_modules')->orderBy('title')->get()->all(), 'caps' => Grants::CAPABILITIES],
             'hours' => ['rows' => Hours::waiting()],
+            'reports' => ['report' => Outreach::report($cycles, $days, 200), 'awards' => $this->awardsWithContacts(), 'cycle' => $cycle, 'days' => $days,
+                          'channels' => Outreach::CHANNELS, 'outcomes' => Outreach::OUTCOMES],
             default => [],
         } : [];
         return $this->view->render($res, 'admin/volunteers.twig', [
@@ -131,6 +140,56 @@ final class VolunteersController
     }
 
     /** Events and award editions a role or a task can be for, newest first. @return list<array{kind:string,id:int,name:string}> */
+    /**
+     * Which awards and which window the contact report covers, read from the query and never
+     * trusted beyond it: an award must exist, a window is one of four. "All awards" is every award
+     * anybody has logged a contact on.
+     *
+     * @return array{0:list<int>,1:int,2:int}
+     */
+    private function reportScope(array $qp): array
+    {
+        $awards = $this->awardsWithContacts();
+        $cycle = (int) ($qp['cycle'] ?? 0);
+        if (!isset($awards[$cycle])) $cycle = 0;
+        $days = (int) ($qp['days'] ?? 0);
+        if (!in_array($days, [0, 7, 30, 90], true)) $days = 0;
+        return [$cycle ? [$cycle] : array_keys($awards), $cycle, $days];
+    }
+
+    /** @return array<int,string> awards with at least one logged contact, newest first */
+    private function awardsWithContacts(): array
+    {
+        if (!Outreach::ready()) return [];
+        $out = [];
+        foreach (DB::table('gates_award_cycles as c')->join('gates_award_programmes as p', 'p.id', '=', 'c.programme_id')
+                     ->whereIn('c.id', DB::table('gates_vol_outreach')->distinct()->select('cycle_id'))
+                     ->orderByDesc('c.year')->orderByDesc('c.id')->get(['c.id', 'p.title', 'c.edition_label', 'c.year']) as $c) {
+            $out[(int) $c->id] = $c->title . ' · ' . ($c->edition_label ?: $c->year);
+        }
+        return $out;
+    }
+
+    /**
+     * Every contact in scope as a spreadsheet, one row each, through Support\Csv so a note a
+     * volunteer typed cannot run as a formula in somebody's spreadsheet.
+     */
+    private function reportCsv(Response $res, array $cycles, int $days): Response
+    {
+        $r = Outreach::report($cycles, $days, 5000);
+        $fh = fopen('php://temp', 'w+');
+        Csv::put($fh, ['When', 'Award', 'Nominee', 'Volunteer', 'How', 'Outcome', 'Follow up on', 'Note']);
+        foreach ($r['recent'] as $c) {
+            Csv::put($fh, [$c->created_at, $c->award, $c->nominee, $c->volunteer, $c->channel_label, $c->outcome_label, (string) $c->follow_up_on, (string) $c->note]);
+        }
+        rewind($fh);
+        $res->getBody()->write((string) stream_get_contents($fh));
+        fclose($fh);
+        $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'volunteers.contacts_export', 'volunteers', null, ['rows' => count($r['recent']), 'awards' => $cycles, 'days' => $days]);
+        return $res->withHeader('Content-Type', 'text/csv; charset=utf-8')
+            ->withHeader('Content-Disposition', 'attachment; filename="contact-reports-' . date('Y-m-d') . '.csv"');
+    }
+
     private function places(): array
     {
         $out = [];

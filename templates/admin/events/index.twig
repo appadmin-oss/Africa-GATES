@@ -1,6 +1,6 @@
 {% extends 'admin/layout.twig' %}
 {% block topbar_title %}Events{% endblock %}
-{% block topbar_actions %}<a class="ad-btn ad-btn--primary" href="/admin/events/new">Create event</a>{% endblock %}
+{% block topbar_actions %}<a class="ad-btn" href="/admin/events/leads">All event leads</a> <a class="ad-btn ad-btn--primary" href="/admin/events/new">Create event</a>{% endblock %}
 {% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/console/event-editor.css') }}">{% endblock %}
 {% block content %}
 <div class="ad-card">
@@ -13,12 +13,17 @@
   <p role="status">{{ total }} {{ total == 1 ? 'event' : 'events' }}{% if q or status_filter %} matching your filters{% endif %}</p>
   {% if rows %}
   <div class="ad-table-wrap" tabindex="0" role="region" aria-label="Events; scroll horizontally for more columns">
-    <table class="ad-table"><thead><tr><th scope="col">Event</th><th scope="col">Date and venue</th><th scope="col">Visibility</th><th scope="col">Manage</th></tr></thead><tbody>
+    <table class="ad-table"><thead><tr><th scope="col">Event</th><th scope="col">Date and venue</th><th scope="col">Visibility</th><th scope="col">Leads</th><th scope="col">Manage</th></tr></thead><tbody>
     {% for r in rows %}<tr>
       <th scope="row"><a href="/admin/events/{{ r.id }}">{{ r.title }}</a>{% if r.tagline %}<p>{{ r.tagline }}</p>{% endif %}</th>
       <td>{{ event_when(r, r.event_date, 'j M Y, H:i') }}<p>{{ r.venue ?: r.location ?: 'Venue not set' }}</p></td>
       <td><span class="ad-chip ad-chip--{{ r.status == 'published' ? 'green' : 'gold' }}">{{ r.status|capitalize }}</span></td>
-      <td><div class="event-directory__actions"><a class="ad-btn ad-btn--sm" href="/admin/events/{{ r.id }}" aria-label="Edit {{ r.title }}">Edit</a><a class="ad-btn ad-btn--sm" href="/admin/events/{{ r.id }}/tickets" aria-label="Attendees for {{ r.title }}">Attendees</a>{% if r.status == 'published' %}<a class="ad-btn ad-btn--sm" href="/events/{{ r.slug }}" aria-label="View {{ r.title }}">View event</a>{% endif %}</div><details><summary>More actions</summary><form method="post" action="/admin/events/{{ r.id }}/delete" data-confirm="Delete {{ r.title }}? Existing ticket holders will lose the event page."><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" aria-label="Delete {{ r.title }}">Delete event</button></form></details></td>
+      <td>{% set ld = leads[r.id]|default({}) %}
+        {% if ld.names is defined %}{{ ld.names|join(', ') }}{% endif %}
+        {% if ld.invited is defined %}<p>{{ ld.invited|length }} invited, not yet switched on</p>{% endif %}
+        {% if ld.names is not defined and ld.invited is not defined %}Nobody yet{% endif %}
+        <a href="/admin/events/{{ r.id }}/leads">Leads<span class="sr-only"> for {{ r.title }}</span></a>
+      </td><td><div class="event-directory__actions"><a class="ad-btn ad-btn--sm" href="/admin/events/{{ r.id }}" aria-label="Edit {{ r.title }}">Edit</a><a class="ad-btn ad-btn--sm" href="/admin/events/{{ r.id }}/tickets" aria-label="Attendees for {{ r.title }}">Attendees</a>{% if r.status == 'published' %}<a class="ad-btn ad-btn--sm" href="/events/{{ r.slug }}" aria-label="View {{ r.title }}">View event</a>{% endif %}</div><details><summary>More actions</summary><form method="post" action="/admin/events/{{ r.id }}/delete" data-confirm="Delete {{ r.title }}? Existing ticket holders will lose the event page."><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" aria-label="Delete {{ r.title }}">Delete event</button></form></details></td>
     </tr>{% endfor %}
     </tbody></table>
   </div>

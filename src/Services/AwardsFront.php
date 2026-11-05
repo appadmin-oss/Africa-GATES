@@ -239,6 +239,14 @@ final class AwardsFront
                             ? array_intersect_key(CommunityReturnPool::progress((int) $cycle->id), array_flip(['target', 'nominees', 'combined_target', 'combined_votes', 'gap', 'pct', 'reached', 'settled']))
                             : null,
             // What each place wins in THIS edition (EditionPrizes).
+            // The edition's community return, in the same rows the voting letter prints
+            // (NomineeVotingNotice::communityReturn()), so the award page and the letter cannot
+            // describe different rules. Each award sets its own, so this is where it is published
+            // — /integrity states only what holds for every award, and links here. An edition that
+            // has not chosen its rule says so rather than presenting the house default as its own.
+            'community_return'         => $cycle && !NomineeVotingNotice::returnRuleUnchosen($cycle)
+                ? NomineeVotingNotice::communityReturn($pid, (int) $cycle->id) : [],
+            'community_return_pending' => $cycle && NomineeVotingNotice::returnRuleUnchosen($cycle),
             'prizes'     => $cycle ? \AfricaGates\Support\EditionPrizes::for((int) $cycle->id) : [],
             'prize_condition' => $cycle ? \AfricaGates\Support\EditionPrizes::condition((int) $cycle->id) : null,
             'edition'    => $cycle ? EditionName::label($cycle) : '',
@@ -259,6 +267,8 @@ final class AwardsFront
             'quorum'     => $quorum,
             'paid'       => PaidVoteService::enabled()
                 ? PaidVoteCopy::sentence($pid, $cycle ? (int) $cycle->id : null) : '',
+            // Free voting can be switched off entirely; then there is no free vote to describe.
+            'paid_only'  => PaidVoteService::freeVotingDisabled(),
             'categories' => ($cats = $cycle ? self::categories($cycle, $phaseK, $released) : []),
             // The nomination rule as THIS award applies it — "between 2 and 3 categories" is
             // wrong for an award with one (NominationRules is the one resolver).

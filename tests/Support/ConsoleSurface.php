@@ -37,6 +37,7 @@ final class ConsoleSurface
         'templates/shell/sections.twig',
         'templates/volunteer/page.twig',
         'templates/volunteer/apply.twig',
+        'templates/volunteer/academy.twig',
         // The event lead console (a member area since 29 Oct 2026) and the staff Requests page.
         'templates/lead/page.twig',
         'templates/admin/requests.twig',

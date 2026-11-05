@@ -37,6 +37,9 @@ final class BuiltMessage
     {
         $out = [];
         foreach ($m->getAttachments() as $a) {
+            // An image carried inline (InlineImages) is part of the HTML, not a file the
+            // reader was sent: the API roads get its link back instead.
+            if (($a[6] ?? '') === 'inline') continue;
             $content = !empty($a[5]) ? (string) $a[0] : (is_file((string) $a[0]) ? (string) file_get_contents((string) $a[0]) : '');
             if ($content === '') continue;
             $out[] = ['name' => (string) ($a[2] ?: $a[1]), 'mime' => (string) ($a[4] ?? 'application/octet-stream'),

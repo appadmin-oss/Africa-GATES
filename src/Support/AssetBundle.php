@@ -63,6 +63,7 @@ final class AssetBundle
         // Everything that used to sit around these three was destroyed with the old
         // public pages (docs/handoff/DESTROYED.md); each phase adds back, in order,
         // only what it rebuilds.
+        'assets/css/fonts.css',
         'assets/css/tokens.css',
         'assets/css/shell.css',
         'assets/css/components.css',
@@ -85,6 +86,7 @@ final class AssetBundle
         // Phase 3: Gee, the guide and the help desk — the launcher and the panel that sit
         // over every shell page but Pulse. Last: it floats above all of the above.
         'assets/css/components/gee.css',
+        'assets/css/components/photo-upload.css',
     ];
 
     /** Where the built bundle and its manifest live. Gitignored build output. */
@@ -125,6 +127,37 @@ final class AssetBundle
         if (($manifest['order'] ?? '') !== self::orderHash()) return null;
 
         return '/' . ltrim($file, '/');
+    }
+
+    /**
+     * The bundle's URL for a page being drawn NOW, building it first when it is missing or
+     * out of date — so a deploy is not followed by an hour of fourteen stylesheet requests a
+     * page until the maintenance run notices. One request builds, under a non-blocking lock;
+     * every request that arrives meanwhile falls back to the individual links, which are
+     * always correct. A build that fails leaves the fallback in place and is not retried
+     * by every request: the lock file's own mtime spaces the attempts a minute apart.
+     */
+    public static function current(?string $publicRoot = null): ?string
+    {
+        $url = self::url($publicRoot);
+        if ($url !== null) return $url;
+
+        $root = self::root($publicRoot);
+        $dist = $root . '/' . self::DIST_DIR;
+        if (!is_dir($dist) && !@mkdir($dist, 0775, true) && !is_dir($dist)) return null;
+        $lockPath = $dist . '/.build.lock';
+        if (is_file($lockPath) && filemtime($lockPath) > time() - 60) return null;
+        $lock = @fopen($lockPath, 'c');
+        if ($lock === false) return null;
+        try {
+            if (!flock($lock, LOCK_EX | LOCK_NB)) return null;
+            @touch($lockPath);
+            $url = self::url($publicRoot) ?? (self::build($publicRoot)['ok'] ? self::url($publicRoot) : null);
+            flock($lock, LOCK_UN);
+            return $url;
+        } finally {
+            fclose($lock);
+        }
     }
 
     /** The cascade order the bundle was built in, as one comparable string. */
@@ -202,16 +235,22 @@ final class AssetBundle
     }
 
     /**
-     * Delete superseded bundles, keeping the current one.
+     * Delete superseded bundles, keeping the current one and anything built in the last day.
      *
      * Without this, `assets/dist/` accumulates one file per build forever. Deliberately
      * narrow: only `site.<hex>.css`, so nothing an operator put in that directory is
-     * ever removed by a build.
+     * ever removed by a build. And not the moment it is superseded: a page drawn before the
+     * rebuild still names the old file — a prefetched copy (kept five minutes), the back
+     * button's copy, a tab left open — and deleting it under them draws that page with no
+     * styles at all.
      */
+    public const KEEP_SUPERSEDED_SECONDS = 86400;
+
     private static function prune(string $dist, string $keep): void
     {
         foreach (glob($dist . '/site.*.css') ?: [] as $path) {
-            if (basename($path) !== $keep && preg_match('/^site\.[0-9a-f]{12}\.css$/', basename($path)) === 1) {
+            if (basename($path) !== $keep && preg_match('/^site\.[0-9a-f]{12}\.css$/', basename($path)) === 1
+                && (int) @filemtime($path) < time() - self::KEEP_SUPERSEDED_SECONDS) {
                 @unlink($path);
             }
         }
@@ -258,7 +297,7 @@ final class AssetBundle
      * does not quietly break an image on a deployment that ran the build and nowhere
      * else — which is the hardest version of this bug to find.
      */
-    private static function rebaseUrls(string $css, string $sourceRel): string
+    public static function rebaseUrls(string $css, string $sourceRel): string
     {
         $dir = trim(dirname($sourceRel), '/');   // e.g. assets/css/components
 

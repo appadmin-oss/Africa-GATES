@@ -119,6 +119,7 @@
         ++generation; release(); input.setCustomValidity(''); input.removeAttribute('aria-invalid'); status.textContent = ''; clear.hidden = true;
       });
       document.addEventListener('cn:unload', release, {once: true});
+      document.addEventListener('ag:unload', release, {once: true});
       window.addEventListener('pagehide', release, {once: true});
     });
   }
@@ -129,4 +130,5 @@
   });
   mount();
   document.addEventListener('cn:load', event => mount(event.detail?.root || document));
+  document.addEventListener('ag:load', event => mount(event.detail?.root || document));
 })();

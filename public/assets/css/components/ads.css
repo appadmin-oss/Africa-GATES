@@ -20,11 +20,7 @@
 .am-row__s{ font-size:var(--ag-fs-13); color:var(--ag-soft) }
 .am-row__m{ grid-column:1 / -1; display:flex; flex-wrap:wrap; gap:4px 16px; font-size:var(--ag-fs-13-5); color:var(--ag-ink-2) }
 .am-row__m b{ color:var(--ag-ink); font-weight:600 }
-.am-state{ display:inline-flex; align-items:center; gap:6px; font-size:var(--ag-fs-13); font-weight:600; color:var(--ag-soft) }
-.am-state i{ width:8px; height:8px; border-radius:50%; background:var(--ag-line-2) }
-.am-state--active{ color:var(--ag-green-deep) } .am-state--active i{ background:var(--ag-green) }
-.am-state--not_approved{ color:var(--ag-error) } .am-state--not_approved i{ background:var(--ag-error) }
-.am-state--in_review i, .am-state--scheduled i{ background:var(--ag-soft) }
+.am-lead{ font-size:inherit; font-weight:700; color:var(--ag-green-deep) }
 .am-thead{ display:none }
 @media (hover:hover){ .am-row__a:hover{ background:var(--ag-bar) } }
 
@@ -117,6 +113,20 @@
 .am-check--agree input{ margin-top:2px; flex:none }
 .am-submit{ display:flex; flex-direction:column; align-items:flex-start; gap:10px }
 .am-rates{ width:100%; border-collapse:collapse; font-size:var(--ag-fs-15) }
+/* Places, ordered by what people do with an ad there (AdMarket::card). The tier is a word in
+   an outline, not a colour: the word is the signal, so nothing here spends the page's green. */
+.am-places{ display:flex; flex-direction:column; margin:0; padding:0; list-style:none }
+.am-place{ display:flex; flex-direction:column; gap:4px; padding:14px 0; border-top:1px solid var(--ag-line-3) }
+.am-place__top{ display:flex; align-items:center; justify-content:space-between; gap:10px }
+.am-place__n{ font-size:var(--ag-fs-16) }
+.am-place__w, .am-place__s{ margin:0; font-size:var(--ag-fs-14); line-height:1.45; color:var(--ag-ink-2) }
+.am-place__p{ margin:0; font-size:var(--ag-fs-15); line-height:1.45 }
+.am-tier{ flex:none; padding:3px 10px; border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill); font-size:var(--ag-fs-12-5); font-weight:600; color:var(--ag-ink) }
+.am-tier--premium{ border:2px solid var(--ag-ink) }
+.am-tier--value, .am-tier--new{ color:var(--ag-soft) }
+.am-plan{ display:grid; grid-template-columns:minmax(0,1fr); gap:12px; align-items:end }
+.am-plan__t td, .am-plan__t th{ font-variant-numeric:tabular-nums }
+@media (min-width:600px){ .am-plan{ grid-template-columns:repeat(3,minmax(0,1fr)) auto } }
 .am-rates th, .am-rates td{ padding:12px 0; border-top:1px solid var(--ag-line-3); text-align:start }
 .am-rates td + td{ text-align:end; font-weight:600 }
 .am-rules{ display:flex; flex-direction:column; gap:8px; margin:0; padding:0 0 0 18px; font-size:var(--ag-fs-15); line-height:1.5 }

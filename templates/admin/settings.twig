@@ -992,7 +992,12 @@
   <div class="ad-card" data-sec="mail" data-keys="nominee voting letter notification formal official signatory signed verified public vote" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Nominee voting letter<small>The formal letter each verified nominee receives when their award opens to the public vote.</small></div></div><div class="ad-card__body">
     <input type="hidden" name="voting_letter_form" value="1">
     <label class="checkbox"><input type="checkbox" name="voting_letter_auto" value="1" {% if _vl.on %}checked{% endif %}> Send the letter automatically</label>
-    <p class="hint">Sent once to each nominee who has verified (claimed their page, or confirmed their nomination) while voting is open, with the letter attached as a PDF. Nobody is written to whose address is missing or could belong to two people. Each award edition shows how many have been sent on its own page.</p>
+    <p class="hint">Sent once to each nominee while voting is open, with the letter attached as a PDF. Nobody is written to whose address is missing or could belong to two people. Each award edition shows how many have been sent on its own page, and can send the due letters at once.</p>
+    <div role="radiogroup" aria-labelledby="vl-aud"><p class="hint" id="vl-aud" style="margin:10px 0 4px"><strong>Who receives it</strong></p>
+      <label class="checkbox"><input type="radio" name="voting_letter_audience" value="verified" {% if _vl.audience == 'verified' %}checked{% endif %}> Only nominees who have verified — claimed their page or confirmed their nomination</label>
+      <label class="checkbox"><input type="radio" name="voting_letter_audience" value="ballot" {% if _vl.audience != 'verified' %}checked{% endif %}> Every approved nominee on the ballot</label>
+    </div>
+    <p class="hint">With “only verified”, a nominee approved by moderation who never confirmed receives nothing. If most of your nominees were added or approved without confirming, choose “every approved nominee”.</p>
     <div class="row">
       <div>
         <label for="f-vl_name">Signed by <small>optional</small></label>
@@ -1078,7 +1083,7 @@
   {# The ads rate card (Services\Ads\AdRateCard): one published price per placement, the same
      for every advertiser, printed on /advertise. Blank or 0 takes a placement off sale; the
      free trial still runs there. A running campaign keeps the price it was booked at. #}
-  <div class="ad-card" data-sec="money" data-keys="ads advertising advertise rate card price cpm placements sponsored promotion" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Ad prices<small>Naira per 1,000 views, the same for every advertiser. Shown on <a href="/advertise">/advertise</a>.</small></div></div><div class="ad-card__body">
+  <div class="ad-card" data-sec="money" data-keys="ads advertising advertise rate card price cpm placements sponsored promotion" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Ad prices<small>Naira per 1,000 views, the same for every advertiser on a given day. Shown on <a href="/advertise">/advertise</a>.</small></div></div><div class="ad-card__body">
     <div class="ad-form">
       <input type="hidden" name="ads_rates" value="1">
       <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer;margin-bottom:10px">
@@ -1090,11 +1095,52 @@
       <div class="row">
         {% for k, label in ad_placements %}
         <div>
-          <label for="f-ads_cpm_{{ k }}">{{ label }} <small>₦ per 1,000 views · blank is not on sale</small></label>
+          <label for="f-ads_cpm_{{ k }}">{{ label }} <small>starting price, ₦ per 1,000 views · blank is not on sale</small></label>
           <input type="number" name="ads_cpm[{{ k }}]" id="f-ads_cpm_{{ k }}" min="0" max="1000000" step="1" inputmode="numeric" value="{{ ad_rates[k]|default('') }}">
         </div>
         {% endfor %}
       </div>
+      {# THE MARKET (Services\Ads\AdMarket): what each starting price becomes today, and why. #}
+      <div class="row" style="margin-top:12px">
+        <div>
+          <label for="f-ads_pricing_mode">Pricing</label>
+          <select name="ads_pricing_mode" id="f-ads_pricing_mode">
+            <option value="dynamic"{% if ad_dynamic %} selected{% endif %}>Set each day by results and demand</option>
+            <option value="fixed"{% if not ad_dynamic %} selected{% endif %}>Fixed at the starting price</option>
+          </select>
+        </div>
+        <div>
+          <label for="f-ads_vat_pct">VAT on ads (%) <small>added at checkout, shown as its own line · 0 for none</small></label>
+          <input type="number" name="ads_vat_pct" id="f-ads_vat_pct" min="0" max="25" step="0.5" value="{{ ad_vat_pct }}">
+        </div>
+        <div>
+          <label for="f-ads_revenue_target">Monthly ad income target <small>₦ · blank for none</small></label>
+          <input type="number" name="ads_revenue_target" id="f-ads_revenue_target" min="0" step="1000" inputmode="numeric" value="{{ ad_target|default('') }}">
+        </div>
+      </div>
+      <table class="tbl" style="margin-top:12px">
+        <thead><tr><th scope="col">Place</th><th scope="col">Today</th><th scope="col">Results ×</th><th scope="col">Demand ×</th><th scope="col">Booked, next week</th><th scope="col">Tap rate</th><th scope="col">Seen views a day</th></tr></thead>
+        <tbody>
+        {% for c in ad_market %}
+          <tr>
+            <th scope="row">{{ c.label }} <small>{{ c.tier_label }}</small></th>
+            <td>{{ c.price ? '₦' ~ c.price|number_format : 'Not on sale' }}</td>
+            <td>{{ c.measured ? c.quality|number_format(2) : '—' }}</td>
+            <td>{{ c.sell is not null ? c.demand|number_format(2) : '—' }}</td>
+            <td>{{ c.sell is not null ? (c.sell * 100)|round ~ '%' : '—' }}</td>
+            <td>{{ c.ctr_pct is not null ? c.ctr_pct ~ '%' : '—' }}</td>
+            <td>{{ c.daily ? c.daily|number_format : '—' }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      <p class="hint" style="margin:6px 0 0">
+        Today’s price is the starting price × how often people act on ads there against the site average × how much of the next week paid campaigns have booked, kept between the floor and ceiling the policy states. A dash means not measured yet, and that multiplier is then 1.
+        This month: {{ (ad_revenue.earned_kobo / 100)|number_format }} naira earned, {{ (ad_revenue.projected_kobo / 100)|number_format }} at this pace, {{ (ad_revenue.booked_kobo / 100)|number_format }} still booked{% if ad_revenue.target_kobo %}, against a target of {{ (ad_revenue.target_kobo / 100)|number_format }}{% endif %}.
+      </p>
+      {% if ad_advice %}
+      <ul class="hint" style="margin:6px 0 0;padding-left:18px">{% for a in ad_advice %}<li>{{ a }}</li>{% endfor %}</ul>
+      {% endif %}
       <p class="hint" style="margin:6px 0 0">Ads are reviewed in <a href="/admin/moderation">Moderation</a>.</p>
     </div>
   </div></div>
@@ -1515,7 +1561,7 @@
       <p style="margin:6px 0 0;font-size:12px;color:var(--cn-soft)">Free votes and contributions are added together per person, so splitting an order cannot buy a second allowance. Refunded and undelivered orders count for nothing.</p>
       <p style="margin:6px 0 0;font-size:12px;color:var(--cn-soft)"><strong>Qualifying support is a turnout test, not a revenue test.</strong> It counts every vote a nominee has — free, bought, or awarded — because what it is checking is that a real community showed up. What the nominee then earns is a share of money, and only money accrues.</p>
       <p style="margin:6px 0 0;font-size:12px;color:var(--cn-soft)">Earning is <strong>prospective</strong>: crossing the line changes what happens next, never what already happened. Contributions made before a nominee qualified stay unshared however many times accrual is re-run over them.</p>
-      <p style="margin:6px 0 0;font-size:12px;color:var(--cn-soft)">Under this rule nothing is payable until a cycle reaches its results; under an edition's <strong>two-stage</strong> rule, until its milestone is confirmed. The rule an edition runs, its milestone and the withdrawals queue are on <a href="/admin/community-return" style="color:var(--cn-ink)">Community return</a>; money leaves only through a request a person reviews and pays against a transfer reference. Set the share to <strong>0%</strong> to stop accruing entirely for new contributions; entries already written are unaffected, because the ledger is append-only. These figures are published on the <a href="/integrity#return" style="color:var(--cn-ink)">integrity page</a> exactly as set here.</p>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--cn-soft)">Under this rule nothing is payable until a cycle reaches its results; under an edition's <strong>two-stage</strong> rule, until its milestone is confirmed; under a <strong>target pool</strong>, until the pool is settled after voting closes. The rule an edition runs, its milestone and the withdrawals queue are on <a href="/admin/community-return" style="color:var(--cn-ink)">Community return</a>; money leaves only through a request, which {{ wallet_auto.on|default(false) ? 'is sent automatically when every check passes, or held for a person' : 'a person reviews and pays against a transfer reference' }}. Set the share to <strong>0%</strong> to stop accruing entirely for new contributions; entries already written are unaffected, because the ledger is append-only. These figures are published on the <a href="/integrity#return" style="color:var(--cn-ink)">integrity page</a> exactly as set here.</p>
 
       {# Withdrawal terms. Global, because a withdrawal draws on every edition a nominee
          earned in. No inline styles: the console's .row and .hint carry it. #}
@@ -1626,6 +1672,21 @@
         <div><label for="f-otp_expiry_minutes">OTP code expiry (minutes)</label><input type="number" name="otp_expiry_minutes" id="f-otp_expiry_minutes" min="0" step="1" value="{{ values.otp_expiry_minutes|default('10') }}"></div>
         <div><label for="f-processing_fee_pct">Payment processing fee (%)</label><input type="number" name="processing_fee_pct" id="f-processing_fee_pct" min="0" step="0.1" value="{{ values.processing_fee_pct|default('1.5') }}"></div>
       </div>
+      {# The rest of the gateway's schedule (Services\GatewayFee), Paystack's local rates by
+         default, and who bears it on a gift to an organisation. #}
+      <div class="row">
+        <div><label for="f-processing_fee_flat">Plus a flat fee (₦)</label><input type="number" name="processing_fee_flat" id="f-processing_fee_flat" min="0" step="1" value="{{ values.processing_fee_flat|default('100') }}"></div>
+        <div><label for="f-processing_fee_flat_from">Flat fee from (₦)</label><input type="number" name="processing_fee_flat_from" id="f-processing_fee_flat_from" min="0" step="100" value="{{ values.processing_fee_flat_from|default('2500') }}"></div>
+      </div>
+      <div class="row">
+        <div><label for="f-processing_fee_cap">Fee capped at (₦) <small>0 for no cap</small></label><input type="number" name="processing_fee_cap" id="f-processing_fee_cap" min="0" step="100" value="{{ values.processing_fee_cap|default('2000') }}"></div>
+        <div><label for="f-partner_fee_bearer">On a gift to an organisation, the processing fee is paid by</label>
+          <select name="partner_fee_bearer" id="f-partner_fee_bearer">
+            <option value="organisation"{% if values.partner_fee_bearer|default('organisation') != 'platform' %} selected{% endif %}>The organisation, from the gift (standard)</option>
+            <option value="platform"{% if values.partner_fee_bearer|default('') == 'platform' %} selected{% endif %}>Africa GATES</option>
+          </select></div>
+      </div>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--cn-soft)">Donors are offered, never defaulted into, the exact amount that covers this fee, worked out on the whole charge, so the recipient receives the gift to the naira.</p>
       <div class="row">
         <div><label for="f-donation_goal_naira">Donation target (₦)</label><input type="number" name="donation_goal_naira" id="f-donation_goal_naira" min="0" step="1000" value="{{ values.donation_goal_naira|default('0') }}"></div>
         <div></div>

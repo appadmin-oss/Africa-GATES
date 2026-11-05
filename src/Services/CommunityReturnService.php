@@ -237,6 +237,15 @@ final class CommunityReturnService
             // Paid voting first: with no vote sales the rate is moot, and naming the
             // rate there would send an operator to fix a setting that changes nothing.
             'off_reason'     => !$paid ? 'no_paid_voting' : ($bps > 0 ? '' : 'rate_zero'),
+            // The house rule as one sentence, whatever its model — and, when the return is
+            // not running, a sentence that says so. The philosophy document promised "a
+            // nominee keeps 50% … win or lose" on every site, including one that sells no
+            // votes and so returns nothing, and editions on the pool, where a nominee who
+            // misses the target is paid nothing at all.
+            'sentence'       => $bps > 0 && $paid
+                ? 'a share can come back to the nominee. Under the house rule: ' . CommunityReturnMilestone::summary($eff)
+                  . ' An edition may set its own rule before it opens, published on the integrity page.'
+                : 'a share can come back to the nominee where a programme runs a community return. This site is not running one at the moment.',
         ];
     }
 
@@ -333,13 +342,21 @@ final class CommunityReturnService
         try {
             $q = DB::table('gates_votes')->where('nominee_id', $nomineeId)->whereNull('donation_id');
             if ($asOf !== null) $q->where('voted_at', '<=', $asOf);
-            foreach ($q->pluck('voter_email_hash') as $h) {
-                $key = (string) $h;
-                if ($key === '') continue;
+            foreach ($q->get(['voter_email_hash', 'vote_type', 'donation_id', 'fraud_flag']) as $r) {
+                // A fraud-flagged vote is nobody — the pool's count and the reach count both
+                // say so, and this one did not: 250 flagged votes qualified a nominee.
+                if ((int) ($r->fraud_flag ?? 0) !== 0) continue;
                 // A vote paid from a wallet is a nominee's own return spent again. It
                 // carries nobody over the line that starts a return (WalletVotes, rule 2)
                 // — or a return could qualify itself.
-                if (str_starts_with($key, WalletVotes::HASH_PREFIX)) continue;
+                if (str_starts_with((string) $r->voter_email_hash, WalletVotes::HASH_PREFIX)) continue;
+                // Who the vote IS, by the one resolver (VoterReach::personKey): a member
+                // redeeming points is that member however many times they redeem — each
+                // redemption's hash carries a random suffix, so keyed by the hash one member
+                // was as many "different people" as redemptions, and could meet the
+                // threshold and the per-supporter cap alone. A grant is nobody.
+                $key = VoterReach::personKey($r, []);
+                if ($key === null || $key === '') continue;
                 $byPerson[$key] = ($byPerson[$key] ?? 0) + 1;
             }
         } catch (\Throwable) {}
@@ -968,6 +985,7 @@ final class CommunityReturnService
         if ($nomineeId !== null) $q->where('nominee_id', $nomineeId);
 
         $bad = [];
+        $absorbed = [];   // cycle id => whether its pool is settled (asked once per cycle)
         foreach ($q->get() as $e) {
             $d = $e->donation_id
                 ? DB::table('gates_donations')->where('id', (int) $e->donation_id)->first()
@@ -986,6 +1004,17 @@ final class CommunityReturnService
             if (($d->refunded_at ?? null) !== null
                 && !DB::table('gates_community_returns')->where('donation_id', (int) $e->donation_id)
                        ->where('entry_type', 'reversal')->exists()) {
+                // Except where a settled pool absorbed it. Settling moved this share out of
+                // the nominee's balance and into the pool, and reverse() then refuses it on
+                // purpose — the winners' shares are final and the platform carries the
+                // refund. Reported here it was a fault nobody could clear: withdrawals and
+                // wallet spending are blocked on any audit finding, so a nominee who had
+                // done nothing wrong lost access to every edition's money, permanently.
+                $cy = (int) ($e->cycle_id ?? 0);
+                if ($cy > 0 && !array_key_exists($cy, $absorbed)) {
+                    $absorbed[$cy] = self::modelForCycle($cy) === self::MODEL_POOL && CommunityReturnPool::settlement($cy) !== null;
+                }
+                if ($cy > 0 && $absorbed[$cy]) continue;
                 $bad[] = ['entry' => (int) $e->id, 'problem' => 'contribution refunded but the share was not reversed']; continue;
             }
             $expected = intdiv((int) $e->basis_kobo * (int) $e->rate_bps, 10000);

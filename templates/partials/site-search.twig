@@ -34,8 +34,8 @@
   to open still goes somewhere a search happens.
 #}
 {% set _scope_labels = {people: 'People', awards: 'Awards', events: 'Events', pages: 'Pages'} %}
-<div class="ag-ss-scrim" data-ag-search-scrim hidden></div>
-<div class="ag-ss" id="ag-search" role="dialog" aria-modal="true" aria-label="{{ 'Search'|trans }}" data-ag-search hidden
+<div class="ag-ss-scrim" data-ag-search-scrim data-nav-keep="search-scrim" hidden></div>
+<div class="ag-ss" id="ag-search" data-nav-keep="search" role="dialog" aria-modal="true" aria-label="{{ 'Search'|trans }}" data-ag-search hidden
      data-msg-searching="{{ 'Searching…'|trans }}"
      data-msg-none="{{ 'Nothing matches “%q%”. Try a name, an award or a country.'|trans }}"
      data-msg-count="{{ '%n% results'|trans }}"

@@ -36,6 +36,9 @@
 
 (function () {
   'use strict';
+  // Page-wide listeners and timers go through agPage (layout/shell.twig), which site-nav.js
+  // undoes when this page is swapped away; elsewhere they are plain (SiteNavTest).
+  var pg = window.agPage || { on: function (t, y, f, o) { t.addEventListener(y, f, o); }, leave: function () {} };
 
   var AFRICA = new Set(["Algeria","Angola","Benin","Botswana","Burkina Faso","Burundi","Cameroon",
     "Central African Rep.","Chad","Congo","Côte d'Ivoire","Dem. Rep. Congo","Djibouti","Egypt",
@@ -361,11 +364,25 @@
       redraw();
     }
     if (window.ResizeObserver) new ResizeObserver(measure).observe(canvas);
-    else window.addEventListener('resize', measure);
+    else pg.on(window, 'resize', measure);
     measure();
 
+    /* The geometry (37K) and the 15,000-dot sampling wait until the band is near the screen:
+       it sits far down the homepage, and fetching and sampling it on arrival spent a phone's
+       first second on a picture most visitors never scroll to. 800px ahead, so it is drawn
+       before it arrives. */
     var url = band.dataset.topo;
     if (url && window.fetch) {
+      if (window.IntersectionObserver) {
+        var io = new IntersectionObserver(function (es) {
+          if (!es.some(function (e) { return e.isIntersecting; })) return;
+          io.disconnect();
+          load();
+        }, { rootMargin: '800px 0px' });
+        io.observe(band);
+      } else load();
+    }
+    function load() {
       fetch(url, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (topo) {
         S.shapes = decode(topo);
         S.shapes.forEach(function (s) { S.byName[s.name] = s; });

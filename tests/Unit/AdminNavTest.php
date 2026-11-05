@@ -58,6 +58,7 @@ final class AdminNavTest extends TestCase
         '/admin/programmes' => 'programmes', '/admin/shortlists' => 'programmes', '/admin/challenges' => null,
         '/admin/awards-page' => 'programmes',
         '/admin/events' => 'content', '/admin/stand-presets' => 'content', '/admin/posts' => 'content',
+        '/admin/events/leads' => 'content',   // new 3 Nov 2026, under its parent's gate
         '/admin/legacy' => 'content', '/admin/opportunities' => 'content', '/admin/media' => 'content',
         '/admin/products' => 'content', '/admin/shop/orders' => 'content', '/admin/forms' => 'content',
         '/admin/partners' => 'content', '/admin/legal' => 'content',
@@ -96,7 +97,9 @@ final class AdminNavTest extends TestCase
         // New with the volunteer workspace (28 Oct 2026, consoles v7 §6). Left UNMAPPED —
         // superadmin only — like Payouts and Community return: it holds applicants' dates of
         // birth and referees' phones, and who else coordinates volunteers is the owner's call.
-        '/admin/volunteers'         => null,
+        // Mapped on 31 Oct 2026 to its own section, superadmin + admin — the owner's call,
+        // made because admins could not give anybody a team lead role.
+        '/admin/volunteers'         => 'volunteers',
         // /admin/lead left the console on 29 Oct 2026: a lead is a member account at /lead.
         // Deciding requests (§2.6) is held with the money: only superadmin and admin decide.
         '/admin/requests'           => 'finance',
@@ -322,7 +325,7 @@ final class AdminNavTest extends TestCase
     public function test_the_also_here_strip_is_the_item_and_its_children_and_never_one_link(): void
     {
         $strip = AdminNav::related('superadmin', '/admin/events');
-        $this->assertSame(['events', 'stand_presets', 'registrations'], array_column($strip, 'page'));
+        $this->assertSame(['events', 'event_leads', 'stand_presets', 'registrations'], array_column($strip, 'page'));
         $this->assertTrue($strip[0]['on']);
         $this->assertSame([], AdminNav::related('superadmin', '/admin/challenges'), 'a lone page drew a strip');
         // A moderator on Interviews: the questionnaires are theirs.

@@ -108,6 +108,155 @@ final class Accent
     ];
 
     /**
+     * ── THE NIGHT PALETTE: THE SAME NAMES, FOR A READER WHOSE DEVICE IS DARK ──
+     *
+     * Owner, 5 Nov 2026: "improve the colour adaptability of the site … dark mode". The
+     * handoff draws no dark scheme, so these values are this platform's, and every one is
+     * held to the same rule as the day palette: each WORD token is measured on each ground
+     * it is drawn on ({@see WORDS}, the SAME table — a dark scheme does not get a second,
+     * kinder list) and must clear 4.5:1. `AccentNightTest` measures every row every run.
+     *
+     * The NAMES do not change, and that is the design: a stylesheet that says `--ag-ink`
+     * means "the primary text colour", and at night the primary text colour is light. So
+     * the scheme is a second set of VALUES under one set of names, emitted by {@see css()}
+     * behind `prefers-color-scheme: dark` and the reader's own choice, and no page needs a
+     * dark rule of its own. Three consequences, each deliberate:
+     *
+     *   · `surface` is the card. As a WORD it is the label on the green button and on an ink
+     *     band — at night the green is lighter and the label dark, so it still reads (the
+     *     `surface` row of WORDS is measured here too).
+     *   · `gold` stays the gold. Honour is the one colour that reads as itself on either
+     *     ground, and its ink is lifted rather than its fill changed.
+     *   · Mail, GD fliers and tickets keep the day palette: {@see hex()} and {@see mail()}
+     *     are unchanged, because an inbox and a printed ticket are not dark mode.
+     *
+     * @var array<string,string>
+     */
+    private const NIGHT = [
+        'ink'         => '#e7eeec',
+        'ink-2'       => '#c2cccb',
+        'soft'        => '#9ba7a6',
+        'mute'        => '#6c7878',
+        'ground'      => '#0e1819',
+        'surface'     => '#162324',
+        'bar'         => '#131f20',
+        'line'        => '#2a3a3b',
+        'line-2'      => '#3b4d4e',
+        'line-3'      => '#213031',
+        'footer'      => '#111c1d',
+        'tint'        => '#243435',
+        'green'       => '#5fbf5c',
+        'green-deep'  => '#7fd17b',
+        'green-light' => '#7fc87c',
+        'green-wash'  => '#15301b',
+        'green-edge'  => '#2d5a31',
+        'gold'        => '#f3b416',
+        'gold-ink'    => '#f2c75a',
+        'gold-wash'   => '#2d2611',
+        'gold-wash-2' => '#302910',
+        'gold-edge'   => '#5e4c1c',
+        'live'        => '#ff5a86',
+        'live-ink'    => '#ff86a6',
+        'live-wash'   => '#3a1621',
+        'info'        => '#6fb4e4',
+        'info-wash'   => '#12293a',
+        'error'       => '#ff7d70',
+        'stock-low'   => '#ff8f85',
+        'stock-gone'  => '#e3b55e',
+        'scrim'       => 'rgba(0,0,0,.55)',
+        'chevron'     => '#5f6d6e',
+        'grabber'     => '#4c595a',
+    ];
+
+    /**
+     * ── SEPIA: WARM PAPER, FOR A READER WHO FINDS WHITE TOO BRIGHT AND DARK TOO DARK ──
+     *
+     * Owner, 5 Nov 2026 ("add sepia too"). Chosen only by the reader (`ag-sepia` on
+     * <html>) — no device setting asks for it. A light scheme: the same direction as the
+     * day, with the ground and cards moved to paper and every hue warmed and deepened just
+     * enough to keep its row of {@see WORDS} at 4.5:1 on paper. Measured with the day and
+     * the night by `AccentNightTest`, from the same table.
+     *
+     * @var array<string,string>
+     */
+    private const SEPIA = [
+        'ink'         => '#3b2c1e',
+        'ink-2'       => '#56442f',
+        'soft'        => '#6e5a42',
+        'mute'        => '#9c8a70',
+        'ground'      => '#f4ecd8',
+        'surface'     => '#fbf6e9',
+        'bar'         => '#f1e8d2',
+        'line'        => '#e2d5b8',
+        'line-2'      => '#cfbf9c',
+        'line-3'      => '#eadfc6',
+        'footer'      => '#efe5cc',
+        'tint'        => '#e6d9bc',
+        'green'       => '#2f6b22',
+        'green-deep'  => '#285a1c',
+        'green-light' => '#7fb26a',
+        'green-wash'  => '#e7ecd0',
+        'green-edge'  => '#c7d2a6',
+        'gold'        => '#d99a1e',
+        'gold-ink'    => '#6e4a05',
+        'gold-wash'   => '#f3e2b6',
+        'gold-wash-2' => '#f6e8bf',
+        'gold-edge'   => '#e2c88a',
+        'live'        => '#c43c4f',
+        'live-ink'    => '#97283c',
+        'live-wash'   => '#f3dccf',
+        'info'        => '#2f5f80',
+        'info-wash'   => '#e4e3d4',
+        'error'       => '#a3301c',
+        'stock-low'   => '#822719',
+        'stock-gone'  => '#7a5208',
+        'scrim'       => 'rgba(59,44,30,.34)',
+        'chevron'     => '#b3a284',
+        'grabber'     => '#c2b08c',
+    ];
+
+    /**
+     * The cover and seasonal tones whose DAY value is typed (not a palette token), at night.
+     * The tones that name a token already follow the scheme through `var()`; these few are
+     * pale literals, and without a night value an info cover stayed a light tile on a dark
+     * page. A token where one fits, by reference; a hex only for the edges no token names.
+     *
+     * @var array<string,string> custom property (without `--ag-`) => night value
+     */
+    private const NIGHT_TONES = [
+        'cover-gold-line'  => 'var(--ag-gold)',
+        'cover-live-edge'  => '#5a2333',
+        'cover-info-bg'    => 'var(--ag-info-wash)',
+        'cover-info-ink'   => 'var(--ag-info)',
+        'cover-info-edge'  => '#24465e',
+        'hol-green-wash'   => 'var(--ag-green-wash)',
+        'hol-green-edge'   => 'var(--ag-green-edge)',
+        'hol-gold-wash'    => 'var(--ag-gold-wash)',
+        'hol-gold-edge'    => 'var(--ag-gold-edge)',
+        'hol-gold-line'    => 'var(--ag-gold)',
+        'hol-live-wash'    => 'var(--ag-live-wash)',
+        'hol-live-edge'    => '#5a2333',
+        'hol-info-wash'    => 'var(--ag-info-wash)',
+        'hol-info-edge'    => '#24465e',
+        'hol-info-ink'     => 'var(--ag-info)',
+        'hol-stone-wash'   => 'var(--ag-tint)',
+        'hol-stone-edge'   => 'var(--ag-line-2)',
+    ];
+
+    /** The names a scheme preview swatch paints (Display & reading's Appearance control). */
+    private const PREVIEW = ['ground', 'surface', 'ink', 'green', 'line-2'];
+
+    /** Shadows at night: black, and deeper, because a dark card on a dark ground needs more lift. */
+    private const NIGHT_SHADOWS = [
+        'sh-pop'   => '0 24px 48px -20px rgba(0,0,0,.60)',
+        'sh-mega'  => '0 24px 48px -28px rgba(0,0,0,.55)',
+        'sh-sheet' => '0 -12px 40px rgba(0,0,0,.50)',
+        'sh-float' => '0 2px 10px rgba(0,0,0,.45)',
+        'sh-dot'   => '0 3px 10px rgba(0,0,0,.50)',
+        'sh-gee'   => '0 30px 70px -24px rgba(0,0,0,.70)',
+    ];
+
+    /**
      * REFERENCE §6.5, exact, under the snippet's names.
      *
      * @var array<string,string>
@@ -649,6 +798,47 @@ final class Accent
         return $out;
     }
 
+    /** @return array<string,string> the night values of the typed cover and seasonal tones */
+    public static function nightTones(): array
+    {
+        return self::NIGHT_TONES;
+    }
+
+    /** @return array<string,string> token => sepia value, every palette name */
+    public static function sepiaPalette(): array
+    {
+        return self::SEPIA;
+    }
+
+    /** One token's SEPIA value as a hex, for a derivation measured against paper. */
+    public static function sepia(string $name): string
+    {
+        $v = self::SEPIA[$name] ?? null;
+        if ($v === null || !preg_match('/^#[0-9a-f]{6}$/', $v)) {
+            throw new \InvalidArgumentException(sprintf('No sepia hex "%s"', $name));
+        }
+        return $v;
+    }
+
+    /** @return array<string,string> token => night value, every palette name */
+    public static function nightPalette(): array
+    {
+        return self::NIGHT;
+    }
+
+    /**
+     * One token's NIGHT value as a hex — for a server-side derivation that must be measured
+     * against what a dark-mode reader sees (OrgBrand's accent shades). Throws like {@see hex()}.
+     */
+    public static function night(string $name): string
+    {
+        $v = self::NIGHT[$name] ?? null;
+        if ($v === null || !preg_match('/^#[0-9a-f]{6}$/', $v)) {
+            throw new \InvalidArgumentException(sprintf('No night hex "%s"', $name));
+        }
+        return $v;
+    }
+
     /** @return array<string,list<string>> */
     public static function words(): array
     {
@@ -698,7 +888,40 @@ final class Accent
         }
         $out = array_merge($out, self::coverCss(), self::holidayCss());
 
-        return ':root{' . implode('', $out) . '}';
+        $night = [];
+        foreach (self::NIGHT as $name => $v) $night[] = '--ag-' . $name . ':' . $v . ';';
+        foreach (self::NIGHT_SHADOWS as $name => $v) $night[] = '--ag-' . $name . ':' . $v . ';';
+        foreach (self::NIGHT_TONES as $name => $v) $night[] = '--ag-' . $name . ':' . $v . ';';
+        $night[] = 'color-scheme:dark;';
+        $night = implode('', $night);
+
+        $sepia = [];
+        foreach (self::SEPIA as $name => $v) $sepia[] = '--ag-' . $name . ':' . $v . ';';
+        $sepia[] = 'color-scheme:light;';
+
+        // The day palette, then the night one twice: behind the device's own setting unless
+        // the reader chose Light or Sepia (`ag-light`, `ag-sepia` on <html>), and
+        // unconditionally when they chose Dark (`ag-dark`); then Sepia, only when chosen.
+        // `:where()` keeps every selector at the specificity of `:root`, so the later block
+        // wins by ORDER — and so `html.ag-hc` in shell.css, which remaps these same names for
+        // high contrast, still beats all of them, in every scheme.
+        // And a PREVIEW of each scheme, scoped to an element: the Appearance control draws a
+        // swatch of each in its own colours, whatever scheme the page is in. Four names only
+        // — what a swatch paints — and never a name the day does not declare.
+        $preview = '';
+        foreach (['light' => self::PALETTE, 'dark' => self::NIGHT, 'sepia' => self::SEPIA] as $k => $set) {
+            $preview .= ':where(.ag-pv-' . $k . '){';
+            foreach (self::PREVIEW as $name) {
+                $preview .= '--ag-' . $name . ':' . (is_array($set[$name]) ? $set[$name]['value'] : $set[$name]) . ';';
+            }
+            $preview .= '}';
+        }
+
+        return ':root{' . implode('', $out) . 'color-scheme:light;}'
+             . '@media (prefers-color-scheme:dark){:root:where(:not(.ag-light):not(.ag-sepia)){' . $night . '}}'
+             . ':root:where(.ag-dark){' . $night . '}'
+             . ':root:where(.ag-sepia){' . implode('', $sepia) . '}'
+             . $preview;
     }
 
     // ══ families and meanings ═══════════════════════════════════════════════

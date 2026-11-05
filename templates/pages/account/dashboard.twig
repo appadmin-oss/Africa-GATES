@@ -235,14 +235,12 @@
         {% if payout_open %}
           <p class="acc__p" role="status">{{ 'A withdrawal of ₦%a% is being processed'|trans({'%a%': payout_open.amount_naira|number_format}) }}{% if payout_open.requested_at %} — {{ 'asked for on %d%'|trans({'%d%': payout_open.requested_at|date('j M Y')}) }}{% endif %}{% if payout_open.account_name %}, {{ 'to %n%'|trans({'%n%': payout_open.account_name}) }}{% endif %}.</p>
         {% elseif payout_can %}
-          <form method="post" action="/account/payout" class="acc__form" novalidate data-ag-validate>
-            <input type="hidden" name="_token" value="{{ csrf_token }}">
-            <p class="acc__p">{{ 'You can withdraw ₦%a%.'|trans({'%a%': payout_amount|number_format}) }}{% if payout_fee > 0 %} {{ 'A service fee of ₦%f% is taken from it.'|trans({'%f%': payout_fee|number_format}) }}{% endif %} <a href="/account/wallet">{{ 'See it in your wallet'|trans }}</a></p>
-            {{ f.text({id: 'po-bank', name: 'bank', label: 'Bank'|trans, value: payout_bank.bank, required: true, maxlength: 80, autocomplete: 'off'}, '') }}
-            {{ f.text({id: 'po-name', name: 'account_name', label: 'Account name'|trans, value: payout_bank.account_name, required: true, maxlength: 120, autocomplete: 'name'}, '') }}
-            {{ f.text({id: 'po-num', name: 'account_number', label: 'Account number'|trans, value: payout_bank.account_number, required: true, maxlength: 10, pattern: '[0-9]{10}', inputmode: 'numeric', autocomplete: 'off', hint: 'The 10-digit NUBAN.'|trans}, '') }}
-            <button class="ag-btn ag-btn--primary ag-btn--pill" type="submit">{{ 'Request payout'|trans }}</button>
-          </form>
+          <p class="acc__p">{{ 'You can withdraw ₦%a%.'|trans({'%a%': payout_amount|number_format}) }}{% if payout_fee > 0 %} {{ 'A service fee of ₦%f% is taken from it.'|trans({'%f%': payout_fee|number_format}) }}{% endif %} <a href="/account/wallet">{{ 'See it in your wallet'|trans }}</a></p>
+          {# Through the wallet, never a second form: this one posted straight to
+             ReferralPayout::request(), so the account typed here never stamped a bank change,
+             never told the member, carried no bank code and was never risk-checked — a
+             hijacked session could send the earnings anywhere with nothing to notice. #}
+          <a class="ag-btn ag-btn--primary ag-btn--pill" href="/account/wallet/withdraw?pocket=ref">{{ 'Withdraw to your bank'|trans }}</a>
         {% elseif payout_why %}
           <p class="acc__p">{{ payout_why }}</p>
         {% endif %}
@@ -334,4 +332,4 @@
 {% endif %}
 {% endblock %}
 
-{% block foot_scripts %}{% if passkeys_available and tab == 'security' %}<script defer src="{{ asset('/assets/js/passkeys.js') }}"></script>{% endif %}{% endblock %}
+{% block foot_scripts %}{% if passkeys_available and tab == 'security' %}<script defer src="{{ asset('/assets/js/passkeys.js') }}" data-nav="rerun"></script>{% endif %}{% endblock %}

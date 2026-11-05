@@ -81,13 +81,13 @@ final class PhotoUploadRegressionTest extends TestCase
         NomineeDetails::remove($d, (int) $second->id);
         $this->assertNull(DB::table('gates_nominees')->where('id', $d->nominee_id)->value('photo_path'));
     }
-    public function test_existing_staff_portrait_is_preserved(): void
+    public function test_nominee_choice_supersedes_existing_staff_portrait(): void
     {
         $d = $this->nominee();
         DB::table('gates_nominees')->where('id', $d->nominee_id)->update(['photo_path' => '/approved.webp']);
         $this->assertTrue(NomineeDetails::addPhoto($d, $this->upload())['ok']);
         $this->track(NomineeDetails::files((int) $d->nominee_id, 'photo')[0]->path);
-        $this->assertSame('/approved.webp', DB::table('gates_nominees')->where('id', $d->nominee_id)->value('photo_path'));
+        $this->assertSame(NomineeDetails::files((int) $d->nominee_id, 'photo')[0]->path, DB::table('gates_nominees')->where('id', $d->nominee_id)->value('photo_path'));
     }
     public function test_repair_migration_is_repeatable_and_ignores_removed_files(): void
     {
@@ -112,6 +112,17 @@ final class PhotoUploadRegressionTest extends TestCase
         $this->assertNull(DB::table('gates_nominees')->where('id', $d->nominee_id)->value('photo_path'));
         $this->assertFalse(NomineePortrait::uploads((int) $d->nominee_id)->exists());
     }
+    public function test_staff_gallery_removal_clears_a_portrait_without_member_history(): void
+    {
+        $d = $this->nominee();
+        $image = (new UploadService())->uploadImage($this->upload(), 'nominees', 1200, 82, null, 'nominee', (int) $d->nominee_id, 200);
+        $this->track($image['path']);
+        DB::table('gates_nominees')->where('id', $d->nominee_id)->update(['photo_path' => $image['path']]);
+        NomineePortrait::remove((int) $d->nominee_id, $image['path']);
+        $this->assertNull(DB::table('gates_nominees')->where('id', $d->nominee_id)->value('photo_path'));
+        $this->assertFalse(NomineePortrait::uploads((int) $d->nominee_id)->exists());
+    }
+
     public function test_changed_photo_templates_compile_with_the_real_twig_configuration(): void
     {
         $builder = new \DI\ContainerBuilder();

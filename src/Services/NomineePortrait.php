@@ -20,22 +20,12 @@ final class NomineePortrait
         return $q;
     }
 
-    /** Preserve a selected portrait; fill an empty one or replace a removed one. */
+    /** Reconcile through the shared nominee photo policy under the nominee row lock. */
     public static function reconcile(int $id): void
     {
         DB::connection()->transaction(function () use ($id) {
-            $n = DB::table('gates_nominees')->where('id', $id)->lockForUpdate()->first();
-            if (!$n) return;
-            $primary = (string) ($n->photo_path ?? '');
-            $removed = $primary !== '' && SchemaHas::table('gates_nominee_files') && DB::table('gates_nominee_files')
-                ->where('nominee_id', $id)->where('kind', 'photo')->where('path', $primary)->whereNotNull('removed_at')->exists();
-            if ($primary === '' || $removed) {
-                $next = SchemaHas::table('gates_nominee_files') ? DB::table('gates_nominee_files')
-                    ->where('nominee_id', $id)->where('kind', 'photo')->whereNull('removed_at')->whereNotNull('path')
-                    ->where('path', '<>', '')->orderBy('id')->value('path') : null;
-                $next ??= self::uploads($id)->orderBy('id')->value('path');
-                DB::table('gates_nominees')->where('id', $id)->update(['photo_path' => $next]);
-            }
+            DB::table('gates_nominees')->where('id', $id)->lockForUpdate()->first();
+            NomineePhoto::sync($id);
         });
         self::refresh();
     }
@@ -50,7 +40,9 @@ final class NomineePortrait
                     ->whereNull('removed_at')->update(['removed_at' => date('Y-m-d H:i:s')]);
             }
             DB::table('gates_uploads')->where('attached_to_type', 'nominee')->where('attached_to_id', $id)->where('path', $path)->delete();
-            DB::table('gates_nominees')->where('id', $id)->where('photo_path', $path)->update(['photo_path' => null]);
+            $hasMemberHistory = SchemaHas::table('gates_nominee_files') && DB::table('gates_nominee_files')
+                ->where('nominee_id', $id)->where('kind', 'photo')->where('path', $path)->exists();
+            if (!$hasMemberHistory) DB::table('gates_nominees')->where('id', $id)->where('photo_path', $path)->update(['photo_path' => null]);
             self::reconcile($id);
         });
     }

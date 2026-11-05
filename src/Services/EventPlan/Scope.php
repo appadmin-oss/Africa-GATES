@@ -32,7 +32,7 @@ final class Scope
     public static function decide(int $eventId, string $title, string $why, int $leadId): array
     {
         if (!self::ready()) return ['ok' => false, 'error' => 'The database needs its latest update first.'];
-        if (!Plan::isLead($leadId, $eventId)) return ['ok' => false, 'error' => 'Only a lead of this event can record its decisions.'];
+        if (!Plan::may($leadId, $eventId, 'decisions.record')) return ['ok' => false, 'error' => 'Only a lead of this event, or a team role that includes it, can record its decisions.'];
         $title = trim($title);
         if ($title === '') return ['ok' => false, 'error' => 'Say what was decided.'];
         $id = (int) DB::table('gates_event_decisions')->insertGetId([
@@ -46,7 +46,7 @@ final class Scope
     {
         $d = self::ready() ? DB::table('gates_event_decisions')->where('id', $id)->first() : null;
         if (!$d) return ['ok' => false, 'error' => 'That decision is not there.'];
-        if (!Plan::isLead($leadId, (int) $d->event_id)) return ['ok' => false, 'error' => 'Only a lead of this event can reverse its decisions.'];
+        if (!Plan::may($leadId, (int) $d->event_id, 'decisions.record')) return ['ok' => false, 'error' => 'Only a lead of this event, or a team role that includes it, can reverse its decisions.'];
         if (trim($why) === '') return ['ok' => false, 'error' => 'Say why it no longer stands.'];
         $n = DB::table('gates_event_decisions')->where('id', $id)->whereNull('reversed_at')
             ->update(['reversed_at' => date('Y-m-d H:i:s'), 'reversed_by' => $leadId, 'reversed_why' => mb_substr(trim($why), 0, 255)]);
@@ -68,7 +68,7 @@ final class Scope
     public static function addCue(int $eventId, array $in, int $leadId): array
     {
         if (!self::ready()) return ['ok' => false, 'error' => 'The database needs its latest update first.'];
-        if (!Plan::isLead($leadId, $eventId)) return ['ok' => false, 'error' => 'Only a lead of this event can change its running order.'];
+        if (!Plan::may($leadId, $eventId, 'show.run')) return ['ok' => false, 'error' => 'Only a lead of this event, or a team role that includes it, can change its running order.'];
         $e = Plan::event($eventId);
         $title = trim((string) ($in['title'] ?? ''));
         if ($title === '' || !$e) return ['ok' => false, 'error' => 'Say what happens.'];
@@ -93,7 +93,7 @@ final class Scope
     {
         $c = self::ready() ? DB::table('gates_event_show')->where('id', $id)->first() : null;
         if (!$c) return ['ok' => false, 'error' => 'That cue is not there.'];
-        if (!Plan::isLead($leadId, (int) $c->event_id)) return ['ok' => false, 'error' => 'Only a lead of this event can run its show.'];
+        if (!Plan::may($leadId, (int) $c->event_id, 'show.run')) return ['ok' => false, 'error' => 'Only a lead of this event, or a team role that includes it, can run its show.'];
         DB::table('gates_event_show')->where('id', $id)->update(['done_at' => $done ? date('Y-m-d H:i:s') : null]);
         return ['ok' => true, 'event' => (int) $c->event_id];
     }
@@ -102,7 +102,7 @@ final class Scope
     {
         $c = self::ready() ? DB::table('gates_event_show')->where('id', $id)->first() : null;
         if (!$c) return ['ok' => false, 'error' => 'That cue is not there.'];
-        if (!Plan::isLead($leadId, (int) $c->event_id)) return ['ok' => false, 'error' => 'Only a lead of this event can change its running order.'];
+        if (!Plan::may($leadId, (int) $c->event_id, 'show.run')) return ['ok' => false, 'error' => 'Only a lead of this event, or a team role that includes it, can change its running order.'];
         if ($c->done_at) return ['ok' => false, 'error' => 'That cue has happened, so it stays in the record.'];
         DB::table('gates_event_show')->where('id', $id)->delete();
         return ['ok' => true, 'event' => (int) $c->event_id];
@@ -127,7 +127,7 @@ final class Scope
     public static function addSponsor(int $eventId, array $in, int $leadId): array
     {
         if (!self::ready()) return ['ok' => false, 'error' => 'The database needs its latest update first.'];
-        if (!Plan::isLead($leadId, $eventId)) return ['ok' => false, 'error' => 'Only a lead of this event can change its sponsors.'];
+        if (!Plan::may($leadId, $eventId, 'sponsors.manage')) return ['ok' => false, 'error' => 'Only a lead of this event, or a team role that includes it, can change its sponsors.'];
         $name = trim((string) ($in['name'] ?? ''));
         if ($name === '') return ['ok' => false, 'error' => 'Name the sponsor.'];
         $stage = (string) ($in['stage'] ?? 'prospect');
@@ -153,7 +153,7 @@ final class Scope
     {
         $s = self::ready() ? DB::table('gates_event_sponsors')->where('id', $id)->first() : null;
         if (!$s) return ['ok' => false, 'error' => 'That sponsor is not there.'];
-        if (!Plan::isLead($leadId, (int) $s->event_id)) return ['ok' => false, 'error' => 'Only a lead of this event can change its sponsors.'];
+        if (!Plan::may($leadId, (int) $s->event_id, 'sponsors.manage')) return ['ok' => false, 'error' => 'Only a lead of this event, or a team role that includes it, can change its sponsors.'];
         if (!isset(self::STAGES[$stage])) return ['ok' => false, 'error' => 'That is not a stage a sponsor can be at.'];
         DB::table('gates_event_sponsors')->where('id', $id)->update(['stage' => $stage, 'updated_at' => date('Y-m-d H:i:s')]);
         return ['ok' => true, 'event' => (int) $s->event_id];
@@ -174,7 +174,7 @@ final class Scope
     public static function addCheck(int $eventId, string $title, string $owner, int $leadId): array
     {
         if (!self::ready()) return ['ok' => false, 'error' => 'The database needs its latest update first.'];
-        if (!Plan::isLead($leadId, $eventId)) return ['ok' => false, 'error' => 'Only a lead of this event can change its checks.'];
+        if (!Plan::may($leadId, $eventId, 'safety.manage')) return ['ok' => false, 'error' => 'Only a lead of this event, or a team role that includes it, can change its checks.'];
         if (trim($title) === '') return ['ok' => false, 'error' => 'Say what has to be checked.'];
         [$ok, $kind, $oid, $err] = self::owner($eventId, $owner);
         if (!$ok) return ['ok' => false, 'error' => $err];
@@ -187,7 +187,7 @@ final class Scope
     {
         $c = self::ready() ? DB::table('gates_event_checks')->where('id', $id)->first() : null;
         if (!$c) return ['ok' => false, 'error' => 'That check is not there.'];
-        if (!Plan::isLead($leadId, (int) $c->event_id)) return ['ok' => false, 'error' => 'Only a lead of this event can sign off its checks.'];
+        if (!Plan::may($leadId, (int) $c->event_id, 'safety.manage')) return ['ok' => false, 'error' => 'Only a lead of this event, or a team role that includes it, can sign off its checks.'];
         DB::table('gates_event_checks')->where('id', $id)->update(['done_at' => $done ? date('Y-m-d H:i:s') : null, 'done_by' => $done ? $leadId : null]);
         return ['ok' => true, 'event' => (int) $c->event_id];
     }
@@ -211,7 +211,7 @@ final class Scope
         $row = $id > 0 ? DB::table('gates_event_tables')->where('id', $id)->first() : null;
         if ($id > 0 && !$row) return ['ok' => false, 'error' => 'That table is not there.'];
         if ($row) $eventId = (int) $row->event_id;
-        if (!Plan::isLead($leadId, $eventId)) return ['ok' => false, 'error' => 'Only a lead of this event can change its seating.'];
+        if (!Plan::may($leadId, $eventId, 'guests.manage')) return ['ok' => false, 'error' => 'Only a lead of this event, or a team role that includes it, can change its seating.'];
         $label = trim((string) ($in['label'] ?? ($row->label ?? '')));
         $seats = (int) ($in['seats'] ?? ($row->seats ?? 10));
         if ($label === '') return ['ok' => false, 'error' => 'Name the table.'];
@@ -246,7 +246,7 @@ final class Scope
         $t = DB::table('gates_event_tables')->where('id', $tableId)->first();
         if (!$t) return ['ok' => false, 'error' => 'Pick a table.'];
         $eventId = (int) $t->event_id;
-        if (!Plan::isLead($leadId, $eventId)) return ['ok' => false, 'error' => 'Only a lead of this event can change its seating.'];
+        if (!Plan::may($leadId, $eventId, 'guests.manage')) return ['ok' => false, 'error' => 'Only a lead of this event, or a team role that includes it, can change its seating.'];
         $person = self::person($eventId, $kind, $refId);
         if ($person === null) return ['ok' => false, 'error' => 'That guest is not on this event’s list.'];
         $current = DB::table('gates_event_seats')->where('event_id', $eventId)->where('kind', $kind)->where('ref_id', $refId)->first();
@@ -261,7 +261,7 @@ final class Scope
     {
         $s = SchemaHas::table('gates_event_seats') ? DB::table('gates_event_seats')->where('id', $seatId)->first() : null;
         if (!$s) return ['ok' => false, 'error' => 'That seat is already free.'];
-        if (!Plan::isLead($leadId, (int) $s->event_id)) return ['ok' => false, 'error' => 'Only a lead of this event can change its seating.'];
+        if (!Plan::may($leadId, (int) $s->event_id, 'guests.manage')) return ['ok' => false, 'error' => 'Only a lead of this event, or a team role that includes it, can change its seating.'];
         DB::table('gates_event_seats')->where('id', $seatId)->delete();
         return ['ok' => true, 'event' => (int) $s->event_id];
     }

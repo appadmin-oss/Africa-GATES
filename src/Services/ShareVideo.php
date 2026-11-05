@@ -46,6 +46,19 @@ final class ShareVideo
             'photo'  => (string) ($f['photo'] ?? ''),
             'proof'  => DisplayThreshold::met('votes_public_total', $votes)
                 ? ['type' => 'votes', 'votes' => $votes] : null,
+            // The nominee video is drawn by share-video-award.js to match the share card
+            // (ShareCardSpec): the same tone, the same standing, the same short link.
+            'award'    => (string) $f['programme'],
+            'category' => (string) $f['category'],
+            'organisation' => trim((string) ($f['organisation'] ?? '')),
+            'line'     => trim((string) ($f['tagline'] ?? '')) !== '' ? (string) $f['tagline'] : (string) ($f['rally'] ?? ''),
+            'rank'     => (int) ($f['standing']['rank'] ?? 0),
+            'field'    => (int) ($f['standing']['field'] ?? 0),
+            'gap'      => (int) ($f['standing']['gap_ahead'] ?? 0),
+            'votes'    => $votes,
+            'display'  => (string) ($f['short_url'] ?? $f['url']),
+            'tone'     => $tone = ShareCardSpec::defaultTone((string) $f['programme']),
+            'palette'  => ShareCardSpec::videoPalette($tone),
         ];
     }
 

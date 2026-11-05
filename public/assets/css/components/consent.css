@@ -38,6 +38,32 @@
 .ag-consent__p{ margin:0; font-size:var(--ag-fs-14); line-height:1.5; color:var(--ag-ink-2) }
 .ag-consent__more{ font-weight:600; color:var(--ag-ink); text-decoration:underline }
 
+/* ── Phone: half the height, the same three answers ──────────────────────────
+   The full notice took about 40% of a 390 × 844 screen above the tab bar. Below 600 it
+   drops the icon tile, sets the heading a step down and says the short paragraph; the
+   three answers stay one row of identical 44px buttons. From 600 the DC's notice, whole. */
+.ag-consent__wide{ display:none }
+@media (max-width:599px){
+  .ag-consent{ margin:var(--ag-sp-8); padding:var(--ag-sp-12) var(--ag-sp-14); gap:var(--ag-sp-10); border-radius:var(--ag-r-16) }
+  .ag-consent__ico{ display:none }
+  .ag-consent__t{ font-size:var(--ag-fs-15) }
+  .ag-consent__p{ font-size:var(--ag-fs-13-5); line-height:1.45 }
+  .ag-consent__answer{ min-height:44px; font-size:var(--ag-fs-14) }
+
+  /* A page's own bottom bar must not cover the answers. The tab bar is in the column, under
+     the notice, but a flow page's bar ("From ₦5,000 · Get tickets" on an event, the Give bar,
+     a listen bar, a withdraw bar) was FIXED to the screen's foot — on top of the notice, so
+     on every event page a visitor could read the question and reach none of the three
+     answers. While the notice asks, every other bottom bar drops into the flow: the ones in
+     the column sit under it like the tab bar, the ones in the page sit at its end. CSS, not
+     a script, because a privacy control must work for the people who block scripts, and
+     every bar rather than a list of them, because the next bar somebody adds is the one a
+     list would miss. */
+  body:has(.ag-consent) [data-bottom-ui]:not(.ag-consent, .ag-consent-saved, .ag-tabbar){
+    position:static; inset:auto;
+  }
+}
+
 /* THE THREE ANSWERS ARE ONE CLASS. Same size, same weight, same outline — the
    template gives each the identical class string and CookieConsentNoticeTest holds it.
    A notice whose "accept" is a button and whose "decline" is grey text is the pattern
@@ -215,6 +241,8 @@
     max-height:calc(100dvh - 56px);
     border-radius:var(--ag-r-20);
   }
+  .ag-consent__phone{ display:none }
+  .ag-consent__wide{ display:block }
   .ag-consent-sheet__phone{ display:none }
   .ag-consent-sheet__wide{ display:inline }
   .ag-consent-sheet__foot{ padding-bottom:var(--ag-sp-16) }

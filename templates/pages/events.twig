@@ -286,6 +286,17 @@
     <div class="ei-host__acts"><a class="ei-btn ei-btn--ink" href="/support">{{ 'Create an event'|trans }}</a></div>
   </section>
 
+  {# ══ CALENDAR ════════════════════════════════════════════════════════════════
+     /events.ics (EventsFeed) was reachable only by somebody who already knew the URL.
+     A line button, not green: it is not a ticket. #}
+  <section class="ei-host" aria-labelledby="ei-cal">
+    <div class="ei-host__t">
+      <h2 class="ei-host__h" id="ei-cal">{{ 'Never miss one'|trans }}</h2>
+      <p class="ei-host__p">{{ 'Every upcoming Africa GATES event in your phone or computer calendar, in one file.'|trans }}</p>
+    </div>
+    <div class="ei-host__acts"><a class="ei-btn ei-btn--line" href="/events.ics">{{ 'Add them to my calendar'|trans }}</a></div>
+  </section>
+
   {% else %}
   {# ══ RESULTS ═════════════════════════════════════════════════════════════════ #}
   {% set _r = _x.results %}
@@ -315,5 +326,5 @@
 </div>
 {% endblock %}
 
-{% block foot_scripts %}<script defer src="{{ asset('/assets/js/events-index.js') }}"></script>
-{% if ad|default(null) %}<script defer src="{{ asset('/assets/js/ads.js') }}"></script>{% endif %}{% endblock %}
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/events-index.js') }}" data-nav="rerun"></script>
+{% if ad|default(null) %}<script defer src="{{ asset('/assets/js/ads.js') }}" data-nav="rerun"></script>{% endif %}{% endblock %}

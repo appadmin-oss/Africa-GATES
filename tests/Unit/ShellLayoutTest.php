@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Tests\Unit;
 
 use AfricaGates\Support\AssetBundle;
+use Tests\Support\ChromeRender;
 use Tests\TestCase;
 
 /**
@@ -258,7 +259,10 @@ final class ShellLayoutTest extends TestCase
 
     public function test_the_shell_loads_the_base_in_the_bundles_order(): void
     {
-        preg_match_all("~asset\('/(assets/css/[^']+)'\)~", $this->twig('templates/layout/shell.twig'), $m);
+        // The easy-read face is an ADDRESS the shell hands to a11y.js (`data-ag-easy-font`),
+        // linked only for somebody who turns the setting on — not part of the base cascade.
+        $src = (string) preg_replace('~data-ag-easy-font="[^"]*"~', '', $this->twig('templates/layout/shell.twig'));
+        preg_match_all("~asset\('/(assets/css/[^']+)'\)~", $src, $m);
         $shell = $m[1];
         // The base and nothing else: the rules once carved out of components.css
         // (chrome.css, library.css) were destroyed with the old pages, and a rebuilt
@@ -266,13 +270,14 @@ final class ShellLayoutTest extends TestCase
         // Phase 2 added the chrome sheet after the base, which it specialises, and item 6
         // the cookie notice and preferences sheet after the chrome; Phase 4 the site footer
         // after those (it is chrome on every shell page); Phase 3 Gee after all of them.
-        $want = ['assets/css/tokens.css', 'assets/css/shell.css', 'assets/css/components.css',
+        // The self-hosted faces first (2 Nov 2026), so nothing names a face before it exists.
+        $want = ['assets/css/fonts.css', 'assets/css/tokens.css', 'assets/css/shell.css', 'assets/css/components.css',
                  'assets/css/components/chrome.css',
                  // The Menu sheet, rebuilt whole out of chrome.css (4 Oct 2026, MENU-SHEET.md).
                  'assets/css/components/menu-sheet.css', 'assets/css/components/consent.css',
                  // The field macros' sheet, and the default graphics (5 Oct 2026).
                  'assets/css/components/forms.css', 'assets/css/components/cover.css',
-                 'assets/css/components/footer.css', 'assets/css/components/gee.css'];
+                 'assets/css/components/footer.css', 'assets/css/components/gee.css', 'assets/css/components/photo-upload.css'];
         $this->assertSame($want, $shell,
             'the shell must load the base, in the bundle\'s order, and nothing destroyed');
 
@@ -281,5 +286,51 @@ final class ShellLayoutTest extends TestCase
         $sorted = $at;
         sort($sorted);
         $this->assertSame($sorted, $at, 'layout/shell.twig and AssetBundle::STYLESHEETS disagree about the cascade');
+    }
+
+    /**
+     * The base is ONE request when a current bundle exists. Nothing built it on a host with no
+     * shell and no template read it, so every page linked ten render-blocking files. The
+     * layout uses `css_bundle`, falls back to the ten, and maintenance keeps it built.
+     */
+    public function test_a_current_bundle_replaces_the_ten_links_and_maintenance_builds_it(): void
+    {
+        $src = $this->twig('templates/layout/shell.twig');
+        $this->assertMatchesRegularExpression(
+            "~\\{% if css_bundle\\|default\\(null\\) %\\}\\s*<link rel=\"stylesheet\" href=\"\\{\\{ css_bundle \\}\\}\">\\s*\\{% else %\\}\\s*<link rel=\"stylesheet\" href=\"\\{\\{ asset\\('/assets/css/fonts.css'\\) \\}\\}\">\\s*<link rel=\"stylesheet\" href=\"\\{\\{ asset\\('/assets/css/tokens.css'\\) \\}\\}\">~", $src,
+            'the bundle link, then the ten as the fallback');
+        $this->assertMatchesRegularExpression("~components/photo-upload\\.css'\\) \\}\\}\">\\s*\\{% endif %\\}~", $src, 'the fallback ends with the last sheet');
+        $m = ChromeRender::code('src/Support/Maintenance.php');
+        $this->assertStringContainsString("['assets', \$this->task('assets'", $m, 'nothing keeps the bundle built');
+        $this->assertStringContainsString('AssetBundle::build()', $m);
+    }
+
+    /**
+     * The house faces come from this origin and their fallbacks are sized to them (fonts.css).
+     * Google Fonts was two more origins before a letter; the swap moved the vote hub by 0.127
+     * CLS on a phone because the system face is a different size.
+     */
+    public function test_the_fonts_are_served_from_here_and_the_swap_moves_nothing(): void
+    {
+        $src = $this->twig('templates/layout/shell.twig');
+        $this->assertStringNotContainsString('fonts.googleapis.com/css2?family=DM+Sans', $src, 'the house faces from a second origin again');
+        $this->assertStringNotContainsString('preconnect" href="https://fonts.g', $src);
+        // Not preloaded: a preload competes with the render-blocking stylesheets on a slow
+        // link (measured: first paint 150–310ms later), and the sized fallbacks make it moot.
+        $this->assertStringNotContainsString('rel="preload" href="/assets/fonts/', $src, 'a font preload delays the first paint on the connections this site is read on');
+        $this->assertSame('assets/css/fonts.css', \AfricaGates\Support\AssetBundle::STYLESHEETS[0], 'the faces must be declared before anything names them');
+
+        $css = ChromeRender::code('public/assets/css/fonts.css');
+        preg_match_all("~url\('(/assets/fonts/[a-z0-9-]+\.woff2)'\)~", $css, $m);
+        $this->assertNotEmpty($m[1]);
+        foreach (array_unique($m[1]) as $u) $this->assertFileExists(dirname(__DIR__, 2) . '/public' . $u, "$u is named and not shipped");
+        $this->assertSame(substr_count($css, "font-display:swap"), substr_count($css, "src:url("), 'a face without swap holds the text invisible');
+        foreach (['DM Sans fallback', 'DM Sans fallback android', 'Playfair Display fallback'] as $f) {
+            $this->assertMatchesRegularExpression("~font-family:'" . preg_quote($f, '~') . "'; font-weight:[0-9 ]+; src:local\([^;]+; size-adjust:[0-9.]+%; ascent-override:[0-9.]+%; descent-override:[0-9.]+%; line-gap-override:0%~", $css);
+        }
+        $tok = ChromeRender::code('public/assets/css/tokens.css');
+        $this->assertStringContainsString("--ag-font-ui:'DM Sans','DM Sans fallback','DM Sans fallback android',", $tok, 'the sized fallback is declared and never used');
+        $this->assertStringContainsString("--ag-font-display:'Playfair Display','Playfair Display fallback',", $tok);
+        $this->assertStringContainsString('ExpiresByType font/woff2 "access plus 1 year"', (string) file_get_contents(dirname(__DIR__, 2) . '/public/.htaccess'), 'every view revalidates the faces');
     }
 }

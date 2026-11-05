@@ -25,6 +25,9 @@
    ══════════════════════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
+  // Page-wide listeners and timers go through agPage (layout/shell.twig), which site-nav.js
+  // undoes when this page is swapped away; elsewhere they are plain (SiteNavTest).
+  var pg = window.agPage || { on: function (t, y, f, o) { t.addEventListener(y, f, o); }, every: function (f, ms) { return setInterval(f, ms); }, leave: function () {} };
 
   /* 1 ── the switch ─────────────────────────────────────────────────────────── */
   function initVia() {
@@ -96,7 +99,7 @@
     var tpl = wait.textContent;
     var shown = tpl.match(/\d+:\d{2}/);
     function fmt(s) { return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2); }
-    var t = setInterval(function () {
+    var t = pg.every(function () {
       left -= 1;
       if (left <= 0) {
         clearInterval(t);
@@ -135,6 +138,7 @@
    name change; the slides themselves are decorative. */
 (function () {
   'use strict';
+  var pg = window.agPage || { on: function (t, y, f, o) { t.addEventListener(y, f, o); }, every: function (f, ms) { return setInterval(f, ms); }, leave: function () {} };
   var art = document.querySelector('[data-si-rotate]');
   if (!art) return;
   var slides = art.querySelectorAll('[data-si-slide]');
@@ -154,7 +158,7 @@
     if (prog) prog.style.width = ((i + 1) * 100 / n) + '%';
   }
   function tick() { if (!hover && !document.hidden) show(i + 1); }
-  function start() { if (!still && !timer) timer = setInterval(tick, 5500); }
+  function start() { if (!still && !timer) timer = pg.every(tick, 5500); }
   function stop() { clearInterval(timer); timer = null; }
   art.addEventListener('mouseenter', function () { hover = true; });
   art.addEventListener('mouseleave', function () { hover = false; });

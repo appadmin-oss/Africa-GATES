@@ -1,15 +1,16 @@
+{% set _portrait = person.photo_path|default('') ?: person.avatar_path|default('') %}
 <section class="acx-card ag-portrait-editor" aria-labelledby="account-photo-h">
   <h2 class="acx-h2" id="account-photo-h">{{ 'Profile photo'|trans }}</h2>
   <form method="post" action="/account/photo" enctype="multipart/form-data" data-portrait-editor>
     <input type="hidden" name="_token" value="{{ csrf_token }}">
     <div class="ag-portrait-editor__row">
       <div class="ag-portrait-editor__portrait">
-        <div data-portrait-current>{% include 'partials/avatar.twig' with {name: person.name, id: person.id, src: person.avatar_path|default(''), size: 96, named: true} only %}</div>
+        <div data-portrait-current>{% include 'partials/avatar.twig' with {name: person.name, id: person.id, src: _portrait, size: 96, named: true} only %}</div>
         <div data-portrait-preview hidden></div>
       </div>
       <div class="ag-portrait-editor__controls">
         <label class="ag-portrait-editor__choose">
-          <span>{{ (person.avatar_path|default('') ? 'Change photo' : 'Add photo')|trans }}</span>
+          <span>{{ (_portrait ? 'Change photo' : 'Add photo')|trans }}</span>
           <input id="account-photo" type="file" name="photo" accept="image/jpeg,image/png,image/webp,image/gif" required data-photo-upload data-photo-min-side="200" aria-describedby="account-photo-help">
         </label>
         <p id="account-photo-help">{{ 'JPG, PNG, WebP or GIF'|trans }} · {{ photo_upload_limit_label|default('10 MB') }} {{ 'max'|trans }}</p>
@@ -19,7 +20,7 @@
     <div data-portrait-feedback></div>
     <button type="submit" class="ag-btn ag-btn--primary" data-portrait-save>{{ 'Save photo'|trans }}</button>
   </form>
-  {% if person.avatar_path|default('') %}
+  {% if _portrait %}
   <details class="ag-portrait-editor__remove">
     <summary>{{ 'Remove photo'|trans }}</summary>
     <p>{{ 'Your initials will appear instead.'|trans }}</p>

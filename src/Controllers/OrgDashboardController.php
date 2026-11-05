@@ -743,13 +743,13 @@ final class OrgDashboardController
             $rows = PartnerOrg::countableDonations($orgId)
                 ->where('created_at', '>=', $from . ' 00:00:00')
                 ->orderBy('id')
-                ->get(['amount_naira', 'platform_fee_naira', 'created_at']);
+                ->selectRaw(PartnerOrg::netRowSql() . ' AS net, created_at')->get();
             // Everything before the window, so the line starts where the organisation
             // actually stood rather than at zero — a partner two years in is not somebody
             // who joined ninety days ago.
             $before = (int) PartnerOrg::countableDonations($orgId)
                 ->where('created_at', '<', $from . ' 00:00:00')
-                ->sum(DB::raw('amount_naira - COALESCE(platform_fee_naira, 0)'));
+                ->sum(DB::raw(PartnerOrg::netRowSql()));
         } catch (\Throwable) {
             return [];
         }
@@ -758,7 +758,7 @@ final class OrgDashboardController
 
         $moved = [];
         foreach ($rows as $r) {
-            $net = max(0, (int) ($r->amount_naira ?? 0) - (int) ($r->platform_fee_naira ?? 0));
+            $net = max(0, (int) ($r->net ?? 0));
             $d   = substr((string) $r->created_at, 0, 10);
             $moved[$d] = ($moved[$d] ?? 0) + $net;
         }
@@ -778,7 +778,8 @@ final class OrgDashboardController
         try {
             $rows = PartnerOrg::countableDonations($orgId)
                 ->orderByDesc('id')->limit($limit)
-                ->get(['donor_name', 'amount_naira', 'platform_fee_naira', 'show_name', 'created_at']);
+                ->selectRaw('donor_name, amount_naira, platform_fee_naira, show_name, created_at, '
+                          . PartnerOrg::netRowSql() . ' AS net, (' . PartnerOrg::raisedRowSql() . ') AS given')->get();
         } catch (\Throwable) {
             return [];
         }
@@ -791,9 +792,11 @@ final class OrgDashboardController
                 'name'   => ((int) ($r->show_name ?? 0) === 1)
                                 ? (string) ($r->donor_name ?? 'A supporter')
                                 : 'Anonymous',
-                'gross'  => $gross,
-                'fee'    => $fee,
-                'net'    => max(0, $gross - $fee),
+                // `given` is the gift as the donor meant it; `fee` everything kept back from
+                // it (our share, the gateway's where they bear it), so gross − fee = net.
+                'gross'  => (int) ($r->given ?? $gross),
+                'fee'    => max(0, (int) ($r->given ?? $gross) - (int) ($r->net ?? ($gross - $fee))),
+                'net'    => max(0, (int) ($r->net ?? ($gross - $fee))),
                 'when'   => (string) ($r->created_at ?? ''),
             ];
         }

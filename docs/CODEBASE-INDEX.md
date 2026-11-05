@@ -2218,3 +2218,23 @@ attacks the thing being offered.
 never taken, `DEFAULT_PCT = 0`, never pre-ticked), and the shop, tickets and stands. No
 licence fee, no seat charge, no subscription — and the three levels in §4.2 are drawn on
 operational load, which is a real constraint for a non-profit, rather than on price.
+
+## Volunteer academy and the contact report (31 Oct 2026)
+
+Volunteers asked "how do I send my report". Their report is the record of each contact with a
+nominee (`Volunteer\Outreach::log` / `email`, table `gates_vol_outreach`), not the hours log.
+`Workspace::REPORT` names it once: Today's first button **Log a contact with a nominee** (only
+for holders of `vol.nominee_outreach`), the nominee page's **Log a contact** form and **Log this
+contact** button, the **Follow up** tab, and Find answers "report". Hours by hand stay separate
+(`Workspace::HOURS_LOG`); a sent log now lands on Hours › In review and a refused one keeps what
+was typed. **No reader yet** for a volunteer's own list of contacts, a lead's per-volunteer view,
+or a staff view per award — the rows exist.
+
+`/volunteer/academy` (`VolunteerController::academy`, `templates/volunteer/academy.twig`,
+`console/academy.css`) is the guide, open signed out, linked from the rail ("Volunteer
+academy"), Today ("How to use this portal") and `/volunteer/apply` ("How it works").
+Screenshots: `node scripts/academy-shots.mjs` (seeds a throwaway SQLite via
+`scripts/academy-seed.php`, serves via `scripts/academy-router.php`, 1366×768, cropped,
+control outlined in `--cn-green`) → `public/assets/img/academy/*.webp`, stems in
+`VolunteerController::SHOTS`. `VolunteerAcademyTest` holds the shots on disk, every button the
+guide names to the workspace's sources, and no bare-verb control label in the workspace.

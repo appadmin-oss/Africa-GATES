@@ -19,7 +19,7 @@
 {% block content %}
 <div class="ls" data-ls>
   <div class="ls-bar">
-    <nav class="ls-tabs" aria-label="When">
+    <nav class="ls-tabs" aria-label="When" data-tabs="when">
       {% for k, t in tabs %}
         <a class="ls-tab" href="/admin/calendar?tab={{ k }}"{% if k == tab %} aria-current="page"{% endif %}>{{ t.label }}<span class="ls-tab__num">{{ t.n }}</span></a>
       {% endfor %}

@@ -37,6 +37,14 @@ class UserAuthMiddleware
         if (empty($_SESSION['user_id'])) {
             return (new Psr7Response(302))->withHeader('Location', '/account/login?next=' . urlencode($path));
         }
+        /* A role offered to this person's address before they had an account (or a confirmed
+           one, or an approved volunteer record) becomes theirs here, the next time they are
+           signed in — RoleInvites::claimFor. At most every five minutes a session: one indexed
+           read, and never a reason for the page to fail. */
+        if ((int) ($_SESSION['role_invites_at'] ?? 0) < time() - 300) {
+            $_SESSION['role_invites_at'] = time();
+            try { \AfricaGates\Services\RoleInvites::claimFor((int) $_SESSION['user_id']); } catch (\Throwable) {}
+        }
         return $handler->handle($req);
     }
 }

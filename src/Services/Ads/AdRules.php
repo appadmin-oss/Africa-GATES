@@ -34,11 +34,17 @@ use Illuminate\Database\Capsule\Manager as DB;
  */
 final class AdRules
 {
-    /** Where ads may run, and what the advertiser is told each one is. The vote page is its list only. */
+    /**
+     * Where ads may run, and what the advertiser is told each one is. The vote page is its list
+     * only. An event's own page is its own placement since 3 Nov 2026: it is read by somebody
+     * deciding whether to buy a ticket, which is not the person browsing the list, and the two
+     * are priced on what each actually delivers (AdMarket).
+     */
     public const PLACEMENTS = [
-        'vote_hub' => 'Vote page',
-        'discover' => 'Discover',
-        'events'   => 'Events',
+        'vote_hub'   => 'Vote page',
+        'discover'   => 'Discover',
+        'events'     => 'Events list',
+        'event_page' => 'Event pages',
     ];
 
     /** Meta's three simplest objectives. The objective decides which result the manager leads with. */
@@ -65,7 +71,9 @@ final class AdRules
     public const NAME_MAX     = 60;
     public const OFFER_MAX    = 40;
     public const CODE_MAX     = 20;
-    public const IMAGE_MIN    = 600;
+    // The image's shortest side, read from its profile so the builder's sentence, the editor's
+    // warning and the server's refusal are one number (Support\ImageProfiles).
+    public const IMAGE_MIN    = \AfricaGates\Support\ImageProfiles::PROFILES['ad']['min'];
     public const ADS_PER_SET  = 3;
 
     // The free trial (owner, 27 Oct 2026): one per account, 7 days or 1,000 views, whichever

@@ -16,6 +16,9 @@
    ══════════════════════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
+  // Page-wide listeners and timers go through agPage (layout/shell.twig), which site-nav.js
+  // undoes when this page is swapped away; elsewhere they are plain (SiteNavTest).
+  var pg = window.agPage || { on: function (t, y, f, o) { t.addEventListener(y, f, o); }, every: function (f, ms) { return setInterval(f, ms); }, leave: function () {} };
 
   var root = document.querySelector('[data-help]');
   if (!root) return;
@@ -26,7 +29,7 @@
   }
 
   /* ── Links into the retired desk open Gee in place ──────────────────────── */
-  document.addEventListener('click', function (e) {
+  pg.on(document, 'click', function (e) {
     var a = e.target && e.target.closest ? e.target.closest('a[href^="/support/assistant"]') : null;
     if (!a || !root.contains(a)) return;
     var q = '';
@@ -140,10 +143,10 @@
       pillA.setAttribute('href', '/help?gee=support&q=' + encodeURIComponent(sel));
       pill.hidden = false;
     };
-    document.addEventListener('selectionchange', function () { window.requestAnimationFrame(place); });
+    pg.on(document, 'selectionchange', function () { window.requestAnimationFrame(place); });
     var main = document.querySelector('.ag-main');
-    if (main) main.addEventListener('scroll', function () { if (!pill.hidden) place(); }, { passive: true });
-    window.addEventListener('resize', function () { if (!pill.hidden) place(); });
+    if (main) pg.on(main, 'scroll', function () { if (!pill.hidden) place(); }, { passive: true });
+    pg.on(window, 'resize', function () { if (!pill.hidden) place(); });
     pillA.addEventListener('mousedown', function (e) { e.preventDefault(); });   // keep the selection
     pillA.addEventListener('click', function (e) {
       if (gee(sel, pillA)) { e.preventDefault(); hide(); }

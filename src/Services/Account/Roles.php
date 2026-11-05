@@ -122,7 +122,10 @@ final class Roles
         // Leading an event is the account's own, like volunteering: a grant to this member,
         // not a staff role (Plan::ACTOR), so organisers' leads never need the admin console.
         $led = self::ledEvents($uid);
+        // An owner or somebody in an event's own role opens the same console, on their own events.
+        $other = $led > 0 ? 0 : self::roleEvents($uid);
         if ($led > 0) $out[] = ['kind' => 'lead', 'label' => 'Events I lead', 'live' => true, 'sub' => $led . ($led === 1 ? ' event' : ' events')];
+        elseif ($other > 0) $out[] = ['kind' => 'lead', 'label' => 'My event roles', 'live' => true, 'sub' => $other . ($other === 1 ? ' event' : ' events')];
         foreach (self::held($user) as $kind => $row) {
             $active = (int) ($row->is_active ?? 1) === 1;
             $sub = match ($kind) {
@@ -160,7 +163,7 @@ final class Roles
         $uid = (int) $user->id;
         if ($kind === 'member' || $kind === 'volunteer' || $kind === 'lead') {
             if ($kind === 'volunteer' && !(Volunteers::ready() && Volunteers::of($uid))) return ['ok' => false, 'error' => 'You are not a volunteer yet. Apply from your account.'];
-            if ($kind === 'lead' && self::ledEvents($uid) === 0) return ['ok' => false, 'error' => 'You don’t lead an event. The organiser gives it to your email address.'];
+            if ($kind === 'lead' && self::ledEvents($uid) === 0 && self::roleEvents($uid) === 0) return ['ok' => false, 'error' => 'You don’t lead an event. The organiser gives it to your email address.'];
             self::remember($uid, $kind);
             return ['ok' => true, 'to' => self::HOME[$kind]];
         }
@@ -416,6 +419,17 @@ final class Roles
         } catch (\Throwable) {
             return 'an organisation';
         }
+    }
+
+    /** How many events this member owns or holds an event team role at, now. */
+    private static function roleEvents(int $userId): int
+    {
+        if ($userId <= 0 || !Grants::ready()) return 0;
+        $ids = [];
+        foreach (Grants::forActor('member', $userId) as $g) {
+            if (in_array($g->capability, ['event.own', 'event.role', 'vol.event_role'], true) && $g->scope_kind === 'event') $ids[(int) $g->scope_id] = true;
+        }
+        return count($ids);
     }
 
     /** How many events this member leads now (live `event.lead` grants). */

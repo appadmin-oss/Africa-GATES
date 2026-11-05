@@ -214,4 +214,4 @@
 {% endif %}
 {% endblock %}
 
-{% block auth_scripts %}{% if passkeys_available %}<script defer src="{{ asset('/assets/js/passkeys.js') }}"></script>{% endif %}{% endblock %}
+{% block auth_scripts %}{% if passkeys_available %}<script defer src="{{ asset('/assets/js/passkeys.js') }}" data-nav="rerun"></script>{% endif %}{% endblock %}

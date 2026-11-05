@@ -24,6 +24,9 @@
    says so in its own words. Every string arrives from the template, through |trans. */
 (function () {
   'use strict';
+  // Page-wide listeners and timers go through agPage (layout/shell.twig), which site-nav.js
+  // undoes when this page is swapped away; elsewhere they are plain (SiteNavTest).
+  var pg = window.agPage || { on: function (t, y, f, o) { t.addEventListener(y, f, o); }, every: function (f, ms) { return setInterval(f, ms); }, leave: function () {} };
 
   var root = document.querySelector('[data-ed]');
   if (!root) return;
@@ -61,7 +64,7 @@
   }
 
   /* ── Referral link copy: the field is a real input first ─────────────── */
-  document.addEventListener('click', function (e) {
+  pg.on(document, 'click', function (e) {
     var b = e.target.closest('[data-ag-do="copy-ref"]');
     if (!b) return;
     var f = document.getElementById(b.getAttribute('data-target'));
@@ -103,6 +106,21 @@
     g.parentNode.replaceChild(fresh, g);
   }
 
+  /* The glow plays once the first time the card is in view with a tier chosen (its
+     "initialisation"), and every animation in it is paused while the card is off screen —
+     a turning gradient repaints every frame wherever it is (events.css, THE GLOW). */
+  if (window.IntersectionObserver && q('[data-ev-glow]', card)) {
+    var seen = false;
+    // Two thresholds, two questions: any of it on screen (keep turning) and a quarter of it
+    // (worth a bloom). Under one threshold of .25 the browser reports a card 24% visible as
+    // not intersecting, and the rim stood still while somebody was looking at it.
+    new IntersectionObserver(function (es) {
+      var e = es[es.length - 1];
+      if (e.intersectionRatio > 0) card.removeAttribute('data-ev-idle'); else card.setAttribute('data-ev-idle', '');
+      if (e.intersectionRatio >= 0.25 && !seen && state.id) { seen = true; glow(); }
+    }, { threshold: [0, 0.25] }).observe(card);
+  }
+
   function pick(r, quiet) {
     if (!r || r.disabled) return;
     rows.forEach(function (x) {
@@ -126,7 +144,7 @@
     toggle('[data-ed-total-wrap]', state.price > 0 && !state.gone);
     err.textContent = '';
     paint();
-    if (!quiet) glow();
+    if (!quiet) { seen = true; glow(); }
   }
   function toggle(sel, on) { var el = q(sel, form); if (el) el.hidden = !on; }
 
@@ -231,6 +249,11 @@
     q('[data-ed-done-msg]', card).textContent = msg;
     var a = q('[data-ed-ticket]', card);
     if (ticketUrl) { a.href = ticketUrl; a.hidden = false; }
+    // The phone's fixed bar offers what they have just done ("From Free · Get tickets" over
+    // "You're registered"), so it goes. shell.js watches the page and re-measures the space
+    // Gee and the toasts keep clear of.
+    var bar = document.querySelector('.ed-bar');
+    if (bar) bar.remove();
     box.focus();
   }
 

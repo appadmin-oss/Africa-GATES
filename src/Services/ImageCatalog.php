@@ -35,7 +35,7 @@ final class ImageCatalog
         $width = (int) array_key_first($sources);
         return ['id' => 'photo:' . $key, 'key' => $key, 'kind' => 'photo', 'label' => $label,
             'alt' => $alt, 'headline' => $headline, 'src' => $sources[$width],
-            'srcset' => implode(', ', array_map(static fn ($w, $src) => $src . ' ' . $w . 'w', array_keys($sources), $sources)),
+            'srcset' => implode(', ', array_map(static fn ($w, $src) => \AfricaGates\Support\Assets::url($src) . ' ' . $w . 'w', array_keys($sources), $sources)),
             'width' => $width, 'height' => $width];
     }
 
@@ -48,7 +48,11 @@ final class ImageCatalog
     {
         // The manifest is the allowlist; no user-supplied URL or filesystem path is read.
         static $approved = null;
-        $approved ??= json_decode((string) @file_get_contents(dirname(__DIR__, 2) . '/public/assets/img/utility/manifest.json'), true)['assets'] ?? [];
+        if ($approved === null) {
+            $manifest = json_decode((string) @file_get_contents(dirname(__DIR__, 2) . '/public/assets/img/utility/manifest.json'), true) ?? [];
+            // Experimental/rejected artwork must not become live merely because its files exist.
+            $approved = ($manifest['approved_for_production'] ?? false) === true ? ($manifest['assets'] ?? []) : [];
+        }
         if (!isset($approved[$key])) return null;
         $sources = [];
         foreach ([256, 512, 960] as $width) {
@@ -59,7 +63,7 @@ final class ImageCatalog
         $width = isset($sources[512]) ? 512 : (int) array_key_first($sources);
         return ['id' => 'utility:' . $key, 'kind' => 'utility', 'key' => $key,
             'src' => $sources[$width],
-            'srcset' => implode(', ', array_map(static fn ($w, $src) => $src . ' ' . $w . 'w', array_keys($sources), $sources)),
+            'srcset' => implode(', ', array_map(static fn ($w, $src) => \AfricaGates\Support\Assets::url($src) . ' ' . $w . 'w', array_keys($sources), $sources)),
             'alt' => '', 'label' => $approved[$key]['title'], 'width' => $width, 'height' => $width];
     }
 

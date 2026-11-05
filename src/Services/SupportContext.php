@@ -2297,14 +2297,17 @@ final class SupportContext
             'rules' => [
                 'checkout_closes_before_voting_by_minutes' => $cutoffMins,
                 'late_delivery_window_after_close_hours'   => $graceHours,
-                'free_voting_runs_to_the_close'            => true,
+                // False when free voting is switched off: there is nothing left open to point at.
+                'free_voting_runs_to_the_close'            => !PaidVoteService::freeVotingDisabled(),
             ],
             // Written for the model to relay, because each of these is a sentence
             // that has to be exactly right or it reads as an excuse.
             'say' => [
                 'refused_at_checkout' => "Card payment for a category stops {$cutoffMins} minutes before voting "
-                                       . "closes, so a payment already under way has time to finish. Free voting "
-                                       . "is still open until the close — that is the thing to point them at.",
+                                       . "closes, so a payment already under way has time to finish."
+                                       . (PaidVoteService::freeVotingDisabled()
+                                           ? " Every vote on this award is a contribution, so there is no other way to vote after that point; say so kindly."
+                                           : " Free voting is still open until the close — that is the thing to point them at."),
                 'paid_just_before'    => "A payment STARTED before voting closed still delivers its votes, even if "
                                        . "the bank confirms it up to {$graceHours} hours late. It is judged on when "
                                        . "they paid, not on when the confirmation reached us. Do not tell somebody "
