@@ -132,14 +132,6 @@ final class ThirdParties
             'probes' => [],
             'hosts' => ['https://www.google.com'],
         ],
-        [
-            'id' => 'fonts', 'name' => 'Google Fonts',
-            'for' => 'Supplying the type on the judges’ console and the event-door scanner.',
-            'gets' => 'The IP address and browser details of a judge or a door steward, as any font host receives.',
-            'when' => 'Only on those two staff screens. Every public page, the easy-read font included, uses fonts served from our own files.',
-            'probes' => [],
-            'hosts' => ['https://fonts.googleapis.com', 'https://fonts.gstatic.com'],
-        ],
     ];
 
     /**

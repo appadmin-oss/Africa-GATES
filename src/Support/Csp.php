@@ -103,9 +103,21 @@ final class Csp
     public const GA_SCRIPT_HOSTS  = 'https://www.googletagmanager.com';
     public const GA_CONNECT_HOSTS = 'https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com';
 
-    public const STYLE_HOSTS = 'https://fonts.googleapis.com';
+    /**
+     * Outside origins for stylesheets and font files: NONE since 5 Nov 2026. Google Fonts was
+     * the last — the public faces moved to public/assets/fonts on 2 Nov, the easy-read face
+     * and the judges' console and door scanner on 5 Nov. Kept as constants, empty, so adding
+     * a host is one visible edit here, in .htaccess and in ThirdParties together.
+     */
+    public const STYLE_HOSTS = '';
 
-    public const FONT_HOSTS = 'https://fonts.gstatic.com https://fonts.googleapis.com';
+    public const FONT_HOSTS = '';
+
+    /** ' ' + hosts, or nothing — so an empty host list leaves no stray space in a directive. */
+    private static function hosts(string $h): string
+    {
+        return $h === '' ? '' : ' ' . $h;
+    }
 
     /**
      * XHR/fetch/WebSocket targets. Tight on purpose: this is the exfiltration path.
@@ -217,13 +229,13 @@ final class Csp
             // `style-src` is kept WITHOUT a nonce purely as the fallback for browsers
             // that do not implement the split. It must stay nonce-free or those
             // browsers hit exactly the trap described above.
-            . "style-src 'self' 'unsafe-inline' " . self::STYLE_HOSTS . '; '
-            . "style-src-elem 'self' 'nonce-{$nonce}' " . self::STYLE_HOSTS . '; '
+            . "style-src 'self' 'unsafe-inline'" . self::hosts(self::STYLE_HOSTS) . '; '
+            . "style-src-elem 'self' 'nonce-{$nonce}'" . self::hosts(self::STYLE_HOSTS) . '; '
             . "style-src-attr 'unsafe-inline'; "
             // Images stay open: nominee photos and partner logos come from arbitrary
             // hosts, and a blocked image is cosmetic where a blocked script is fatal.
             . "img-src 'self' data: blob: https:; "
-            . "font-src 'self' data: " . self::FONT_HOSTS . '; '
+            . "font-src 'self' data:" . self::hosts(self::FONT_HOSTS) . '; '
             . "connect-src 'self' " . self::CONNECT_HOSTS . '; '
             // `blob:` is not decoration either, and it cost the same kind of silence.
             // The nominee's read-aloud fetches its audio from /my-work/{token}/speak and
@@ -233,7 +245,7 @@ final class Csp
             // indistinguishable from the endpoint having failed. A blob can only be
             // minted by a script this same policy already governs, so allowing the scheme
             // grants nothing a page could not already fetch.
-            . "media-src 'self' blob:" . (self::MEDIA_HOSTS !== '' ? ' ' . self::MEDIA_HOSTS : '') . '; '
+            . "media-src 'self' blob:" . self::hosts(self::MEDIA_HOSTS) . '; '
             // ── 'self' IS NOT DECORATION HERE ────────────────────────────────
             //
             // The admin console previews an uploaded document by pointing an iframe at
@@ -301,9 +313,9 @@ final class Csp
     {
         return "default-src 'self'; "
             . "script-src 'self' 'unsafe-inline' 'unsafe-eval' " . self::SCRIPT_HOSTS . '; '
-            . "style-src 'self' 'unsafe-inline' " . self::STYLE_HOSTS . '; '
+            . "style-src 'self' 'unsafe-inline'" . self::hosts(self::STYLE_HOSTS) . '; '
             . "img-src 'self' data: blob: https:; "
-            . "font-src 'self' data: " . self::FONT_HOSTS . '; '
+            . "font-src 'self' data:" . self::hosts(self::FONT_HOSTS) . '; '
             . "connect-src 'self' " . self::CONNECT_HOSTS . '; '
             // `blob:` is not decoration either, and it cost the same kind of silence.
             // The nominee's read-aloud fetches its audio from /my-work/{token}/speak and
@@ -313,7 +325,7 @@ final class Csp
             // indistinguishable from the endpoint having failed. A blob can only be
             // minted by a script this same policy already governs, so allowing the scheme
             // grants nothing a page could not already fetch.
-            . "media-src 'self' blob:" . (self::MEDIA_HOSTS !== '' ? ' ' . self::MEDIA_HOSTS : '') . '; '
+            . "media-src 'self' blob:" . self::hosts(self::MEDIA_HOSTS) . '; '
             // ── 'self' IS NOT DECORATION HERE ────────────────────────────────
             //
             // The admin console previews an uploaded document by pointing an iframe at
