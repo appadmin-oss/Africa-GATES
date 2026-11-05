@@ -3527,6 +3527,11 @@ return function(App $app) {
         $g->get('/email/unsubscribe',  EmailPrefsController::class . ':show');
         $g->post('/email/unsubscribe', EmailPrefsController::class . ':stop');
 
+        // A link pressed in an announcement (Mail\MailTraction): counted, then forwarded at
+        // once. The token is signed, so this is not an open redirect; the unsubscribe link
+        // above never comes through here.
+        $g->get('/m/c/{token:[A-Za-z0-9_.-]+}', \AfricaGates\Controllers\MailClickController::class . ':go');
+
         // The newsletter's way in, and its yes. /newsletter is a plain form that posts —
         // the only signup that existed was a script bound to a form no template renders.
         // /email/confirm is GET-shows, POST-confirms, for the same scanner reason as
@@ -4670,6 +4675,7 @@ return function(App $app) {
             $s->post('/{id:[0-9]+}/approve', \AfricaGates\Admin\Controllers\CampaignsController::class.':approve');
             $s->post('/{id:[0-9]+}/test',    \AfricaGates\Admin\Controllers\CampaignsController::class.':test');
             $s->post('/{id:[0-9]+}/send',    \AfricaGates\Admin\Controllers\CampaignsController::class.':send');
+            $s->post('/{id:[0-9]+}/stop',    \AfricaGates\Admin\Controllers\CampaignsController::class.':stop');
         });
 
         // ── JUDGING INTERVIEWS ────────────────────────────────────────

@@ -40,6 +40,10 @@
   .cp-kpi{border:1px solid rgba(16,41,44,.1);border-radius:9px;padding:10px 12px;background:#fff}
   .cp-kpi__l{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#5a6d6f}
   .cp-kpi__v{font-size:21px;font-weight:800;margin-top:3px;line-height:1.1}
+  .cp-out{margin-bottom:14px}
+  .cp-h3{margin:0 0 4px;font-size:14px}
+  .cp-note--after{margin:8px 0 0}
+  .cp-kpi--goal{border-width:2px}
   .cp-bad{border-left:3px solid #a32020;background:#fdf3f3;padding:11px 13px;border-radius:8px;margin-bottom:12px}
   .cp-bad li{font-size:13px;line-height:1.6;color:#7a1c1c;margin:0 0 5px 18px}
   .cp-ok{border-left:3px solid #177015;background:#f2f9f1;padding:11px 13px;border-radius:8px;margin-bottom:12px;font-size:13px;color:#1c5c19}
@@ -88,9 +92,20 @@
           <span>Subject line</span>
           <input name="subject" required maxlength="200" value="{{ c.subject }}">
         </label>
-        <label class="cp-f" style="margin-bottom:0">
+        <label class="cp-f">
           <span>Preheader — the grey line after the subject in an inbox list</span>
           <input name="preheader" maxlength="200" value="{{ c.preheader }}">
+        </label>
+        <label class="cp-f">
+          <span>A second subject to test (optional) — a share of the list gets each, and the rest get whichever more people clicked</span>
+          <input name="subject_b" maxlength="200" value="{{ c.subject_b|default('') }}">
+        </label>
+        <label class="cp-f">
+          <span>What this campaign is for — its results count this</span>
+          <select name="goal">
+            <option value="">Not set</option>
+            {% for k, label in goals %}<option value="{{ k }}"{{ c.goal|default('') == k ? ' selected' }}>{{ label }}</option>{% endfor %}
+          </select>
         </label>
       </div>
 
@@ -242,6 +257,56 @@
         <button class="ad-btn" type="submit">Send a test</button>
       </form>
 
+      {#
+        SENDING (Mail\Outbox): queued once, drained by every maintenance tick at the pace the
+        account allows — engaged readers first, each person at the hour they usually click,
+        quiet readers spaced out. Nobody has to keep pressing anything.
+      #}
+      {% if outbox.queued or outbox.sent or outbox.held or outbox.failed %}
+      <div class="ad-card cp-out">
+        <h3 class="cp-h3">Sending</h3>
+        <div class="cp-kpis">
+          <div class="cp-kpi"><div class="cp-kpi__l">Still to go</div><div class="cp-kpi__v">{{ outbox.queued|number_format }}</div></div>
+          <div class="cp-kpi"><div class="cp-kpi__l">Sent</div><div class="cp-kpi__v">{{ outbox.sent|number_format }}</div></div>
+          <div class="cp-kpi"><div class="cp-kpi__l">Held by the send rules</div><div class="cp-kpi__v">{{ outbox.held|number_format }}</div></div>
+          <div class="cp-kpi"><div class="cp-kpi__l">Failed</div><div class="cp-kpi__v">{{ outbox.failed|number_format }}</div></div>
+        </div>
+        <p class="cp-note">
+          {% if budget.why %}{{ budget.why }}{% elseif outbox.queued %}At {{ pace.per_hour|number_format }} an hour this should be done by about {{ outbox.eta }} (WAT). Some are timed for the hour that person usually reads us, so the last few can land later.{% else %}Everybody in the queue has been handled.{% endif %}
+          {% if outbox.waiting_ab %} {{ outbox.waiting_ab|number_format }} are waiting for the subject test to finish.{% endif %}
+        </p>
+        {% if outbox.tiers %}<p class="cp-note">Order: {% for t, n in outbox.tiers %}{{ {engaged: 'reads us', new: 'first time', normal: 'occasional', quiet: 'never responds'}[t]|default(t) }} {{ n|number_format }}{{ not loop.last ? ' · ' }}{% endfor %}.</p>{% endif %}
+        {% if outbox.queued %}
+        <form method="post" action="/admin/campaigns/{{ c.id }}/stop">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <button class="ad-btn" type="submit" data-confirm="Stop this campaign? Nobody else on the list is sent it.">Stop sending</button>
+        </form>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      {#
+        RESULTS (Mail\MailTraction): who pressed a link, and what they did next in that visit.
+        No open counts — "opened" is unmeasurable on most phones, and we use no tracking image.
+      #}
+      {% if traction.sent %}
+      <div class="ad-card cp-out">
+        <h3 class="cp-h3">Results</h3>
+        <div class="cp-kpis">
+          <div class="cp-kpi"><div class="cp-kpi__l">Clicked a link</div><div class="cp-kpi__v">{{ traction.clickers|number_format }}</div></div>
+          <div class="cp-kpi"><div class="cp-kpi__l">Click rate</div><div class="cp-kpi__v">{{ traction.rate }}%</div></div>
+          {% for k, label in goals %}{% if traction.conversions[k] is defined or c.goal|default('') == k %}
+          <div class="cp-kpi{{ c.goal|default('') == k ? ' cp-kpi--goal' }}"><div class="cp-kpi__l">{{ label }}{{ c.goal|default('') == k ? ' (the goal)' }}</div><div class="cp-kpi__v">{{ (k == 'read' ? traction.clickers : traction.conversions[k]|default(0))|number_format }}</div></div>
+          {% endif %}{% endfor %}
+        </div>
+        {% if traction.variants %}
+        <p class="cp-note">Subject test: A “{{ c.subject }}” {{ traction.variants.A.rate|default(0) }}% · B “{{ c.subject_b }}” {{ traction.variants.B.rate|default(0) }}%.
+          {% if c.ab_winner|default('') %}{{ c.ab_winner }} won and is going to everyone else.{% else %}The winner is chosen {{ ab_hours }} hours after the last test email.{% endif %}</p>
+        {% endif %}
+        <p class="cp-note">A click within a minute of delivery is a mail scanner, not a person, and is not counted. What somebody does within {{ window_days }} days of clicking, in the same visit, is credited here.</p>
+      </div>
+      {% endif %}
+
       <div class="ad-card" style="margin-bottom:14px">
         <h3 style="margin:0 0 4px;font-size:14px">
           {{ c.status == 'approved' ? 'Approved — ready to send' : 'Approve before sending' }}
@@ -260,15 +325,15 @@
         </form>
         <form method="post" action="/admin/campaigns/{{ c.id }}/send" style="display:inline">
           <input type="hidden" name="_token" value="{{ csrf_token }}">
-          <button class="ad-btn ad-btn--primary" type="submit" data-confirm="Send this campaign to {{ counts.sendable|number_format }} people now? It goes to real inboxes the moment you confirm, and a sent email cannot be called back."
+          <button class="ad-btn ad-btn--primary" type="submit" data-confirm="Start sending this campaign to {{ counts.sendable|number_format }} people? The first go out at once and the rest follow automatically, and a sent email cannot be called back."
             {{ (c.status != 'approved' or problems or not site_ok or counts.sendable == 0) ? 'disabled' : '' }}>
-            Send to {{ counts.sendable|number_format }}
+            Start sending to {{ counts.sendable|number_format }}
           </button>
         </form>
-        <p class="cp-note" style="margin:8px 0 0">
-          Sends in batches of 25 and reports what is left — press again to continue. A few
-          thousand SMTP calls is far past any shared host's time limit, and the send log's
-          unique key per address is what makes continuing safe rather than a re-send.
+        <p class="cp-note cp-note--after">
+          The first {{ first_batch }} go out at once; the rest are sent automatically, about
+          {{ pace.per_hour|number_format }} an hour (Settings → Email), people who read us
+          first. Pressing it again only adds anybody new to the list — nobody is sent it twice.
         </p>
       </div>
     {% endif %}

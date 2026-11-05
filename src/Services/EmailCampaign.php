@@ -281,7 +281,8 @@ final class EmailCampaign
      * @param  list<array<string,mixed>> $blocks
      * @return array{ok:bool, message:string, problems:list<string>}
      */
-    public static function save(int $id, string $subject, string $preheader, array $blocks, int $by = 0): array
+    public static function save(int $id, string $subject, string $preheader, array $blocks, int $by = 0,
+                                ?string $goal = null, ?string $subjectB = null): array
     {
         $c = self::find($id);
         if (!$c) return ['ok' => false, 'message' => 'No such campaign.', 'problems' => []];
@@ -293,6 +294,25 @@ final class EmailCampaign
 
         $subject = trim($subject);
         if ($subject === '') return ['ok' => false, 'message' => 'A campaign needs a subject line.', 'problems' => []];
+
+        // What the campaign is FOR (Mail\MailTraction::GOALS) and an optional second subject
+        // for an A/B test (Mail\Outbox). Both are copy: changing either un-approves, below.
+        $extra = [];
+        if ($goal !== null && \AfricaGates\Support\SchemaHas::column('gates_email_campaigns', 'goal')) {
+            $goal = trim($goal);
+            if ($goal !== '' && !isset(\AfricaGates\Services\Mail\MailTraction::GOALS[$goal])) {
+                return ['ok' => false, 'message' => 'Choose what this campaign is for from the list.', 'problems' => []];
+            }
+            $extra['goal'] = $goal !== '' ? $goal : null;
+        }
+        if ($subjectB !== null && \AfricaGates\Support\SchemaHas::column('gates_email_campaigns', 'subject_b')) {
+            $subjectB = trim($subjectB);
+            if ($subjectB !== '' && mb_strtolower($subjectB) === mb_strtolower($subject)) {
+                return ['ok' => false, 'message' => 'The second subject is the same as the first, so there is nothing to compare. Change it or leave it empty.', 'problems' => []];
+            }
+            $extra['subject_b'] = $subjectB !== '' ? mb_substr($subjectB, 0, 200) : null;
+            if (trim((string) ($c->subject_b ?? '')) !== $subjectB) $extra['ab_winner'] = null;
+        }
 
         $blocks = self::clean($blocks);
         if ($blocks === []) {
@@ -323,7 +343,7 @@ final class EmailCampaign
                 // Any edit un-approves. An approval is of specific words.
                 'status' => 'draft', 'approved_by' => null, 'approved_at' => null,
                 'updated_by' => $by ?: null, 'updated_at' => $now,
-            ]);
+            ] + $extra);
         } catch (\Throwable $e) {
             return ['ok' => false, 'message' => 'Could not save: ' . $e->getMessage(), 'problems' => []];
         }
