@@ -420,6 +420,9 @@ class OtpService
             $m->Subject = $subject;
             $build($m);
             $this->headers($m, $category, $unsubscribeUrl);
+            // Our own images ride inside the message, so a client that blocks linked images
+            // (Outlook, Yahoo, most work mail) still shows them (InlineImages).
+            \AfricaGates\Services\Mail\InlineImages::embed($m, $this->base());
         } catch (MailException|\Throwable $e) {
             // A message that cannot even be built (an address PHPMailer rejects) is not a
             // road problem, and no other road would fix it.

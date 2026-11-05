@@ -101,7 +101,7 @@ final class AppsScriptMail
         return [
             'to'       => (string) ($to[0][0] ?? ''),
             'subject'  => $m->Subject,
-            'html'     => $html ? $m->Body : '',
+            'html'     => $html ? InlineImages::html($m) : '',   // links again: see InlineImages
             'text'     => $html ? (string) $m->AltBody : $m->Body,
             'name'     => $m->FromName,
             'reply_to' => (string) ($reply[0][0] ?? $m->From),
