@@ -110,14 +110,17 @@
       {# ── THE SHEET (phone) / THE BUY COLUMN (wide) ─────────────────────────────── #}
       <div class="sp-buy">
         <div class="sp-buy__head">
-          <span class="sp-buy__maker">{{ p.subtitle ?: _cat }}</span>
+          {# The category is a way back into the shop, filtered to it — not a stray grey word. #}
+          {% if p.subtitle %}<span class="sp-buy__maker">{{ p.subtitle }}</span>{% elseif _cat %}<a class="sp-buy__maker sp-buy__catlink" href="/shop?c%5B%5D={{ _cat|url_encode }}">{{ _cat }}</a>{% endif %}
           <h1 class="sp-buy__h">{{ p.name }}</h1>
-          {% if p.subtitle and _cat %}<span class="sp-buy__cat">{{ _cat }}</span>{% endif %}
+          {% if p.subtitle and _cat %}<a class="sp-buy__cat sp-buy__catlink" href="/shop?c%5B%5D={{ _cat|url_encode }}">{{ 'More in %cat%'|trans({'%cat%': _cat}) }}</a>{% endif %}
           <span class="sp-buy__price"><b data-sp-price>{% if p.price_from %}<span class="sp-card__from">{{ 'From'|trans }} </span>{% endif %}{{ p.price_label }}</b><span class="sp-buy__gives">{{ 'Gives back'|trans }}</span></span>
           {% if fx.cur != 'NGN' %}<span class="sp-buy__ngn" data-sp-ngn-line>{{ 'Charged in Naira · %amount%'|trans({'%amount%': '₦' ~ p.display_price|number_format}) }}</span>{% endif %}
         </div>
 
-        {% if p.description %}<p class="sp-buy__desc sp-buy__desc--wide">{{ p.description }}</p>{% endif %}
+        {# What it is comes before the choices, on a phone too: it used to sit under the
+           delivery box there, so somebody picked a size before reading what they were buying. #}
+        {% if p.description %}<p class="sp-buy__desc">{{ p.description }}</p>{% endif %}
 
         {% for ax in axes %}
           <fieldset class="sp-opt sp-opt--{{ ax.kind }}" data-sp-axis="{{ ax.key }}">
@@ -187,10 +190,9 @@
               {%- elseif ship_free_over %}{{ 'Delivery ₦%rate% · free over ₦%over%'|trans({'%rate%': ship_rate|number_format, '%over%': ship_free_over|number_format}) }}
               {%- else %}{{ 'Delivery ₦%rate%'|trans({'%rate%': ship_rate|number_format}) }}{% endif -%}
             </span>
+            {% if _ships %}<span class="sp-deliv__s">{{ delivery_regions is empty ? 'Delivered nationwide.'|trans : 'Delivered to %list%.'|trans({'%list%': delivery_regions|join(', ')}) }}</span>{% endif %}
           </span>
         </div>
-
-        {% if p.description %}<p class="sp-buy__desc sp-buy__desc--phone">{{ p.description }}</p>{% endif %}
 
         {% if detail_sections is not empty %}
           <div class="sp-acc">
@@ -208,7 +210,6 @@
         <ul class="sp-perks">
           <li><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"></path></svg><span><b>{{ 'Gives back'|trans }}</b><span>{{ 'Every order funds child leadership programmes.'|trans }}</span></span></li>
           <li><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4"></path></svg><span><b>{{ 'Secure checkout'|trans }}</b><span>{{ 'Mobile money, card, bank transfer or USSD. Charged in Naira.'|trans }}</span></span></li>
-          <li><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7M7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"></path></svg><span><b>{{ 'Delivery'|trans }}</b><span>{{ delivery_regions is empty ? 'Delivered nationwide.'|trans : 'Delivered to %list%.'|trans({'%list%': delivery_regions|join(', ')}) }}{% if ship_free_over %} {{ 'Free over ₦%n%.'|trans({'%n%': ship_free_over|number_format}) }}{% endif %}</span></span></li>
         </ul>
       </div>
     </div>
