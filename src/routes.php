@@ -3962,7 +3962,13 @@ return function(App $app) {
             $l->get('/' . $leadPage, $c . ':root')->setArgument('page', $leadPage);
         }
         $l->get('/event/{id:[0-9]+}', $c . ':event');
-        foreach (['plan', 'award', 'people', 'crm', 'money', 'night', 'growth', 'reports', 'requests', 'settings', 'work', 'risks'] as $leadPage) {
+        // Every page the event's menu draws, read from the menu itself (EventPages::NAV), plus
+        // the first build's addresses that forward on (ALIASES). This was a typed list, and
+        // "Team & roles" was added to the menu and never to it: the link answered 404 for
+        // every lead who pressed it. LeadEventRoutesTest holds the two together.
+        $leadPages = array_keys(\AfricaGates\Services\EventPlan\EventPages::ALIASES);
+        foreach (\AfricaGates\Services\EventPlan\EventPages::NAV as [, $pages]) $leadPages = array_merge($leadPages, array_keys($pages));
+        foreach (array_unique(array_diff($leadPages, ['today'])) as $leadPage) {
             $l->get('/event/{id:[0-9]+}/' . $leadPage, $c . ':event')->setArgument('page', $leadPage);
         }
         $l->get('', $c . ':root');

@@ -9,6 +9,7 @@ use AfricaGates\Services\EventPlan\EventPermissions;
 use AfricaGates\Services\EventPlan\TeamPages;
 use AfricaGates\Services\EventPlan\Teams;
 use AfricaGates\Services\EventPlan\TeamSuggest;
+use AfricaGates\Services\EventPlan\TeamLoop;
 use AfricaGates\Services\EventPlan\LeadPages;
 use AfricaGates\Services\EventPlan\Outreach;
 use AfricaGates\Services\EventPlan\Plan;
@@ -202,6 +203,12 @@ final class LeadController
             'member_end' => [Teams::endMember($int('member'), $int('event'), (string) ($b['reason'] ?? ''), ['kind' => Plan::ACTOR, 'id' => $me['id'], 'name' => $me['name']]), '', 'event', $int('event')],
             'role_archive' => [Teams::archiveRole($int('role'), $int('event'), (string) ($b['reason'] ?? ''), ['kind' => Plan::ACTOR, 'id' => $me['id'], 'name' => $me['name']]), '', 'event', $int('event')],
             'team_suggest' => [$this->suggest($me, $int('event')), '', 'event', $int('event')],
+            // The team's loop (EventPlan\TeamLoop): reports, proof, suggestions and their decisions.
+            'report_add' => [TeamLoop::report($int('event'), $int('work') ?: null, $me['id'], $me['name'], (string) ($b['state'] ?? ''), $int('confidence'), (string) ($b['note'] ?? '')), '', 'event', $int('event')],
+            'work_done' => [TeamLoop::complete($int('work'), $me['id'], (string) ($b['proof'] ?? '')), '', 'event_work', $int('work')],
+            'work_return' => [TeamLoop::returnProof($int('work'), $me['id'], (string) ($b['why'] ?? '')), '', 'event_work', $int('work')],
+            'work_propose' => [$this->propose($me, $b), '', 'event', $int('event')],
+            'work_decide' => [TeamLoop::decide($int('work'), $me['id'], (string) ($b['verdict'] ?? ''), (string) ($b['note'] ?? ''), (string) ($b['proof'] ?? 'none')), '', 'event_work', $int('work')],
             default => [['ok' => false, 'error' => 'That isn’t something this page can do.'], '', '', 0],
         };
         if (!$r['ok']) return $this->back($res, $back, false, (string) ($r['error'] ?? 'That didn’t work.'));
@@ -209,7 +216,7 @@ final class LeadController
         // it; the row it touched travels in the meta.
         $meta = array_intersect_key($b, array_flip(['status', 'owner', 'title', 'name', 'label', 'stage', 'likelihood', 'impact', 'estimate', 'vendor',
                                                     'committed', 'paid', 'budget', 'series', 'type', 'action', 'admin', 'until', 'why', 'capability', 'email',
-                                                    'subject', 'verdict', 'reason', 'perms', 'ceiling', 'team_role', 'kind']));
+                                                    'subject', 'verdict', 'reason', 'perms', 'ceiling', 'team_role', 'kind', 'state', 'confidence', 'note', 'proof', 'proof_type']));
         if ($do === 'decide' && isset($r['verdict'])) $meta['verdict'] = $r['verdict'];   // 'changed' is the decision's, not the form's
         if ($type === 'event') {
             $target = (int) ($r['event'] ?? $target);
@@ -283,6 +290,17 @@ final class LeadController
         if (($b['subject'] ?? '') === 'role' && !isset($in['perms'])) $in['perms'] = [];
         return Teams::decide((string) ($b['subject'] ?? ''), (int) ($b['id'] ?? 0), (string) ($b['verdict'] ?? ''), (string) ($b['reason'] ?? ''),
             ['kind' => Plan::ACTOR, 'id' => $me['id'], 'name' => $me['name']], $in);
+    }
+
+    /** A lead's own work goes straight on the plan; anybody else on the team suggests it. */
+    private function propose(array $me, array $b): array
+    {
+        $event = (int) ($b['event'] ?? 0);
+        if (Plan::may($me['id'], $event, 'plan.edit')) {
+            $r = Plan::addWork($event, $b, $me['id']);
+            return $r['ok'] ? $r + ['msg' => 'Added to the plan.'] : $r;
+        }
+        return TeamLoop::propose($event, $me['id'], $b);
     }
 
     /** "Suggest a team": kept in the session for the page to draw as proposal forms. Applies nothing. */
