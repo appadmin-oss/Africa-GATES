@@ -284,7 +284,9 @@ final class VolunteerOutreachTest extends TestCase
         $this->assertStringContainsString('Hello Halima', $draft);
         $this->assertStringContainsString('a photo, a short bio, evidence of their work and to accept the terms', $draft, 'the draft names what the profile needs');
         $this->assertStringContainsString('/account/nomination', $draft);
-        $this->assertStringContainsString('Log it', $html, 'one-tap outcomes after a call');
+        // One-tap outcomes after a call: each is its own posting button with the outcome it logs.
+        $this->assertMatchesRegularExpression('~name="outcome" value="no_answer">\s*<button[^>]*>No answer</button>~', $html, 'one-tap outcomes after a call');
+        $this->assertMatchesRegularExpression('~name="outcome" value="left_message">\s*<button[^>]*>Left a message</button>~', $html);
     }
 
     /**
@@ -412,5 +414,22 @@ final class VolunteerOutreachTest extends TestCase
         $this->assertMatchesRegularExpression('~<p class="sh7-form__name">How it went</p>~', $html);
         $this->assertMatchesRegularExpression('~<legend class="sh7-field__label sh7-sr">How it went</legend>~', $html, 'printed twice');
         $this->assertDoesNotMatchRegularExpression('~<legend class="sh7-field__label">How it went</legend>~', $html);
+    }
+
+    /**
+     * The nominee page shows the one thing it is for. It stacked nine equally loud sections
+     * (3,400px on a phone); the numbers now live in the hero beside the buttons that use them,
+     * and the email form is folded until asked for — reachable by the hero's own link.
+     */
+    public function test_the_nominee_page_puts_the_email_form_behind_its_link(): void
+    {
+        $n = $this->nominee('Halima Bello');
+        $v = $this->volunteer([Outreach::CAPABILITY]);
+        Outreach::agree($v, $this->cycle);
+        $html = $this->page('all', ['n' => $n]);
+        $this->assertMatchesRegularExpression('~<details class="sh7-fold sh7-fold--form" id="write">~', $html, 'the email form is not folded');
+        $this->assertStringContainsString('href="#write"', $html, 'nothing opens it');
+        $this->assertStringNotContainsString('How to reach them', $html, 'the numbers are listed a second time');
+        $this->assertMatchesRegularExpression('~<dt>Phone</dt><dd>\+?2348031112233~', $html);
     }
 }

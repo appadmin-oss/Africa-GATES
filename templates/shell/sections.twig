@@ -141,8 +141,14 @@
 {% macro section(s, here, act) %}
 {% import _self as M %}
 {% set act = act ?: '/volunteer/act' %}
-<section class="sh7-sec sh7-sec--{{ s.k }}{{ s.box|default(false) ? ' is-boxed' }}"{% if s.anchor is defined %} id="{{ s.anchor }}" tabindex="-1"{% endif %}>
-  {% if s.h is defined and s.h and s.k != 'hero' %}<h2 class="sh7-sec__h">{{ s.h }}</h2>{% endif %}
+{# `fold`: secondary material behind a disclosure, named by its heading. A page shows the one
+   thing it is for and folds the rest — which is where most of a screen's quality comes from.
+   A link to the section's anchor opens it (the browser reveals a closed <details> holding the
+   target), and it needs no script. `open` starts it open when it was just used (an error). #}
+{% set _fold = s.fold|default(false) and s.h|default('') %}
+{% if _fold %}<details class="sh7-fold sh7-fold--{{ s.k }}"{% if s.anchor is defined %} id="{{ s.anchor }}"{% endif %}{{ s.open|default(false) ? ' open' }}><summary class="sh7-fold__s"><span class="sh7-fold__t">{{ s.h }}</span>{% if s.foldHint is defined and s.foldHint %}<span class="sh7-fold__hint">{{ s.foldHint }}</span>{% endif %}<span class="sh7-fold__mark" aria-hidden="true"></span></summary>{% endif %}
+<section class="sh7-sec sh7-sec--{{ s.k }}{{ s.box|default(false) ? ' is-boxed' }}{{ _fold ? ' is-folded' }}"{% if s.anchor is defined and not _fold %} id="{{ s.anchor }}" tabindex="-1"{% endif %}>
+  {% if s.h is defined and s.h and s.k != 'hero' and not _fold %}<h2 class="sh7-sec__h">{{ s.h }}</h2>{% endif %}
 
   {% if s.k == 'rows' %}
     <ul class="sh7-rows">
@@ -237,7 +243,13 @@
     </ol>
 
   {% elseif s.k == 'note' %}
+    {# `ctas`: several one-tap answers beside one sentence ("Just called? No answer · Left a
+       message"). A div, because a posting action is a <form> and a <p> cannot hold one. #}
+    {% if s.ctas is defined and s.ctas %}
+    <div class="sh7-note sh7-note--acts sh7-note--{{ s.tone|default('mute') }}"><span class="sh7-note__t">{{ s.text }}</span><span class="sh7-note__acts">{% for c in s.ctas %}{{ M.action(c, here, false, act) }}{% endfor %}</span></div>
+    {% else %}
     <p class="sh7-note sh7-note--{{ s.tone|default('mute') }}{{ s.pre|default(false) ? ' sh7-note--pre' }}">{{ s.text }}{% if s.cta is defined %} {{ M.action(s.cta, here, true, act) }}{% endif %}</p>
+    {% endif %}
 
   {% elseif s.k == 'hero' %}
     <div class="sh7-hero">
@@ -338,4 +350,5 @@
     </form>
   {% endif %}
 </section>
+{% if _fold %}</details>{% endif %}
 {% endmacro %}

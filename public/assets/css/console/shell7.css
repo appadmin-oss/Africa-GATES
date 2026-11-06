@@ -588,3 +588,62 @@ textarea.sh7-input { height: auto; min-height: 104px; padding-block: 10px; }
   .sh7-form__submit .sh7-btn--primary { width: 100%; }
   .sh7-field--radio .sh7-choice { flex: 1 1 calc(50% - 4px); }
 }
+
+/* ── Every section is a card (6 Nov 2026, second pass) ────────────────────────────────────
+   One sheet of white with hairlines between everything is what made these pages read as a
+   draft: a list, a form and a warning all had the same weight. Now each thing on a page is
+   a card of one radius, the page ground shows between them, and a note is a slim banner. */
+.sh7-sec--rows, .sh7-sec--table, .sh7-sec--agenda, .sh7-sec--article {
+  border: 1px solid var(--cn-card-edge); border-radius: var(--cn-r-18); padding: 16px 20px 6px; background: var(--cn-surface); }
+.sh7-sec--rows > .sh7-sec__h, .sh7-sec--table > .sh7-sec__h,
+.sh7-sec--agenda > .sh7-sec__h, .sh7-sec--article > .sh7-sec__h { font-size: var(--cn-fs-15); font-weight: 600; margin-bottom: 2px; }
+.sh7-sec--rows .sh7-row:last-child { border-bottom: 0; }
+.sh7-hero { border-radius: var(--cn-r-18); }
+
+/* Folded: a card whose heading is the control. */
+.sh7-fold { border: 1px solid var(--cn-card-edge); border-radius: var(--cn-r-18); background: var(--cn-surface); }
+.sh7-fold__s { display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 0 20px; cursor: pointer; list-style: none; border-radius: var(--cn-r-18); }
+.sh7-fold__s::-webkit-details-marker { display: none; }
+.sh7-fold__s:focus-visible { outline: 2px solid var(--cn-green); outline-offset: 2px; }
+.sh7-fold__t { font-weight: 600; font-size: var(--cn-fs-15); }
+.sh7-fold__hint { color: var(--cn-ink-3); font-size: var(--cn-fs-13); }
+.sh7-fold__mark { margin-inline-start: auto; width: 8px; height: 8px; border-right: 2px solid var(--cn-ink-3); border-bottom: 2px solid var(--cn-ink-3); transform: rotate(45deg); transition: transform var(--cn-dur-toggle); }
+.sh7-fold[open] > .sh7-fold__s .sh7-fold__mark { transform: rotate(-135deg); }
+.sh7-fold > .sh7-sec { border: 0; background: none; padding: 0 20px 20px; }
+@media (prefers-reduced-motion: reduce) { .sh7-fold__mark { transition: none; } }
+
+/* A sentence with its answers beside it: "Just called? [No answer] [Left a message]". */
+.sh7-note--acts { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+.sh7-note__acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.sh7-note__acts .sh7-btn { height: 40px; background: var(--cn-surface); }
+
+/* The hero's facts as a tidy two-column sheet, values able to wrap. */
+.sh7-hero .sh7-facts dd { overflow-wrap: anywhere; }
+
+@media (max-width: 720px) {
+  .sh7-sec--rows, .sh7-sec--table, .sh7-sec--agenda, .sh7-sec--article { padding: 14px 16px 4px; border-radius: var(--cn-r-14); }
+  .sh7-fold, .sh7-fold__s { border-radius: var(--cn-r-14); }
+  .sh7-fold__s { padding: 0 16px; }
+  .sh7-fold > .sh7-sec { padding: 0 16px 16px; }
+  .sh7-note__acts { width: 100%; }
+  .sh7-note__acts .sh7-btn { flex: 1; height: 44px; }
+}
+
+/* Answer tiles sit in a grid: two to a row on a phone, as many as fit on a desk. */
+.sh7-field--radio { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.sh7-field--radio > legend { grid-column: 1 / -1; }
+.sh7-field--radio .sh7-choice { padding-block: 8px; }
+@media (max-width: 720px) {
+  .sh7-field--radio .sh7-choice { flex: none; }
+  /* The main action across the card; the alternatives side by side under it. */
+  .sh7-hero__acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .sh7-hero__acts > :first-child { grid-column: 1 / -1; }
+  .sh7-hero__acts > :only-child { grid-column: 1 / -1; }
+}
+@media (max-width: 720px) {
+  .sh7-note__acts .sh7-inline { flex: 1; display: flex; }
+  .sh7-note__acts .sh7-inline .sh7-btn { width: 100%; }
+}
+/* Facts in pairs: four across left a phone number, an address and two sentences each a
+   ribbon a word wide, beside a side panel. */
+.sh7-hero .sh7-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }

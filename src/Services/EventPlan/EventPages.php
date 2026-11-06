@@ -330,7 +330,9 @@ final class EventPages
     {
         $opts = ['' => 'The event as a whole'];
         foreach ($work as $w) $opts[(string) $w->id] = (string) $w->title;
-        return ['k' => 'form', 'h' => 'Send a quick report', 'do' => $act, 'hidden' => ['event' => $eventId], 'submit' => 'Send report', 'groups' => [
+        // Folded: a report is something a lead sends now and then, and open it pushed the event's
+        // own work below the first screen of the page whose job is showing that work.
+        return ['k' => 'form', 'h' => 'Send a quick report', 'fold' => true, 'foldHint' => 'On track, at risk or blocked', 'do' => $act, 'hidden' => ['event' => $eventId], 'submit' => 'Send report', 'groups' => [
             ['label' => 'Where it stands', 'help' => 'Blocked needs a line saying why; two blocked reports on one piece of work in a week put it in front of a lead.',
              'fields' => [['name' => 'state', 'label' => 'State', 'type' => 'segmented', 'options' => TeamLoop::STATES, 'value' => 'ok'],
                           ['name' => 'work', 'label' => 'About', 'type' => 'select', 'options' => $opts, 'id' => 'rep_work_' . $eventId],
