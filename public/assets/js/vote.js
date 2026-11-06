@@ -217,13 +217,26 @@
           .then(function () { tsReset(); busy(btn, false); if (sent) cooldown(30); });
       }
 
-      var confirm = $('[data-confirm]', form);
+      var confirm = $('[data-confirm]', form), voteKey = '', voteIdentity = '';
+      function attemptKey() {
+        var identity = val('email').trim().toLowerCase() + ':' + entry.n;
+        if (identity !== voteIdentity || !voteKey) {
+          voteIdentity = identity;
+          if (window.crypto && window.crypto.randomUUID) voteKey = window.crypto.randomUUID();
+          else if (window.crypto && window.crypto.getRandomValues) {
+            var bytes = new Uint8Array(16); window.crypto.getRandomValues(bytes);
+            voteKey = Array.prototype.map.call(bytes, function (n) { return ('0' + n.toString(16)).slice(-2); }).join('');
+          } else voteKey = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+        }
+        return voteKey;
+      }
       function confirmVote() {
         say(errOtp, '');
         if (!confirm || confirm.getAttribute('aria-busy') === 'true') return;
         if (!/^\d{6}$/.test(val('otp'))) { refuse(errOtp, W('code', 'Enter the 6-digit code.'), 'otp'); return; }
         busy(confirm, true);
         api('/api/vote', { email: val('email'), otp: val('otp'), nominee_id: +entry.n, award_id: +pid, name: val('name'), phone: val('phone'),
+                           idempotency_key: attemptKey(),
                            message: val('message'), message_show_name: form.elements.message_show_name && form.elements.message_show_name.checked,
                            accept_terms: agree && agree.checked ? 1 : 0 })
           .then(function (d) {
@@ -233,7 +246,7 @@
               location.href = location.pathname + '#ballot';
               location.reload();
             } else { busy(confirm, false); refuse(errOtp, (d && d.message) || 'Could not record your vote.', 'otp'); }
-          }).catch(function () { busy(confirm, false); say(errOtp, W('net', 'Network error. Please try again.')); });
+          }).catch(function () { busy(confirm, false); say(errOtp, W('confirm-net', 'We couldn’t confirm the response. Try again to check whether your vote counted.')); });
       }
 
       form.addEventListener('submit', function (e) {

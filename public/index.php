@@ -33,17 +33,23 @@ declare(strict_types=1);
  * at a broken site, not a stack trace reader.
  */
 if (PHP_VERSION_ID < 80400) {
-    http_response_code(500);
+    // Owner, 5 Nov 2026: "It is not nice that users see this whenever there's issues with the
+    // version." The visitor gets a calm "back shortly" page and a 503 (search engines and
+    // uptime checks read that as temporary); the operator's diagnosis goes to the error log,
+    // where it was always more useful than on a stranger's screen.
+    error_log('Africa GATES cannot start: PHP ' . PHP_VERSION . ' is running and 8.4 or newer is required (composer.json). '
+        . 'Fix: cPanel > MultiPHP Manager > this domain > ea-php84 > Apply.');
+    http_response_code(503);
+    header('Retry-After: 600');
     header('Content-Type: text/html; charset=utf-8');
-    echo '<!doctype html><meta charset="utf-8"><title>Africa GATES — PHP too old</title>'
-       . '<div style="font:16px/1.6 system-ui,sans-serif;max-width:44rem;margin:8vh auto;padding:0 1.5rem">'
-       . '<h1 style="font-size:1.3rem">This PHP version cannot run Africa GATES</h1>'
-       . '<p>Running <b>PHP ' . PHP_VERSION . '</b>; this application requires <b>8.4</b> or newer '
-       . '(see <code>composer.json</code>). Most of the codebase does not parse on PHP 7.x, so the '
-       . 'site cannot start — and an older copy of the app may keep answering while your edits '
-       . 'appear to have no effect.</p>'
-       . '<p><b>Fix:</b> cPanel &rarr; <i>MultiPHP Manager</i> &rarr; select this domain &rarr; set '
-       . '<b>ea-php84</b> &rarr; Apply. Then reload.</p></div>';
+    header('Cache-Control: no-store');
+    echo '<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+       . '<meta name="robots" content="noindex"><title>Africa GATES — back shortly</title>'
+       . '<div style="font:16px/1.6 system-ui,sans-serif;max-width:32rem;margin:12vh auto;padding:0 1.5rem;text-align:center">'
+       . '<h1 style="font-size:1.4rem;margin:0 0 .5rem">We&rsquo;ll be right back</h1>'
+       . '<p style="margin:0 0 1rem">Africa GATES is having a short technical pause. Nothing you have done is lost &mdash; '
+       . 'please try again in a few minutes.</p>'
+       . '<p style="margin:0"><a href="" style="color:inherit">Try again</a></p></div></html>';
     exit;
 }
 
@@ -227,6 +233,7 @@ $app->add(new \AfricaGates\Middleware\LanguageMiddleware());
 
 $app->add(new CsrfMiddleware());
 $app->addBodyParsingMiddleware();
+$app->add(new \AfricaGates\Middleware\UploadSizeMiddleware());
 
 // Error handler — reuse the single error-visibility decision computed above.
 $errMiddleware = $app->addErrorMiddleware($showErrors, true, true);

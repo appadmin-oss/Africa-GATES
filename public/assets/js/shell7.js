@@ -10,6 +10,14 @@
    token is refreshed under an open page (csrf-fresh), and a copy would go stale. */
 (function () {
   'use strict';
+  // Keep a directly opened subpage's current tab visible without moving the page vertically.
+  var tabRail = document.querySelector('.sh7-tabs');
+  var currentTab = tabRail && tabRail.querySelector('[aria-current="page"]');
+  if (currentTab) {
+    var railBox = tabRail.getBoundingClientRect(), tabBox = currentTab.getBoundingClientRect();
+    if (tabBox.right > railBox.right || tabBox.left < railBox.left) tabRail.scrollLeft += tabBox.left - railBox.left - 16;
+  }
+
   // What just happened, said aloud. A live region filled before the reader is listening is
   // often not announced, so the message is repeated into the empty regions a moment after
   // load: an error into the alert region, a confirmation into the polite one.

@@ -42,6 +42,32 @@
     {% endfor %}
   </div>
 
+  {#
+    Appearance: match the device, light, dark or sepia. Matching is the default and stores
+    nothing; the night and sepia values are Support\Accent::NIGHT and ::SEPIA, measured
+    like the day's.
+  #}
+  <span class="ag-dr__sub" id="ag-dr-scheme-{{ _uid }}">{{ 'Appearance'|trans }}</span>
+  {#
+    Each option shows a swatch of its own scheme (`ag-pv-*`, Accent::css() scopes the palette
+    to it), so the choice is seen before it is made. "Device" is half light, half dark. The
+    visible word is the accessible name (WCAG 2.5.3); the title spells "Device" out.
+  #}
+  <div class="ag-seg ag-dr__seg ag-dr__seg--scheme" role="radiogroup" aria-labelledby="ag-dr-scheme-{{ _uid }}">
+    {% for o in [{i:0, name:'Device', pv:'device', title:'Match this device’s light or dark setting'}, {i:1, name:'Light', pv:'light'}, {i:2, name:'Dark', pv:'dark'}, {i:3, name:'Sepia', pv:'sepia'}] %}
+      <button type="button" class="ag-seg__opt ag-dr__scheme" role="radio"
+              aria-checked="{{ o.i == 0 ? 'true' : 'false' }}" tabindex="{{ o.i == 0 ? '0' : '-1' }}"
+              {% if o.title is defined %}title="{{ o.title|trans }}" {% endif %}data-ag-scheme="{{ o.i }}">
+        {%- if o.pv == 'device' -%}
+          <span class="ag-dr__pv ag-dr__pv--split" aria-hidden="true"><span class="ag-pv-light"></span><span class="ag-pv-dark"></span></span>
+        {%- else -%}
+          <span class="ag-dr__pv ag-pv-{{ o.pv }}" aria-hidden="true"></span>
+        {%- endif -%}
+        <span>{{ o.name|trans }}</span>
+      </button>
+    {% endfor %}
+  </div>
+
   {% for t in [
     {k:'hc',     label:'High contrast',       help:'Darker text and borders'},
     {k:'easy',   label:'Easy-read font',      help:'Atkinson Hyperlegible, more letter spacing'},

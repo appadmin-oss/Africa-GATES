@@ -44,6 +44,8 @@ final class Plan
     ];
 
     public const STATUSES = ['todo' => 'Not started', 'doing' => 'In progress', 'done' => 'Done'];
+    /** Work in these states is not on the plan yet (a suggestion) or never will be: it counts nowhere (TeamLoop). */
+    public const OFF_PLAN = ['proposed', 'declined'];
     public const LIKELIHOOD = ['unlikely' => 'Unlikely', 'possible' => 'Possible', 'likely' => 'Likely'];
     public const IMPACT = ['low' => 'Low impact', 'medium' => 'Medium impact', 'high' => 'High impact'];
     public const LINE_STATUSES = ['proposed' => 'Not approved yet', 'approved' => 'Approved', 'requested' => 'With finance', 'declined' => 'Declined'];
@@ -193,7 +195,10 @@ final class Plan
         if ($hours !== null && ($hours < 0 || $hours > 500)) return ['ok' => false, 'error' => 'Hours must be between 0 and 500.'];
         $blocks = (string) ($in['blocks_night'] ?? '') === '1';
         $now = date('Y-m-d H:i:s');
-        $id = (int) DB::table('gates_event_work')->insertGetId([
+        // What proves it done is chosen now, not argued about later (TeamLoop, plan AT-6).
+        $proof = (string) ($in['proof_type'] ?? 'none');
+        $extra = SchemaHas::column('gates_event_work', 'proof_type') ? ['proof_type' => isset(TeamLoop::PROOF[$proof]) ? $proof : 'none'] : [];
+        $id = (int) DB::table('gates_event_work')->insertGetId($extra + [
             'event_id' => $eventId, 'title' => mb_substr($title, 0, 255), 'detail' => trim((string) ($in['detail'] ?? '')) ?: null,
             'owner_kind' => $kind, 'owner_id' => $oid, 'due_at' => $due, 'est_hours' => $hours, 'status' => 'todo',
             'blocks_night' => $blocks ? 1 : 0, 'blocks_note' => $blocks ? (mb_substr(trim((string) ($in['blocks_note'] ?? '')), 0, 255) ?: null) : null,
@@ -209,6 +214,9 @@ final class Plan
         $w = self::ready() ? DB::table('gates_event_work')->where('id', $workId)->first() : null;
         if (!$w) return ['ok' => false, 'error' => 'That work is not there.'];
         if (!self::may($leadId, (int) $w->event_id, 'plan.edit')) return ['ok' => false, 'error' => 'Only a lead of this event, or a team role that includes it, can change its plan.'];
+        if (in_array($w->status, self::OFF_PLAN, true)) return ['ok' => false, 'error' => 'Decide the suggestion first.'];
+        // Done goes through the proof check: work that needs proof is held until it has it.
+        if ($status === 'done' && (string) ($w->proof_type ?? 'none') !== 'none' && TeamLoop::ready()) return TeamLoop::complete($workId, $leadId, '');
         DB::table('gates_event_work')->where('id', $workId)->update([
             'status' => $status, 'done_at' => $status === 'done' ? date('Y-m-d H:i:s') : null, 'updated_at' => date('Y-m-d H:i:s'),
         ]);
@@ -236,7 +244,7 @@ final class Plan
     public static function work(array $eventIds, bool $openOnly = false): array
     {
         if (!self::ready() || $eventIds === []) return [];
-        $q = DB::table('gates_event_work')->whereIn('event_id', $eventIds);
+        $q = DB::table('gates_event_work')->whereIn('event_id', $eventIds)->whereNotIn('status', self::OFF_PLAN);
         if ($openOnly) $q->where('status', '!=', 'done');
         $rows = $q->orderBy('id')->get()->all();
         usort($rows, static fn ($a, $b) => [$a->due_at === null ? 1 : 0, (string) $a->due_at, $a->id] <=> [$b->due_at === null ? 1 : 0, (string) $b->due_at, $b->id]);
@@ -252,7 +260,7 @@ final class Plan
     public static function readiness(int $eventId): ?array
     {
         if (!self::ready()) return null;
-        $all = (int) DB::table('gates_event_work')->where('event_id', $eventId)->count();
+        $all = (int) DB::table('gates_event_work')->where('event_id', $eventId)->whereNotIn('status', self::OFF_PLAN)->count();
         if ($all === 0) return null;
         $done = (int) DB::table('gates_event_work')->where('event_id', $eventId)->where('status', 'done')->count();
         return ['done' => $done, 'all' => $all, 'pct' => (int) floor($done * 100 / $all)];

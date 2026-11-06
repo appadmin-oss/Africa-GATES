@@ -233,6 +233,11 @@ final class Maintenance
             // tick, because it is a batch and a list of thousands is many ticks long; when
             // the schedule is off, or nothing is due or approved, it is two queries.
             $ran[] = ['newsletter',    $this->task('newsletter', fn() => $this->newsletter()->tick())];
+            // The announcement outbox (Mail\Outbox): campaigns queued once and sent here at the
+            // account's pace, engaged readers first. AFTER mailhealth for the newsletter's
+            // reason — it holds while an incident is open — and every tick, because a pace is
+            // only kept by being asked often. Two queries when nothing is due.
+            $ran[] = ['mail-outbox',   $this->task('mail-outbox', fn() => $this->outbox())];
             // The CACENTRE CRM's Audience: subscribers, opt-outs, bounces, enquiries and gifts,
             // pushed signed. AFTER the newsletter, so a confirmation or stop the newsletter
             // tick just wrote goes out on this one. A few queries when nothing is new, and
@@ -442,6 +447,8 @@ final class Maintenance
                 // An operator who has just approved an issue should not have to wait for the
                 // next tick to see the first batch go.
                 'newsletter' => $ran[] = ['newsletter', $this->task('newsletter', fn() => $this->newsletter()->tick())],
+                // Same reason: a campaign just started should not wait a tick for its next batch.
+                'mail-outbox' => $ran[] = ['mail-outbox', $this->task('mail-outbox', fn() => $this->outbox())],
                 // Addressable by name because there is no SSH on this account: when a round
                 // opens sooner than the hourly sweep can fill it, `/__cron/run?task=judgemaps`
                 // is the only way anybody can ask for another batch.
@@ -1135,7 +1142,10 @@ final class Maintenance
         try {
             $q = new QueueService();
             $sheets = $this->container?->get(GoogleSheetsService::class);
-            $q->on('vote.sheets_push', function (array $p) use ($sheets) { $sheets?->pushVote($p); });
+            $q->on('vote.sheets_push', function (array $p) use ($sheets) {
+                if (!$sheets) throw new \RuntimeException('Google Sheets delivery is unavailable.');
+                $sheets->pushVote($p);
+            });
             $sms = SmsService::boot();
             $q->on(SmsService::JOB_SMS, function (array $p) use ($sms) {
                 $sms->deliver('sms', (string)($p['to'] ?? ''), (string)($p['body'] ?? ''), (string)($p['template'] ?? 'generic'));
@@ -1325,6 +1335,17 @@ final class Maintenance
     }
 
     /** The newsletter sender, on this deployment's transport and site address. */
+    /** One drain of the announcement outbox. Returns how many were sent. */
+    private function outbox(): int
+    {
+        $mailer = null;
+        try {
+            $mailer = $this->container?->get(OtpService::class);
+        } catch (\Throwable) {
+        }
+        return \AfricaGates\Services\Mail\Outbox::drain($mailer instanceof OtpService ? $mailer : OtpService::boot(), SiteUrl::base())['sent'];
+    }
+
     private function newsletter(): \AfricaGates\Services\Newsletter\Newsletter
     {
         $mailer = null;

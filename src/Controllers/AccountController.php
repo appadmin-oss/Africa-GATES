@@ -2151,19 +2151,26 @@ class AccountController
         // Optional password change — require the current password when one is already set.
         $newPw = (string) ($b['new_password'] ?? '');
         if ($newPw !== '') {
-            if (strlen($newPw) < 8) {
-                $_SESSION['flash_error'] = 'New password must be at least 8 characters.';
+            $changed = $this->accounts->changePassword((int) $user->id, $newPw, (string) ($b['current_password'] ?? ''));
+            if (!$changed['ok']) {
+                $_SESSION['flash_error'] = $changed['error'];
                 return $res->withHeader('Location', '/account?tab=profile#profile')->withStatus(302);
             }
-            if (!empty($user->password_hash) && !password_verify((string) ($b['current_password'] ?? ''), (string) $user->password_hash)) {
-                $_SESSION['flash_error'] = 'Your current password is incorrect.';
-                return $res->withHeader('Location', '/account?tab=profile#profile')->withStatus(302);
-            }
-            $this->accounts->setPassword((int) $user->id, $newPw);
         }
 
         $_SESSION['flash_ok'] = 'Your account was updated.';
         return $res->withHeader('Location', '/account?tab=profile#profile')->withStatus(302);
+    }
+
+    /** Security updates never rewrite profile fields from an older browser tab. */
+    public function passwordUpdate(Request $req, Response $res): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        $b = (array) $req->getParsedBody();
+        $changed = $this->accounts->changePassword((int) $user->id, (string) ($b['new_password'] ?? ''), (string) ($b['current_password'] ?? ''));
+        $_SESSION[$changed['ok'] ? 'flash_ok' : 'flash_error'] = $changed['ok'] ? 'Your password was updated.' : $changed['error'];
+        return $res->withHeader('Location', '/account?tab=security#password')->withStatus(302);
     }
 
     public function logout(Request $req, Response $res): Response

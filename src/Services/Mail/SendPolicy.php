@@ -105,7 +105,7 @@ final class SendPolicy
         $limit = self::dailyLimit();
         if ($limit > 0 && MailLog::sentSince(Carbon::now()->subHours(24)->toDateTimeString()) >= (int) floor($limit * self::BULK_SHARE)) {
             return ['status' => self::DEFERRED,
-                    'reason' => sprintf('The mail account’s daily allowance is %d and announcements stop at %d%% of it, so sign-in codes keep working.',
+                    'reason' => sprintf('The daily allowance across the email roads is %d and announcements stop at %d%% of it, so sign-in codes keep working.',
                                         $limit, (int) round(self::BULK_SHARE * 100))];
         }
 
@@ -129,7 +129,10 @@ final class SendPolicy
     private static function dailyLimit(): int
     {
         if (self::$limitMemo === null || time() - self::$limitMemo[0] >= 60) {
-            self::$limitMemo = [time(), MailConfig::load()->dailyLimit()];
+            // The COMBINED allowance of every road that may carry announcements, not the SMTP
+            // account's alone (RoadCapacity): with Brevo's API beside a Gmail account, the cap
+            // used to stop announcements at 300 while the API sat unused.
+            self::$limitMemo = [time(), RoadCapacity::bulkTotal()];
         }
         return self::$limitMemo[1];
     }
@@ -138,6 +141,7 @@ final class SendPolicy
     public static function forget(): void
     {
         self::$limitMemo = null;
+        RoadCapacity::forget();
     }
 
     public static function reserved(string $email): bool

@@ -35,19 +35,25 @@
 .ag-cover--stone { --cv-bg: var(--ag-cover-stone-bg); --cv-line: var(--ag-cover-stone-line); --cv-ink: var(--ag-cover-stone-ink); --cv-games: url('/img/patterns/games-stone.svg'); }
 
 /* ── the pattern, faded where the content sits (§6) ─────────────────────────── */
-.ag-cover__pat {
+.ag-cover__pattern-mask {
   position: absolute; inset: 0;
   -webkit-mask-image: linear-gradient(100deg, transparent 0 22%, black 70%);
           mask-image: linear-gradient(100deg, transparent 0 22%, black 70%);
 }
-.ag-cover--none .ag-cover__pat {
+.ag-cover--none .ag-cover__pattern-mask {
   -webkit-mask-image: radial-gradient(circle at 50% 50%, transparent 0 18cqmin, black 46cqmin);
           mask-image: radial-gradient(circle at 50% 50%, transparent 0 18cqmin, black 46cqmin);
 }
-[dir="rtl"] .ag-cover:not(.ag-cover--none) .ag-cover__pat {
+[dir="rtl"] .ag-cover:not(.ag-cover--none) .ag-cover__pattern-mask {
   -webkit-mask-image: linear-gradient(260deg, transparent 0 22%, black 70%);
           mask-image: linear-gradient(260deg, transparent 0 22%, black 70%);
 }
+
+/* Mirror decoration inside the unchanged readability mask; content and glyphs stay upright. */
+.ag-cover__pat { position:absolute; inset:0; }
+.ag-cover--variant-1 .ag-cover__pat { transform:scaleX(-1); }
+.ag-cover--variant-2 .ag-cover__pat { transform:scaleY(-1); }
+.ag-cover--variant-3 .ag-cover__pat { transform:scale(-1); }
 
 .ag-cover--arches .ag-cover__pat { background:
   radial-gradient(circle at 80% 122%, var(--cv-b) 0 46cqmin, transparent 46.3cqmin),
@@ -262,3 +268,6 @@
 .ag-avatar--s160 .ag-avatar__badge { box-shadow: 0 0 0 4px var(--ag-surface); }   /* max(2, size/40) */
 .ag-avatar__badge--verified { background: var(--ag-info); color: var(--ag-surface); }
 .ag-avatar__badge svg { width: 60%; height: 60%; }
+
+/* Shared member portraits, including the compact navigation avatar. */
+.ag-member-photo{display:block;width:100%;height:100%;object-fit:cover;border-radius:inherit;min-width:0}

@@ -28,9 +28,11 @@ use Illuminate\Database\Capsule\Manager as DB;
  *
  * What stays true, and why:
  *
- *   · HOLDING THE ADDRESS IS THE PROOF. A role switches on only for an account whose email is
- *     CONFIRMED — the rule Account\Roles and Leads already hold; an unconfirmed account could
- *     be somebody who typed a stranger's address, and a lead moves money and messages guests.
+ *   · HOLDING THE ADDRESS IS THE PROOF — for a lead or an owner. Those switch on only for an
+ *     account whose email is CONFIRMED — the rule Account\Roles and Leads already hold; an
+ *     unconfirmed account could be somebody who typed a stranger's address, and a lead moves
+ *     money and messages guests. A volunteer role rests on the volunteer approval instead
+ *     (eligible()), which is the stronger proof and was otherwise asked for twice.
  *   · A VOLUNTEER ROLE NEEDS AN APPROVED VOLUNTEER. Volunteers are vetted (an application,
  *     references, the volunteer team's approval). An invitation never skips that: it waits
  *     until the account's volunteer record is active, and says so in the email.
@@ -91,7 +93,7 @@ final class RoleInvites
         // What the email asks them to do: a volunteer role always needs an approved application
         // (applying starts with an account); a lead needs an account, then a confirmed address.
         $vol = str_starts_with($capability, 'vol.');
-        $state = $u && (int) ($u->email_verified ?? 0) !== 1 ? 'confirm' : ($vol ? 'apply' : 'account');
+        $state = $vol ? 'apply' : ($u && (int) ($u->email_verified ?? 0) !== 1 ? 'confirm' : 'account');
         $sent = self::tell($email, (string) ($u->name ?? ''), $capability, $event, $expires, $state, $by, $label);
         return ['ok' => true, 'pending' => true, 'id' => $id, 'emailed' => $sent];
     }
@@ -107,7 +109,9 @@ final class RoleInvites
     {
         if ($userId <= 0 || !self::ready()) return 0;
         $u = DB::table('gates_users')->where('id', $userId)->first();
-        if (!$u || (int) ($u->email_verified ?? 0) !== 1 || (string) ($u->status ?? 'active') !== 'active') return 0;
+        // Not "confirmed address" here: eligible() decides per role, and a volunteer role does
+        // not need it (see there). An empty or inactive account can claim nothing.
+        if (!$u || trim((string) ($u->email ?? '')) === '' || (string) ($u->status ?? 'active') !== 'active') return 0;
         $n = 0;
         foreach (DB::table('gates_role_invites')->whereRaw('LOWER(email) = ?', [strtolower((string) $u->email)])->where('status', 'pending')->get()->all() as $i) {
             if (strtotime((string) $i->expires_at) <= time()) {
@@ -154,19 +158,68 @@ final class RoleInvites
             $r->role = Grants::CAPABILITIES[$r->capability] ?? $r->capability;
             $r->until = Workspace::day((string) $r->expires_at);
             $r->by = (string) ($r->invited_by_name ?: ($r->invited_by_kind === 'admin' ? 'An administrator' : 'A lead'));
-            $u = DB::table('gates_users')->whereRaw('LOWER(email) = ?', [strtolower((string) $r->email)])->first(['id', 'email_verified']);
-            $r->waiting = !$u ? 'for them to create an account with this address'
-                : ((int) ($u->email_verified ?? 0) !== 1 ? 'for them to confirm their email address'
-                : (str_starts_with((string) $r->capability, 'vol.') ? 'for their volunteer application to be approved' : 'for their next sign-in'));
+            $r->waiting = self::reason((string) $r->email, (string) $r->capability);
         }
         return $rows;
     }
 
-    /** May this account hold this role now? A lead: an active, confirmed account. A volunteer role: an approved volunteer too. */
+    /**
+     * What an invitation to this address is waiting for, in words a person can act on. One
+     * answer for staff's list, a lead's list and the invited person's own page, so the three
+     * cannot describe the same wait differently.
+     */
+    public static function reason(string $email, string $capability): string
+    {
+        $u = DB::table('gates_users')->whereRaw('LOWER(email) = ?', [strtolower(trim($email))])->first();
+        if (!$u) return 'for them to create an account with this address';
+        if ((string) ($u->status ?? 'active') !== 'active') return 'for their account to be active again';
+        $vol = str_starts_with($capability, 'vol.');
+        if ($vol) {
+            return DB::table('gates_volunteers')->where('user_id', (int) $u->id)->exists()
+                ? 'for their volunteer application to be approved' : 'for them to apply to volunteer';
+        }
+        return (int) ($u->email_verified ?? 0) !== 1 ? 'for them to confirm their email address' : 'for their next sign-in';
+    }
+
+    /**
+     * The invitations waiting for THIS account's own address, each with what it waits for —
+     * so the person it is for is told on their own page instead of seeing "nothing yet".
+     *
+     * @return list<object> each with ->role, ->title (the event), ->until, ->waiting, ->capability
+     */
+    public static function mine(int $userId): array
+    {
+        if ($userId <= 0 || !self::ready()) return [];
+        $email = strtolower(trim((string) DB::table('gates_users')->where('id', $userId)->value('email')));
+        if ($email === '') return [];
+        $out = [];
+        foreach (DB::table('gates_role_invites')->whereRaw('LOWER(email) = ?', [$email])->where('status', 'pending')->where('scope_kind', 'event')
+                     ->where('expires_at', '>', date('Y-m-d H:i:s'))->orderBy('id')->get()->all() as $r) {
+            $r->role = Grants::CAPABILITIES[$r->capability] ?? $r->capability;
+            $r->title = (string) (DB::table('gates_site_events')->where('id', (int) $r->scope_id)->value('title') ?? 'An event');
+            $r->until = Workspace::day((string) $r->expires_at);
+            $r->waiting = self::reason($email, (string) $r->capability);
+            $out[] = $r;
+        }
+        return $out;
+    }
+
+    /**
+     * May this account hold this role now?
+     *
+     *   · A LEAD or an owner: an active account whose email address is CONFIRMED. Leading moves
+     *     money and messages guests, and holding the address is the only proof of who it is.
+     *   · A VOLUNTEER ROLE: an approved volunteer, confirmed address or not (owner, 5 Nov 2026:
+     *     "add volunteers to an event does not work"). The volunteer team's approval —
+     *     application, references, a person deciding — is the stronger proof of who somebody is,
+     *     and it was being asked for twice: a volunteer who signs in with a code texted to their
+     *     phone never has their email marked confirmed, so every role a lead offered them waited
+     *     for ever, with the lead's page saying it was on its way.
+     */
     public static function eligible(object $u, string $capability): bool
     {
-        if ((int) ($u->email_verified ?? 0) !== 1 || (string) ($u->status ?? 'active') !== 'active') return false;
-        if (!str_starts_with($capability, 'vol.')) return true;
+        if ((string) ($u->status ?? 'active') !== 'active') return false;
+        if (!str_starts_with($capability, 'vol.')) return (int) ($u->email_verified ?? 0) === 1;
         return DB::table('gates_volunteers')->where('user_id', (int) $u->id)->whereIn('status', ['active', 'paused'])->exists();
     }
 

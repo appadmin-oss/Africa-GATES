@@ -58,9 +58,11 @@
   border-radius:var(--ag-r-12); font-size:var(--ag-fs-14-5);
 }
 .org-flag--ok{ background:var(--ag-green-wash); color:var(--ag-green-deep); }
-/* A refusal is ERROR WORDS on the live wash — there is no inverted error
-   block in the handoff, and the audit tile does the same. */
-.org-flag--err{ background:var(--ag-live-wash); color:var(--ag-error); }
+/* A refusal is ERROR WORDS on a plain card — the site's own flash rail
+   (components/chrome.css, .ag-flash--error) draws it the same way. It was
+   on the live wash, a third colour family on a tier-2 console already
+   spending green and gold (ColourBudgetTest). */
+.org-flag--err{ background:var(--ag-surface); border:1px solid var(--ag-line); color:var(--ag-error); }
 .org-flag--todo{ background:var(--ag-gold-wash-2); color:var(--ag-gold-ink); }
 
 /* ── the state panel: what stops what ───────────────────────────── */

@@ -48,7 +48,7 @@ final class AdminNavRenderTest extends TestCase
     {
         $html = $this->render(\AfricaGates\Admin\Controllers\PayoutsController::class, 'index', 'superadmin', '/admin/payouts');
 
-        foreach (['Awards', 'Engage', 'Audience', 'Money', 'Content', 'Organisation'] as $g) {
+        foreach (['Awards', 'Engage', 'People &amp; audience', 'Money', 'Content', 'Insights', 'Organisation'] as $g) {
             $this->assertStringContainsString('<span class="cn-nav__fold-l">' . $g . '</span>', $html, "missing the {$g} group");
         }
         $this->assertMatchesRegularExpression('~href="/admin/payouts" title="Payouts" aria-current="page"~', $html, 'the current page is not marked');

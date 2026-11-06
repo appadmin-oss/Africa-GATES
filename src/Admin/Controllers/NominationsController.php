@@ -518,6 +518,21 @@ class NominationsController
         }
         $keepNote();
 
+        // ── THE PHOTO REACHES THE BALLOT ─────────────────────────────────────
+        // The nomination form's portrait lived on the nomination, and the nominee row built
+        // above never carried it: every approved nominee's page showed initials however many
+        // photos had been sent. Anything the nominee added before review is adopted first,
+        // then NomineePhoto decides which picture shows (theirs first). Best-effort after the
+        // commit: a photo must never undo an approval.
+        if ($nomineeId > 0) {
+            try {
+                \AfricaGates\Services\NomineeDetails::adopt($nomineeId, $nom);
+                \AfricaGates\Services\NomineePhoto::sync($nomineeId, $nom);
+            } catch (\Throwable $e) {
+                error_log('[nominee-photo] approval ' . $id . ': ' . $e->getMessage());
+            }
+        }
+
         // The counterpart of the rejection record. Agreement is only meaningful if
         // BOTH verdicts are captured — logging only one outcome silently biases
         // the rate toward it.

@@ -86,6 +86,7 @@ final class AssetBundle
         // Phase 3: Gee, the guide and the help desk — the launcher and the panel that sit
         // over every shell page but Pulse. Last: it floats above all of the above.
         'assets/css/components/gee.css',
+        'assets/css/components/photo-upload.css',
     ];
 
     /** Where the built bundle and its manifest live. Gitignored build output. */

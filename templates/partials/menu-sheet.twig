@@ -110,7 +110,7 @@
 
       {% if is_member %}
         <a class="ag-menu__me" href="/account">
-          <span class="ag-menu__av" aria-hidden="true">{{ _ini }}</span>
+          <span class="ag-menu__av" aria-hidden="true">{% if member_photo|default('') %}<img class="ag-member-photo" src="{{ member_photo|media_url('avatar') }}" alt="" width="44" height="44">{% else %}{{ _ini }}{% endif %}</span>
           <span class="ag-menu__who">
             <b class="ag-menu__name">{{ member_name|default('Your account'|trans) }}</b>
             <span class="ag-menu__view-p">{{ 'View your profile'|trans }}</span>

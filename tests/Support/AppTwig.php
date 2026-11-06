@@ -72,6 +72,7 @@ final class AppTwig
             'celebration_style'    => [\AfricaGates\Services\Celebration::class, 'style'],
             // The default graphics (DEFAULT-GRAPHICS, 5 Oct 2026): every photo slot with no
             // upload now draws a cover or an avatar through these.
+            'cover_variant'     => [\AfricaGates\Support\CoverVariant::class, 'forRecord'],
             'cover_kind'        => [\AfricaGates\Support\CoverKind::class, 'resolve'],
             'account_title'     => [\AfricaGates\Services\AccountRail::class, 'title'],
             'account_groups'    => [\AfricaGates\Services\AccountRail::class, 'groups'],

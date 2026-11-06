@@ -212,7 +212,7 @@ final class CookieRegistry
     {
         return [
             ['key' => 'ag-a11y', 'category' => self::PREFERENCES, 'where' => 'local-or-session', 'audience' => 'everyone',
-             'purpose' => 'Your display and reading settings — text size, high contrast, the easy-read font, line spacing, underlined links, reduced motion, data saver and read-aloud — applied before the page paints so every page opens the way you set it. Kept on this device between visits if you allow Preferences; otherwise only until you close the tab. When you are signed in, the same settings are also saved to your account.'],
+             'purpose' => 'Your display and reading settings — text size, appearance (light, dark, sepia or matching your device), high contrast, the easy-read font, line spacing, underlined links, reduced motion, data saver and read-aloud — applied before the page paints so every page opens the way you set it. Kept on this device between visits if you allow Preferences; otherwise only until you close the tab. When you are signed in, the same settings are also saved to your account.'],
             // Written by celebration.js (the handoff's engine, shipped verbatim), which
             // stores unconditionally — so celebration-boot.js hands it a key only when
             // Preferences is allowed, and with no key it writes nothing.

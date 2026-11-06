@@ -126,8 +126,7 @@
               {% endif %}
               <form method="post" action="/admin/nominees/{{ r.id }}/photo" enctype="multipart/form-data" style="display:flex;flex-direction:column;gap:6px">
                 <input type="hidden" name="_token" value="{{ csrf_token }}">
-                <label for="photo-{{ r.id }}" style="font-size:11px;font-weight:600;color:var(--cn-ink-3)">Add {{ photo_count > 0 ? 'another ' : '' }}photo <span style="font-weight:400">(JPEG/PNG/WebP, min 200px)</span></label>
-                <input id="photo-{{ r.id }}" type="file" name="photo" accept="image/jpeg,image/png,image/webp,image/gif" required style="font-size:12px">
+                {% include 'partials/photo-upload.twig' with {id: 'photo-' ~ r.id, label: 'Add a nominee photo', required: true, min_side: 200} only %}
                 <button class="ad-btn ad-btn--xs ad-btn--primary" type="submit">Upload</button>
               </form>
             </div>

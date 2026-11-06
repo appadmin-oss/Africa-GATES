@@ -62,10 +62,11 @@ window.cnPage = (function () {
 <link rel="stylesheet" href="{{ asset('/assets/css/console/assistant.css') }}">
 {% block head_styles %}{% endblock %}
   {% include 'partials/csrf-fresh.twig' %}
+<link rel="stylesheet" href="{{ asset('/assets/css/components/photo-upload.css') }}">
 </head>
 <body class="cn" data-console{% if not shell.can_write %} data-readonly{% endif %}{% if shell.sidebar_closed %} data-side="closed"{% endif %}>
 
-<a href="#cnMain" class="cn-skip">Skip to content</a>
+<a href="#cnMain" class="cn-skip" data-skip-link>Skip to content</a>
 {% include 'admin/partials/nav-icons.twig' %}
 
 <div class="cn-shell" id="cnShell">
@@ -361,12 +362,13 @@ window.cnPage = (function () {
         {% endif %}
 
         {% if flash_error %}
-          <div class="cn-error" role="alert">
+          <div class="cn-error" role="alert" data-feedback-error tabindex="-1">
             <span class="cn-error__t">That did not work</span>
             <span class="cn-error__m">{{ flash_error }}</span>
             <a class="cn-pillbtn cn-pillbtn--sm" href="{{ shell.here|default('/admin/dashboard') }}">Try again</a>
           </div>
         {% endif %}
+        {% if flash_ok %}<div class="cn-note" role="status">{{ flash_ok }}</div>{% endif %}
         {% if flash_notice %}<div class="cn-note" role="status">{{ flash_notice }}</div>{% endif %}
 
         {% block content %}{% endblock %}
@@ -395,7 +397,7 @@ window.cnPage = (function () {
 {# Toast — a black pill at the bottom centre, 5.2 s, optional Undo. A flash from the
    last request arrives as one; without script it simply stays. #}
 <div class="cn-toasts" id="cnToasts" aria-live="polite">
-  {% if flash_ok %}<div class="cn-toast" role="status"><span>{{ flash_ok }}</span></div>{% endif %}
+
 </div>
 
 {# Confirm with reason — the reason is for the audit log, and the confirm stays disabled
@@ -498,7 +500,9 @@ window.cnPage = (function () {
 <script defer src="{{ asset('/assets/js/vendor/tippy-6.3.7.umd.min.js') }}" data-nav="shell"></script>
 {# A page's own scripts. Unmarked, the page loads the ordinary way; `data-nav="rerun"` lets
    console-nav.js swap it in, and ConsoleNavTest decides who may say that. #}
+<script defer src="{{ asset('/assets/js/photo-upload.js') }}" data-photo-max-bytes="{{ photo_upload_limit|default(10485760) }}" data-photo-post-bytes="{{ photo_post_limit|default(0) }}" data-nav="shell"></script>
 {% block foot_scripts %}{% endblock %}
+<script defer src="{{ asset('/assets/js/accessibility-focus.js') }}" data-nav="shell"></script>
 <script defer src="{{ asset('/assets/js/admin.js') }}" data-nav="shell"></script>
 <script defer src="{{ asset('/assets/js/console-ux.js') }}" data-nav="shell"></script>
 {# Last: it listens after everything else has had its chance to handle a click. #}

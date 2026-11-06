@@ -23,6 +23,10 @@
 {% set acctLabel = acct ? (acct|filter(m => m.kind == acctHere)|first).label|default('Africa GATES') : 'Africa GATES' %}
 {% set phoneTabs = [] %}
 {% for g in sh.nav %}{% for i in g.items %}{% if phoneTabs|length < 4 and not i.drill %}{% set phoneTabs = phoneTabs|merge([i]) %}{% endif %}{% endfor %}{% endfor %}
+{% set moreCurrent = '' %}
+{% for group in sh.nav %}{% for item in group.items %}
+  {% if item.current and phoneTabs|filter(tab => tab.href == item.href)|length == 0 %}{% set moreCurrent = item.label %}{% endif %}
+{% endfor %}{% endfor %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -45,7 +49,7 @@
 {% include 'partials/instant-nav.twig' with {member_area: true} %}
 </head>
 <body class="sh7">
-<a class="sh7-skip" href="#sh7Main">Skip to the page</a>
+<a class="sh7-skip" href="#sh7Main" data-skip-link>Skip to the page</a>
 <div class="sh7-root">
 
   <aside class="sh7-rail" aria-label="{{ sh.scope == 'root' ? sh.railLabel|default('My volunteering') : (sh.instance.name|default('Profile and access')) }}">
@@ -128,6 +132,7 @@
         {# Find (§2.4, ⌘K). Without script it is a search that posts nowhere: a GET of the results page. #}
         <form class="sh7-find" role="search" method="get" action="{{ sh.find.action }}">
           <label class="sh7-sr" for="sh7FindQ">Find a page, an event or a piece of work</label>
+          <span class="sh7-find__ico" aria-hidden="true">{{ S.icon('search') }}</span>
           <input class="sh7-input sh7-find__q" id="sh7FindQ" type="search" name="q" value="{{ sh.find.q|default('') }}" placeholder="Find…" autocomplete="off"
                  role="combobox" aria-expanded="false" aria-controls="sh7FindList" aria-keyshortcuts="Meta+K Control+K">
           <span class="sh7-find__kbd" aria-hidden="true">⌘K</span>
@@ -178,7 +183,10 @@
           </div>
         {% endif %}
         <div class="sh7-cols">
-          <div class="sh7-col">{% for sec in sh.secs %}{{ S.section(sec, sh.here, act) }}{% endfor %}</div>
+          <div class="sh7-col">
+            {% if acctHere == 'lead' %}{% include 'lead/section-nav.twig' with {sections: sh.secs} only %}{% endif %}
+            {% for sec in sh.secs %}{{ S.section(acctHere == 'lead' ? sec|merge({anchor: sec.anchor|default('lead-section-' ~ loop.index)}) : sec, sh.here, act) }}{% endfor %}
+          </div>
           {% if sh.side is defined and sh.side %}<aside class="sh7-side" aria-label="Also useful">{% for sec in sh.side %}{{ S.section(sec, sh.here, act) }}{% endfor %}</aside>{% endif %}
         </div>
       </div>
@@ -190,7 +198,7 @@
       <a class="sh7-phonetab{{ i.current ? ' is-on' }}" href="{{ i.href }}"{% if i.current %} aria-current="page"{% endif %}>{{ S.icon(i.icon) }}<span>{{ i.label }}</span></a>
     {% endfor %}
     <details class="sh7-more">
-      <summary class="sh7-phonetab">{{ S.icon('more') }}<span>More pages</span></summary>
+      <summary class="sh7-phonetab{{ moreCurrent ? ' is-on' }}"{% if moreCurrent %} aria-label="More pages, current page: {{ moreCurrent }}"{% endif %}>{{ S.icon('more') }}<span>More pages</span></summary>
       <div class="sh7-sheet" role="dialog" aria-label="More pages">
         {% for g in sh.nav %}{% for i in g.items %}
           <a class="sh7-item" href="{{ i.href }}"{% if i.current %} aria-current="page"{% endif %}>{{ S.icon(i.icon) }}<span class="sh7-label">{{ i.label }}</span>{% if i.count %}<span class="sh7-badge sh7-badge--{{ i.count.tone }}" aria-hidden="true">{{ i.count.n }}</span><span class="sh7-sr">, {{ i.count.n }} waiting</span>{% endif %}</a>
@@ -232,5 +240,6 @@
   <div class="sh7-sr" id="sh7Alert" role="alert" aria-atomic="true"></div>
 </div>
 <script nonce="{{ csp_nonce }}" src="{{ asset('/assets/js/shell7.js') }}" defer></script>
+<script defer src="{{ asset('/assets/js/accessibility-focus.js') }}"></script>
 </body>
 </html>

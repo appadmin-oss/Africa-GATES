@@ -413,7 +413,7 @@
       {% for c in _related %}
         <li><a class="gv-rc" href="{{ c.url }}">
           <span class="gv-rc__img">
-            {% include 'partials/photo.twig' with {kind: 'thing', subject: 'campaign', src: '', name: c.title, logo: c.logo} only %}
+            {% include 'partials/photo.twig' with {identity: c.id|default(null), kind: 'thing', subject: 'campaign', src: '', name: c.title, logo: c.logo} only %}
             {% if c.days_left is not null and c.days_left <= 30 %}<span class="gv-rc__chip">{{ c.days_left == 1 ? '1 day left'|trans : '%n% days left'|trans({'%n%': c.days_left}) }}</span>{% endif %}
           </span>
           <span class="gv-rc__t">{{ c.title }}</span>

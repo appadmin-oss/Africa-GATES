@@ -22,7 +22,9 @@
 .lb-head{ display:grid; grid-template-columns:minmax(0,1fr); gap:24px; align-items:end }
 .lb-head__main{ display:flex; flex-direction:column; gap:10px }
 .lb-eyebrow{ display:inline-flex; align-items:center; gap:8px; font-size:var(--ag-fs-13-5); font-weight:600; color:var(--ag-ink-2) }
-.lb-eyebrow__dot{ width:8px; height:8px; border-radius:50%; background:var(--ag-live); animation:lb-pulse 2.4s ease-in-out infinite }
+/* Ink, not live red: the words beside it say "live", and a tier-2 page's two events are
+   the leader's gold and the green of the score split. */
+.lb-eyebrow__dot{ width:8px; height:8px; border-radius:50%; background:var(--ag-ink-2); animation:lb-pulse 2.4s ease-in-out infinite }
 @keyframes lb-pulse{
   0%,100%{ box-shadow:0 0 0 0 color-mix(in srgb, var(--ag-live) 35%, transparent) }
   50%{ box-shadow:0 0 0 5px color-mix(in srgb, var(--ag-live) 0%, transparent) }

@@ -150,6 +150,13 @@ class ApiController {
             return $this->err($res,'Please accept the award terms to vote.','TERMS_REQUIRED',422);
         $r=$this->votes->castVote($email,$otp,$nId,$aId,$ip,$deviceHash,$idemKey?:null,$name,$phone);
         if(!$r['success']) return $this->err($res,$r['message'],$r['code']);
+        if (!empty($r['replayed'])) {
+            if (isset($_SESSION) && is_array($_SESSION)) $_SESSION['vote_cast'][$nId] = time();
+            // Recover confirmation without sending another receipt, dispatching
+            // duplicate integration jobs, or recording another conversion.
+            return $this->ok($res, ['message'=>$r['message'], 'new_count'=>$r['new_count'],
+                'new_rank'=>$r['new_rank'], 'days_left'=>$r['days_left'], 'milestone'=>null]);
+        }
 
         // Recorded only once the vote counted, and never at the cost of it (AwardTerms::accept
         // does not throw). The session line is what lets the ballot page draw the `vote`
@@ -157,6 +164,8 @@ class ApiController {
         // (Services\Celebration: money and votes celebrate only once the record says so).
         if($termsProgramme>0) \AfricaGates\Services\AwardTerms::accept($termsProgramme,\AfricaGates\Services\AwardTerms::KIND_VOTE,$email,$nId);
         if(isset($_SESSION)&&is_array($_SESSION)) $_SESSION['vote_cast'][$nId]=time();
+        // Credited to the announcement that brought them, if one did (Mail\MailTraction).
+        \AfricaGates\Services\Mail\MailTraction::converted('vote', 'n'.$nId.':'.substr(hash('sha256',strtolower($email)),0,16));
         // "Bring your people" (VoteRecruit): the link this vote arrived through is credited
         // with one more person, and this voter gets a link of their own for the same nominee.
         // Both after the vote counted, and neither can touch it.

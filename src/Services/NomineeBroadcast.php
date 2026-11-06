@@ -134,18 +134,27 @@ final class NomineeBroadcast
      * @param array{nominee:object,cycle:object,email:string} $r
      * @return array{ok:bool, error:string}
      */
-    public function sendOne(array $r, string $site, OtpService $mailer): array
+    public function sendOne(array $r, string $site, OtpService $mailer, ?string $subject = null,
+                            ?string $variant = null, ?string $emailHash = null): array
     {
+        $html = $this->html($r, $site);
+        // From the outbox (Mail\Outbox): the links are counted, so the campaign can be told
+        // what it achieved (Mail\MailTraction). The unsubscribe link is never touched.
+        if ($emailHash !== null && $emailHash !== '') {
+            $html = \AfricaGates\Services\Mail\MailTraction::wrap($html, $site, $this->campaignKey(), $emailHash, $variant);
+        }
         $res = $mailer->sendRawHtml(
-            $r['email'], $this->subject(),
-            $this->html($r, $site), $this->plain($r, $site),
+            $r['email'], $subject !== null && trim($subject) !== '' ? $subject : $this->subject(),
+            $html, $this->plain($r, $site),
             $this->campaignKey(), EmailOptOut::url($site, $r['email'])
         );
         $ok    = (bool) ($res['success'] ?? false);
         $error = (string) ($res['error'] ?? '');
         $this->logSend($r, $ok, $error);
 
-        return ['ok' => $ok, 'error' => $error];
+        // `held` says WHY a message did not go (refused or deferred by the send rules), which
+        // the outbox needs to tell a retry from a stop.
+        return ['ok' => $ok, 'error' => $error, 'held' => $res['held'] ?? null];
     }
 
     /** @param array{nominee:object,cycle:object,email:string} $r */

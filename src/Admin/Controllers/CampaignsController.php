@@ -48,12 +48,6 @@ use Slim\Views\Twig;
  */
 final class CampaignsController
 {
-    /**
-     * 25 keeps a batch near six seconds at the pacing below — comfortably inside even a
-     * mean `max_execution_time`, with room for a slow SMTP handshake. Same number the
-     * setup endpoint uses, for the same reason.
-     */
-    private const BATCH = 25;
 
     public function __construct(
         private readonly Twig $view,
@@ -152,6 +146,16 @@ final class CampaignsController
             'plain'      => EmailCampaign::plainFor($c, EmailCampaign::sampleVars()),
             'versions'   => EmailCampaign::versions($id, 10),
             'site_ok'    => SiteUrl::base($req) !== '',
+            // The optimiser (Mail\Outbox, Mail\MailTraction): where the queue stands, what it
+            // achieved, and the pace it is held to.
+            'goals'       => \AfricaGates\Services\Mail\MailTraction::GOALS,
+            'outbox'      => \AfricaGates\Services\Mail\Outbox::status((string) $c->slug),
+            'traction'    => \AfricaGates\Services\Mail\MailTraction::report((string) $c->slug),
+            'pace'        => \AfricaGates\Services\Mail\Outbox::settings(),
+            'budget'      => \AfricaGates\Services\Mail\Outbox::budget(),
+            'first_batch' => \AfricaGates\Services\Mail\Outbox::FIRST_BATCH,
+            'ab_hours'    => \AfricaGates\Services\Mail\Outbox::AB_WAIT_HOURS,
+            'window_days' => \AfricaGates\Services\Mail\MailTraction::WINDOW_DAYS,
         ]);
     }
 
@@ -164,7 +168,9 @@ final class CampaignsController
 
         $r = EmailCampaign::save(
             $id, (string) ($body['subject'] ?? ''), (string) ($body['preheader'] ?? ''),
-            $this->blocksFrom($body), (int) ($_SESSION['admin_id'] ?? 0)
+            $this->blocksFrom($body), (int) ($_SESSION['admin_id'] ?? 0),
+            isset($body['goal']) ? (string) $body['goal'] : null,
+            isset($body['subject_b']) ? (string) $body['subject_b'] : null
         );
 
         // A refusal carries WHY, in the operator's terms — a save that failed the inbox
@@ -292,14 +298,15 @@ final class CampaignsController
     // ══ send ═════════════════════════════════════════════════════════════════
 
     /**
-     * Send one batch, then say how many are left.
+     * Queue the whole campaign, send the first batch now, and let the outbox do the rest.
      *
-     * ── WHY IT BATCHES AND WHY THE PAGE CONTINUES ITSELF ─────────────────────
+     * ── WHY IT QUEUES ────────────────────────────────────────────────────────
      *
      * A few thousand SMTP calls at a quarter-second each is far past any shared host's
-     * `max_execution_time`. The `UNIQUE(campaign, email_hash)` in `gates_broadcast_log`
-     * makes the resume safe, so the batch loop is not an optimisation — it is the only
-     * shape that can finish at all.
+     * `max_execution_time`, so this used to send twenty-five and ask to be pressed again.
+     * Mail\Outbox holds the list instead (UNIQUE(campaign, address)), and the maintenance
+     * tick drains it at the account's pace. `gates_broadcast_log` still records every send,
+     * so the plan above goes on excluding whoever has been reached.
      *
      * ── AND WHY IT REFUSES UNLESS APPROVED ───────────────────────────────────
      *
@@ -347,30 +354,44 @@ final class CampaignsController
 
         $svc  = (new NomineeBroadcast())->forCampaign($c);
         $plan = $svc->plan();
-        $before = (int) $plan['counts']['sendable'];
 
-        $sent = $failed = 0;
-        foreach (array_slice($plan['sendable'], 0, self::BATCH) as $r) {
-            $svc->sendOne($r, $site, $this->mailer)['ok'] ? $sent++ : $failed++;
-            usleep(250000);
+        // ── QUEUED ONCE, SENT BY ITSELF (Mail\Outbox) ───────────────────────────
+        // This used to send twenty-five and ask to be pressed again: a list of four thousand
+        // was a hundred and sixty presses, and a send started on Friday evening stopped when
+        // the person went home. Every recipient is queued now, in priority order, the first
+        // batch goes at once, and the maintenance tick sends the rest at the account's pace.
+        if (!\AfricaGates\Services\Mail\Outbox::ready()) {
+            $_SESSION['flash_error'] = 'The database needs its latest update (the email outbox) before a campaign can be sent.';
+            return $this->back($res, $to);
         }
+        $queued = \AfricaGates\Services\Mail\Outbox::enqueueCampaign($c, $plan['sendable']);
+        $first  = \AfricaGates\Services\Mail\Outbox::drain($this->mailer, $site, \AfricaGates\Services\Mail\Outbox::FIRST_BATCH, null, 20.0);
+        $state  = \AfricaGates\Services\Mail\Outbox::status((string) $c->slug);
 
-        $left = max(0, $before - ($sent + $failed));
-        if ($left === 0) {
-            // sent_count is the running total from the log, not this batch — the log is
-            // the authority on who got it.
-            EmailCampaign::markSent($id, EmailCampaign::sentCount($svc->campaignKey()));
-        }
+        $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'campaign.send', 'campaign', $id, ['queued' => $queued]);
 
-        $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'campaign.send', 'campaign', $id);
-
-        $_SESSION['flash'] = sprintf(
-            'Batch done: %d sent, %d failed. %s',
-            $sent, $failed,
-            $left > 0
-                ? $left . ' still to go — press Send again to continue. Nobody is mailed twice.'
-                : 'That is everybody.'
-        );
+        $_SESSION['flash'] = sprintf('Started: %d queued, %d sent just now. %s',
+            $queued, $first['sent'],
+            $state['queued'] > 0
+                ? number_format($state['queued']) . ' more go out automatically' . ($state['eta'] ? ', done by about ' . $state['eta'] . ' (WAT)' : '') . '. Nobody is mailed twice.'
+                : 'That is everybody.')
+            . ($first['note'] !== '' ? ' ' . $first['note'] : '');
         return $this->back($res, $to);
+    }
+
+    /** Stop a campaign that is still sending: whoever has not been sent it, is not. */
+    public function stop(Request $req, Response $res, array $args): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+        $id = (int) ($args['id'] ?? 0);
+        $c  = EmailCampaign::find($id);
+        if (!$c) {
+            $_SESSION['flash_error'] = 'No such campaign.';
+            return $this->back($res, '/admin/campaigns');
+        }
+        $n = \AfricaGates\Services\Mail\Outbox::cancel((string) $c->slug);
+        $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'campaign.stop', 'campaign', $id, ['stopped' => $n]);
+        $_SESSION['flash'] = $n > 0 ? 'Stopped. ' . number_format($n) . ' people on the list will not be sent it.' : 'Nothing was waiting to be sent.';
+        return $this->back($res, '/admin/campaigns/' . $id);
     }
 }

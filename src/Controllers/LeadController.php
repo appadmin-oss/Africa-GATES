@@ -9,6 +9,7 @@ use AfricaGates\Services\EventPlan\EventPermissions;
 use AfricaGates\Services\EventPlan\TeamPages;
 use AfricaGates\Services\EventPlan\Teams;
 use AfricaGates\Services\EventPlan\TeamSuggest;
+use AfricaGates\Services\EventPlan\TeamLoop;
 use AfricaGates\Services\EventPlan\LeadPages;
 use AfricaGates\Services\EventPlan\Outreach;
 use AfricaGates\Services\EventPlan\Plan;
@@ -57,6 +58,7 @@ final class LeadController
     {
         $me = $this->me();
         if ($me === null) return $res->withHeader('Location', '/account/login?next=' . LeadPages::BASE)->withStatus(303);
+        $this->claim($me);
         $page = (string) ($args['page'] ?? 'overview');
         if (!isset(LeadPages::ROOT[$page])) throw new HttpNotFoundException($req);
         $tabs = LeadPages::TABS[$page] ?? [];
@@ -103,6 +105,7 @@ final class LeadController
     {
         $me = $this->me();
         if ($me === null) return $res->withHeader('Location', '/account/login?next=' . LeadPages::BASE)->withStatus(303);
+        $this->claim($me);
         $id = (int) $args['id'];
         $e = Plan::ready() ? Plan::event($id) : null;
         // A lead, an owner, or somebody in one of the event's approved roles; anybody else, it does not exist here.
@@ -200,6 +203,13 @@ final class LeadController
             'member_end' => [Teams::endMember($int('member'), $int('event'), (string) ($b['reason'] ?? ''), ['kind' => Plan::ACTOR, 'id' => $me['id'], 'name' => $me['name']]), '', 'event', $int('event')],
             'role_archive' => [Teams::archiveRole($int('role'), $int('event'), (string) ($b['reason'] ?? ''), ['kind' => Plan::ACTOR, 'id' => $me['id'], 'name' => $me['name']]), '', 'event', $int('event')],
             'team_suggest' => [$this->suggest($me, $int('event')), '', 'event', $int('event')],
+            // The team's loop (EventPlan\TeamLoop): reports, proof, suggestions and their decisions.
+            'report_add' => [TeamLoop::report($int('event'), $int('work') ?: null, $me['id'], $me['name'], (string) ($b['state'] ?? ''), $int('confidence'), (string) ($b['note'] ?? '')), '', 'event', $int('event')],
+            'work_done' => [TeamLoop::complete($int('work'), $me['id'], (string) ($b['proof'] ?? '')), '', 'event_work', $int('work')],
+            'work_return' => [TeamLoop::returnProof($int('work'), $me['id'], (string) ($b['why'] ?? '')), '', 'event_work', $int('work')],
+            'work_propose' => [$this->propose($me, $b), '', 'event', $int('event')],
+            'work_decide' => [TeamLoop::decide($int('work'), $me['id'], (string) ($b['verdict'] ?? ''), (string) ($b['note'] ?? ''), (string) ($b['proof'] ?? 'none')), '', 'event_work', $int('work')],
+            'vtask_add', 'vtask_close', 'vtask_accept' => [$this->volTask($me, $b, $do), '', 'event', $int('event')],
             default => [['ok' => false, 'error' => 'That isn’t something this page can do.'], '', '', 0],
         };
         if (!$r['ok']) return $this->back($res, $back, false, (string) ($r['error'] ?? 'That didn’t work.'));
@@ -207,7 +217,7 @@ final class LeadController
         // it; the row it touched travels in the meta.
         $meta = array_intersect_key($b, array_flip(['status', 'owner', 'title', 'name', 'label', 'stage', 'likelihood', 'impact', 'estimate', 'vendor',
                                                     'committed', 'paid', 'budget', 'series', 'type', 'action', 'admin', 'until', 'why', 'capability', 'email',
-                                                    'subject', 'verdict', 'reason', 'perms', 'ceiling', 'team_role', 'kind']));
+                                                    'subject', 'verdict', 'reason', 'perms', 'ceiling', 'team_role', 'kind', 'state', 'confidence', 'note', 'proof', 'proof_type']));
         if ($do === 'decide' && isset($r['verdict'])) $meta['verdict'] = $r['verdict'];   // 'changed' is the decision's, not the form's
         if ($type === 'event') {
             $target = (int) ($r['event'] ?? $target);
@@ -257,7 +267,7 @@ final class LeadController
                 if (!isset($roles[$cap])) return ['ok' => false, 'error' => 'Pick one of the night’s roles.'];
                 $r = \AfricaGates\Services\RoleInvites::offer((string) ($b['email'] ?? ''), $cap, $event, (string) ($b['until'] ?? ''), $by);
                 if (!$r['ok']) return $r;
-                return $r + ['event' => $event, 'msg' => (!empty($r['granted']) ? 'They were already an approved volunteer, so the role is theirs now.' : 'Invitation sent. It switches on once they are an approved volunteer.') . $mail($r)];
+                return $r + ['event' => $event, 'msg' => (!empty($r['granted']) ? 'They were already an approved volunteer, so the role is theirs now.' : 'Invitation sent. It is waiting ' . \AfricaGates\Services\RoleInvites::reason((string) ($b['email'] ?? ''), $cap) . ', and switches on by itself after that. It is listed below until then.') . $mail($r)];
             case 'vol_invite_cancel':
                 return \AfricaGates\Services\RoleInvites::cancel((int) ($b['invite'] ?? 0), $event)
                     ? ['ok' => true, 'event' => $event, 'msg' => 'Invitation withdrawn.'] : ['ok' => false, 'error' => 'That invitation had already been used or withdrawn.'];
@@ -279,8 +289,22 @@ final class LeadController
     {
         $in = array_intersect_key($b, array_flip(['perms', 'ceiling']));
         if (($b['subject'] ?? '') === 'role' && !isset($in['perms'])) $in['perms'] = [];
+        // An owner decides as an owner; a lead who is not one decides the medium changes (Tiers).
+        $event = (int) (\Illuminate\Database\Capsule\Manager::table(Teams::SUBJECTS[(string) ($b['subject'] ?? '')] ?? 'gates_event_teams')->where('id', (int) ($b['id'] ?? 0))->value('event_id') ?? 0);
+        $kind = Teams::isOwner($me['id'], $event) || !Plan::isLead($me['id'], $event) ? Plan::ACTOR : 'lead';
         return Teams::decide((string) ($b['subject'] ?? ''), (int) ($b['id'] ?? 0), (string) ($b['verdict'] ?? ''), (string) ($b['reason'] ?? ''),
-            ['kind' => Plan::ACTOR, 'id' => $me['id'], 'name' => $me['name']], $in);
+            ['kind' => $kind, 'id' => $me['id'], 'name' => $me['name']], $in);
+    }
+
+    /** A lead's own work goes straight on the plan; anybody else on the team suggests it. */
+    private function propose(array $me, array $b): array
+    {
+        $event = (int) ($b['event'] ?? 0);
+        if (Plan::may($me['id'], $event, 'plan.edit')) {
+            $r = Plan::addWork($event, $b, $me['id']);
+            return $r['ok'] ? $r + ['msg' => 'Added to the plan.'] : $r;
+        }
+        return TeamLoop::propose($event, $me['id'], $b);
     }
 
     /** "Suggest a team": kept in the session for the page to draw as proposal forms. Applies nothing. */
@@ -321,6 +345,25 @@ final class LeadController
         return $r + ['event' => $event];
     }
 
+    /**
+     * Volunteer tasks for THIS event (EventPages::volTasks): post, close, accept. The member must
+     * hold `volunteers.tasks` here — a lead does; a team role does if its owner ticked it — and
+     * the task or take must be this event's (Tasks::*ForEvent), so a crafted post about another
+     * event's work is refused like a missing one.
+     */
+    private function volTask(array $me, array $b, string $do): array
+    {
+        $event = (int) ($b['event'] ?? 0);
+        if (!Plan::may($me['id'], $event, 'volunteers.tasks')) return ['ok' => false, 'error' => 'Only a lead of this event, or a team role that includes it, can set its volunteer tasks.'];
+        $T = \AfricaGates\Services\Volunteer\Tasks::class;
+        $r = match ($do) {
+            'vtask_add' => $T::postForEvent($event, $b, $me['id'], $me['name']) + ['msg' => 'Posted. The volunteers with a role here see it in their Tasks now.'],
+            'vtask_close' => $T::closeForEvent($event, (int) ($b['task'] ?? 0)) ? ['ok' => true, 'msg' => 'Closed. Nobody new can take it.'] : ['ok' => false, 'error' => 'That task is not open on this event.'],
+            default => $T::acceptForEvent($event, (int) ($b['take'] ?? 0), (float) ($b['hours'] ?? 0), $me['name']) + ['msg' => 'Accepted. The hours are on their record.'],
+        };
+        return $r + ['event' => $event];
+    }
+
     /** A lead confirms a visit a volunteer recorded alone — only one at their own event. */
     private function attendConfirm(array $me, array $b): array
     {
@@ -357,6 +400,23 @@ final class LeadController
     }
 
     // ── plumbing ────────────────────────────────────────────────────────────────────────
+
+    /**
+     * A role offered to this person's address becomes theirs the moment they open the console,
+     * not up to five minutes later (UserAuthMiddleware's pace for every other page). This is
+     * the page somebody opens straight after being told "you lead this event"; making them
+     * wait, or refresh, on a page saying they lead nothing is how a lead concludes the
+     * invitation was broken (owner, 5 Nov 2026: "it says no event").
+     */
+    private function claim(array $me): void
+    {
+        try {
+            \AfricaGates\Services\RoleInvites::claimFor($me['id']);
+            $_SESSION['role_invites_at'] = time();
+        } catch (\Throwable) {
+            // Never the reason the console fails to open.
+        }
+    }
 
     /** @return ?array{id:int, name:string} the signed-in member, the lead's actor (Plan::ACTOR) */
     private function me(): ?array

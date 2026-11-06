@@ -40,21 +40,15 @@ class EventsController
 
     public function index(Request $req, Response $res): Response
     {
-        $rows = DB::table('gates_site_events')->orderByDesc('event_date')->get()->map(fn($r)=>(array)$r)->all();
-        /* Who leads each event, on the list itself (owner, 3 Nov 2026: the only way in was a link
-           at the foot of the edit form). One read of the leads and one of the waiting invitations
-           for the whole list, grouped here — never a query per row. */
+        $directory = \AfricaGates\Admin\Services\EventDirectory::page($req->getQueryParams());
         $leads = [];
         foreach (\AfricaGates\Services\EventPlan\Leads::everywhere() as $l) {
-            if (!in_array($l->state, ['lead', 'invited'], true)) continue;   // owners are listed on the event's own page
+            if (!in_array($l->state, ['lead', 'invited'], true)) continue;
             $leads[$l->event_id][$l->state === 'lead' ? 'names' : 'invited'][] = $l->state === 'lead' ? $l->name : $l->email;
         }
         return $this->view->render($res, 'admin/events/index.twig', [
-            'page_title' => 'Events — Admin',
-            'admin_page' => 'events',
-            'rows'       => $rows,
-            'leads'      => $leads,
-        ]);
+            'page_title' => 'Events — Admin', 'admin_page' => 'events', 'leads' => $leads,
+        ] + $directory);
     }
 
     public function form(Request $req, Response $res, array $args = []): Response
@@ -364,10 +358,18 @@ class EventsController
             $_SESSION['flash_error'] = 'Title and slug are required.';
             return $res->withHeader('Location', $id ? "/admin/events/{$id}" : '/admin/events/new')->withStatus(302);
         }
-        // A map link that cannot be kept does not cost the organiser the rest of the form:
-        // the event saves without it and says why. Refusing the whole save would throw away
-        // everything else typed with it.
-        if ($mapLink['error'] !== '') $_SESSION['flash_error'] = $mapLink['error'];
+        $cover = $req->getUploadedFiles()['cover_upload'] ?? null;
+        if ($cover instanceof UploadedFileInterface && $cover->getError() !== UPLOAD_ERR_NO_FILE) {
+            try {
+                $data['cover_image'] = \AfricaGates\Admin\Services\EventCoverUpload::save($cover, $id, $this->uploads);
+            } catch (\Throwable) {
+                $_SESSION['flash_error'] = 'The cover could not be uploaded. Choose a JPEG, PNG, WebP or GIF at least 300 pixels on each side, within the displayed size limit. Your other event details were saved.';
+            }
+        }
+        if ($mapLink['error'] !== '') {
+            $_SESSION['flash_error'] = trim(($_SESSION['flash_error'] ?? '') . ' ' . $mapLink['error']);
+            if ($id) unset($data['map_embed']);
+        }
         if ($id) {
             DB::table('gates_site_events')->where('id', $id)->update($data);
             $this->audit->record((int)$_SESSION['admin_id'], 'event.update', 'site_event', $id);
@@ -1345,7 +1347,7 @@ class EventsController
             $r = \AfricaGates\Services\EventPlan\Leads::giveOwner($id, (string) ($b['email'] ?? ''), (string) ($b['until'] ?? ''), $adminId, (string) ($_SESSION['admin_name'] ?? ''));
             if ($r['ok']) {
                 $mail = !empty($r['emailed']) ? ' We emailed them.' : ' The email could not be sent — tell them yourself; Settings › Mail says why.';
-                $_SESSION['flash_ok'] = (!empty($r['granted']) ? 'Done. They own this event now and decide what its leads propose.' : 'Invitation sent. It switches on when they sign in with that address confirmed.') . $mail;
+                $_SESSION['flash_ok'] = (!empty($r['granted']) ? 'Done. They own this event now and decide what its leads propose.' : 'Invitation sent. It is waiting ' . \AfricaGates\Services\RoleInvites::reason((string) ($b['email'] ?? ''), 'event.own') . ', then switches on by itself.') . $mail;
                 $this->audit->record($adminId, !empty($r['granted']) ? 'event.owner.give' : 'event.owner.invite', 'event', $id,
                     !empty($r['granted']) ? ['grant' => (int) ($r['id'] ?? 0)] : ['invite' => (int) ($r['id'] ?? 0)]);
             } else {
@@ -1384,7 +1386,8 @@ class EventsController
                 $mail = !empty($r['emailed']) ? ' We emailed them.' : ' The email could not be sent — tell them yourself; Settings › Mail says why.';
                 $_SESSION['flash_ok'] = !empty($r['granted'])
                     ? 'Done. They lead this event now, from Events I lead in their account.' . $mail
-                    : 'Invitation sent. It switches on by itself when they sign in with that address confirmed.' . $mail;
+                    : 'Invitation sent. It is waiting ' . \AfricaGates\Services\RoleInvites::reason((string) ($b['email'] ?? ''), 'event.lead')
+                      . ', then switches on by itself. Until then their Events I lead page names this event and what is left to do.' . $mail;
                 $this->audit->record($adminId, !empty($r['granted']) ? 'event.lead.give' : 'event.lead.invite', 'event', $id,
                     !empty($r['granted']) ? ['grant' => (int) ($r['id'] ?? 0)] : ['invite' => (int) ($r['id'] ?? 0)]);
             } else {

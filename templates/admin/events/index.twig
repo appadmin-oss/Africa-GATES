@@ -1,34 +1,33 @@
-{% extends "admin/layout.twig" %}
+{% extends 'admin/layout.twig' %}
 {% block topbar_title %}Events{% endblock %}
-{% block topbar_actions %}<a class="ad-btn" href="/admin/events/leads">All event leads</a> <a class="ad-btn ad-btn--primary" href="/admin/events/new">+ New Event</a>{% endblock %}
+{% block topbar_actions %}<a class="ad-btn" href="/admin/events/leads">All event leads</a> <a class="ad-btn ad-btn--primary" href="/admin/events/new">Create event</a>{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/console/event-editor.css') }}">{% endblock %}
 {% block content %}
-<div class="ad-card"><div class="ad-table-wrap">
-  <table class="ad-table">
-    <thead><tr><th scope="col">Event</th><th scope="col">When</th><th scope="col">Location</th><th scope="col">Status</th><th scope="col">Leads</th><th scope="col" class="col-actions">Actions</th></tr></thead>
-    <tbody>
-      {% for r in rows %}
-      <tr>
-        <td><strong>{{ r.title }}</strong><div style="font-size:12px;color:var(--cn-ink-3)">{{ r.tagline }}</div></td>
-        <td style="font-family:'Space Mono',monospace;font-size:12px">{{ r.event_date|date('Y-m-d H:i') }}</td>
-        <td>{{ r.location }}</td>
-        <td>
-          {% set chip = {'published':'green','draft':'gold'}[r.status]|default('grey') %}
-          <span class="ad-chip ad-chip--{{ chip }}">{{ r.status|capitalize }}</span>
-        </td>
-        <td>
-          {% set ld = leads[r.id]|default({}) %}
-          {% if ld.names is defined %}{{ ld.names|join(', ') }}{% endif %}
-          {% if ld.invited is defined %}<div style="font-size:12px;color:var(--cn-ink-3)">{{ ld.invited|length }} invited, not yet switched on</div>{% endif %}
-          {% if ld.names is not defined and ld.invited is not defined %}<span style="font-size:12px;color:var(--cn-ink-3)">Nobody yet</span>{% endif %}
-        </td>
-        <td class="col-actions">
-          <a class="ad-btn ad-btn--sm" href="/admin/events/{{ r.id }}">Edit</a>
-          <a class="ad-btn ad-btn--sm" href="/admin/events/{{ r.id }}/leads">Leads<span class="sr-only"> for {{ r.title }}</span></a>
-          <form method="post" action="/admin/events/{{ r.id }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Delete “{{ r.title }}” permanently? Registrations are not deleted with it, so anyone already holding a ticket keeps a link that no longer shows the event.">×</button></form>
-        </td>
-      </tr>
-      {% else %}<tr><td colspan="6" style="text-align:center;color:var(--cn-soft);padding:30px">No events yet.</td></tr>{% endfor %}
-    </tbody>
-  </table>
-</div></div>
+<div class="ad-card">
+  <h2>Manage events</h2><p>Create a draft, prepare registration and manage your attendees.</p>
+  <form class="event-directory__filters" method="get" action="/admin/events" role="search">
+    <label for="event-search">Search events<input id="event-search" type="search" name="q" value="{{ q }}" placeholder="Title, city or venue"></label>
+    <label for="event-status">Visibility<select id="event-status" name="status"><option value="">All events</option><option value="draft"{{ status_filter == 'draft' ? ' selected' }}>Draft</option><option value="published"{{ status_filter == 'published' ? ' selected' }}>Published</option></select></label>
+    <button class="ad-btn ad-btn--primary" type="submit">Apply filters</button>{% if q or status_filter %}<a class="ad-btn" href="/admin/events">Clear</a>{% endif %}
+  </form>
+  <p role="status">{{ total }} {{ total == 1 ? 'event' : 'events' }}{% if q or status_filter %} matching your filters{% endif %}</p>
+  {% if rows %}
+  <div class="ad-table-wrap" tabindex="0" role="region" aria-label="Events; scroll horizontally for more columns">
+    <table class="ad-table"><thead><tr><th scope="col">Event</th><th scope="col">Date and venue</th><th scope="col">Visibility</th><th scope="col">Leads</th><th scope="col">Manage</th></tr></thead><tbody>
+    {% for r in rows %}<tr>
+      <th scope="row"><a href="/admin/events/{{ r.id }}">{{ r.title }}</a>{% if r.tagline %}<p>{{ r.tagline }}</p>{% endif %}</th>
+      <td>{{ event_when(r, r.event_date, 'j M Y, H:i') }}<p>{{ r.venue ?: r.location ?: 'Venue not set' }}</p></td>
+      <td><span class="ad-chip ad-chip--{{ r.status == 'published' ? 'green' : 'gold' }}">{{ r.status|capitalize }}</span></td>
+      <td>{% set ld = leads[r.id]|default({}) %}
+        {% if ld.names is defined %}{{ ld.names|join(', ') }}{% endif %}
+        {% if ld.invited is defined %}<p>{{ ld.invited|length }} invited, not yet switched on</p>{% endif %}
+        {% if ld.names is not defined and ld.invited is not defined %}Nobody yet{% endif %}
+        <a href="/admin/events/{{ r.id }}/leads">Leads<span class="sr-only"> for {{ r.title }}</span></a>
+      </td><td><div class="event-directory__actions"><a class="ad-btn ad-btn--sm" href="/admin/events/{{ r.id }}" aria-label="Edit {{ r.title }}">Edit</a><a class="ad-btn ad-btn--sm" href="/admin/events/{{ r.id }}/tickets" aria-label="Attendees for {{ r.title }}">Attendees</a>{% if r.status == 'published' %}<a class="ad-btn ad-btn--sm" href="/events/{{ r.slug }}" aria-label="View {{ r.title }}">View event</a>{% endif %}</div><details><summary>More actions</summary><form method="post" action="/admin/events/{{ r.id }}/delete" data-confirm="Delete {{ r.title }}? Existing ticket holders will lose the event page."><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" aria-label="Delete {{ r.title }}">Delete event</button></form></details></td>
+    </tr>{% endfor %}
+    </tbody></table>
+  </div>
+  {% else %}<div class="event-directory__empty"><h2>{{ q or status_filter ? 'No matching events' : 'Your first event starts here' }}</h2><p>{{ q or status_filter ? 'Try a different search or clear your filters.' : 'Save a draft now and add the programme and tickets as you go.' }}</p><a class="ad-btn" href="{{ q or status_filter ? '/admin/events' : '/admin/events/new' }}">{{ q or status_filter ? 'Clear filters' : 'Create event' }}</a></div>{% endif %}
+  {% if pages > 1 %}<nav class="event-directory__pages" aria-label="Event pages">{% if previous %}<a class="ad-btn" href="{{ previous }}">Previous</a>{% endif %}<span>Page {{ page }} of {{ pages }}</span>{% if next %}<a class="ad-btn" href="{{ next }}">Next</a>{% endif %}</nav>{% endif %}
+</div>
 {% endblock %}

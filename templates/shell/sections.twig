@@ -35,7 +35,8 @@
   inbox: 'M22 12h-6l-2 3h-4l-2-3H2M5.5 5h13l3.5 7v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-6z',
   card: 'M3 6h18v12H3zM3 10h18M7 15h4',
   chart: 'M4 20V10M10 20V4M16 20v-7M22 20H2',
-  user: 'M20 21a8 8 0 1 0-16 0M12 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10z'
+  user: 'M20 21a8 8 0 1 0-16 0M12 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10z',
+  search: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4'
 } %}<svg class="sh7-ico" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path d="{{ P[name]|default(P.list) }}"/></svg>{% endmacro %}
 
 {# A row's or a header's action: a link, or a one-button form that posts. #}
@@ -47,7 +48,7 @@
 {% macro action(a, here, quiet, act, ctx) %}
   {% set _ctx = ctx|default('') %}
   {% if a.post is defined %}
-    <form class="sh7-inline" method="post" action="{{ act ?: '/volunteer/act' }}">
+    <form class="sh7-inline" method="post" action="{{ a.action|default(act ?: '/volunteer/act') }}">
       <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="back" value="{{ here }}">
       {% for k, v in a.post %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
       <button class="sh7-btn{{ a.primary|default(false) ? ' sh7-btn--primary' }}{{ a.danger|default(false) ? ' sh7-btn--danger' }}{{ quiet ? ' sh7-btn--sm' }}" type="submit"{% if a.confirm is defined %} data-sh7-confirm="{{ a.confirm }}"{% endif %}>{{ a.label }}{% if _ctx %}<span class="sh7-sr">, {{ _ctx }}</span>{% endif %}</button>
@@ -140,9 +141,13 @@
             {% if r.inline is defined and r.inline %}
               <form class="sh7-rowform" method="post" action="{{ act }}">
                 <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="back" value="{{ here }}">
-                <input type="hidden" name="do" value="{{ r.inline.do }}"><input type="hidden" name="hour" value="{{ r.inline.hour }}">
-                <label class="sh7-sr" for="p{{ r.inline.hour }}">{{ r.inline.label }}</label>
-                <input class="sh7-input" id="p{{ r.inline.hour }}" type="url" name="{{ r.inline.name }}" placeholder="{{ r.inline.placeholder }}" required>
+                {# `hidden` names what the form carries; a row without it is the proof-link form,
+                   which carries its hour (WorkspacePages). `type` defaults to that form's url. #}
+                {% set _ih = r.inline.hidden is defined ? r.inline.hidden : {hour: r.inline.hour} %}
+                {% set _iid = 'p' ~ (r.inline.id is defined ? r.inline.id : r.inline.hour) %}
+                <input type="hidden" name="do" value="{{ r.inline.do }}">{% for k, v in _ih %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+                <label class="sh7-sr" for="{{ _iid }}">{{ r.inline.label }}</label>
+                <input class="sh7-input" id="{{ _iid }}" type="{{ r.inline.type|default('url') }}" name="{{ r.inline.name }}" placeholder="{{ r.inline.placeholder }}"{% if r.inline.step is defined %} step="{{ r.inline.step }}" min="{{ r.inline.min|default(0) }}"{% endif %} required>
                 <button class="sh7-btn sh7-btn--sm" type="submit">{{ r.inline.submit }}</button>
               </form>
             {% endif %}
@@ -262,10 +267,12 @@
     <div class="sh7-table">
       {% if s.rows %}
         <table>
+          {% if s.h|default('') %}<caption class="sh7-sr">{{ s.h }}</caption>{% endif %}
           <thead><tr>{% for c in s.cols %}<th scope="col"{% if c.t0 is defined %} class="sh7-t0"{% endif %}>{{ c.l }}</th>{% endfor %}</tr></thead>
           <tbody>
             {% for r in s.rows %}
               <tr>{% for c in r.cells %}<td{% if s.cols[loop.index0].t0 is defined %} class="sh7-t0"{% endif %}>
+                {% if not loop.first %}<span class="sh7-table__label" aria-hidden="true">{{ s.cols[loop.index0].l }}</span>{% endif %}
                 {% if c.chip is defined %}{{ M.chip(c.chip) }}{% elseif loop.first and r.href is defined %}<a class="sh7-table__link" href="{{ r.href }}">{{ c.t }}</a>{% if c.sub is defined and c.sub %}<span class="sh7-table__sub">{{ c.sub }}</span>{% endif %}
                 {% else %}<span{% if c.mono is defined and c.mono %} class="sh7-table__time"{% endif %}>{{ c.t }}</span>{% if c.sub is defined and c.sub %}<span class="sh7-table__sub">{{ c.sub }}</span>{% endif %}{% endif %}
               </td>{% endfor %}</tr>

@@ -238,8 +238,7 @@ final class EventTierOrderTest extends TestCase
      */
     public function test_the_move_control_is_on_the_form_and_cannot_submit_it(): void
     {
-        $tpl = (string) file_get_contents(
-            dirname(__DIR__, 2) . '/templates/admin/events/form.twig');
+        $tpl = \Tests\Support\EventEditorSource::read();
 
         $this->assertStringContainsString('move(r.id, -1)', $tpl, 'no control moves a tier up');
         $this->assertStringContainsString('move(r.id, 1)', $tpl, 'no control moves a tier down');
@@ -279,8 +278,7 @@ final class EventTierOrderTest extends TestCase
      */
     public function test_every_repeater_on_the_form_can_be_reordered(): void
     {
-        $tpl = (string) file_get_contents(
-            dirname(__DIR__, 2) . '/templates/admin/events/form.twig');
+        $tpl = \Tests\Support\EventEditorSource::read();
 
         // Three repeaters, so three indexed loops: `r in rows` gives no index, and without
         // one neither arrow can know it is at an end.
@@ -301,8 +299,7 @@ final class EventTierOrderTest extends TestCase
     /** Both ends of the ladder are pinned, so an arrow never walks a row off the list. */
     public function test_the_arrows_are_disabled_at_the_ends(): void
     {
-        $tpl = (string) file_get_contents(
-            dirname(__DIR__, 2) . '/templates/admin/events/form.twig');
+        $tpl = \Tests\Support\EventEditorSource::read();
 
         $this->assertStringContainsString(':disabled="i === 0"', $tpl,
             'the top row can be moved up');

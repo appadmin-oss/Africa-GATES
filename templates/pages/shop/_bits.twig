@@ -43,7 +43,7 @@
   <article class="sp-card{{ p.sold_out ? ' is-gone' }}">
     <div class="sp-card__img">
       <a class="sp-card__media" href="/shop/{{ p.slug }}" tabindex="-1" aria-hidden="true">
-        {% include 'partials/photo.twig' with {kind: 'thing', subject: 'product', cover_kind: p.category|default(''), src: p.cover_path|default(''), name: p.name, label: false} only %}
+        {% include 'partials/photo.twig' with {identity: p.id|default(null), kind: 'thing', subject: 'product', cover_kind: p.category|default(''), src: p.cover_path|default(''), name: p.name, label: false} only %}
       </a>
       {% if p.sold_out %}<span class="sp-tag sp-tag--gone">{{ 'Sold out'|trans }}</span>
       {% elseif p.tag|default('') %}<span class="sp-tag">{{ p.tag }}</span>{% endif %}
@@ -187,7 +187,11 @@
         <span class="sp-cart__tot"><span>{{ 'Total'|trans }}</span><b data-sp-total></b></span>
         <span class="sp-cart__ngn" data-sp-ngn hidden></span>
         <span class="sp-cart__give">{{ 'Every order funds child leadership programmes.'|trans }}</span>
-        <button type="button" class="sp-btn sp-btn--go" data-sp-next>{{ 'Checkout'|trans }}</button>
+        {# With no gateway able to take money, Checkout led to a form whose Pay button was
+           disabled: the cart said "write to us" and then offered the opposite. The way to
+           order is the button, and the dead step is not offered. #}
+        {% if ctx.providers is empty %}<a class="sp-btn sp-btn--go" href="/support">{{ 'Write to us to order'|trans }}</a>{% endif %}
+        <button type="button" class="sp-btn sp-btn--go{{ ctx.providers is empty ? ' sp-off' }}" data-sp-next>{{ 'Checkout'|trans }}</button>
         <button type="submit" class="sp-btn sp-btn--go" data-sp-pay hidden{{ ctx.providers is empty ? ' disabled' }}>{{ 'Pay'|trans }}</button>
         <button type="button" class="sp-back" data-sp-back hidden>{{ 'Back to your cart'|trans }}</button>
       </div>
@@ -209,8 +213,12 @@
     </div>
     <div class="sp-added__sum"><span data-sp-added-count></span><b data-sp-added-total></b></div>
     <div class="sp-added__do">
-      <button type="button" class="sp-btn sp-btn--line" data-sp-cart-open>{{ 'View cart'|trans }}</button>
-      <button type="button" class="sp-btn sp-btn--go" data-sp-cart-open="checkout">{{ 'Checkout'|trans }}</button>
+      {% if ctx.providers is empty %}
+        <button type="button" class="sp-btn sp-btn--go sp-added__one" data-sp-cart-open>{{ 'View cart'|trans }}</button>
+      {% else %}
+        <button type="button" class="sp-btn sp-btn--line" data-sp-cart-open>{{ 'View cart'|trans }}</button>
+        <button type="button" class="sp-btn sp-btn--go" data-sp-cart-open="checkout">{{ 'Checkout'|trans }}</button>
+      {% endif %}
     </div>
     <button type="button" class="sp-keep" data-sp-added-close>{{ 'Keep shopping'|trans }}</button>
   </div>

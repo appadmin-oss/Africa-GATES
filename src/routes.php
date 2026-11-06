@@ -3530,6 +3530,11 @@ return function(App $app) {
         $g->get('/email/unsubscribe',  EmailPrefsController::class . ':show');
         $g->post('/email/unsubscribe', EmailPrefsController::class . ':stop');
 
+        // A link pressed in an announcement (Mail\MailTraction): counted, then forwarded at
+        // once. The token is signed, so this is not an open redirect; the unsubscribe link
+        // above never comes through here.
+        $g->get('/m/c/{token:[A-Za-z0-9_.-]+}', \AfricaGates\Controllers\MailClickController::class . ':go');
+
         // The newsletter's way in, and its yes. /newsletter is a plain form that posts —
         // the only signup that existed was a script bound to a form no template renders.
         // /email/confirm is GET-shows, POST-confirms, for the same scanner reason as
@@ -3854,6 +3859,9 @@ return function(App $app) {
         $a->post('/bank', AccountController::class . ':bank');
         $a->post('/redeem',       AccountController::class.':redeem');
         $a->post('/profile',      AccountController::class.':profileUpdate');
+        $a->post('/photo', \AfricaGates\Controllers\AccountPhotoController::class . ':upload');
+        $a->post('/photo/delete', \AfricaGates\Controllers\AccountPhotoController::class . ':remove');
+        $a->post('/password',     AccountController::class.':passwordUpdate');
         // Display & reading, saved to the member so it follows them between devices
         // (REFERENCE §7.5). JSON, from a11y.js; the member is the session's, never a param.
         $a->post('/display',      \AfricaGates\Controllers\DisplayReadingController::class.':save');
@@ -3957,7 +3965,13 @@ return function(App $app) {
             $l->get('/' . $leadPage, $c . ':root')->setArgument('page', $leadPage);
         }
         $l->get('/event/{id:[0-9]+}', $c . ':event');
-        foreach (['plan', 'award', 'people', 'crm', 'money', 'night', 'growth', 'reports', 'requests', 'settings', 'work', 'risks'] as $leadPage) {
+        // Every page the event's menu draws, read from the menu itself (EventPages::NAV), plus
+        // the first build's addresses that forward on (ALIASES). This was a typed list, and
+        // "Team & roles" was added to the menu and never to it: the link answered 404 for
+        // every lead who pressed it. LeadEventRoutesTest holds the two together.
+        $leadPages = array_keys(\AfricaGates\Services\EventPlan\EventPages::ALIASES);
+        foreach (\AfricaGates\Services\EventPlan\EventPages::NAV as [, $pages]) $leadPages = array_merge($leadPages, array_keys($pages));
+        foreach (array_unique(array_diff($leadPages, ['today'])) as $leadPage) {
             $l->get('/event/{id:[0-9]+}/' . $leadPage, $c . ':event')->setArgument('page', $leadPage);
         }
         $l->get('', $c . ':root');
@@ -4586,9 +4600,11 @@ return function(App $app) {
 
 
         // Member account actions (manual points adjustment — audited, admin+ gated in-controller).
+        $a->get('/users', \AfricaGates\Admin\Controllers\UsersController::class.':index');
         $a->post('/users/{id:[0-9]+}/points',    \AfricaGates\Admin\Controllers\UsersController::class.':adjustPoints');
 
         // Generic data explorer — every collected dataset (paginated + detail pages + CSV).
+        $a->get('/data/users/{id:[0-9]+}', \AfricaGates\Admin\Controllers\UsersController::class.':show');
         $a->get('/data',                         AdminDataController::class.':index');
         // Rates, ratios and funnels. The data explorer above shows rows; this shows
         // what the rows are doing over time, which is a different question.
@@ -4673,6 +4689,7 @@ return function(App $app) {
             $s->post('/{id:[0-9]+}/approve', \AfricaGates\Admin\Controllers\CampaignsController::class.':approve');
             $s->post('/{id:[0-9]+}/test',    \AfricaGates\Admin\Controllers\CampaignsController::class.':test');
             $s->post('/{id:[0-9]+}/send',    \AfricaGates\Admin\Controllers\CampaignsController::class.':send');
+            $s->post('/{id:[0-9]+}/stop',    \AfricaGates\Admin\Controllers\CampaignsController::class.':stop');
         });
 
         // ── JUDGING INTERVIEWS ────────────────────────────────────────

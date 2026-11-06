@@ -46,7 +46,7 @@ final class EventPermissions
         'plan.edit'          => ['label' => 'Run the plan', 'risk' => 'low',
                                  'help' => 'Add and move work, give it to somebody on the team, add and close risks.',
                                  'views' => ['plan' => ['work', 'timeline', 'risks', 'decisions'], 'people' => ['team']],
-                                 'acts' => ['work_add', 'work_status', 'work_owner', 'risk_add', 'risk_close']],
+                                 'acts' => ['work_add', 'work_status', 'work_owner', 'risk_add', 'risk_close', 'work_decide', 'work_return']],
         'decisions.record'   => ['label' => 'Record decisions', 'risk' => 'medium',
                                  'help' => 'Write down what the team agreed, and reverse it with a reason.',
                                  'views' => ['plan' => ['decisions']], 'acts' => ['decision_add', 'decision_reverse']],
@@ -56,6 +56,9 @@ final class EventPermissions
         'volunteers.checkin' => ['label' => 'Check volunteers in', 'risk' => 'medium',
                                  'help' => 'See who is on the team, check volunteers in and out, and confirm their time on site.',
                                  'views' => ['people' => ['team', 'volunteers']], 'acts' => ['attend_in', 'attend_out', 'attend_confirm']],
+        'volunteers.tasks'   => ['label' => 'Set volunteer tasks', 'risk' => 'low',
+                                 'help' => 'Post work for this event’s volunteers, close it, and accept it as done with the hours it took.',
+                                 'views' => ['people' => ['tasks']], 'acts' => ['vtask_add', 'vtask_close', 'vtask_accept']],
         'sponsors.manage'    => ['label' => 'Sponsors and contacts', 'risk' => 'medium',
                                  'help' => 'Add sponsors and move them through the stages.',
                                  'views' => ['crm' => ['sponsors', 'contacts']], 'acts' => ['sponsor_add', 'sponsor_stage']],
@@ -92,7 +95,13 @@ final class EventPermissions
     ];
 
     /** Acts only a LEAD has: each gives or removes somebody's access, or proposes it. Never on the menu. */
-    public const LEAD_ACTS = ['vol_invite', 'vol_invite_cancel', 'vol_end', 'team_propose', 'role_propose', 'team_suggest', 'member_propose', 'member_end', 'proposal_withdraw'];
+    public const LEAD_ACTS = ['vol_invite', 'vol_invite_cancel', 'vol_end', 'team_propose', 'role_propose', 'team_suggest', 'member_propose', 'member_end', 'proposal_withdraw', 'decide'];
+    /**
+     * Acts ANYBODY on the event's team has (EventPlan\TeamLoop): report where things stand,
+     * finish their own work with its proof, suggest work for a lead to decide. Each writer
+     * checks the row again — finishing is only ever your own work, or a lead's call.
+     */
+    public const TEAM_ACTS = ['report_add', 'work_done', 'work_propose'];
     /** Acts only an OWNER has. */
     public const OWNER_ACTS = ['decide', 'member_end', 'role_archive'];
     /** What a team's own lead may do beyond their role's ticks: propose somebody for THEIR team (an owner still decides). */
@@ -167,6 +176,7 @@ final class EventPermissions
     /** May somebody in this standing press this button? (Drawing only; every writer checks again.) */
     public static function allowsAct(array $st, string $do): bool
     {
+        if ($st['any'] && in_array($do, self::TEAM_ACTS, true)) return true;
         if ($st['lead'] && in_array($do, self::LEAD_ACTS, true)) return true;
         if ($st['owner'] && in_array($do, self::OWNER_ACTS, true)) return true;
         if ($st['teamLeadOf'] && in_array($do, self::TEAM_LEAD_ACTS, true)) return true;

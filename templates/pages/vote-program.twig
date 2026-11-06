@@ -57,7 +57,7 @@
        assistive technology, and the band's own <h1> takes over from 600px. #}
     <h1 class="ag-sr vp-hero__h1-sr">{{ _p.title }}</h1>
     <div class="vp-hero__media">
-      {% include 'partials/photo.twig' with {kind: 'thing', subject: 'award', src: _f.cover, name: _p.title, eager: true} only %}
+      {% include 'partials/photo.twig' with {identity: _p.id|default(null), kind: 'thing', subject: 'award', src: _f.cover, name: _p.title, eager: true} only %}
       <span class="vp-hero__chip vp-hero__chip--{{ _f.open ? 'live' : 'quiet' }}"><span class="vp-hero__dot" aria-hidden="true"></span>{{ _f.chip }}</span>
     </div>
     <div class="vp-hero__band">

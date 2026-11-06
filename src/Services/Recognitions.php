@@ -501,7 +501,7 @@ final class Recognitions
                     'nominee_id' => $nid,
                     'profile_id' => $d->profile_live_id !== null ? (int) $d->profile_live_id : null,
                     'url'        => $url,
-                    'photo'      => (string) ($d->avatar_path ?: ($d->photo_path ?? '')),
+                    'photo'      => (string) (($d->photo_path ?? '') ?: $d->avatar_path),
                     'country'    => (string) ($d->country_code ?? ''),
                 ],
                 'issuer' => self::issuerShape((object) [

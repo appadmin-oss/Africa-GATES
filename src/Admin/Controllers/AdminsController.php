@@ -9,6 +9,7 @@ use Slim\Views\Twig;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
 use AfricaGates\Admin\Services\AuditService;
+use AfricaGates\Admin\Services\StaffDirectoryService;
 use AfricaGates\Admin\Support\Permissions;
 
 /**
@@ -21,15 +22,13 @@ class AdminsController
     public function __construct(
         private readonly Twig $view,
         private readonly AuditService $audit,
+        private readonly StaffDirectoryService $directory,
     ) {}
 
     public function index(Request $req, Response $res): Response
     {
-        $rows = DB::table('gates_admins')->orderByDesc('id')->get()->map(fn($r)=>(array)$r)->all();
-        return $this->view->render($res, 'admin/admins/index.twig', [
-            'page_title' => 'Admin Accounts — Admin',
-            'admin_page' => 'admins',
-            'rows'       => $rows,
+        return $this->view->render($res, 'admin/admins/index.twig', $this->directory->directory($req->getQueryParams()) + [
+            'page_title' => 'Admin Accounts — Admin', 'admin_page' => 'admins',
         ]);
     }
 

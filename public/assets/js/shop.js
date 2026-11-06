@@ -486,7 +486,10 @@
       $$('[data-sp-qty]', root.ownerDocument).forEach(function (q) { q.textContent = qty; });
       var miss = missing();
       var addLabel = miss ? put(IW.choose, { axis: nameOf(miss).toLowerCase() }) : IW.add;
-      $$('[data-sp-add-item]').forEach(function (b) { b.textContent = addLabel; });
+      // One prompt per screen: the big button asks for the size; the cart button beside it
+      // keeps its own name (both used to read "Choose a size", which looked like a fault).
+      // The phone's buy bar has only the one button, so that one asks.
+      $$('[data-sp-add-item]').forEach(function (b) { b.textContent = b.closest('.sp-ctas') ? IW.add : addLabel; });
       $$('[data-sp-buy]', root).forEach(function (b) {
         b.textContent = miss ? addLabel : put(IW.buy, { amount: money(price * qty) });
       });

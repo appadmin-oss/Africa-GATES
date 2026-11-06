@@ -153,7 +153,7 @@ a.sh7-row__t { display: inline-block; padding-block: 4px; margin-block: -4px; }
 .sh7-meter__fill { display: block; height: 100%; background: var(--cn-green); border-radius: var(--cn-r-pill); }
 .sh7-meter__label { font-size: var(--cn-fs-12); color: var(--cn-ink-3); }
 
-.sh7-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.sh7-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 12px; }
 .sh7-card { display: flex; flex-direction: column; gap: 10px; padding: 16px; border: 1px solid var(--cn-card-edge); border-radius: var(--cn-r-14); color: var(--cn-ink) !important; }
 .sh7-card:hover { border-color: var(--cn-line-strong); }
 .sh7-card__top { display: flex; gap: 10px; align-items: center; }
@@ -234,6 +234,7 @@ a.sh7-row__t { display: inline-block; padding-block: 4px; margin-block: -4px; }
 .sh7-legend__sw { width: 10px; height: 10px; border-radius: 3px; }
 .sh7-chart__empty { margin: 0; color: var(--cn-ink-3); }
 
+.sh7-table__label { display: none; }
 .sh7-table { border: 1px solid var(--cn-card-edge); border-radius: var(--cn-r-14); overflow: hidden; }
 .sh7-table table { width: 100%; border-collapse: collapse; }
 .sh7-table th { height: 38px; padding: 0 14px; text-align: left; background: var(--cn-table-head); font-size: var(--cn-fs-12); font-weight: 500; color: var(--cn-ink-3); }
@@ -337,7 +338,9 @@ textarea.sh7-input { height: auto; padding: 10px 12px; line-height: 1.5; }
   .sh7-btn { height: 44px; }
   .sh7-btn--sm { height: 40px; }
   .sh7-input { height: 48px; font-size: var(--cn-fs-16); }
-  .sh7-table thead { display: none; }
+  .sh7-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .sh7-table td:not(:first-child) { flex: 1 1 120px; min-width: 0; overflow-wrap: anywhere; }
+  .sh7-table__label { display: block; font-size: var(--cn-fs-12); color: var(--cn-ink-3); margin-block: 4px; }
   .sh7-table tr { display: flex; flex-wrap: wrap; gap: 4px 8px; padding: 10px 14px; border-top: 1px solid var(--cn-line-row); }
   .sh7-table td { border: 0; padding: 0; }
   .sh7-table td:first-child { flex: 1 1 100%; }
@@ -351,7 +354,7 @@ textarea.sh7-input { height: auto; padding: 10px 12px; line-height: 1.5; }
   .sh7-phonetab > span { max-width: 100%; padding: 0 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sh7-more { flex: 1; display: flex; }
   .sh7-more > summary { width: 100%; }
-  .sh7-sheet { position: fixed; left: 0; right: 0; bottom: 64px; max-height: 70dvh; overflow-y: auto; padding: 12px 12px 16px; background: var(--cn-surface);
+  .sh7-sheet { position: fixed; left: 0; right: 0; bottom: calc(64px + env(safe-area-inset-bottom)); max-height: 70dvh; overflow-y: auto; padding: 12px 12px 16px; background: var(--cn-surface);
     border-radius: var(--cn-r-20) var(--cn-r-20) 0 0; box-shadow: var(--cn-sh-drawer); display: flex; flex-direction: column; gap: 2px; }
   .sh7-sheet .sh7-item { height: 48px; }
   .sh7-sheet .sh7-label { display: block; }
@@ -372,6 +375,7 @@ textarea.sh7-input { height: auto; padding: 10px 12px; line-height: 1.5; }
 /* ── Find, Ask and the switcher (§2.4) ──────────────────────────────────────────── */
 .sh7-find { position: relative; flex: 0 1 300px; display: flex; align-items: center; }
 .sh7-find__q { width: 100%; height: 36px; padding-right: 44px; }
+.sh7-find__ico { display: none; }
 .sh7-find__kbd { position: absolute; right: 10px; font-family: var(--cn-mono); font-size: var(--cn-fs-12); color: var(--cn-soft); pointer-events: none; }
 .sh7-find__list { position: absolute; top: 42px; right: 0; width: min(420px, 90vw); z-index: 35; padding: 6px; background: var(--cn-surface);
   border: 1px solid var(--cn-line); border-radius: var(--cn-r-12); box-shadow: var(--cn-sh-menu); display: flex; flex-direction: column; gap: 2px; }
@@ -422,9 +426,37 @@ textarea.sh7-input { height: auto; padding: 10px 12px; line-height: 1.5; }
      free width and a 44px target (handoff rule 7, SKILL §14). */
   .sh7-find { flex: 1 1 0; min-width: 120px; }
   .sh7-find .sh7-find__q { height: 44px; }
-  /* The page's name keeps its own width (up to half the bar) and Find takes the rest: with
-     Find on `auto` it swallowed the bar and the name shrank to its first letter. */
-  .sh7-apptitle { flex: 0 1 auto; max-width: 50%; }
+  /* Find is an ICON on a phone and opens across the bar when touched (owner, 5 Nov 2026:
+     "this is not clean"). As a 200px box beside the title it cut every page's name to a
+     word ("Alimosho Honours…") to offer a search most visits never use. Pure CSS: the input
+     is still the input — 44px wide, its text and box hidden until it has focus or a query —
+     so a tap focuses it, the keyboard opens, and the title and back arrow step aside. */
+  .sh7-apptitle { flex: 1 1 auto; max-width: none; }
+  .sh7-find { flex: 0 0 44px; min-width: 0; }
+  .sh7-find__ico { display: grid; place-items: center; position: absolute; left: 0; top: 0; width: 44px; height: 44px; pointer-events: none; color: var(--cn-ink); }
+  .sh7-find .sh7-find__q { padding: 0 12px 0 40px; border-color: transparent; background: transparent; color: transparent; cursor: pointer; }
+  .sh7-find .sh7-find__q::placeholder { color: transparent; }
+  .sh7-find:focus-within, .sh7-find:has(.sh7-find__q:not(:placeholder-shown)) { flex: 1 1 auto; }
+  .sh7-find:focus-within .sh7-find__q, .sh7-find .sh7-find__q:not(:placeholder-shown) { color: var(--cn-ink); background: var(--cn-surface); border-color: var(--cn-line); cursor: text; }
+  .sh7-find:focus-within .sh7-find__q::placeholder { color: var(--cn-soft); }
+  .sh7-bar:has(.sh7-find:focus-within) .sh7-apptitle, .sh7-bar:has(.sh7-find:focus-within) .sh7-appback { display: none; }
+
+  /* The tabs get air above and a rule below, so the pills read as the page's own switch and
+     not as part of the bar they used to touch. */
+  .sh7-tabs { height: 56px; padding: 0 16px; border-bottom: 1px solid var(--cn-line-row); scroll-snap-type: x proximity; scroll-padding: 0 16px; }
+  .sh7-tab { scroll-snap-align: start; }
+
+  /* A form's group name is a quiet heading over its fields, not a second label: "What" in
+     the same weight above "What has to be done" read as two questions. */
+  .sh7-form__block { padding: 16px 0; gap: 6px; }
+  .sh7-form__name { font-size: var(--cn-fs-12-5); color: var(--cn-ink-3); }
+  .sh7-form__help { margin-top: 2px; }
+  textarea.sh7-input { min-height: 96px; }
+
+  /* Three figures share one row rather than wrapping two-and-one. */
+  .sh7-stats { grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
+  .sh7-stat { padding: 12px; }
+  .sh7-stat__v { font-size: var(--cn-fs-17); }
 }
 
 /* ── The application page (no shell: an applicant has nothing to navigate yet) ──── */
@@ -483,3 +515,17 @@ textarea.sh7-input { height: auto; padding: 10px 12px; line-height: 1.5; }
   .sh7-root input[type="radio"], .sh7-root input[type="checkbox"] { width: 22px; height: 22px; }
 }
 .sh7-badge { font-size: var(--cn-fs-12); }
+
+/* Section navigation uses the same shell tokens as the lead's page content. */
+.sh7-section-nav { border: 1px solid var(--cn-line); border-radius: var(--cn-r-10); padding: 0 14px; }
+.sh7-section-nav > summary { cursor: pointer; padding-block: 14px; font-weight: 500; }
+.sh7-section-nav__count { color: var(--cn-ink-3); font-size: var(--cn-fs-12); margin-inline-start: 8px; }
+.sh7-section-nav ul { list-style: none; margin: 0; padding: 0 0 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 4px 16px; }
+.sh7-section-nav a { display: flex; align-items: center; min-height: 44px; overflow-wrap: anywhere; }
+.sh7-sec { scroll-margin-block: 16px; }
+.sh7-head__title, .sh7-row__t, .sh7-card__t { overflow-wrap: anywhere; }
+.sh7-form__fields, .sh7-field { min-width: 0; }
+@container shell (max-width: 599px) {
+  .sh7-form__submit { display: flex; flex-wrap: wrap; gap: 8px; }
+  .sh7-form__submit > .sh7-btn { flex: 1 1 auto; height: auto; min-height: 44px; white-space: normal; padding-block: 12px; }
+}

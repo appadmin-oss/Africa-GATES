@@ -23,9 +23,12 @@
 }
 .vn-top{ display:flex; flex-direction:column; gap:16px; min-width:0 }
 /* 4:3 on a phone, not square: a square portrait was the whole first screen. The crop keeps the
-   upper part, where a face is. */
+   TOP of the photo, where a face is. It was 22% down, which took the crown off anybody whose
+   photo is framed with the head near the top edge — a studio headshot, most of what nominees
+   upload (owner, 5 Nov 2026: "her head is cut off"). A photo with room above the head loses
+   only that room. */
 .vn-photo{ position:relative; aspect-ratio:4 / 3; margin:0 -16px; border-radius:0 0 var(--ag-r-24) var(--ag-r-24); overflow:hidden; background:var(--ag-line); container-type:inline-size }
-.vn-photo img{ object-position:50% 22% }
+.vn-photo img{ object-position:50% 0 }
 .vn-photo .ag-photo{ position:absolute; inset:0 }
 .vn-photo--none{ aspect-ratio:16 / 7; display:flex; align-items:center; justify-content:center }
 .vn-photo__av{ position:relative; display:flex; border-radius:50%; box-shadow:0 0 0 4px var(--ag-surface) }

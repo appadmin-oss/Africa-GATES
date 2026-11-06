@@ -703,6 +703,10 @@ final class DonationController
             $this->log?->error('[donate] could not persist pending donation', ['err' => $e->getMessage()]);
             return $bail('error');
         }
+        // A gift STARTED, credited to the announcement that brought them, if one did
+        // (Mail\MailTraction). Started, not paid: the payment settles later at the gateway,
+        // with no session to credit — the report says "gifts started" for that reason.
+        \AfricaGates\Services\Mail\MailTraction::converted('give', $reference, $charge * 100);
 
         // ── A MONTHLY GIFT IS A PLAN AT THE GATEWAY ──────────────────────────
         //

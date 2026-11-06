@@ -225,7 +225,7 @@
           </div>
           <div class="sp-rail__foot">
             <a class="sp-rail__clearall" href="{{ _clear }}">{{ 'Clear all'|trans }}</a>
-            <button type="submit" class="sp-btn sp-btn--ink sp-rail__show">{{ _total == 1 ? 'Show 1 item'|trans : 'Show %n% items'|trans({'%n%': _total}) }}</button>
+            <button type="submit" class="sp-btn sp-btn--go sp-rail__show">{{ _total == 1 ? 'Show 1 item'|trans : 'Show %n% items'|trans({'%n%': _total}) }}</button>
           </div>
           <noscript><button type="submit" class="sp-btn sp-btn--line sp-rail__apply">{{ 'Apply filters'|trans }}</button></noscript>
         </form>
@@ -235,7 +235,7 @@
       <div class="sp-main">
         {% if promo %}
           <a class="sp-promo" href="/shop/{{ promo.slug }}">
-            <span class="sp-promo__img">{% include 'partials/photo.twig' with {kind: 'thing', subject: 'product', cover_kind: promo.category|default(''), src: promo.cover_path|default(''), name: promo.name, label: false} only %}</span>
+            <span class="sp-promo__img">{% include 'partials/photo.twig' with {identity: promo.id|default(null), kind: 'thing', subject: 'product', cover_kind: promo.category|default(''), src: promo.cover_path|default(''), name: promo.name, label: false} only %}</span>
             <span class="sp-promo__b">
               <span class="sp-promo__k">{{ 'Featured in the shop'|trans }}</span>
               <span class="sp-promo__t">{{ promo.name }}</span>
@@ -261,7 +261,8 @@
           <form class="sp-bar__tools" method="get" action="/shop" data-sp-autosubmit>
             {{ sb.keep(F, ['stock', 'sort']) }}
             <label class="sp-stock{{ F.in_stock ? ' is-on' }}"><input type="checkbox" role="switch" name="stock" value="1"{{ F.in_stock ? ' checked' }}><span class="sp-stock__track" aria-hidden="true"><span></span></span>{{ 'In stock'|trans }}</label>
-            <select name="deliver" aria-label="{{ 'Deliver to'|trans }}">{% for r in regions %}<option value="{{ r }}"{{ r == region ? ' selected' }}>{{ r|trans }}</option>{% endfor %}</select>
+            {# "Deliver to: South West", like "Sort: Featured" beside it — a bare region name read as a filter nobody had set. #}
+            <select name="deliver" aria-label="{{ 'Deliver to'|trans }}">{% for r in regions %}<option value="{{ r }}"{{ r == region ? ' selected' }}>{{ 'Deliver to: %r%'|trans({'%r%': r|trans}) }}</option>{% endfor %}</select>
             {% if currency_enabled %}<select name="cur" aria-label="{{ 'Show prices in'|trans }}">{% for code, sym in currencies %}<option value="{{ code }}"{{ code == currency ? ' selected' }}>{{ sym }} {{ code }}</option>{% endfor %}</select>{% endif %}
             <select name="sort" aria-label="{{ 'Sort'|trans }}">{% for k, label in sorts %}<option value="{{ k }}"{{ F.sort == k ? ' selected' }}>{{ 'Sort: %s%'|trans({'%s%': label|trans}) }}</option>{% endfor %}</select>
             <noscript><button type="submit" class="sp-btn sp-btn--line">{{ 'Apply'|trans }}</button></noscript>

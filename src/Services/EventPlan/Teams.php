@@ -16,9 +16,12 @@ use Illuminate\Database\Capsule\Manager as DB;
  * event lead manages this … can set up committees or teams, assigns lead … event owner
  * approves, event owner can set permission as they like").
  *
- *   · A LEAD PROPOSES; AN OWNER DECIDES. Teams, roles (with ticks from EventPermissions::MENU)
- *     and the people put in them all start `proposed`, and nothing gives anybody access until
- *     an owner approves it — every route to access passes `decide()`.
+ *   · WHO DECIDES IS SET BY HOW BIG THE CHANGE IS (Tiers; owner, 5 Nov 2026: "Event lead should
+ *     be able to assign roles and tasks"). A team, a role with no high-risk tick and a person
+ *     put into an approved role are MEDIUM: a lead's own is the decision, recorded as theirs.
+ *     A role that can move money, message many people, run the door or change settings is
+ *     LARGE and starts `proposed` until an owner approves it. Every route to access still
+ *     passes `decide()`, so the claim-then-give ordering below holds for both.
  *   · TWO PEOPLE. An owner never decides their own proposal, nor access for their own address,
  *     even when they also lead the event; another owner or the platform's staff decides it.
  *   · A DECISION HAS A REASON, and is audited by the caller with it. Refusing says why to the
@@ -84,10 +87,10 @@ final class Teams
         if (DB::table('gates_event_teams')->where('event_id', $eventId)->whereIn('status', ['proposed', 'approved'])->whereRaw('LOWER(name) = ?', [mb_strtolower($name)])->exists()) {
             return ['ok' => false, 'error' => 'This event already has a team by that name.'];
         }
+        // A team gives nobody access, so it is a MEDIUM change (Tiers): the lead's own decision.
         $id = (int) DB::table('gates_event_teams')->insertGetId(['event_id' => $eventId, 'parent_id' => $parent, 'name' => mb_substr($name, 0, 120),
-            'purpose' => mb_substr(trim((string) ($in['purpose'] ?? '')), 0, 500) ?: null, 'status' => 'proposed'] + self::proposer($me));
-        $told = self::tellOwners($eventId, 'The team ' . $name, $me);
-        return ['ok' => true, 'id' => $id, 'event' => $eventId, 'msg' => 'Proposed. ' . $told];
+            'purpose' => mb_substr(trim((string) ($in['purpose'] ?? '')), 0, 500) ?: null, 'status' => 'approved'] + self::proposer($me) + self::byLead($me));
+        return ['ok' => true, 'id' => $id, 'event' => $eventId, 'msg' => 'Team set up. Put people in it with a role.'];
     }
 
     /**
@@ -118,9 +121,13 @@ final class Teams
         $id = (int) DB::table('gates_event_roles')->insertGetId(['event_id' => $eventId, 'team_id' => $team, 'name' => mb_substr($name, 0, 120),
             'description' => mb_substr(trim((string) ($in['description'] ?? '')), 0, 500) ?: null, 'kind' => $kind,
             'perms_json' => json_encode($perms), 'proposed_json' => json_encode($perms), 'spend_ceiling_minor' => $c['minor'],
-            'lead_with' => $leadWith ?: null, 'review_json' => $notes ? json_encode($notes) : null, 'status' => 'proposed'] + self::proposer($me));
+            'lead_with' => $leadWith ?: null, 'review_json' => $notes ? json_encode($notes) : null,
+            // A role with no high-risk tick is a MEDIUM change: the lead's. One that can move
+            // money, message many people, run the door or change settings is LARGE (Tiers).
+            'status' => Tiers::forRole($perms) === 'medium' ? 'approved' : 'proposed'] + self::proposer($me) + (Tiers::forRole($perms) === 'medium' ? self::byLead($me) : []));
+        if (Tiers::forRole($perms) === 'medium') return ['ok' => true, 'id' => $id, 'event' => $eventId, 'msg' => 'Role set up. You can put people in it now.'];
         $told = self::tellOwners($eventId, 'The role ' . $name, $me);
-        return ['ok' => true, 'id' => $id, 'event' => $eventId, 'msg' => 'Proposed. ' . $told];
+        return ['ok' => true, 'id' => $id, 'event' => $eventId, 'msg' => 'Proposed: it can ' . self::riskWords($perms) . ', so an owner decides. ' . $told];
     }
 
     /**
@@ -153,8 +160,17 @@ final class Teams
         $id = (int) DB::table('gates_event_team_members')->insertGetId(['event_id' => $eventId, 'team_id' => $team ?? ($role->team_id ? (int) $role->team_id : null),
             'role_id' => (int) $role->id, 'email' => $email, 'team_role' => $teamRole, 'until_at' => $event ? RoleInvites::until($event, $until) : null,
             'status' => 'proposed'] + self::proposer($me));
+        // Putting somebody in an approved role is a MEDIUM change: a lead's is the decision
+        // (owner, 5 Nov 2026: "Event lead should be able to assign roles and tasks"). A team
+        // lead's proposal, or one into a role still waiting, goes to a lead or an owner.
+        if ($st['lead'] && $role->status === 'approved' && (!$team || DB::table('gates_event_teams')->where('id', $team)->value('status') === 'approved')
+            && strtolower((string) DB::table('gates_users')->where('id', $me['id'])->value('email')) !== $email) {
+            $r = self::decide('member', $id, 'approve', 'Assigned by the lead', ['kind' => 'lead', 'id' => $me['id'], 'name' => $me['name']]);
+            if ($r['ok']) return ['ok' => true, 'id' => $id, 'event' => $eventId, 'msg' => 'Assigned.' . preg_replace('/^Approved\./', '', (string) $r['msg'])];
+            return $r;
+        }
         $told = self::tellOwners($eventId, $email . ' as ' . $role->name, $me);
-        return ['ok' => true, 'id' => $id, 'event' => $eventId, 'msg' => 'Proposed. Nothing reaches them until an owner approves it. ' . $told];
+        return ['ok' => true, 'id' => $id, 'event' => $eventId, 'msg' => 'Proposed. Nothing reaches them until it is approved. ' . $told];
     }
 
     /** The proposer takes back something still waiting. */
@@ -185,7 +201,16 @@ final class Teams
         $row = DB::table($t)->where('id', $id)->first();
         if (!$row) return ['ok' => false, 'error' => 'That is not there.'];
         $eventId = (int) $row->event_id;
-        if ($by['kind'] === Plan::ACTOR) {
+        if ($by['kind'] === 'lead') {
+            // A lead decides MEDIUM changes (Tiers): a person into an approved role, a team, a
+            // role with no high-risk tick. Large ones stay an owner's.
+            if (!Plan::isLead((int) $by['id'], $eventId)) return ['ok' => false, 'error' => 'Only a lead of this event can do that.'];
+            $tier = match ($subject) { 'role' => Tiers::forRole(EventPermissions::ticks((string) ($row->perms_json ?? ''))), default => 'medium' };
+            if ($tier !== 'medium') return ['ok' => false, 'error' => 'That role can ' . self::riskWords(EventPermissions::ticks((string) $row->perms_json)) . ', so an owner decides it.'];
+            if ($subject === 'member' && strtolower((string) DB::table('gates_users')->where('id', (int) $by['id'])->value('email')) === strtolower((string) $row->email)) {
+                return ['ok' => false, 'error' => 'Nobody approves access for themselves. An owner or the platform’s staff decides it.'];
+            }
+        } elseif ($by['kind'] === Plan::ACTOR) {
             if (!self::isOwner((int) $by['id'], $eventId)) return ['ok' => false, 'error' => 'Only an owner of this event decides its teams and roles.'];
             if ($row->proposed_kind === Plan::ACTOR && (int) $row->proposed_id === (int) $by['id']) {
                 return ['ok' => false, 'error' => 'You proposed this, so another owner — or the platform’s staff — decides it.'];
@@ -226,14 +251,26 @@ final class Teams
             if ($row->team_id && DB::table('gates_event_teams')->where('id', (int) $row->team_id)->value('status') !== 'approved') {
                 return ['ok' => false, 'error' => 'Decide the team first: a person can only join an approved team.'];
             }
-            $g = self::giveAccess($row, $role, $by);
-            if (!$g['ok']) return $g;
-            $set += array_intersect_key($g, array_flip(['grant_id', 'invite_id']));
-            $extra = !empty($g['granted']) ? ' They have it now.' : ' They are invited; it switches on when they sign in' . ($role->kind === 'volunteer' ? ' as an approved volunteer.' : ' with that address confirmed.');
         }
         $set['status'] = $verdict === 'approve' ? 'approved' : 'refused';
+        // CLAIM, then act. Access is given (and mailed) only by the decision that won the
+        // guarded write: given first, two owners deciding at once — one approving, one
+        // refusing — could tell somebody they were in while the row ended up refused.
         $n = DB::table($t)->where('id', $id)->where('status', 'proposed')->update($set);
         if ($n === 0) return ['ok' => false, 'error' => 'Somebody else decided this a moment ago.'];
+        if ($verdict === 'approve' && $subject === 'member') {
+            $g = self::giveAccess($row, $role, $by);
+            if (!$g['ok']) {
+                // Nothing was given, so the decision is handed back rather than left
+                // reading "approved" over a person who holds nothing.
+                DB::table($t)->where('id', $id)->update(['status' => 'proposed', 'decided_kind' => null, 'decided_id' => null,
+                    'decided_name' => null, 'decided_at' => null, 'reason' => $row->reason, 'updated_at' => date('Y-m-d H:i:s')]);
+                return $g;
+            }
+            $ids = array_intersect_key($g, array_flip(['grant_id', 'invite_id']));
+            if ($ids !== []) DB::table($t)->where('id', $id)->update($ids);
+            $extra = !empty($g['granted']) ? ' They have it now.' : ' They are invited; it switches on when they sign in' . ($role->kind === 'volunteer' ? ' as an approved volunteer.' : ' with that address confirmed.');
+        }
         self::tellProposer($row, $subject, $word, $reason, $by);
         $msg = ['approved' => 'Approved.', 'changed' => 'Approved with your changes. The lead sees what you changed.', 'refused' => 'Refused. The lead sees your reason.'][$word];
         return ['ok' => true, 'event' => $eventId, 'verdict' => $word, 'msg' => $msg . $extra];
@@ -344,6 +381,21 @@ final class Teams
     }
 
     /** @return array<string,mixed> */
+    /** A lead's own medium change, recorded as decided by them. */
+    private static function byLead(array $me): array
+    {
+        return ['decided_kind' => 'lead', 'decided_id' => $me['id'], 'decided_name' => mb_substr($me['name'], 0, 190) ?: null,
+                'decided_at' => date('Y-m-d H:i:s'), 'reason' => 'A lead’s own medium change', 'updated_at' => date('Y-m-d H:i:s')];
+    }
+
+    /** What makes a role large, in words: "approve spend and send messages". @param list<string> $perms */
+    public static function riskWords(array $perms): string
+    {
+        $w = [];
+        foreach ($perms as $p) if ((EventPermissions::MENU[$p]['risk'] ?? '') === 'high') $w[] = mb_strtolower((string) EventPermissions::MENU[$p]['label']);
+        return $w ? implode(' and ', $w) : 'do high-risk things';
+    }
+
     private static function proposer(array $me): array
     {
         return ['proposed_kind' => Plan::ACTOR, 'proposed_id' => $me['id'], 'proposed_name' => mb_substr($me['name'], 0, 190) ?: null, 'created_at' => date('Y-m-d H:i:s')];
@@ -413,6 +465,7 @@ final class Teams
     private static function tellProposer(object $row, string $subject, string $word, string $reason, array $by): void
     {
         if ($row->proposed_kind !== Plan::ACTOR || !$row->proposed_id) return;
+        if ((int) $row->proposed_id === (int) ($by['id'] ?? 0)) return;   // their own decision: nothing to tell them
         $u = DB::table('gates_users')->where('id', (int) $row->proposed_id)->first(['name', 'email']);
         if (!$u || !$u->email) return;
         $what = match ($subject) {

@@ -345,6 +345,11 @@ final class VolunteerController
             'save_notifications' => $this->saved(Volunteers::save($v, 'notifications', $b)),
             'pause' => Volunteers::pause($v, (int) ($b['weeks'] ?? 0)) ? $ok('You’re on a break. Invites pause until then.')
                 : $no($v->status === 'active' ? 'Pick 2, 4 or 8 weeks.' : 'Only an active volunteer can take a break.'),
+            // The event team's loop (EventPlan\TeamLoop), the same three acts the event console has.
+            'report_add' => $this->loop(\AfricaGates\Services\EventPlan\TeamLoop::report((int) ($b['event'] ?? 0), (int) ($b['work'] ?? 0) ?: null, (int) $user->id, $name,
+                (string) ($b['state'] ?? ''), (int) ($b['confidence'] ?? 2), (string) ($b['note'] ?? ''))),
+            'work_done' => $this->loop(\AfricaGates\Services\EventPlan\TeamLoop::complete((int) ($b['work'] ?? 0), (int) $user->id, (string) ($b['proof'] ?? ''))),
+            'work_propose' => $this->loop(\AfricaGates\Services\EventPlan\TeamLoop::propose((int) ($b['event'] ?? 0), (int) $user->id, $b)),
             'resume' => Volunteers::resume($v) ? $ok('Welcome back.') : $no('You’re not on a break.'),
             'leave' => Volunteers::leave($v) ? $ok('You’ve stepped back. Your record stays yours.') : $no('That could not be done.'),
             default => $no('That isn’t something this page can do.'),
@@ -453,6 +458,12 @@ final class VolunteerController
     }
 
     /** @return array{0:?object,1:?object} the member and their volunteer row */
+    /** A TeamLoop answer in this page's shape. */
+    private function loop(array $r): array
+    {
+        return ['ok' => (bool) $r['ok'], 'msg' => (string) ($r['ok'] ? ($r['msg'] ?? 'Done.') : ($r['error'] ?? 'That didn’t work.'))];
+    }
+
     private function who(): array
     {
         $user = $this->accounts->current();
@@ -461,6 +472,11 @@ final class VolunteerController
         $v = Volunteers::of((int) $user->id);
         // A break that has run out ends itself on the next read, like a grant does.
         if ($v && $v->status === 'paused' && $v->paused_until && strtotime((string) $v->paused_until) <= time()) { Volunteers::resume($v); $v = Volunteers::of((int) $user->id); }
+        // A role a lead offered this volunteer is theirs on the workspace's next page, not five
+        // minutes later: the workspace is where they go straight after the email says so.
+        if ($v && in_array($v->status, ['active', 'paused'], true)) {
+            try { \AfricaGates\Services\RoleInvites::claimFor((int) $user->id); $_SESSION['role_invites_at'] = time(); } catch (\Throwable) {}
+        }
         return [$user, $v];
     }
 

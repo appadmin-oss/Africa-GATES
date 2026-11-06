@@ -67,7 +67,7 @@ final class AdminNavTest extends TestCase
         '/admin/payments/disputes' => 'finance', '/admin/refunds' => 'finance', '/admin/vote-delivery' => 'finance',
         '/admin/vote-recovery' => null,
         '/admin/integrity' => null, '/admin/judging-audit' => null, '/admin/result-release' => null,
-        '/admin/audit' => null, '/admin/data' => 'data', '/admin/analytics' => 'data', '/admin/registrations' => 'data',
+        '/admin/users' => 'data', '/admin/audit' => null, '/admin/data' => 'data', '/admin/analytics' => 'data', '/admin/registrations' => 'data',
         '/admin/admins' => 'configuration', '/admin/settings' => 'configuration', '/admin/webhooks' => 'configuration',
         '/admin/ai-prompts' => null, '/admin/attendee' => 'configuration', '/admin/sandbox' => 'configuration',
         '/admin/judges' => 'configuration', '/admin/rubric' => 'configuration',
@@ -172,9 +172,10 @@ final class AdminNavTest extends TestCase
         $this->assertSame([
             'Awards'       => ['Programmes', 'Nominations', 'Shortlists', 'Judges', 'Result release'],
             'Engage'       => ['Events', 'Challenges', 'Giving', 'Forms'],
-            'Audience'     => ['Contacts', 'Broadcasts'],
+            'People & audience' => ['Members', 'Contacts', 'Broadcasts'],
             'Money'        => ['Payments', 'Refunds', 'Payouts', 'Finance', 'Shop orders'],
             'Content'      => ['Posts', 'Media', 'Moderation'],
+            'Insights'     => ['Analytics'],
             'Organisation' => ['Team', 'Alerts', 'Handbook', 'Audit log', 'Integrations', 'Settings'],
         ], $got);
         $this->assertSame('Home', AdminNav::home()['label']);

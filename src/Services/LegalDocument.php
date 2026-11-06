@@ -57,6 +57,7 @@ final class LegalDocument
         if (($doc['slug'] ?? '') === 'privacy') {
             $html .= self::disclosureHtml();
             $html .= self::voiceHtml();
+            $html .= self::thirdPartiesHtml();
         }
         if (($doc['slug'] ?? '') === 'cookies') {
             $html .= self::cookiesHtml();
@@ -65,6 +66,45 @@ final class LegalDocument
             $html .= self::advertisingHtml();
         }
         return $html;
+    }
+
+    /**
+     * Every outside service that can receive somebody's data, generated from
+     * {@see ThirdParties} — the payment gateways, SMS and email, the image host, the
+     * calendar, the bot check, the speech service at an event door. Here rather than in
+     * the template for the reason the AI section is: /privacy.txt and /privacy.md carry it.
+     *
+     * @param list<array<string,mixed>>|null $services injectable so the escaping can be
+     *        tested with a hostile value
+     */
+    public static function thirdPartiesHtml(?array $services = null): string
+    {
+        $services ??= ThirdParties::services();
+        if ($services === []) return '';
+        $e = static fn (string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
+
+        $h = [];
+        $h[] = '<h2 id="services">Other services that handle your data</h2>';
+        $h[] = '<p>Some things this platform does need another company&rsquo;s service: taking a '
+             . 'payment, sending a text message, storing a photo. Each one below receives only what '
+             . 'it needs for that job, and only at the moment described. This list is generated from '
+             . 'the platform&rsquo;s own code, so a service cannot be added without appearing here.</p>';
+        $h[] = '<ul>';
+        foreach ($services as $s) {
+            $see = (string) ($s['see'] ?? '');
+            $more = $see === '' ? ''
+                : ' <a href="' . ($see === 'cookies' ? '/cookies' : '#' . $e($see)) . '">More detail</a>.';
+            $h[] = '<li><strong>' . $e((string) $s['name']) . '</strong> &mdash; ' . $e((string) $s['for'])
+                 . '<br>What it receives: ' . $e((string) $s['gets'])
+                 . '<br>When: ' . $e((string) $s['when']) . $more . '</li>';
+        }
+        $h[] = '</ul>';
+        $h[] = '<p>Where each service keeps what it receives, and for how long, is set by its own '
+             . 'terms rather than ours. If that matters to you, email '
+             . '<a href="mailto:privacy@afrovanguard.org.ng">privacy@afrovanguard.org.ng</a> and we '
+             . 'will tell you what we know.</p>';
+
+        return implode("\n", $h);
     }
 
     /**

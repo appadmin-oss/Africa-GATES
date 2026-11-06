@@ -134,8 +134,7 @@
         <summary>Add a photograph</summary>
         <form method="post" action="{{ base }}" class="nm-form" enctype="multipart/form-data">
           <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="do" value="photo">
-          <label class="nm-drop" for="nmPhoto"><span class="nm-drop__t">Choose a photograph</span><span class="nm-drop__s">A clear, recent picture of you. JPG or PNG, at least 300 pixels wide, up to 10MB.</span>
-            <input id="nmPhoto" type="file" name="photo" accept="image/jpeg,image/png,image/webp" required></label>
+          {% include 'partials/photo-upload.twig' with {id: 'nmPhoto', label: 'Choose a photograph', required: true, min_side: 300, help: 'A clear, recent photo. JPEG, PNG, WebP or GIF, at least 300 pixels on each side.'} only %}
           <label class="ap-f" for="nmPhotoL"><span class="ap-f__l">What it shows <span class="ap-opt">(optional)</span></span><input class="ap-in" id="nmPhotoL" name="label" placeholder="At the 2025 science fair"></label>
           <button class="ap-btn ap-btn--go" type="submit">Upload photograph</button>
         </form>

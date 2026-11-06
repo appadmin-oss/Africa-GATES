@@ -238,7 +238,14 @@ final class NomineeDetails
     /**
      * Approval: the page the nominee may have filled in before review becomes the nominee's —
      * the row and every file added to it — so nothing they sent has to be sent again.
+     * Public and idempotent because approval calls it even when no email goes out: a photo
+     * sent before review must reach the ballot whether or not the nominee is mailed a link.
      */
+    public static function adopt(int $nomineeId, object $nom): void
+    {
+        self::attach($nomineeId, $nom);
+    }
+
     private static function attach(int $nomineeId, object $nom): void
     {
         if (!self::earlyReady() || empty($nom->id) || DB::table('gates_nominee_details')->where('nominee_id', $nomineeId)->exists()) return;
@@ -284,6 +291,9 @@ final class NomineeDetails
                 'linked_at' => $now, 'created_at' => $now, 'updated_at' => $now]);
             $d = (object) ['nominee_id' => $nid, 'nomination_id' => null];
         }
+        // The page now has an account: the photo showing on the ballot becomes that account's
+        // photo too, if the account has none yet (NomineePhoto).
+        if ((int) $d->nominee_id > 0) NomineePhoto::sync((int) $d->nominee_id);
         return ['ok' => true, 'nominee' => (int) $d->nominee_id, 'href' => self::href($d)];
     }
 
@@ -378,7 +388,11 @@ final class NomineeDetails
         } catch (\Throwable $e) {
             return ['ok' => false, 'error' => 'That photograph could not be used: ' . $e->getMessage()];
         }
-        self::file($d, 'photo', (string) $up['path'], null, $label);
+        DB::connection()->transaction(function () use ($d, $up, $label) {
+            self::file($d, 'photo', (string) $up['path'], null, $label);
+            if ($d->nominee_id) NomineePhoto::sync((int) $d->nominee_id);
+        });
+        NomineePortrait::refresh();
         return ['ok' => true];
     }
 
@@ -407,7 +421,11 @@ final class NomineeDetails
     public static function remove(object $d, int $fileId): bool
     {
         $n = self::scope($d)->where('id', $fileId)->whereNull('removed_at')->update(['removed_at' => date('Y-m-d H:i:s')]);
-        if ($n) self::touch($d, []);
+        if ($n) {
+            self::touch($d, []);
+            if ($d->nominee_id) NomineePhoto::sync((int) $d->nominee_id);
+            NomineePortrait::refresh();
+        }
         return $n > 0;
     }
 

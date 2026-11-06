@@ -46,6 +46,9 @@ final class DisplayReadingPrefs
     /** Text size: 0 = 100%, 1 = 125%, 2 = 150% of the root. */
     public const SIZES = 3;
 
+    /** Match the device, light, dark, sepia — the length of a11y.js SCHEMES. */
+    public const SCHEMES = 4;
+
     private const TABLE  = 'gates_users';
     private const COLUMN = 'display_json';
 
@@ -62,6 +65,10 @@ final class DisplayReadingPrefs
     {
         $size = (int) (is_numeric($in['size'] ?? null) ? $in['size'] : 0);
         $out  = ['size' => max(0, min(self::SIZES - 1, $size))];
+        // Appearance: 0 match the device, 1 light, 2 dark, 3 sepia (a11y.js SCHEMES). Stored only
+        // when chosen, so an all-default member still stores `{"size":0}`.
+        $scheme = (int) (is_numeric($in['scheme'] ?? null) ? $in['scheme'] : 0);
+        if ($scheme >= 1 && $scheme < self::SCHEMES) $out['scheme'] = $scheme;
 
         foreach (self::SWITCHES as $k) {
             $v = $in[$k] ?? false;

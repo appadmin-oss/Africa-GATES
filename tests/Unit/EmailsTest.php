@@ -74,6 +74,10 @@ final class EmailsTest extends TestCase
             'event-team' => ['first_name' => 'Ngozi', 'place' => 'Alimosho ceremony', 'what' => 'The role Hospitality lead', 'state' => 'changed',
                           'by' => 'Femi Ade', 'reason' => 'Seating only; messages stay with communications.',
                           'action_url' => 'https://x.test/lead/event/4/roles', 'action_label' => 'Open Team & roles'],
+            'event-loop' => ['first_name' => 'Tunde', 'place' => 'Alimosho ceremony', 'kind' => 'digest',
+                          'items' => [['Order lanyards', 'Suggested by Chika Nwosu'], ['Venue contract', 'Reported blocked twice this week']],
+                          'goals' => [['Paid-vote revenue: ₦15M', '₦2.1M of ₦15M · 21 days left']],
+                          'action_url' => 'https://x.test/lead/event/4', 'action_label' => 'Open the event'],
             default   => self::fail("no sample for $key — add one when the key is added"),
         };
     }

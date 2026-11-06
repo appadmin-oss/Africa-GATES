@@ -173,6 +173,42 @@ html.ag-hc{
   --ag-chevron:var(--ag-ink);
   --ag-grabber:var(--ag-ink);
 }
+/* The device's own "increase contrast" setting asks for the same thing as the switch, so it
+   gets the same remap without anybody finding the switch first. Kept as its own block
+   rather than a shared selector because a media query cannot sit in a selector list. */
+@media (prefers-contrast: more){
+  html{
+    --ag-soft:var(--ag-ink); --ag-ink-2:var(--ag-ink);
+    --ag-line:var(--ag-ink); --ag-line-2:var(--ag-ink); --ag-line-3:var(--ag-ink);
+    --ag-mute:color-mix(in srgb, var(--ag-ink) 72%, var(--ag-surface));
+    --ag-chevron:var(--ag-ink); --ag-grabber:var(--ag-ink);
+  }
+}
+
+/* ── Forced colours (Windows High Contrast and the like) ───────────────────────
+   The system repaints every background as Canvas, so anything that showed a STATE by a
+   fill alone loses it silently: the chosen filter chip, the selected tab, the page you are
+   on, how far a progress bar has got. An outline survives forced colours; a fill does not.
+   The shared controls (switch, segmented control) have their own blocks in components.css. */
+@media (forced-colors: active){
+  :is(button, a, [role="tab"], [role="option"], [role="radio"])[aria-pressed="true"],
+  :is(button, a, [role="tab"], [role="option"])[aria-selected="true"],
+  :is([role="radio"], [role="menuitemradio"])[aria-checked="true"],
+  :is(nav, [role="tablist"], [data-tabs]) a[aria-current]{
+    outline:2px solid Highlight; outline-offset:-2px;
+  }
+  [role="progressbar"]{ border:1px solid CanvasText }
+  [role="progressbar"] > *{ forced-color-adjust:none; background:Highlight }
+  /* A decorative mark drawn only as a fill (a status dot beside its word) keeps a shape. */
+  :is(.am-state i, .lb-eyebrow__dot, .lve-tl__dot){ forced-color-adjust:none; background:CanvasText }
+}
+
+/* For the instant a scheme changes, nothing animates: a card that eases its background
+   from white to dark while its text has already turned light is a white pill with
+   invisible words for 150ms (a11y.js adds this class for one frame). */
+/* No `!important` (REFERENCE §4.6 keeps it for reduced motion): `html.ag-noanim *` already
+   outranks a single-class transition, which is every transition on a coloured control. */
+html.ag-noanim *, html.ag-noanim *::before, html.ag-noanim *::after{ transition:none }
 html.ag-hc ::placeholder{ color:var(--ag-mute); opacity:1 }
 html.ag-easy body{ font-family:'Atkinson Hyperlegible',var(--ag-font-ui); letter-spacing:.01em }
 html.ag-ls p, html.ag-ls li{ line-height:1.8 }

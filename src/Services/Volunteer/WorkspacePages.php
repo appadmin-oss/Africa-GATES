@@ -637,7 +637,17 @@ final class WorkspacePages
             return $rows ? [['k' => 'rows', 'items' => $rows]] : [['k' => 'note', 'text' => 'No tasks here yet.', 'tone' => 'mute']];
         };
         if ($page === 'access') return ['title' => 'Your access', 'secs' => self::access($v, $kind, $id)];
-        if ($page === 'tasks') return ['title' => 'Tasks', 'secs' => $taskRows()];
+        if ($page === 'tasks') {
+            // At an event, the plan's work given to this volunteer comes first, with its proof,
+            // a quick report and a suggestion box (EventPages::teamWork); the open task library after.
+            if ($kind === 'event') {
+                $lib = $taskRows();
+                $libSecs = ($lib[0]['k'] ?? '') === 'rows' ? [['h' => 'Open tasks anybody can take'] + $lib[0]] : [];
+                return ['title' => 'Tasks', 'purpose' => 'Your work for this event, how it is proved done, and where it stands.',
+                        'secs' => array_merge(\AfricaGates\Services\EventPlan\EventPages::teamWork($id, (int) $v->user_id), $libSecs)];
+            }
+            return ['title' => 'Tasks', 'secs' => $taskRows()];
+        }
 
         if ($kind === 'cycle') {
             $c = DB::table('gates_award_cycles')->where('id', $id)->first();
@@ -726,6 +736,13 @@ final class WorkspacePages
                 $secs[] = ['k' => 'note', 'tone' => 'info', 'text' => 'Check in when you arrive and out when you leave. A lead confirms the time, and it counts as your hours.'];
             }
             if (($h = Attendance::hoursAt((int) $v->id, $id)) > 0) $secs[] = ['k' => 'stats', 'items' => [['l' => 'Your time here', 'v' => Level::h($h), 's' => 'Check-in to check-out']]];
+        }
+        // The plan's work given to this volunteer, on the page they open first (EventPlan\TeamLoop).
+        if (\AfricaGates\Services\EventPlan\TeamLoop::ready() && ($mine = \AfricaGates\Services\EventPlan\TeamLoop::mine((int) $v->user_id, $id))) {
+            $secs[] = ['k' => 'rows', 'h' => 'Your work here', 'items' => array_map(static fn ($w) => ['t' => (string) $w->title, 'href' => $p['href'] . '/tasks',
+                'dot' => \AfricaGates\Services\EventPlan\Plan::isLate($w) ? 'bad' : ($w->status === 'proof' ? 'warn' : null),
+                'sub' => ($w->due_at ? 'due ' . Workspace::day((string) $w->due_at) : 'no date') . ($w->status === 'proof' ? ' · held for proof' : '')], array_slice($mine, 0, 4)),
+                'link' => ['label' => 'Report, finish or suggest work', 'href' => $p['href'] . '/tasks']];
         }
         return ['title' => $p['name'], 'noHead' => true, 'secs' => $secs, 'side' => self::access($v, $kind, $id, true)];
     }

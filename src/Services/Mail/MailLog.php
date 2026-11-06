@@ -60,10 +60,13 @@ final class MailLog
 
     /** Fault-tolerant: auditing can never break sending. */
     public static function write(string $to, string $subject, string $category, string $status,
-                                 ?string $error = null, bool $bulk = false): void
+                                 ?string $error = null, bool $bulk = false, ?string $via = null): void
     {
         try {
-            DB::table('gates_mail_log')->insert([
+            // Which road carried it (RoadCapacity counts each road's allowance from this), only
+            // once the column exists: before the migration it would fail the whole insert.
+            $road = $via !== null && \AfricaGates\Support\SchemaHas::column('gates_mail_log', 'via') ? ['via' => mb_substr($via, 0, 16)] : [];
+            DB::table('gates_mail_log')->insert($road + [
                 'to_masked'  => self::mask($to),
                 'to_hash'    => EmailOptOut::hash($to),
                 'bulk'       => $bulk ? 1 : 0,

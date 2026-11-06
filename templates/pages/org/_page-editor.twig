@@ -62,11 +62,11 @@
       <input class="org-swatch" type="color" id="brand-accent" name="accent"
              value="{{ brand.accent }}"{% if not can_edit %} disabled{% endif %}>
       {#
-        It is refused if it cannot be read on white, with the measured ratio in the message.
-        Said here rather than only on rejection: this colour paints the donate button and
-        every link, so a pale one leaves a donor unable to see them.
+        Any colour is accepted (OrgBrand::css()): their exact colour fills the blocks, and the
+        words and borders drawn in it use a shade measured to stay readable, by day and night.
+        Said here so a pale brand colour is not second-guessed by the person choosing it.
       #}
-      <p class="org-hint">{{ 'Colours your donate button and links. It must be readable on white.'|trans }}</p>
+      <p class="org-hint">{{ 'Any colour works. We use it as it is for the coloured parts of your page, and a deeper or lighter shade of it for text, so it stays readable in light and dark mode.'|trans }}</p>
     </div>
 
     <div class="org-row">

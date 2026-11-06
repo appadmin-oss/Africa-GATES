@@ -215,6 +215,8 @@ final class UserAccountService
         $_SESSION['user_id']    = (int) $u->id;
         $_SESSION['user_name']  = $u->name;
         $_SESSION['user_email'] = $u->email;
+        // The account's photo, for the avatar in the header (session-only, like the name).
+        $_SESSION['user_photo'] = NomineePhoto::forUser((int) $u->id);
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
         DB::table('gates_users')->where('id', $u->id)->update([
             'last_login_at' => Carbon::now()->toDateTimeString(),
@@ -226,7 +228,7 @@ final class UserAccountService
     {
         // Roles opened from this account (Account\Roles) close with it.
         \AfricaGates\Services\Account\Roles::signOutOpened();
-        unset($_SESSION['user_id'], $_SESSION['user_name'], $_SESSION['user_email']);
+        unset($_SESSION['user_id'], $_SESSION['user_name'], $_SESSION['user_email'], $_SESSION['user_photo']);
     }
 
     public function current(): ?object
@@ -308,6 +310,18 @@ final class UserAccountService
         if (strlen($password) < 8) return false;
         DB::table('gates_users')->where('id', $userId)->update(['password_hash' => password_hash($password, PASSWORD_BCRYPT)]);
         return true;
+    }
+
+    /** Validate and change only the password; shared by security and legacy profile clients. */
+    public function changePassword(int $userId, string $newPassword, string $currentPassword = ''): array
+    {
+        if (strlen($newPassword) < 8) return ['ok' => false, 'error' => 'New password must be at least 8 characters.'];
+        $user = DB::table('gates_users')->select('id', 'password_hash')->where('id', $userId)->first();
+        if (!$user) return ['ok' => false, 'error' => 'Account not found.'];
+        if (!empty($user->password_hash) && !password_verify($currentPassword, (string) $user->password_hash)) {
+            return ['ok' => false, 'error' => 'Your current password is incorrect.'];
+        }
+        return ['ok' => $this->setPassword($userId, $newPassword)];
     }
 
     /* ── Email verification ──────────────────────────────────────────────────

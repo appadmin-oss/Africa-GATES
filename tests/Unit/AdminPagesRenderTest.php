@@ -54,6 +54,9 @@ final class AdminPagesRenderTest extends TestCase
         $app->addErrorMiddleware(false, false, false);
 
         DemoSeeder::seed($id);
+        // The member support route has a real record to render, rather than raising the unreachable ceiling.
+        DB::table('gates_users')->insert(['name' => 'Render Member', 'email' => 'render-member@example.test',
+            'points' => 0, 'status' => 'active', 'email_verified' => 1, 'created_at' => date('Y-m-d H:i:s')]);
         // A site event, so the event pages under /admin/events/{id} have one to draw. (The lead
         // console is not here any more: a lead is a member account at /lead.)
         DB::table('gates_site_events')->insertGetId(['slug' => 'render-night', 'title' => 'Render night', 'status' => 'published',

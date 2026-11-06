@@ -144,44 +144,47 @@ class SnapshotService
         // saying that it is. Better to have no seal than a seal that means nothing.
         if (!OptionalColumn::on('gates_vote_snapshots', 'capture_kind')) return 0;
 
-        try {
-            if (DB::table('gates_vote_snapshots')
-                    ->where('cycle_id', $cycleId)
-                    ->where('capture_kind', self::KIND_RELEASE)->exists()) {
+        $written = DB::transaction(function () use ($cycleId): int {
+            // Lock the cycle before checking for a seal. Locking reads see a seal
+            // committed by a caller we waited for, even under REPEATABLE READ.
+            if (!DB::table('gates_award_cycles')->where('id', $cycleId)->lockForUpdate()->first(['id'])) {
                 return 0;
             }
-        } catch (\Throwable) {
-            return 0;
-        }
-
-        $rows = [];
-        foreach (ResultRelease::forCycle($cycleId) as $cat) {
-            foreach ($cat['rows'] as $r) {
-                $rows[] = [
-                    'cycle_id'          => $cycleId,
-                    'nominee_id'        => (int) $r['nominee_id'],
-                    'vote_count'        => (int) $r['votes'],
-                    'cpi_score'         => (int) $r['cpi'],
-                    'judge_score'       => $r['judge_score'],
-                    'community_points'  => (int) $r['community_points'],
-                    'judge_points'      => (int) $r['judge_points'],
-                    'cohort_max'        => (int) ($cat['cohort_max'] ?? 0),
-                    'unique_voters'     => (int) ($r['unique_voters'] ?? 0),
-                    'cohort_max_unique' => (int) ($cat['cohort_max_unique'] ?? 0),
-                    'standing_rank'     => $r['rank'] === null ? null : (int) $r['rank'],
-                    'in_running'        => !empty($r['in_running']) ? 1 : 0,
-                ];
+            if (DB::table('gates_vote_snapshots')->where('cycle_id', $cycleId)
+                    ->where('capture_kind', self::KIND_RELEASE)->lockForUpdate()->first(['id'])) {
+                return 0;
             }
-        }
 
-        if ($rows === []) return 0;
+            $rows = [];
+            foreach (ResultRelease::forCycle($cycleId) as $cat) {
+                foreach ($cat['rows'] as $r) {
+                    $rows[] = [
+                        'cycle_id'          => $cycleId,
+                        'nominee_id'        => (int) $r['nominee_id'],
+                        'vote_count'        => (int) $r['votes'],
+                        'cpi_score'         => (int) $r['cpi'],
+                        'judge_score'       => $r['judge_score'],
+                        'community_points'  => (int) $r['community_points'],
+                        'judge_points'      => (int) $r['judge_points'],
+                        'cohort_max'        => (int) ($cat['cohort_max'] ?? 0),
+                        'unique_voters'     => (int) ($r['unique_voters'] ?? 0),
+                        'cohort_max_unique' => (int) ($cat['cohort_max_unique'] ?? 0),
+                        'standing_rank'     => $r['rank'] === null ? null : (int) $r['rank'],
+                        'in_running'        => !empty($r['in_running']) ? 1 : 0,
+                    ];
+                }
+            }
 
-        $written = $this->append($rows, self::KIND_RELEASE);
+            if ($rows === []) return 0;
+
+            return $this->append($rows, self::KIND_RELEASE);
+        });
         // A seal is immutable, so {@see ReleasedStanding::forCycle()} caches it for the
         // life of the process — including the answer "there is no seal", which this call
         // has just made wrong. The promotion sweep is the one process that can see both
         // sides of that, and it draws the cycle before it seals it.
         ReleasedStanding::forget($cycleId);
+        if ($written === 0) return 0;
 
         // The announcement is also the issue of its recognitions (winner, runner-up,
         // published finalists) — from this seal and nothing else. Evidence about a result
