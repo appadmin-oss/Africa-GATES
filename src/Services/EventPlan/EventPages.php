@@ -1049,7 +1049,8 @@ final class EventPages
                 'sub' => implode(' · ', array_filter([$r->work_title ?: 'The event as a whole', $r->note ? '“' . $r->note . '”' : '', mb_strtolower(TeamLoop::CONFIDENCE[(int) $r->confidence] ?? '')])),
                 'meta' => TeamLoop::when((string) $r->created_at)], $all)];
         }
-        if (TeamLoop::ready()) $secs[] = self::reportForm($id, Plan::work([$id], true));
+        // Open here: on the Reports page sending one IS the job (it is folded on Today, where it is not).
+        if (TeamLoop::ready()) $secs[] = ['fold' => false] + self::reportForm($id, Plan::work([$id], true));
         return ['title' => 'Reports', 'secs' => $secs];
     }
 
