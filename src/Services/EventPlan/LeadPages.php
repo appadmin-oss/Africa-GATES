@@ -50,10 +50,14 @@ final class LeadPages
     // ── shell pieces ────────────────────────────────────────────────────────────────────
 
     /** @param array<string,array{n:int,tone:string}> $counts */
-    public static function rootNav(string $current, array $counts): array
+    public static function rootNav(string $current, array $counts, int $events = 2): array
     {
         $groups = [];
         foreach (self::GROUPS as [$label, $keys]) {
+            // With one event, "Deadlines, Risks, Approvals, Analytics across your events" are that
+            // event's own pages under a second name: four rail items repeating four the event's
+            // menu already has. They are left out — the routes stay — unless the lead is on one.
+            if ($events <= 1 && $label === 'Across your events' && !in_array($current, $keys, true)) continue;
             $items = [];
             foreach ($keys as $k) {
                 $items[] = ['key' => $k, 'label' => self::ROOT[$k][0], 'icon' => self::ROOT[$k][1], 'href' => self::BASE . ($k === 'overview' ? '' : '/' . $k),
@@ -212,11 +216,10 @@ final class LeadPages
             // A plan with nothing in it shows how to start one, never a row of zeros (§8).
             $first = self::eventUrl((int) $next->id, 'work');
             $secs[] = ['k' => 'steps', 'h' => 'Start the plan', 'items' => [
-                ['t' => 'Add the work before the night', 'sub' => 'Each piece with an owner, a due date and its hours. Readiness is counted from it.', 'st' => 'now'],
+                ['t' => 'Add the work before the night', 'sub' => 'Each piece with an owner, a due date and its hours. Readiness is counted from it.', 'st' => 'now', 'href' => $first],
                 ['t' => 'Add the risks', 'sub' => 'What could stop the night, how likely, how bad, and who watches it.', 'st' => 'next'],
                 ['t' => 'Plan the spend', 'sub' => 'You approve up to ' . Plan::naira(Plan::limitMinor()) . ' a line. Finance decides above it.', 'st' => 'next'],
             ]];
-            $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => 'Start with ' . $next->title . '.', 'cta' => ['label' => 'Add work', 'href' => $first]];
         } else {
             $week = time() + 7 * 86400;
             $due = array_filter($work, static fn ($w) => $w->due_at !== null && strtotime((string) $w->due_at) <= $week);
@@ -232,12 +235,13 @@ final class LeadPages
                 ['l' => 'Tickets sold', 'v' => number_format($tickets), 's' => ''],
             ]];
         }
+        // What to do in the main column; what is coming up beside it.
+        $side = [];
         $dl = self::deadlineItems($events);
         if ($dl) {
-            $secs[] = ['k' => 'rows', 'h' => 'Next deadlines', 'items' => array_slice(array_map(static fn ($d) => $d['row'], $dl), 0, 3),
+            $side[] = ['k' => 'rows', 'h' => 'Next deadlines', 'items' => array_slice(array_map(static fn ($d) => $d['row'], $dl), 0, 3),
                        'link' => ['label' => 'All deadlines', 'href' => self::BASE . '/deadlines']];
         }
-        $side = [];
         $mine = Requests::from(Plan::ACTOR, $me['id'], 'open', 'lead');
         if ($mine) {
             $side[] = ['k' => 'rows', 'h' => 'Your requests', 'items' => array_map(static fn ($r) => ['t' => (string) $r->title,

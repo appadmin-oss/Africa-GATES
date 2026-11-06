@@ -106,6 +106,7 @@ final class WorkspacePages
         if (!Tasks::mine($v)) $side[] = ['k' => 'note', 'text' => 'Nothing taken yet. The task library has work you can do from anywhere.', 'tone' => 'mute',
                                          'cta' => ['label' => 'See tasks', 'href' => '/volunteer/tasks/library']];
 
+        $side[] = self::guideCard();
         return ['title' => 'Today', 'purpose' => self::homeLine($v, $lv), 'acts' => self::homeActs($v), 'secs' => $secs, 'side' => $side];
     }
 
@@ -119,8 +120,18 @@ final class WorkspacePages
         $first = array_key_first(Outreach::awards($v));
         return array_values(array_filter([
             $first ? ['label' => Workspace::REPORT['log'], 'href' => '/volunteer/cycle/' . $first . '/nominees', 'primary' => true] : null,
-            ['label' => Workspace::HOURS_LOG['action'], 'href' => Workspace::HOURS_LOG['href'], 'primary' => !$first],
-            ['label' => 'How to use this portal', 'href' => Workspace::GUIDE['href']]]));
+            ['label' => Workspace::HOURS_LOG['action'], 'href' => Workspace::HOURS_LOG['href'], 'primary' => !$first]]));
+    }
+
+    /**
+     * The guide, as a card in the side panel rather than a third button in the header: three
+     * equal buttons beside the title competed with the one thing Today is for, and "how to
+     * use this" is a reference, not an action.
+     */
+    private static function guideCard(): array
+    {
+        return ['k' => 'note', 'h' => 'New here?', 'tone' => 'info', 'text' => 'The academy shows every step, with pictures.',
+                'cta' => ['label' => 'How to use this portal', 'href' => Workspace::GUIDE['href']]];
     }
 
     private static function application(object $v, array $q): array
@@ -170,7 +181,7 @@ final class WorkspacePages
         $secs[] = $rows ? ['k' => 'rows', 'h' => 'Good first tasks', 'items' => $rows]
                         : ['k' => 'note', 'text' => 'No tasks are open right now. We tell you when one is posted.', 'tone' => 'mute'];
         $secs[] = ['k' => 'note', 'text' => 'Nothing is expected of you until you pick something. Hours count from your first accepted task.', 'tone' => 'mute'];
-        return ['title' => 'Today', 'purpose' => 'Two steps to your first task. Most people finish in a day.', 'acts' => self::homeActs($v), 'secs' => $secs];
+        return ['title' => 'Today', 'purpose' => 'Two steps to your first task. Most people finish in a day.', 'acts' => self::homeActs($v), 'secs' => $secs, 'side' => [self::guideCard()]];
     }
 
 

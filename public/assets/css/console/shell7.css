@@ -647,3 +647,16 @@ textarea.sh7-input { height: auto; min-height: 104px; padding-block: 10px; }
 /* Facts in pairs: four across left a phone number, an address and two sentences each a
    ribbon a word wide, beside a side panel. */
 .sh7-hero .sh7-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+/* ── Home pages (6 Nov 2026, third pass) ─────────────────────────────────────────────────── */
+/* One event or one place is the subject of the page, not a 260px tile in an empty row. */
+.sh7-cards > .sh7-card:only-child { grid-column: 1 / -1; }
+/* A step that is where you start is the whole tile, not a word inside it. */
+.sh7-step:has(.sh7-step__link) { position: relative; }
+.sh7-step__link { color: inherit; text-decoration: none; }
+.sh7-step__link::after { content: ''; position: absolute; inset: 0; border-radius: inherit; }
+.sh7-step:has(.sh7-step__link):hover { border-color: var(--cn-green); }
+.sh7-step:has(.sh7-step__link:focus-visible) { outline: 2px solid var(--cn-green); outline-offset: 2px; }
+.sh7-step__link:focus-visible { outline: none; }
+/* Page header: the title and its one or two actions on a line, the purpose under it. */
+.sh7-head__acts .sh7-btn { height: 40px; }

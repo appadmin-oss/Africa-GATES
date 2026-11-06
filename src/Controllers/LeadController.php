@@ -72,13 +72,13 @@ final class LeadController
         $q = trim((string) ($req->getQueryParams()['q'] ?? ''));
         if ($page === 'overview' && $q !== '') {
             $c = LeadPages::search($me, $events, mb_substr($q, 0, 100));
-            return $this->render($res, $me, $c + ['scope' => 'root', 'nav' => LeadPages::rootNav('', LeadPages::counts($me, $events)), 'tabs' => [],
+            return $this->render($res, $me, $c + ['scope' => 'root', 'nav' => LeadPages::rootNav('', LeadPages::counts($me, $events), count($events)), 'tabs' => [],
                 'crumbs' => [['label' => 'Event lead', 'href' => LeadPages::BASE], ['label' => 'Find']], 'findQ' => $q]);
         }
         $c = Plan::ready() ? LeadPages::root($me, $events, $page, $tab, $req->getQueryParams())
                            : ['title' => LeadPages::ROOT[$page][0], 'secs' => [['k' => 'note', 'tone' => 'warn', 'text' => 'The database needs its latest update before the lead console can open. Run the pending migrations from Settings.']]];
         return $this->render($res, $me, $c + [
-            'scope' => 'root', 'nav' => LeadPages::rootNav($page, LeadPages::counts($me, $events)),
+            'scope' => 'root', 'nav' => LeadPages::rootNav($page, LeadPages::counts($me, $events), count($events)),
             'tabs' => $tabs ? LeadPages::tabs($page, $tab) : [],
             'crumbs' => [['label' => 'Event lead', 'href' => LeadPages::BASE], ['label' => $c['title']]],
             'purpose' => ($c['purpose'] ?? '') !== '' ? $c['purpose'] : (LeadPages::PURPOSE[$page] ?? ''),
@@ -94,7 +94,7 @@ final class LeadController
         if (!$c) throw new HttpNotFoundException($req);
         $events = Plan::leadEvents($me['id']);
         return $this->render($res, $me, $c + [
-            'scope' => 'root', 'nav' => LeadPages::rootNav('requests', LeadPages::counts($me, $events)),
+            'scope' => 'root', 'nav' => LeadPages::rootNav('requests', LeadPages::counts($me, $events), count($events)),
             'crumbs' => [['label' => 'Requests', 'href' => LeadPages::BASE . '/requests'], ['label' => $c['title']]],
             'back' => ['label' => 'Requests', 'href' => LeadPages::BASE . '/requests'], 'purpose' => '',
         ]);

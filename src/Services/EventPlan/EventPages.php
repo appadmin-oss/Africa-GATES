@@ -32,10 +32,14 @@ final class EventPages
     /** The event scope's rail, verbatim from `nav-admin.json`. */
     public const NAV = [
         [null, ['today' => ['Today', 'home']]],
-        ['Plan', ['plan' => ['Plan', 'list'], 'award' => ['Award', 'trophy']]],
-        ['Run the event', ['people' => ['People', 'users'], 'crm' => ['Relationships', 'msg'], 'money' => ['Money', 'card'], 'night' => ['The night', 'night']]],
-        ['Learn', ['growth' => ['Growth', 'grow'], 'reports' => ['Reports', 'rep']]],
-        ['Admin', ['requests' => ['Requests', 'list'], 'roles' => ['Team & roles', 'users'], 'settings' => ['Event settings', 'gear']]],
+        // Grouped by WHEN the work happens, which is how a lead thinks about an event: getting
+        // ready, the night itself, afterwards, and how the event is set up. It was "Plan / Run
+        // the event / Learn / Admin", which put the budget and the guest list under "run" and
+        // the report under "learn", so nothing could be found by asking "what is it for".
+        ['Getting ready', ['plan' => ['Plan', 'list'], 'people' => ['People', 'users'], 'money' => ['Money', 'card'], 'crm' => ['Relationships', 'msg'], 'award' => ['Award', 'trophy']]],
+        ['On the night', ['night' => ['The night', 'night']]],
+        ['Afterwards', ['reports' => ['Reports', 'rep'], 'growth' => ['Growth', 'grow']]],
+        ['Set-up', ['roles' => ['Team & roles', 'users'], 'requests' => ['Requests', 'list'], 'settings' => ['Event settings', 'gear']]],
     ];
 
     public const TABS = [

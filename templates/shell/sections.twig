@@ -237,7 +237,7 @@
       {% for x in s.items %}
         <li class="sh7-step sh7-step--{{ x.st ?: 'next' }}"{% if x.st == 'now' %} aria-current="step"{% endif %}>
           <span class="sh7-step__n" aria-hidden="true">{{ x.st == 'done' ? '✓' : loop.index }}</span>
-          <span class="sh7-step__words"><span class="sh7-step__t">{{ x.t }}</span><span class="sh7-step__sub">{{ x.sub }}</span></span>
+          <span class="sh7-step__words">{% if x.href is defined and x.href %}<a class="sh7-step__t sh7-step__link" href="{{ x.href }}">{{ x.t }}</a>{% else %}<span class="sh7-step__t">{{ x.t }}</span>{% endif %}<span class="sh7-step__sub">{{ x.sub }}</span></span>
         </li>
       {% endfor %}
     </ol>

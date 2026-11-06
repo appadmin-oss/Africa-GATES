@@ -80,16 +80,19 @@ final class TeamPages
         $live = array_filter($teams, static fn ($t) => in_array($t->status, ['proposed', 'approved'], true));
         $teamOpts = ['' => 'No team'];
         foreach ($live as $t) $teamOpts[(int) $t->id] = (string) $t->name;
+        // The page shows the structure — teams, roles, people — and the three things you can do
+        // to it are folded cards beneath, each opened when wanted. Open, they were two long forms
+        // (one with seventeen permissions) stacked above the people they change.
         if ($st['lead']) {
-            $secs[] = self::teamForm($id, [], $teamOpts);
-            $secs[] = self::roleForm($id, [], $teamOpts, 'rp');
+            $secs[] = self::teamForm($id, [], $teamOpts) + ['fold' => true, 'anchor' => 'create-team', 'foldHint' => 'A committee or a crew', 'open' => !$teams && !$roles];
+            $secs[] = self::roleForm($id, [], $teamOpts, 'rp') + ['fold' => true, 'anchor' => 'define-role', 'foldHint' => 'What a person may see and do'];
         }
         $roleOpts = [];
         foreach ($roles as $r) if (in_array($r->status, ['proposed', 'approved'], true)) $roleOpts[(int) $r->id] = $r->name . ($r->status === 'proposed' ? ' (waiting)' : '');
         if ($roleOpts && ($st['lead'] || $st['teamLeadOf'])) {
             // A team's own lead proposes only into the teams they lead.
             $mine = $st['lead'] ? $teamOpts : array_intersect_key($teamOpts, array_flip($st['teamLeadOf']));
-            $secs[] = ['k' => 'form', 'h' => 'Put somebody in a role', 'do' => 'member_propose', 'hidden' => ['event' => $id], 'submit' => $st['lead'] ? 'Assign role' : 'Propose assignment', 'groups' => [
+            $secs[] = ['k' => 'form', 'h' => 'Put somebody in a role', 'fold' => true, 'anchor' => 'assign', 'foldHint' => 'By email address', 'do' => 'member_propose', 'hidden' => ['event' => $id], 'submit' => $st['lead'] ? 'Assign role' : 'Propose assignment', 'groups' => [
                 ['label' => 'Who', 'help' => 'By email: they need not have an account yet. A lead can assign an approved role directly; other proposals wait for approval. Once approved, we email them. Access ends on the date below.',
                  'fields' => [['name' => 'email', 'label' => 'Their email', 'type' => 'email', 'required' => true, 'id' => 'mp_email'],
                               ['name' => 'role', 'label' => 'Role', 'type' => 'select', 'options' => $roleOpts, 'id' => 'mp_role'],
