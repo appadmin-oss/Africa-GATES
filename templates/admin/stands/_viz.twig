@@ -1,0 +1,92 @@
+{# ─────────────────────────────────────────────────────────────────────────────
+   Stand-size and floor-plan visuals.
+
+   Every one of these is inline SVG rendered on the server. There is no chart library and
+   there is no <script>: the Content-Security-Policy on this site carries no 'unsafe-inline'
+   and no CDN host, so a chart that needs either is a chart that silently does not draw. What
+   is left — geometry the server already computed, in markup — turns out to be exactly right
+   for these four, because all four are showing SIZE and none of them needs to animate.
+
+   ── HOW IDENTITY IS CARRIED ────────────────────────────────────────────────
+   Never by colour alone. Every block, every segment and every swatch carries a text label or
+   a legend entry beside it, and the same numbers appear in the table on the page. Three of
+   the eight categorical hues sit below 3:1 against this white surface — legible as a filled
+   shape, not as a lone signal — so the labels are the mechanism, not decoration.
+
+   Hover is the SVG <title> element, which every browser surfaces as a native tooltip and
+   every screen reader reads as the accessible name. It costs nothing and needs no script.
+   ───────────────────────────────────────────────────────────────────────────── #}
+
+{# The categorical order is fixed and assigned by slot, never cycled by rank — a colour that
+   moves when a stand type is added beside it is a colour that means nothing. Validated
+   against this screen's white surface: every adjacent pair clears the colour-vision and
+   normal-vision separation floors. Three slots fall below 3:1 contrast, which is why every
+   mark on this page is directly labelled. #}
+{% macro colour(i) %}{{ ['#2a78d6','#eb6834','#1baf7a','#eda100','#e87ba4','#008300','#4a3aa7','#e34948'][i % 8] }}{% endmacro %}
+
+
+{# ── 1 · TO-SCALE SIZE SWATCH ───────────────────────────────────────────────
+   One stand type drawn at a shared scale, with a human figure for reference.
+
+   The figure is the whole point. "3 × 3 m" is a number an organiser reads and does not feel;
+   a rectangle with a person in it is a size they can judge against the gazebo they hired. All
+   the swatches on the page share one scale, so a 6 × 3 is visibly twice a 3 × 3 — which is
+   the comparison that stops a plan going wrong. #}
+{% macro swatch(type, px_per_m, label, size) %}
+  {% import _self as viz %}
+  {% set w = (type.width_cm / 100) * px_per_m %}
+  {% set d = (type.depth_cm / 100) * px_per_m %}
+  {% set wm = (type.width_cm / 100) %}
+  {% set dm = (type.depth_cm / 100) %}
+  {# The DIMENSION is passed in, because it belongs to the unit the pitch was sold in — a
+     6ft stand is not "1.83 × 1.83 m" to the vendor who applied for it, and this string is
+     the swatch's only text for a screen reader. The AREA stays m² whatever the unit: it is
+     the number the hall is measured against, and nobody hires a hall in square feet here.
+     Falls back to metres so a caller with no size string still renders correctly. #}
+  {% set size = size|default(wm ~ ' × ' ~ dm ~ ' m') %}
+  <svg class="viz-sw" width="{{ (w + 2)|round }}" height="{{ (d + 2)|round }}"
+       viewBox="0 0 {{ (w + 2)|round }} {{ (d + 2)|round }}" role="img"
+       aria-label="{{ label }}: {{ size }}, {{ (wm * dm)|round(1) }} square metres">
+    <title>{{ label }} — {{ size }} ({{ (wm * dm)|round(1) }} m²)</title>
+    {# 4px corner radius on the data mark, 2px inset so neighbouring swatches keep a surface gap #}
+    <rect x="1" y="1" width="{{ w|round }}" height="{{ d|round }}" rx="4"
+          fill="#eef4fc" stroke="#2a78d6" stroke-width="2"></rect>
+    {% if w > 30 and d > 34 %}
+      {# A 0.5 m-wide person, drawn to the same scale. Not decoration — the reference. #}
+      {% set ph = px_per_m * 1.7 %}
+      {% if ph < d - 8 %}
+        <g transform="translate({{ (w / 2 + 1)|round }},{{ (d - ph / 2 - 3)|round }})" fill="#52514e" opacity=".55">
+          <circle cx="0" cy="{{ (-ph * 0.36)|round(1) }}" r="{{ (px_per_m * 0.11)|round(1) }}"></circle>
+          <rect x="{{ (-px_per_m * 0.13)|round(1) }}" y="{{ (-ph * 0.27)|round(1) }}"
+                width="{{ (px_per_m * 0.26)|round(1) }}" height="{{ (ph * 0.52)|round(1) }}" rx="2"></rect>
+        </g>
+      {% endif %}
+    {% endif %}
+  </svg>
+{% endmacro %}
+
+
+{# ── 2 · FLOOR-AREA BUDGET ──────────────────────────────────────────────────
+   One bar: how much of the sellable floor the published quotas have already spent.
+
+   A single stacked bar rather than a gauge or a donut, because the question is a part-to-
+   whole comparison against a hard limit and a bar is the only form that shows the overshoot
+   honestly. When it overshoots, the overspill is drawn PAST the 100% line rather than by
+   rescaling the bar — rescaling would make an impossible plan look merely full. #}
+
+{# ── WHAT USED TO BE HERE ────────────────────────────────────────────────────
+   `budget`, `mix`, `floorplan` and `legend` — a second chart system, with its own
+   copy of the eight-colour palette hardcoded in `colour()` above.
+
+   They are gone. Every chart on this screen now goes through
+   {@see AfricaGates\Support\Viz} and `partials/viz.twig`, which is the component
+   that owns the palette, the legend filtering, the keyboard readout and the table
+   twin — and none of those four had any of it.
+
+   `swatch` stays, and is not a chart: it is one pitch drawn to scale beside its own
+   name, so an organiser can see that a 6 × 3 is twice a 3 × 3 without doing the
+   arithmetic. There is no Viz equivalent because there is no series in it.
+
+   `colour` stays because `swatch` reads it, and it agrees with Viz::PALETTE by
+   index — a swatch and a pitch on the floor plan for the same category have to be
+   the same colour or the two drawings are about different markets. #}

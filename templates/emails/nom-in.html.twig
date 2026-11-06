@@ -1,0 +1,27 @@
+{#- Nomination received (to the nominator) · Nominations. Sender: NominationAftercare::email.
+    Variables: programme, nominee, nominee_first_name, category, reference, decide_by,
+    nominee_contacted (bool), voting_opens (date or ''), watch_url.
+    Design: Email Templates.dc.html → "Nomination received", corrected to the live site
+    (owner, 19 Oct 2026): `decide_by` is review_sla_hours from now (the setting the
+    acknowledgement mail is sent against); "your phone" is not something the review checks;
+    and there is no page where a nominator adds a photo or letter afterwards, so the design's
+    "Add a photo or letter to make it stronger" link is the entry itself. -#}
+{% extends 'emails/_layout.html.twig' %}
+{% block category %}Nominations{% endblock %}
+{% block hero %}illo-ribbon{% endblock %}
+{% block why %}You nominated somebody on Africa GATES.{% endblock %}
+{% block subject %}Your nomination is in — {{ nominee }}{% endblock %}
+{% block preheader %}A reviewer reads every one. You’ll hear from us by {{ decide_by }}.{% endblock %}
+{% block body %}
+{%- import 'emails/_blocks.html.twig' as b -%}
+{% if programme %}{{ b.eyebrow(programme) }}{% endif %}
+{{ b.h1("Thank you for nominating #{nominee_first_name}") }}
+{{ b.p("A reviewer reads every nomination in full. You’ll hear from us by #{decide_by}.") }}
+{{ b.facts([['Nominee', nominee], ['Category', category], ['Reference', reference, 'm']]) }}
+{{ b.h2('What happens next') }}
+{% set _steps = [['We check it', 'A reviewer reads it in full, looks for duplicates, and checks the supporting files.']] %}
+{% if nominee_contacted %}{% set _steps = _steps|merge([["#{nominee_first_name} hears from us", "#{nominee_first_name} gets their own email to tell their story in their own words."]]) %}{% endif %}
+{% set _steps = _steps|merge([[voting_opens ? "Voting opens #{voting_opens}" : 'Voting opens', 'When it is approved, we email you their page to share.']]) %}
+{{ b.steps(_steps) }}
+{{ b.link('View your nomination', watch_url) }}
+{% endblock %}

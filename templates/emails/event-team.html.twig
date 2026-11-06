@@ -1,0 +1,34 @@
+{#- A team, role or person proposed at an event, or the owner's decision on it · Events.
+    Sender: EventPlan\Teams (tellOwners: to each owner but the proposer; tellProposer: to the lead).
+    Variables: first_name, place (the event's title), what ("The role Hospitality lead",
+    "ada@x.test as Hospitality lead"), state —
+      'proposed' a lead proposed it and an owner decides it
+      'approved' the owner approved it as proposed
+      'changed'  the owner approved it with different permissions
+      'refused'  the owner refused it
+    by (who proposed or decided), reason (the decider's, '' when proposing), action_url, action_label.
+    Only what the code does: nothing gives anybody access until an owner who did not propose it
+    approves it (Teams::decide), and an approved person is then told separately (Emails 'role'). -#}
+{% extends 'emails/_layout.html.twig' %}
+{% block category %}Events{% endblock %}
+{% block hero %}illo-shield{% endblock %}
+{% block why %}{{ state == 'proposed' ? 'You own an Africa GATES event, and its lead proposed a change to its team.' : 'You proposed a change to an Africa GATES event’s team.' }}{% endblock %}
+{% block subject %}{{ state == 'proposed' ? 'To decide: ' ~ what ~ ' at ' ~ place : what ~ ' was ' ~ (state == 'changed' ? 'approved with changes' : state) ~ ' at ' ~ place }}{% endblock %}
+{% block preheader %}{{ state == 'proposed' ? by ~ ' proposed it. Nothing changes until an owner decides.' : 'Decided by ' ~ by ~ '. Their reason is inside.' }}{% endblock %}
+{% block body %}
+{%- import 'emails/_blocks.html.twig' as b -%}
+{{ b.eyebrow(place) }}
+{{ b.h1(state == 'proposed' ? 'Something to decide, ' ~ first_name : 'Decided, ' ~ first_name) }}
+{% if state == 'proposed' %}
+{{ b.p(by ~ ' proposed ' ~ what ~ '. Nothing gives anybody access until an owner approves it, and you can change its permissions before you do.') }}
+{% elseif state == 'refused' %}
+{{ b.p(by ~ ' refused ' ~ what ~ '. Nothing changed at the event.') }}
+{% elseif state == 'changed' %}
+{{ b.p(by ~ ' approved ' ~ what ~ ', with different permissions from the ones you proposed. Team & roles shows both.') }}
+{% else %}
+{{ b.p(by ~ ' approved ' ~ what ~ '.') }}
+{% endif %}
+{{ b.facts([['Event', place], ['About', what]]|merge(reason ? [['Reason', reason]] : [])) }}
+{{ b.button(action_label, action_url) }}
+{{ b.note('Every decision is recorded with who made it and why.') }}
+{% endblock %}

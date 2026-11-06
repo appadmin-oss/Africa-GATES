@@ -1,0 +1,21 @@
+{#
+  THE IMAGE EDITOR'S ATTRIBUTES — for an <input type="file"> that should open image-tool.js.
+
+    {% import 'partials/image-tool.twig' as imgtool %}
+    <input type="file" name="image" accept="image/jpeg,image/png,image/webp" {{ imgtool.attrs('ad') }}>
+
+  The shape, the minimum and the output size come from Support\ImageProfiles (one vocabulary
+  with the server's cut); the words come through the translator here, because the script has
+  none of its own. Add `round` for a logo, so the corners the card will not show are dimmed.
+  The page also links components/image-tool.css and assets/js/image-tool.js.
+#}
+{% macro attrs(profile, round) -%}
+{{ image_profile_attrs(profile) }}{% if round|default(false) %} data-round{% endif %}
+ data-t-group="{{ 'Adjust your image'|trans }}"
+ data-t-stage="{{ 'The part of your photo that will be used'|trans }}"
+ data-t-help="{{ 'Drag to move, pinch or use the slider to zoom. Arrow keys move it too.'|trans }}"
+ data-t-zoom="{{ 'Zoom'|trans }}" data-t-zoom-in="{{ 'Zoom in'|trans }}" data-t-zoom-out="{{ 'Zoom out'|trans }}"
+ data-t-turn="{{ 'Turn a quarter'|trans }}" data-t-reset="{{ 'Start again'|trans }}"
+ data-t-size="{{ 'Your photo is %W% × %H% px; this part is %w% × %h% px.'|trans }}"
+ data-t-small="{{ 'Too small: this part is %w% × %h% px and needs at least %m% px on each side. Zoom out, or choose a larger photo.'|trans }}"
+{%- endmacro %}

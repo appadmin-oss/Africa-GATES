@@ -1,0 +1,62 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  "WE ARE AFRICA" — WeAreAfrica.dc.html, on GlobeBand's markers (Phase 4, §8.1 item 5)
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Args: `countries` (GlobeBand::countries()), `note` (GlobeBand::note()).
+  Script: public/assets/js/we-are-africa.js. Sheet: components/home.css (`.waa`).
+  Guide: docs/GLOBE-BAND.md.
+
+  ── WHAT THE DC DREW, AND WHAT THIS DRAWS ──────────────────────────────────
+
+  The DC pops photo pins of invented people over invented cities on a timer — "Ngozi in
+  Enugu just joined" — the same fake telemetry the previous band shipped over sixteen
+  cities and had to be rebuilt to remove (CLAUDE.md, "the homepage globe band"). None of
+  it is recorded here. The markers are GlobeBand's: a nation with a nominee standing in a
+  live award, at the CENTROID of that country's own polygon in the shipped geometry, so
+  nothing is typed and no marker can drift from its outline. The ring means an award has
+  been DECIDED there — rare by nature, which is why it is the highlight. The bottom line is
+  GlobeBand::note(), which states what the markers are (and says out loud if a live nation
+  cannot be drawn), in place of the invented "just joined" ticker.
+
+  Every marker is a real button: Enter or a click opens the nation's card (nominees
+  standing, votes cast — the only two rows the platform can fill). Focusing one on the far
+  side turns the globe to it, because a focused control nobody can see fails WCAG 2.4.7;
+  the arrow keys turn the globe, because a drag alone fails 2.5.7. The script places them
+  and lifts `hidden`; without it the heading and the note still say what the band is.
+#}
+<section class="waa" aria-labelledby="waa-h" data-waa data-topo="{{ asset('/assets/geo/countries-110m.json') }}"
+         data-l-nominees="{{ 'Nominees standing'|trans }}" data-l-votes="{{ 'Votes cast'|trans }}"
+         data-l-decided="{{ 'An award has been decided here'|trans }}">
+  <canvas class="waa__globe" tabindex="0" role="img" data-waa-canvas
+          aria-label="{{ 'Globe centred on Africa. Drag or use the arrow keys to turn it.'|trans }}"></canvas>
+  <div class="waa__pins" data-waa-pins>
+    {% for c in countries %}
+      <button type="button" class="waa__m{{ c.decided ? ' waa__m--won' }}" hidden
+              data-geo="{{ c.geo }}" data-name="{{ c.name }}" data-nominees="{{ c.nominees|number_format }}"
+              data-votes="{{ c.votes|number_format }}" data-decided="{{ c.decided ? '1' : '0' }}"
+              aria-controls="waa-card" aria-expanded="false"
+              aria-label="{{ (c.decided
+                  ? (c.nominees == 1 ? '%name%: an award decided, 1 nominee standing' : '%name%: an award decided, %n% nominees standing')
+                  : (c.nominees == 1 ? '%name%: 1 nominee standing' : '%name%: %n% nominees standing'))|trans({'%name%': c.name, '%n%': c.nominees|number_format}) }}">
+        <span class="waa__dot" aria-hidden="true">{% if c.decided %}<svg width="12" height="12" viewBox="0 0 20 20" fill="none"><path d="M4 10.5 8.5 15 16 5.5" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path></svg>{% endif %}</span>
+        {# A label for a decided nation, else for the busiest one (GlobeBand orders by
+           votes), so a new edition is not a globe of unlabelled dots. #}
+        {% if c.decided or (loop.first and not (countries|filter(x => x.decided)|length)) %}<span class="waa__lbl" aria-hidden="true">{{ c.name }}</span>{% endif %}
+      </button>
+    {% endfor %}
+  </div>
+  <h2 class="waa__h" id="waa-h">{{ 'We are Africa'|trans }}</h2>
+  <div class="waa__card" id="waa-card" role="region" aria-label="{{ 'Country detail'|trans }}" hidden data-waa-card tabindex="-1">
+    <div class="waa__card-hd">
+      <p class="waa__card-n" data-waa-name></p>
+      <button type="button" class="waa__x" data-waa-close aria-label="{{ 'Close'|trans }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg></button>
+    </div>
+    <p class="waa__card-won" data-waa-won hidden></p>
+    <dl class="waa__rows">
+      <div><dt data-waa-l-nominees></dt><dd data-waa-nominees></dd></div>
+      <div><dt data-waa-l-votes></dt><dd data-waa-votes></dd></div>
+    </dl>
+  </div>
+  <p class="waa__note">{{ note }}</p>
+</section>

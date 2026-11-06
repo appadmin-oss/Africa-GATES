@@ -11,28 +11,56 @@ in cPanel, Linux crontab, and as systemd timers, and how to verify they're runni
 |-----|--------|-----------|--------------|
 | CPI Recompute | `cron/recalculate-cpi.php` | Every 6 hours | Recalculates Cultural Power Index scores for all profiles (votes + judge scores) |
 | Dashboard Aggregation | `cron/aggregate-dashboard.php` | Every 4 hours | Rebuilds cached stats, region/tier distributions, and country data |
-| Maintenance | `cron/maintenance.php` | Daily at 2 AM | Purges expired OTPs, stale cache rows, and old rate-limit records |
+| Maintenance / orchestrator | `cron/maintenance.php` | **Every 15 minutes** | Self-scheduling single entry: every run drains the job queue, advances award-cycle phases and prunes cache; hourly it purges expired OTP/magic/rate-limit rows; every 6h it recomputes CPI + writes a tamper-evident snapshot; daily at 06:00 it runs the collusion scan, voting reminders and digest. **Must run every 15 min** or those sub-tasks never fire. |
+
+> If you run the orchestrator every 15 min, Jobs 1–2 below are optional — it already
+> recomputes CPI every 6h. Keep the dashboard job (it builds extra cached stats the
+> orchestrator doesn't). Running CPI from both is harmless (idempotent).
 
 ---
 
-## 1 — Find your PHP binary path
+## No shell? Drive it from Cloudflare instead
 
-Before adding any cron, get the exact path to your PHP 8.1+ binary:
+Everything below assumes a shell. On this deployment there is not one, and cPanel's own
+cron has not been dependable on the account — so the supported alternative is a Cloudflare
+Worker on a Cron Trigger hitting the token-gated `/__cron/run`, which runs the **same**
+orchestrator as `cron/maintenance.php`.
 
-```bash
-which php          # → /usr/bin/php  (common on cPanel)
-php -v             # Confirm it's 8.1+
+See **[CLOUDFLARE-CRON-WORKER.md](CLOUDFLARE-CRON-WORKER.md)**; the Worker itself is in
+`deploy/cloudflare/`.
+
+The two can be scheduled together — `CronGuard` is an flock single-instance lock, so
+whichever arrives second exits cleanly rather than double-running, and neither scheduler
+going quiet takes maintenance down with it.
+
+One thing to know before you point *any* monitor at that endpoint: it returns **200 with
+`ok:false`** on a partial run, deliberately (a 500 made webcron services disable the job,
+which stopped the tasks that were still working). A check that reads only the status code
+will report green through a broken task.
+
+---
+
+## 1 — Use the PHP 8.4 binary, not `/usr/bin/php`
+
+The site needs PHP 8.3 or newer. On cPanel, the version you pick in MultiPHP applies to the
+WEBSITE only. A cron job that runs plain `php` or `/usr/bin/php` gets the server's default,
+which is often 7.4, and every run fails before any of our code starts with:
+
+```
+Your Composer dependencies require a PHP version ">= 8.3.0". You are running 7.4.33.
 ```
 
-On cPanel with MultiPHP, PHP binaries live under:
+So name the 8.4 binary in full in every cron command:
 
 ```
-/opt/cpanel/ea-php81/root/usr/bin/php
-/opt/cpanel/ea-php82/root/usr/bin/php
-/opt/cpanel/ea-php83/root/usr/bin/php
+/opt/cpanel/ea-php84/root/usr/bin/php
 ```
 
-Run `php -v` for each path and use whichever is 8.1 or higher.
+(`/opt/cpanel/ea-php83/root/usr/bin/php` also works.) No shell is needed to find it: cPanel →
+MultiPHP Manager shows the domain's version, and the path follows that pattern.
+
+Simpler still, use no cron command at all: the Cloudflare Worker calls `/__cron/run`, which
+runs inside the website and so always uses the website's PHP. See `CLOUDFLARE-CRON-WORKER.md`.
 
 ---
 
@@ -66,7 +94,7 @@ The cron scripts are in `<project_root>/cron/`. All paths below use
 
 **Command:**
 ```
-/usr/bin/php /home/youruser/africa-gates/cron/recalculate-cpi.php >> /home/youruser/africa-gates/var/logs/cpi-cron.log 2>&1
+/opt/cpanel/ea-php84/root/usr/bin/php /home/youruser/africa-gates/cron/recalculate-cpi.php >> /home/youruser/africa-gates/var/logs/cpi-cron.log 2>&1
 ```
 
 ### Job 2: Dashboard Aggregation — every 4 hours
@@ -81,24 +109,29 @@ The cron scripts are in `<project_root>/cron/`. All paths below use
 
 **Command:**
 ```
-/usr/bin/php /home/youruser/africa-gates/cron/aggregate-dashboard.php >> /home/youruser/africa-gates/var/logs/dashboard-cron.log 2>&1
+/opt/cpanel/ea-php84/root/usr/bin/php /home/youruser/africa-gates/cron/aggregate-dashboard.php >> /home/youruser/africa-gates/var/logs/dashboard-cron.log 2>&1
 ```
 
 > Note: Use minute `15` (not `0`) so it doesn't run at the same second as the CPI job.
 
-### Job 3: Maintenance — daily at 2 AM
+### Job 3: Maintenance / orchestrator — every 15 minutes
 
 | Field | Value |
 |-------|-------|
-| Minute | `0` |
-| Hour | `2` |
+| Minute | `*/15` |
+| Hour | `*` |
 | Day | `*` |
 | Month | `*` |
 | Weekday | `*` |
 
+> This one MUST be every 15 minutes — it self-schedules its heavier sub-tasks
+> (CPI, snapshots, collusion, reminders) by the current hour/minute. A daily run
+> would silently skip all of them. Overlapping runs are safe (the script takes a
+> single-instance lock and exits early if another run is active).
+
 **Command:**
 ```
-/usr/bin/php /home/youruser/africa-gates/cron/maintenance.php >> /home/youruser/africa-gates/var/logs/maintenance-cron.log 2>&1
+/opt/cpanel/ea-php84/root/usr/bin/php /home/youruser/africa-gates/cron/maintenance.php >> /home/youruser/africa-gates/var/logs/maintenance-cron.log 2>&1
 ```
 
 ---
@@ -116,13 +149,13 @@ Paste these lines (adjust paths and PHP binary):
 ```cron
 # Africa GATES cron jobs
 # CPI recompute — every 6 hours
-0 0,6,12,18 * * * /usr/bin/php /home/youruser/africa-gates/cron/recalculate-cpi.php >> /home/youruser/africa-gates/var/logs/cpi-cron.log 2>&1
+0 0,6,12,18 * * * /opt/cpanel/ea-php84/root/usr/bin/php /home/youruser/africa-gates/cron/recalculate-cpi.php >> /home/youruser/africa-gates/var/logs/cpi-cron.log 2>&1
 
 # Dashboard aggregation — every 4 hours
-15 0,4,8,12,16,20 * * * /usr/bin/php /home/youruser/africa-gates/cron/aggregate-dashboard.php >> /home/youruser/africa-gates/var/logs/dashboard-cron.log 2>&1
+15 0,4,8,12,16,20 * * * /opt/cpanel/ea-php84/root/usr/bin/php /home/youruser/africa-gates/cron/aggregate-dashboard.php >> /home/youruser/africa-gates/var/logs/dashboard-cron.log 2>&1
 
-# Maintenance (OTP/cache purge) — daily at 2 AM
-0 2 * * * /usr/bin/php /home/youruser/africa-gates/cron/maintenance.php >> /home/youruser/africa-gates/var/logs/maintenance-cron.log 2>&1
+# Maintenance / orchestrator — every 15 minutes (drives cycles, queue, CPI, snapshots, collusion, reminders)
+*/15 * * * * /opt/cpanel/ea-php84/root/usr/bin/php /home/youruser/africa-gates/cron/maintenance.php >> /home/youruser/africa-gates/var/logs/maintenance-cron.log 2>&1
 ```
 
 Save and exit. Verify with:
@@ -149,7 +182,7 @@ After=network.target
 Type=oneshot
 User=www-data
 WorkingDirectory=/home/youruser/africa-gates
-ExecStart=/usr/bin/php /home/youruser/africa-gates/cron/recalculate-cpi.php
+ExecStart=/opt/cpanel/ea-php84/root/usr/bin/php /home/youruser/africa-gates/cron/recalculate-cpi.php
 StandardOutput=append:/home/youruser/africa-gates/var/logs/cpi-cron.log
 StandardError=append:/home/youruser/africa-gates/var/logs/cpi-cron.log
 ```
@@ -176,7 +209,7 @@ Description=Africa GATES — Dashboard Aggregation
 Type=oneshot
 User=www-data
 WorkingDirectory=/home/youruser/africa-gates
-ExecStart=/usr/bin/php /home/youruser/africa-gates/cron/aggregate-dashboard.php
+ExecStart=/opt/cpanel/ea-php84/root/usr/bin/php /home/youruser/africa-gates/cron/aggregate-dashboard.php
 StandardOutput=append:/home/youruser/africa-gates/var/logs/dashboard-cron.log
 StandardError=append:/home/youruser/africa-gates/var/logs/dashboard-cron.log
 ```
@@ -203,7 +236,7 @@ Description=Africa GATES — Maintenance
 Type=oneshot
 User=www-data
 WorkingDirectory=/home/youruser/africa-gates
-ExecStart=/usr/bin/php /home/youruser/africa-gates/cron/maintenance.php
+ExecStart=/opt/cpanel/ea-php84/root/usr/bin/php /home/youruser/africa-gates/cron/maintenance.php
 StandardOutput=append:/home/youruser/africa-gates/var/logs/maintenance-cron.log
 StandardError=append:/home/youruser/africa-gates/var/logs/maintenance-cron.log
 ```
@@ -214,7 +247,7 @@ StandardError=append:/home/youruser/africa-gates/var/logs/maintenance-cron.log
 Description=Africa GATES — Maintenance timer
 
 [Timer]
-OnCalendar=*-*-* 02:00:00
+OnCalendar=*:0/15
 Persistent=true
 
 [Install]

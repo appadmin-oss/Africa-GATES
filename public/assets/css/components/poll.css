@@ -1,0 +1,23 @@
+/* A poll · partials/poll.twig (rebuilt Phase 9; shared with the thread pages).
+   Ink and tint only — a poll is a question, not a colour event. The bar's width is the
+   option's `--pct`, set inline by the partial and by poll.js; state rides on `.is-mine`. */
+.ag-poll{
+  display:flex; flex-direction:column; gap:var(--ag-sp-10); padding:16px 18px;
+  background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-16); color:var(--ag-ink);
+}
+.ag-poll__q{ margin:0; font-size:var(--ag-fs-16-5); font-weight:700 }
+.ag-poll__list{ margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:var(--ag-sp-8) }
+.ag-poll__opt{ position:relative; border:1px solid var(--ag-line-2); border-radius:var(--ag-r-12); overflow:hidden }
+.ag-poll__opt.is-mine{ border-color:var(--ag-ink) }
+.ag-poll__btn{
+  position:relative; z-index:1; width:100%; min-height:44px; padding:0 14px; border:0; background:transparent;
+  display:flex; align-items:center; justify-content:space-between; gap:var(--ag-sp-12);
+  font-size:var(--ag-fs-15); color:var(--ag-ink); text-align:start; cursor:pointer;
+}
+.ag-poll__btn--read{ cursor:default }
+.ag-poll__opt.is-mine .ag-poll__label{ font-weight:700 }
+.ag-poll__pct{ flex:none; font-weight:600; font-variant-numeric:tabular-nums }
+.ag-poll__bar{ position:absolute; inset-block:0; inset-inline-start:0; width:var(--pct, 0%); background:var(--ag-tint) }
+.ag-poll__foot, .ag-poll__say{ margin:0; font-size:var(--ag-fs-13); color:var(--ag-soft) }
+.ag-poll__foot a{ color:var(--ag-ink); text-decoration:underline; text-underline-offset:3px }
+.ag-poll__say:empty{ display:none }

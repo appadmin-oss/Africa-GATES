@@ -1,0 +1,21 @@
+{#- Plain-text part for notminted.html.twig. -#}
+We took your payment and your votes never arrived. We are sorry.
+
+You paid for {{ votes_label }} {{ votes_label == '1' ? 'vote' : 'votes' }} for {{ nominee ?: 'your nominee' }} and they were not added. Your money is not lost and your bank did nothing wrong. Voting in that category had closed by the time the payment reached us, and we never add votes after a category closes, for any amount.
+
+Your payment reference: {{ reference }}
+Keep this. A bank or wallet app shows its own number. This is the one we can look up.
+
+{% if auto_refund %}What happens now: we refund it automatically, in full, to the card or account you paid with. You will get a second email when it is on its way. Nothing is needed from you.
+{% else %}Fastest fix: open the help assistant and paste the reference. It checks the payment and can ask for your refund straight away.
+{{ assistant_url }}
+{% endif %}
+If that doesn’t work, open a ticket with the same reference, and a person will look at it: {{ ticket_url }}
+
+We’re sorry,
+The Africa GATES team
+
+—
+You contributed votes on Africa GATES.
+{{ postal_address }}
+Help: {{ site_url }}/help · Privacy: {{ site_url }}/privacy

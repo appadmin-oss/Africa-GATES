@@ -1,0 +1,15 @@
+{#- Plain-text part for welcome.html.twig. -#}
+Welcome, {{ first_name }}
+
+Africa GATES celebrates the teachers, builders and leaders who hold communities together. Here’s where to start.
+
+1. Nominate someone — a teacher, a nurse, a neighbour.
+2. Vote — {{ free_voting ? 'one free vote in each category, confirmed with a code sent to your email.' : 'votes are contributed through our secure payment provider' ~ (vote_price ? ', at ' ~ vote_price ~ ' a vote' : '') ~ '.' }}
+3. Be in the room — award events and their tickets are on the events page.
+
+Go to your account: {{ account_url }}
+
+—
+You confirmed an Africa GATES account with this address.
+{{ postal_address }}
+Help: {{ site_url }}/help · Privacy: {{ site_url }}/privacy

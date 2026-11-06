@@ -1,0 +1,77 @@
+{% extends 'layout/shell.twig' %}
+
+{#
+  /_dev/celebration — every prop combination of design/Celebration.dc.html (Phase 3)
+
+  `?kind=win|vote|nominate|give|ticket&size=full|inline&layout=phone|desktop` draws ONE
+  celebration through the real partial, so a screenshot at any width is that combination
+  alone; with no kind, an index of all twenty. The figures and copy are the DC's own demo
+  values (DEFSTATS, its default `sub`), passed in as a page would pass real ones — the
+  partial never supplies data, only headline and button defaults.
+
+  `win` is not a specimen: it celebrates the newest released, decided award in this
+  database, through Services\Celebration, and where there is none the partial draws
+  nothing (see the route). Dev-only, so its own words are not |trans'd.
+#}
+
+{% block head_styles %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/dev-celebration.css') }}">
+{% endblock %}
+
+{% set colour_tier = '2' %}
+
+{% set _demo = {
+  vote:     { stats: [{n: '2nd', l: 'in the race'}, {n: 1, l: 'vote added'}] },
+  win:      { stats: [{n: 18402, l: 'supporters'}, {n: '9.1', l: 'jury score'}, {n: '1st', l: 'of 5 finalists'}] },
+  nominate: { stats: [{n: 3, l: 'categories'}, {n: 212, l: 'nominations for them'}] },
+  give:     { stats: [{n: 1412, l: 'donors'}, {n: '68%', l: 'of goal'}] },
+  ticket:   { stats: [{n: 2, l: 'seats'}, {n: 68, l: 'days to go'}] }
+} %}
+{# The subs the handoff's own screenshots (screenshots/phase-3/) were taken with; nominate
+   has none there, so it takes the DC's default `sub`. #}
+{% set _subs = {
+  vote: 'Achieng moved up the race.',
+  win: 'Musician of the Year, Kenya Creative Economy Awards 11th Edition. The community and the jury agreed.',
+  nominate: 'Musician of the Year, KCEA 11th Edition. The community and the jury agreed.',
+  give: 'You’ll see exactly how it’s spent when the next payout is published.',
+  ticket: '2 seats · Row F. Your ticket works offline.'
+} %}
+{% set _moments = { vote: 'vote_cast', win: 'award_won', nominate: 'nomination_sent', give: 'gift_confirmed', ticket: 'ticket_confirmed' } %}
+
+{% block content %}
+<div class="dcel">
+{% if kind == '' %}
+  <h1 class="dcel__h1">Celebrations</h1>
+  <p class="dcel__note">Phase 3 · dev only. Each link draws one celebration through
+    <code>partials/celebration.twig</code>.
+    {% if award %}Win celebrates {{ award.winner.name }} ({{ award.category.title }}).
+    {% else %}There is no released, decided award in this database, so win draws nothing.{% endif %}</p>
+  <ul class="dcel__grid">
+    {% for k in kinds %}{% for s in ['full', 'inline'] %}{% for l in ['phone', 'desktop'] %}
+      <li><a href="/_dev/celebration?kind={{ k }}&amp;size={{ s }}&amp;layout={{ l }}">{{ k }} · {{ s }} · {{ l }}</a></li>
+    {% endfor %}{% endfor %}{% endfor %}
+  </ul>
+{% else %}
+  {% set _ctx = { moment: _moments[kind], confirmed: true } %}
+  {% set _first = '' %}
+  {% if kind == 'win' %}
+    {% set _ctx = _ctx|merge({ category_id: award ? award.category.id : 0, nominee_id: award ? award.winner.nominee_id : 0, edition: award ? award.programme_slug ~ '-' ~ award.cycle_year : '', subject: award ? award.winner.name : '' }) %}
+    {% set _first = award ? (award.winner.name|split(' ')|first) : '' %}
+  {% else %}
+    {% set _ctx = _ctx|merge({ edition: 'kcea-2025', subject: 'showcase' }) %}
+  {% endif %}
+  <div class="dcel__one{{ size == 'inline' ? ' dcel__one--inline' : '' }}">
+    {% include 'partials/celebration.twig' with {
+      kind: kind, size: size, layout: layout, first: _first,
+      sub: _subs[kind],
+      stats: _demo[kind].stats,
+      primary: kind == 'ticket' ? { href: '#calendar' } : {},
+      secondary: { href: '#next' },
+      context: _ctx,
+      ticket: { label: 'KCEA Ceremony', when: 'Sat 6 Dec · 18:00' }
+    } only %}
+  </div>
+  {% if kind == 'win' and not award %}<p class="dcel__note">No released, decided award in this database: the partial was asked and drew nothing.</p>{% endif %}
+{% endif %}
+</div>
+{% endblock %}

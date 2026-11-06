@@ -1,0 +1,17 @@
+{#- Confirm email · Account. Sender: AccountController::sendVerification.
+    Variables: first_name, email, confirm_url, hours (UserAccountService::VERIFY_TTL_HOURS).
+    Design: Email Templates.dc.html → "Confirm email". -#}
+{% extends 'emails/_layout.html.twig' %}
+{% block category %}Accounts{% endblock %}
+{% block hero %}illo-envelope{% endblock %}
+{% block why %}You created an Africa GATES account with this address.{% endblock %}
+{% block subject %}Confirm your Africa GATES email{% endblock %}
+{% block preheader %}One tap and your votes, tickets and nominations live in one place.{% endblock %}
+{% block body %}
+{%- import 'emails/_blocks.html.twig' as b -%}
+{{ b.h1("Confirm it’s you, #{first_name}") }}
+{{ b.p("Tap the button to confirm #{email}. Your votes, tickets and nominations will then all live in one place.") }}
+{{ b.button('Confirm my email', confirm_url) }}
+{{ b.url_fallback(confirm_url) }}
+{{ b.note("The link works for #{hours} hours. Didn’t create an account? Ignore this email.") }}
+{% endblock %}

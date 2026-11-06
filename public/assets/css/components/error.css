@@ -1,0 +1,25 @@
+/* The error page · templates/pages/error.twig (Phase 9). Ground, one column, the house
+   type: a meta code line, a Playfair heading at the H1 rungs (32 → 44), one paragraph,
+   two 48px buttons, and the reference in mono because it is a code to be copied. */
+.er{
+  box-sizing:content-box; max-width:600px; margin:0 auto; padding:56px var(--ag-sp-16) 64px;
+  display:flex; flex-direction:column; align-items:center; gap:var(--ag-sp-14); text-align:center; color:var(--ag-ink);
+}
+.er__code{ margin:0; font-size:var(--ag-fs-13-5); font-weight:600; color:var(--ag-soft) }
+.er__h{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-32); line-height:1.08; letter-spacing:-.015em; text-wrap:balance }
+.er__m{ margin:0; max-width:34rem; font-size:var(--ag-fs-17); line-height:1.65; color:var(--ag-ink-2) }
+.er__act{ display:flex; flex-wrap:wrap; justify-content:center; gap:var(--ag-sp-10); margin-top:var(--ag-sp-12); width:100% }
+.er a.er__btn{
+  display:inline-flex; align-items:center; justify-content:center; min-height:48px; padding:0 24px;
+  border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill); background:var(--ag-surface);
+  color:var(--ag-ink); font-weight:600; font-size:var(--ag-fs-15); text-decoration:none;
+}
+.er a.er__btn--p{ border-color:var(--ag-green); background:var(--ag-green); color:var(--ag-surface) }
+.er a.er__btn--p:hover{ background:var(--ag-green-deep); border-color:var(--ag-green-deep) }
+.er__ref{ margin-top:var(--ag-sp-18); padding:16px 18px; width:100%; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-16); display:flex; flex-direction:column; gap:6px }
+.er__ref p{ margin:0; font-size:var(--ag-fs-14-5); line-height:1.55 }
+.er__ref-code{ font-family:var(--ag-font-mono); font-size:var(--ag-fs-14-5); font-weight:700; user-select:all }
+.er__ref a{ color:var(--ag-ink); text-decoration:underline; text-underline-offset:3px }
+@media (max-width:599px){ .er__act{ flex-direction:column } .er a.er__btn{ width:100% } }
+@media (min-width:600px){ .er{ padding-top:88px } .er__h{ font-size:var(--ag-fs-40) } }
+@media (min-width:1024px){ .er__h{ font-size:var(--ag-fs-44) } }
