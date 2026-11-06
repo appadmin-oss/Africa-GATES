@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Controllers;
 
-use AfricaGates\Services\{CacheService, GlobeBand, HomeFront, HomepageImages};
+use AfricaGates\Services\{CacheService, GlobeBand, HomeFront};
 use AfricaGates\Support\NationsLive;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -24,11 +24,7 @@ use Slim\Views\Twig;
  */
 final class HomeController
 {
-    public function __construct(
-        private readonly Twig $view,
-        private readonly CacheService $cache,
-        private readonly HomepageImages $images,
-    ) {}
+    public function __construct(private readonly Twig $view, private readonly CacheService $cache) {}
 
     public function index(Request $req, Response $res): Response
     {
@@ -51,13 +47,7 @@ final class HomeController
             'note'      => GlobeBand::note(),
         ], ['leaderboard', 'registry']);
 
-        $built = $this->images->build($front['decided']);
-        // The shop topic promises "certificates and frames for the honours on your profile";
-        // it is drawn only while the shop sells some (HomeFront::framesOnSale).
-        if (empty($front['frames'])) {
-            $built['topics'] = array_values(array_filter($built['topics'] ?? [], static fn (array $t): bool => ($t['key'] ?? '') !== 'shop'));
-        }
-        return $this->view->render($res, 'pages/home.twig', $built + [
+        return $this->view->render($res, 'pages/home.twig', [
             'page_title'       => 'Africa GATES — where Africa recognises its people',
             // Computed, never typed: "live in Nigeria" was written here while NationsLive
             // existed to answer it (the fault the footer, the JSON-LD and the guide had).
@@ -66,12 +56,31 @@ final class HomeController
                 . NationsLive::phrase() . '.',
             'gates_page'       => 'home',
             'tab'              => 'home',
+            'hero_slides'      => HomeFront::heroSlides($front['decided']),
+            'honour'           => HomeFront::honourTiles(),
             'challenge'        => $front['challenge'],
             'honoured'         => (int) ($front['honoured'] ?? 0),
+            'frames_on_sale'   => (bool) ($front['frames'] ?? false),
             'campaign'         => $front['campaign'],
+            // The closing band's three portraits: real winners with photos when there are
+            // three, otherwise the owner's honour photographs. Never a stock face.
+            'closing_pics'     => self::closingPics($front['decided']),
             'globe_countries'  => $band['countries'],
             'globe_note'       => $band['note'],
         ]);
     }
 
+    /** @return list<array{src:string,alt:string}> */
+    private static function closingPics(array $decided): array
+    {
+        $real = array_values(array_filter($decided, static fn ($d) => !empty($d['photo'])));
+        if (count($real) >= 3) {
+            return array_map(static fn ($d) => ['src' => (string) $d['photo'], 'alt' => (string) $d['name'], 'media' => true], array_slice($real, 0, 3));
+        }
+        $t = HomeFront::honourTiles();
+        return [['src' => $t[0]['src'], 'alt' => $t[0]['alt'], 'media' => false],
+                ['src' => $t[1]['src'], 'alt' => $t[1]['alt'], 'media' => false],
+                ['src' => $t[5]['src'], 'alt' => $t[5]['alt'], 'media' => false]];
+    }
 }
+

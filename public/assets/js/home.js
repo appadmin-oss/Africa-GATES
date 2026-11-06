@@ -2,9 +2,9 @@
  *
  * Progressive: without this file the first slide shows, the counter shows its figure and
  * every link works. The count-up runs once, when the counter scrolls into view, and not at
- * all under prefers-reduced-motion (the figure is already in the markup). Multiple real
- * slides rotate every 5.5s with an explicit Pause/Play control, paused on hover or focus,
- * while the tab is hidden, and never under reduced motion.
+ * all under prefers-reduced-motion (the figure is already in the markup). The rotation
+ * follows the handoff exactly: a 0.8s crossfade every 5.5s, paused on hover, while the tab
+ * is hidden, and never under prefers-reduced-motion.
  */
 (function () {
   'use strict';
@@ -12,20 +12,23 @@
   // undoes when this page is swapped away; elsewhere they are plain (SiteNavTest).
   var pg = window.agPage || { on: function (t, y, f, o) { t.addEventListener(y, f, o); }, every: function (f, ms) { return setInterval(f, ms); }, leave: function () {} };
 
-  var motion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
-  var reduced = function () { return !!(motion && motion.matches) || document.documentElement.classList.contains('ag-rm'); };
+  // The site's own switch as well as the system's: html.ag-rm is set by the accessibility
+  // panel's reduce-motion option (a11y.js, applied in the head), for somebody whose device does not offer the setting
+  // or who wants it here only. Reading the media query alone, the hero rotated and the
+  // figures counted up for the people who had asked this site, in so many words, not to.
+  var reduce = document.documentElement.classList.contains('ag-rm') ||
+    !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
-  // A daily fallback is static. Only multiple genuine recognition slides can rotate.
+  // ── the hero ───────────────────────────────────────────────────────────────
   var hero = document.querySelector('[data-hm-rotate]');
   if (hero) {
     var slides = hero.querySelectorAll('[data-hm-slide]');
     var cards = hero.querySelectorAll('[data-hm-card]');
     var dots = hero.querySelectorAll('[data-hm-dot]');
-    var controls = hero.querySelector('[data-hm-controls]');
-    var play = hero.querySelector('[data-hm-pause]');
-    var live = hero.querySelector('.hm-rec-box');
-    var i = 0, timer = null, hover = false, focused = false, userPaused = false;
+    var i = 0, timer = null, hover = false;
 
+    // A slide's image is fetched just before it is shown (home.twig), and the next one with it,
+    // so a crossfade never fades in an empty frame.
     var wake = function (n) {
       var im = slides[(n + slides.length) % slides.length].querySelector('img[data-hm-src]');
       if (!im) return;
@@ -33,21 +36,13 @@
       im.src = im.getAttribute('data-hm-src');
       im.removeAttribute('data-hm-src'); im.removeAttribute('data-hm-srcset');
     };
-    var updateControl = function () {
-      if (play) {
-        play.hidden = reduced();
-        play.textContent = userPaused ? play.dataset.hmPlay : play.dataset.hmStop;
-      }
-      hero.dataset.hmPaused = String(userPaused || reduced());
-    };
     var show = function (n) {
       i = (n + slides.length) % slides.length;
       wake(i); wake(i + 1);
       for (var k = 0; k < slides.length; k++) {
         var on = k === i;
         slides[k].classList.toggle('is-on', on);
-        slides[k].hidden = !on;
-        slides[k].setAttribute('aria-hidden', String(!on));
+        slides[k].setAttribute('aria-hidden', on ? 'false' : 'true');
         if (cards[k]) cards[k].hidden = !on;
         if (dots[k]) {
           dots[k].classList.toggle('is-on', on);
@@ -55,48 +50,31 @@
         }
       }
     };
-    var stop = function () {
-      if (timer) { clearInterval(timer); timer = null; }
-      if (live) live.setAttribute('aria-live', 'polite');
-    };
+    var stop = function () { if (timer) { clearInterval(timer); timer = null; } };
     var start = function () {
       stop();
-      updateControl();
-      if (slides.length < 2 || reduced() || userPaused || hover || focused || document.hidden) return;
-      if (live) live.setAttribute('aria-live', 'off');
+      if (reduce || hover || document.hidden) return;
       timer = pg.every(function () { show(i + 1); }, 5500);
     };
+
     for (var d = 0; d < dots.length; d++) {
-      dots[d].addEventListener('click', function (event) {
-        userPaused = true;
-        stop();
-        show(parseInt(event.currentTarget.getAttribute('data-hm-dot'), 10) || 0);
-        updateControl();
-      });
+      dots[d].addEventListener('click', function (e) { show(parseInt(e.currentTarget.getAttribute('data-hm-dot'), 10) || 0); start(); });
     }
-    if (play) play.addEventListener('click', function () {
-      userPaused = !userPaused;
-      // Explicit Play resumes; subsequent focus or pointer interactions pause again.
-      if (!userPaused) { hover = false; focused = false; }
-      start();
-    });
     hero.addEventListener('mouseenter', function () { hover = true; stop(); });
     hero.addEventListener('mouseleave', function () { hover = false; start(); });
-    hero.addEventListener('focusin', function () { focused = true; stop(); });
-    hero.addEventListener('focusout', function (event) {
-      if (!hero.contains(event.relatedTarget)) { focused = false; start(); }
-    });
+    hero.addEventListener('focusin', function () { hover = true; stop(); });
+    hero.addEventListener('focusout', function () { hover = false; start(); });
     pg.on(document, 'visibilitychange', start);
-    pg.on(document, 'ag:a11y', start);
-    if (motion && motion.addEventListener) pg.on(motion, 'change', start);
-    if (controls) controls.hidden = false;
-    pg.leave(stop);
+    // The second slide once the page has finished loading, so the first turn is ready.
+    // After the page has loaded — which, arriving by an in-place navigation, it already has.
+    var later = function () { setTimeout(function () { wake(1); }, 1500); };
+    if (!reduce) { if (document.readyState === 'complete') later(); else pg.on(window, 'load', later); }
     start();
   }
 
   // ── the honours counter ────────────────────────────────────────────────────
   var ctr = document.querySelector('[data-hm-count]');
-  if (ctr && !reduced() && 'IntersectionObserver' in window) {
+  if (ctr && !reduce && 'IntersectionObserver' in window) {
     var to = parseInt(ctr.getAttribute('data-hm-count'), 10) || 0;
     var fmt = function (v) { return Math.round(v).toLocaleString('en-GB'); };
     var io = new IntersectionObserver(function (es) {
@@ -104,7 +82,6 @@
       io.disconnect();
       var t0 = null;
       var tick = function (t) {
-        if (reduced()) { ctr.textContent = fmt(to); return; }
         if (t0 === null) t0 = t;
         var p = Math.min(1, (t - t0) / 1400), e = 1 - Math.pow(1 - p, 3);
         ctr.textContent = fmt(to * e);

@@ -226,8 +226,7 @@ final class HomePageTest extends TestCase
         $this->assertStringNotContainsString('class="hm-rec__chip"', $html,
             'a "Winner" chip was drawn with no decided award behind it — that is an invented recognition');
         $this->assertStringContainsString('/assets/img/honour/teacher-', $html);
-        $this->assertStringContainsString('Nominate someone like this', $html);
-        $this->assertSame(1, substr_count($html, 'data-hm-slide role='), 'the daily fallback stays static');
+        $this->assertStringContainsString('Teachers who changed a classroom', $html);
     }
 
     // ══ the featured campaign ════════════════════════════════════════════════
