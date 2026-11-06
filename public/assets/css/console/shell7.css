@@ -263,6 +263,14 @@ textarea.sh7-input { height: auto; padding: 10px 12px; line-height: 1.5; }
 /* The browser's 13px box is under the 24px target floor; the label carries the rest, the box is drawn big enough to see. */
 .sh7-choice input { flex: none; width: 20px; height: 20px; margin: 0; accent-color: var(--cn-green); }
 .sh7-field--choice { gap: 8px; }
+/* Short options, many of them: a grid on any width that fits two (sections.twig decides). */
+.sh7-field--grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); column-gap: 16px; }
+.sh7-field--grid > legend { grid-column: 1 / -1; }
+/* "Name — what it does (risk)": the name, the risk as a chip, the description under them. */
+.sh7-choice__t { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; min-width: 0; }
+.sh7-choice__n { font-weight: 600; }
+.sh7-choice__d { flex-basis: 100%; color: var(--cn-ink-3); font-size: var(--cn-fs-13); }
+.sh7-choice:has(.sh7-choice__t) { padding: 6px 0; }
 .sh7-seg { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; border-radius: var(--cn-r-10); background: var(--cn-ground); }
 .sh7-seg__opt input { position: absolute; opacity: 0; }
 .sh7-seg__opt span { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: var(--cn-r-8); cursor: pointer; font-size: var(--cn-fs-13-5); color: var(--cn-ink-2); }
@@ -417,6 +425,14 @@ textarea.sh7-input { height: auto; padding: 10px 12px; line-height: 1.5; }
 .sh7-bellpanel__none { margin: 8px; font-size: var(--cn-fs-13); color: var(--cn-ink-3); }
 .sh7-switch > summary { list-style: none; cursor: pointer; border-radius: var(--cn-r-10); }
 .sh7-switch > summary::-webkit-details-marker { display: none; }
+/* `.sh7-switch` names two things: the on/off control above (inline-flex, sized to its
+   label) and this place switcher. Inheriting the control's inline-flex, the switcher sized
+   itself to the event's full name and ran out of the 240px rail, pushing the ⇅ mark into
+   the page beside it. The switcher is a block the width of the rail, and its name truncates. */
+details.sh7-switch { display: block; min-width: 0; }
+.sh7-switch > summary.sh7-ident { min-width: 0; }
+.sh7-switch > summary .sh7-ident__words { flex: 1; }
+.sh7-switch__mark { flex: none; margin-inline-start: auto; color: var(--cn-ink-3); }
 .sh7-switch > summary:hover { background: var(--cn-hover); }
 .sh7-switch__mark { margin-left: auto; color: var(--cn-faint); }
 .sh7-switch__list { list-style: none; margin: 0 0 8px; padding: 6px; border: 1px solid var(--cn-line); border-radius: var(--cn-r-12); background: var(--cn-surface); }
@@ -528,4 +544,47 @@ textarea.sh7-input { height: auto; padding: 10px 12px; line-height: 1.5; }
 @container shell (max-width: 599px) {
   .sh7-form__submit { display: flex; flex-wrap: wrap; gap: 8px; }
   .sh7-form__submit > .sh7-btn { flex: 1 1 auto; height: auto; min-height: 44px; white-space: normal; padding-block: 12px; }
+}
+
+
+/* ══ Design pass, 6 Nov 2026 — the volunteer and event-lead portals ═══════════════════════
+   The owner's verdict on these screens was that they looked unfinished, and the full-length
+   captures agreed: every form was a flat run of fields on the page with a hairline between
+   rows, a 2005 settings-page layout (a 240px label column beside the fields) on desktop, bare
+   radio circles in a column, and nothing grouping a page into the few things it is for.
+   This block changes presentation only: no markup a test or a script depends on. */
+
+/* A form is one card: the thing on the page you fill in, visibly distinct from what you read. */
+.sh7-sec--form { border: 1px solid var(--cn-card-edge); border-radius: var(--cn-r-18); padding: 20px 24px 24px; gap: 2px; background: var(--cn-surface); }
+.sh7-sec--form > .sh7-sec__h { font-size: var(--cn-fs-17); font-weight: 600; margin-bottom: 4px; }
+
+/* Fields stacked under their group's name, at a reading width: the eye goes down one line
+   rather than zig-zagging between a label column and a field column. */
+.sh7-form__block { grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 16px 0 6px; border-bottom: 0; max-width: 680px; }
+.sh7-form__block + .sh7-form__block { border-top: 1px solid var(--cn-line-row); }
+.sh7-form__name { font-weight: 600; font-size: var(--cn-fs-14); }
+.sh7-form__label:empty { display: none; }
+.sh7-form__submit { margin-top: 20px; }
+.sh7-form__submit .sh7-btn--primary { min-width: 160px; height: 44px; }
+
+/* A short set of answers is a row of tiles you tap, not a column of circles: the whole
+   option is the target, and the one chosen is plainly the one chosen. */
+.sh7-field--radio { flex-direction: row; flex-wrap: wrap; gap: 8px; }
+.sh7-field--radio > legend { flex-basis: 100%; margin-bottom: 2px; }
+.sh7-field--radio .sh7-choice { align-items: center; min-height: 44px; padding: 0 14px 0 12px; border: 1px solid var(--cn-line); border-radius: var(--cn-r-12); background: var(--cn-surface); }
+.sh7-field--radio .sh7-choice:hover { border-color: var(--cn-ink-3); }
+.sh7-field--radio .sh7-choice:has(input:checked) { border-color: var(--cn-green); background: var(--cn-ok-wash); font-weight: 600; }
+.sh7-field--radio .sh7-choice:has(input:focus-visible) { outline: 2px solid var(--cn-green); outline-offset: 2px; }
+
+/* Ticks with a description read as a list of separate decisions, one per row. */
+.sh7-field--choice:not(.sh7-field--grid):not(.sh7-field--radio) .sh7-choice:has(.sh7-choice__t) { padding: 10px 0; border-bottom: 1px solid var(--cn-line-row); }
+
+/* Inputs a size a thumb and an eye both find. */
+.sh7-input { height: 44px; border-radius: var(--cn-r-12); }
+textarea.sh7-input { height: auto; min-height: 104px; padding-block: 10px; }
+
+@media (max-width: 720px) {
+  .sh7-sec--form { padding: 16px 16px 18px; border-radius: var(--cn-r-14); }
+  .sh7-form__submit .sh7-btn--primary { width: 100%; }
+  .sh7-field--radio .sh7-choice { flex: 1 1 calc(50% - 4px); }
 }

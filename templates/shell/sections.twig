@@ -86,16 +86,33 @@
 
 {% macro bar(pct, label) %}<span class="sh7-meter"><span class="sh7-meter__track"><span class="sh7-meter__fill" style="width:{{ min(100, max(0, pct)) }}%"></span></span>{% if label %}<span class="sh7-meter__label">{{ label }}</span>{% endif %}</span>{% endmacro %}
 
-{% macro field(f) %}
-  {# A page with several forms names each field's id (`f.id`), or two fields would share one. #}
+{% macro field(f, quiet = false) %}
+  {# A page with several forms names each field's id (`f.id`), or two fields would share one.
+     `quiet`: the field is alone in its form group, so the group's name above it is already its
+     visible label. Printing the field's own label as well read as a stutter on every form in
+     both portals ("How it went / How it went", "Subject / Subject") and, stacked on a phone,
+     doubled the height of every row. The label stays for a screen reader, which needs the
+     field named where it is. #}
   {% set id = f.id is defined ? f.id : 'f_' ~ f.name|replace({'[': '_', ']': ''}) %}
+  {% set lc = quiet ? ' sh7-sr' : '' %}
   {% if f.type == 'radio' %}
-    <fieldset class="sh7-field sh7-field--choice"><legend class="sh7-field__label">{{ f.label }}</legend>
+    <fieldset class="sh7-field sh7-field--choice sh7-field--radio"><legend class="sh7-field__label{{ lc }}">{{ f.label }}</legend>
       {% for k, l in f.options %}<label class="sh7-choice"><input type="radio" name="{{ f.name }}" value="{{ k }}"{{ (f.value|default('')) == k ? ' checked' }}{{ f.required|default(false) ? ' required' }}> {{ l }}</label>{% endfor %}
     </fieldset>
   {% elseif f.type == 'checks' %}
-    <fieldset class="sh7-field sh7-field--choice"><legend class="sh7-field__label">{{ f.label }}</legend>
-      {% for k, l in f.options %}<label class="sh7-choice sh7-choice--check"><input type="checkbox" name="{{ f.name }}[]" value="{{ k }}"{{ k in f.value|default([]) ? ' checked' }}> {{ l }}</label>{% else %}<p class="sh7-field__help">{{ f.empty|default('Nobody to choose yet.') }}</p>{% endfor %}
+    {# A long list of short words (the pages a console opens with) is a grid, not a column a
+       desktop reader scrolls past; an option written "Name — what it does (high risk)" is
+       drawn as the name, the description under it, and the risk as a chip that can be
+       scanned down the list — it was one run-on line per permission. #}
+    {% set _short = f.options|length >= 6 and f.options|filter(o => o|length > 24)|length == 0 %}
+    <fieldset class="sh7-field sh7-field--choice{{ _short ? ' sh7-field--grid' }}"><legend class="sh7-field__label{{ lc }}">{{ f.label }}</legend>
+      {% for k, l in f.options %}<label class="sh7-choice sh7-choice--check"><input type="checkbox" name="{{ f.name }}[]" value="{{ k }}"{{ k in f.value|default([]) ? ' checked' }}>
+        {%- set _p = l|split(' — ', 2) -%}
+        {%- if _p|length == 2 -%}
+          {%- set _risk = _p[1] matches '/\\((low|medium|high) risk\\)$/' ? (_p[1]|split('(')|last|split(' ')|first) : '' -%}
+          <span class="sh7-choice__t"><span class="sh7-choice__n">{{ _p[0] }}</span>{% if _risk %} <span class="sh7-chip sh7-chip--{{ {low: 'ok', medium: 'warn', high: 'bad'}[_risk] }}">{{ _risk|capitalize }} risk</span>{% endif %}<span class="sh7-choice__d">{{ _risk ? _p[1]|split(' (' ~ _risk ~ ' risk)')|first : _p[1] }}</span></span>
+        {%- else %} {{ l }}{% endif -%}
+      </label>{% else %}<p class="sh7-field__help">{{ f.empty|default('Nobody to choose yet.') }}</p>{% endfor %}
     </fieldset>
   {% elseif f.type == 'segmented' %}
     <fieldset class="sh7-field"><legend class="sh7-field__label sh7-sr">{{ f.label }}</legend>
@@ -106,13 +123,13 @@
   {% elseif f.type == 'switch' %}
     <label class="sh7-switch"><input type="checkbox" name="{{ f.name }}" value="1"{{ f.value|default('0') == '1' ? ' checked' }}><span class="sh7-switch__track" aria-hidden="true"></span><span>{{ f.label }}</span></label>
   {% elseif f.type == 'select' %}
-    <label class="sh7-field" for="{{ id }}"><span class="sh7-field__label">{{ f.label }}</span>
+    <label class="sh7-field" for="{{ id }}"><span class="sh7-field__label{{ lc }}">{{ f.label }}</span>
       <select class="sh7-input" id="{{ id }}" name="{{ f.name }}"{{ f.required|default(false) ? ' required' }}>{% for k, l in f.options %}<option value="{{ k }}"{{ (f.value|default('')) == k ? ' selected' }}>{{ l }}</option>{% endfor %}</select></label>
   {% elseif f.type == 'textarea' %}
-    <label class="sh7-field" for="{{ id }}"><span class="sh7-field__label">{{ f.label }}</span>
+    <label class="sh7-field" for="{{ id }}"><span class="sh7-field__label{{ lc }}">{{ f.label }}</span>
       <textarea class="sh7-input" id="{{ id }}" name="{{ f.name }}" rows="4"{{ f.required|default(false) ? ' required' }}{% if f.autocomplete is defined %} autocomplete="{{ f.autocomplete }}"{% endif %}>{{ f.value|default('') }}</textarea></label>
   {% else %}
-    <label class="sh7-field" for="{{ id }}"><span class="sh7-field__label">{{ f.label }}</span>
+    <label class="sh7-field" for="{{ id }}"><span class="sh7-field__label{{ lc }}">{{ f.label }}</span>
       <input class="sh7-input" id="{{ id }}" type="{{ f.type }}" name="{{ f.name }}" value="{{ f.value|default('') }}"
         {%- if f.placeholder is defined %} placeholder="{{ f.placeholder }}"{% endif %}
         {%- if f.min is defined %} min="{{ f.min }}"{% endif %}{% if f.max is defined %} max="{{ f.max }}"{% endif %}{% if f.step is defined %} step="{{ f.step }}"{% endif %}
@@ -301,7 +318,7 @@
       {% for g in s.groups %}
         <div class="sh7-form__block">
           <div class="sh7-form__label"><p class="sh7-form__name">{{ g.label }}</p>{% if g.help is defined and g.help %}<p class="sh7-form__help">{{ g.help }}</p>{% endif %}</div>
-          <div class="sh7-form__fields">{% for f in g.fields %}{{ M.field(f) }}{% endfor %}</div>
+          <div class="sh7-form__fields">{% for f in g.fields %}{{ M.field(f, g.fields|length == 1 and g.label|default("")|trim != "") }}{% endfor %}</div>
         </div>
       {% endfor %}
       {% if s.route is defined and s.route %}<p class="sh7-form__route">{{ s.route }}</p>{% endif %}

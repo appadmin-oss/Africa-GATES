@@ -213,7 +213,7 @@ final class VolunteerMeetingsTest extends TestCase
         [$org, $a] = [$this->vol('Chika Nwosu'), $this->vol('Bola Ade')];
         $_SESSION['user_id'] = $org->user_id;
         $form = (string) $this->ctrl()->root((new ServerRequestFactory())->createServerRequest('GET', '/volunteer/meetings/new'), new Response(), ['page' => 'meetings', 'tab' => 'new'])->getBody();
-        $this->assertMatchesRegularExpression('~<fieldset class="sh7-field sh7-field--choice"><legend class="sh7-field__label">Invite</legend>\s*<label class="sh7-choice sh7-choice--check"><input type="checkbox" name="people\[\]" value="' . $a->id . '"> Bola Ade · Teachers Prize~', $form, 'a named group of labelled checkboxes');
+        $this->assertMatchesRegularExpression('~<fieldset class="sh7-field sh7-field--choice"><legend class="sh7-field__label(?: sh7-sr)?">Invite</legend>\s*<label class="sh7-choice sh7-choice--check"><input type="checkbox" name="people\[\]" value="' . $a->id . '"> Bola Ade · Teachers Prize~', $form, 'a named group of labelled checkboxes');
         $this->assertMatchesRegularExpression('~<label class="sh7-field" for="f_date"><span class="sh7-field__label">Date</span>\s*<input class="sh7-input" id="f_date" type="date"~', $form);
 
         // A refusal keeps what was typed, and the people chosen.

@@ -397,4 +397,20 @@ final class VolunteerOutreachTest extends TestCase
         $this->assertNotNull(Workspace::place($v, 'cycle', $this->cycle));
         $this->assertStringContainsString('Halima Bello', $this->page('all', ['n' => $n]));
     }
+
+    /**
+     * A field alone in its form group is named once on screen — by the group — and still
+     * named for a screen reader. Both used to print, so every form in the portal stuttered
+     * ("How it went / How it went") and every stacked row on a phone was twice as tall.
+     */
+    public function test_a_lone_fields_label_is_spoken_but_not_printed_twice(): void
+    {
+        $n = $this->nominee('Halima Bello');
+        $v = $this->volunteer([Outreach::CAPABILITY]);
+        Outreach::agree($v, $this->cycle);
+        $html = $this->page('all', ['n' => $n]);
+        $this->assertMatchesRegularExpression('~<p class="sh7-form__name">How it went</p>~', $html);
+        $this->assertMatchesRegularExpression('~<legend class="sh7-field__label sh7-sr">How it went</legend>~', $html, 'printed twice');
+        $this->assertDoesNotMatchRegularExpression('~<legend class="sh7-field__label">How it went</legend>~', $html);
+    }
 }
