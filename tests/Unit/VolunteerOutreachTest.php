@@ -354,4 +354,47 @@ final class VolunteerOutreachTest extends TestCase
         $this->assertStringContainsString("'=HYPERLINK", $body);
         unset($_SESSION['admin_id']);
     }
+
+    /** An event for this award, and a volunteer helping at it with these roles. */
+    private function eventVolunteer(array $caps): array
+    {
+        $prog = (int) DB::table('gates_award_cycles')->where('id', $this->cycle)->value('programme_id');
+        $ev = (int) DB::table('gates_site_events')->insertGetId(['title' => 'Teachers Prize night', 'slug' => 'tp-' . bin2hex(random_bytes(3)),
+            'event_date' => date('Y-m-d H:i:s', strtotime('+10 days')), 'status' => 'published']);
+        DB::table('gates_event_programmes')->insert(['event_id' => $ev, 'programme_id' => $prog]);
+        $v = $this->volunteer([]);
+        foreach ($caps as $c) $this->assertTrue(Grants::grant('member', (int) $v->user_id, $c, 'event', $ev, date('Y-m-d', strtotime('+20 days')), 1)['ok']);
+        Outreach::reset();
+        return [$ev, Volunteers::of((int) $v->user_id)];
+    }
+
+    /**
+     * Everybody helping at an award's event sees who is being honoured — the Academy's event
+     * lesson says so — and nothing about how to reach them.
+     */
+    public function test_an_event_volunteer_sees_the_events_nominees_without_their_details(): void
+    {
+        $this->nominee('Halima Bello');
+        DB::table('gates_nominees')->insert(['category_id' => $this->cat, 'name' => 'Not Yet', 'status' => 'pending', 'nominated_at' => date('Y-m-d H:i:s')]);
+        [$ev] = $this->eventVolunteer(['vol.usher']);
+        $req = (new ServerRequestFactory())->createServerRequest('GET', '/volunteer');
+        $res = $this->ctrl()->place($req, new Response(), ['kind' => 'event', 'id' => (string) $ev, 'page' => 'nominees']);
+        $this->assertSame(200, $res->getStatusCode());
+        $html = (string) $res->getBody();
+        $this->assertStringContainsString('Halima Bello', $html);
+        $this->assertStringContainsString('Teacher of the Year', $html);
+        $this->assertStringNotContainsString('Not Yet', $html, 'only approved nominees');
+        $this->assertStringNotContainsString('8031112233', $html, 'an usher is not given a nominee\'s number');
+        $this->assertStringNotContainsString('halima@school.ng', $html);
+    }
+
+    /** Nominee outreach given at the EVENT is outreach on the award that night presents. */
+    public function test_outreach_given_at_an_event_reaches_that_events_award(): void
+    {
+        $n = $this->nominee('Halima Bello');
+        [, $v] = $this->eventVolunteer([Outreach::CAPABILITY]);
+        $this->assertArrayHasKey($this->cycle, Outreach::awards($v), 'the role at the event gave nothing');
+        $this->assertNotNull(Workspace::place($v, 'cycle', $this->cycle));
+        $this->assertStringContainsString('Halima Bello', $this->page('all', ['n' => $n]));
+    }
 }

@@ -125,7 +125,7 @@ final class Workspace
         'cycle' => [[null, ['overview' => ['Overview', 'home']]], ['Your work', ['tasks' => ['Tasks', 'list']]],
                     ['Know', ['guide' => ['Role guide', 'book'], 'access' => ['Your access', 'shield']]]],
         'event' => [[null, ['today' => ['Today', 'home']]], ['Your work', ['tasks' => ['Tasks', 'list']]],
-                    ['The night', ['brief' => ['Briefing', 'doc'], 'team' => ['Who’s on', 'users']]], ['Know', ['access' => ['Your access', 'shield']]]],
+                    ['The night', ['brief' => ['Briefing', 'doc'], 'nominees' => ['Nominees', 'contact'], 'team' => ['Who’s on', 'users']]], ['Know', ['access' => ['Your access', 'shield']]]],
     ];
 
     /** Award work each grant adds, in the order the rail shows it (nav-volunteer.json). */
@@ -180,6 +180,20 @@ final class Workspace
             $label = Grants::CAPABILITIES[$g->capability] ?? (string) $g->capability;
             if (!in_array($label, $out[$k]['roles'], true)) $out[$k]['roles'][] = $label;
             if ((string) $g->expires_at > (string) $out[$k]['ends']) $out[$k]['ends'] = (string) $g->expires_at;
+        }
+        // Nominee outreach given at an EVENT is outreach on the awards that night presents, so
+        // those awards are places this person can open — carrying that one role and no other.
+        foreach ($out as $k => $p) {
+            if ($p['kind'] !== 'event' || !in_array(Outreach::CAPABILITY, $p['caps'], true)) continue;
+            foreach (\AfricaGates\Services\EventsFront::cyclesFor((int) $p['id']) as $cid => $name) {
+                $ck = 'cycle:' . $cid;
+                $out[$ck] ??= ['kind' => 'cycle', 'id' => (int) $cid, 'name' => Workspace::scopeName('cycle', (int) $cid), 'roles' => [], 'caps' => [],
+                               'ends' => $p['ends'], 'href' => '/volunteer/cycle/' . $cid];
+                if (!in_array(Outreach::CAPABILITY, $out[$ck]['caps'], true)) {
+                    $out[$ck]['caps'][] = Outreach::CAPABILITY;
+                    $out[$ck]['roles'][] = Grants::CAPABILITIES[Outreach::CAPABILITY];
+                }
+            }
         }
         $out = array_values($out);
         usort($out, static fn ($a, $b) => strcmp((string) ($a['ends'] ?? '9999'), (string) ($b['ends'] ?? '9999')));

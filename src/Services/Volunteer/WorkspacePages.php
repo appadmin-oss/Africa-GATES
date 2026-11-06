@@ -700,6 +700,7 @@ final class WorkspacePages
             $secs[] = ['k' => 'note', 'text' => 'Calls go through the platform; numbers stay private.', 'tone' => 'mute'];
             return ['title' => 'Briefing', 'secs' => $secs];
         }
+        if ($page === 'nominees') return self::eventNominees($v, $id);
         if ($page === 'team') {
             $rows = [];
             foreach (DB::table('gates_grants as g')->join('gates_volunteers as o', 'o.user_id', '=', 'g.actor_id')
@@ -1145,6 +1146,49 @@ final class WorkspacePages
         if ($tasks) $bits[] = $tasks === 1 ? 'One task on the go' : $tasks . ' tasks on the go';
         if ($lv['next'] && $lv['next']['hours_to'] > 0) $bits[] = 'you’re ' . Level::h($lv['next']['hours_to']) . ' of verified hours from Level ' . $lv['next']['level'];
         return $bits ? ucfirst(implode('. ', $bits)) . '.' : Workspace::PURPOSE['root.home'];
+    }
+
+    /**
+     * The nominees an event's awards have approved, for everybody helping on the night.
+     *
+     * An usher seats them, a door steward greets them by name, a runner finds them for the
+     * stage — and the event's volunteer pages listed none of them, so the team learned who
+     * was being honoured from the programme sheet on the night. What is shown here is what
+     * the public ballot already shows (name, category, award, organisation, country); a
+     * nominee's phone and email stay with the nominee outreach role, on the award's own
+     * Nominees page, behind its rules (Outreach). Approved, winners and runners-up only, and
+     * nothing merged away — the same set the outreach list reads.
+     */
+    private static function eventNominees(object $v, int $eventId): array
+    {
+        $cycles = \AfricaGates\Services\EventsFront::cyclesFor($eventId);
+        if (!$cycles) {
+            return ['title' => 'Nominees', 'secs' => [['k' => 'note', 'tone' => 'mute',
+                'text' => 'This event is not linked to an award, so it has no nominees.']]];
+        }
+        $rows = DB::table('gates_nominees as n')->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+            ->whereIn('c.cycle_id', array_keys($cycles))->whereIn('n.status', ['approved', 'winner', 'runner_up'])->whereNull('n.merged_into')
+            ->orderBy('c.cycle_id')->orderBy('c.sort_order')->orderBy('n.name')->limit(3000)
+            ->get(['n.id', 'n.name', 'n.status', 'n.organisation', 'n.country_code', 'c.cycle_id', 'c.title as category']);
+        $byAward = [];
+        foreach ($rows as $n) {
+            $sub = implode(' · ', array_filter([(string) $n->category, trim((string) ($n->organisation ?? '')), strtoupper((string) ($n->country_code ?? ''))]));
+            $byAward[(int) $n->cycle_id][] = ['t' => (string) $n->name, 'sub' => $sub, 'ini' => Workspace::initials((string) $n->name),
+                'chip' => match ((string) $n->status) { 'winner' => ['Winner', 'ok'], 'runner_up' => ['Runner-up', 'info'], default => null }];
+        }
+        $reach = Outreach::awards($v);
+        $secs = [];
+        foreach ($cycles as $cid => $name) {
+            $items = $byAward[$cid] ?? [];
+            $secs[] = $items ? ['k' => 'rows', 'h' => $name . ' · ' . count($items), 'items' => $items]
+                             : ['k' => 'note', 'h' => $name, 'text' => 'No nominees approved yet.', 'tone' => 'mute'];
+        }
+        $mine = array_key_first(array_intersect_key($reach, $cycles));
+        $secs[] = $mine !== null
+            ? ['k' => 'note', 'tone' => 'info', 'text' => 'You hold nominee outreach here: contact details and the contact log are on the award’s Nominees page.',
+               'cta' => ['label' => 'Reach nominees', 'href' => '/volunteer/cycle/' . (int) $mine . '/nominees']]
+            : ['k' => 'note', 'tone' => 'mute', 'text' => 'Phone numbers and emails are shown only to volunteers with the nominee outreach role, after they agree to its rules.'];
+        return ['title' => 'Nominees', 'purpose' => 'Who is being honoured at this event.', 'secs' => $secs];
     }
 
     private static function placeLine(object $v, array $p): string
