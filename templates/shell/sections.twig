@@ -338,7 +338,11 @@
     </form>
 
   {% elseif s.k == 'article' %}
-    <div class="sh7-article">{% for p in s.paras %}<p>{{ p }}</p>{% endfor %}</div>
+    {# `blocks`: headed parts of a written document (an event's report), line breaks kept as
+       written — escaped text, never HTML: a lead typed it. #}
+    <div class="sh7-article">{% for p in s.paras|default([]) %}<p>{{ p }}</p>{% endfor %}
+      {%- for b in s.blocks|default([]) %}<h3 class="sh7-article__h">{{ b.h }}</h3><p class="sh7-article__p">{{ b.text }}</p>{% endfor -%}
+    </div>
 
   {% elseif s.k == 'decide' %}
     <form class="sh7-form sh7-decide" method="post" action="{{ act }}">

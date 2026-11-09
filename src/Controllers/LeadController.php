@@ -6,6 +6,7 @@ namespace AfricaGates\Controllers;
 use AfricaGates\Admin\Services\AuditService;
 use AfricaGates\Services\EventPlan\EventPages;
 use AfricaGates\Services\EventPlan\EventPermissions;
+use AfricaGates\Services\EventPlan\EventReport;
 use AfricaGates\Services\EventPlan\TeamPages;
 use AfricaGates\Services\EventPlan\Teams;
 use AfricaGates\Services\EventPlan\TeamSuggest;
@@ -210,6 +211,11 @@ final class LeadController
             'work_propose' => [$this->propose($me, $b), '', 'event', $int('event')],
             'work_decide' => [TeamLoop::decide($int('work'), $me['id'], (string) ($b['verdict'] ?? ''), (string) ($b['note'] ?? ''), (string) ($b['proof'] ?? 'none')), '', 'event_work', $int('work')],
             'vtask_add', 'vtask_close', 'vtask_accept' => [$this->volTask($me, $b, $do), '', 'event', $int('event')],
+            // The written report (EventPlan\EventReport): a lead saves and submits what is saved;
+            // an owner signs it off or sends it back.
+            'report_save' => [EventReport::save($int('event'), $b, $me), '', 'event', $int('event')],
+            'report_submit' => [EventReport::save($int('event'), (array) (EventReport::of($int('event')) ?? []), $me, true), '', 'event', $int('event')],
+            'report_decide' => [EventReport::decide($int('event'), (string) ($b['verdict'] ?? ''), (string) ($b['note'] ?? ''), $me), '', 'event', $int('event')],
             default => [['ok' => false, 'error' => 'That isn’t something this page can do.'], '', '', 0],
         };
         if (!$r['ok']) return $this->back($res, $back, false, (string) ($r['error'] ?? 'That didn’t work.'));

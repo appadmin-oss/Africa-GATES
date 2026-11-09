@@ -117,6 +117,10 @@ final class EventPages
         $info = count(array_filter(self::eventRequests($eventId), static fn ($r) => $r->status === 'needs_info' && $r->from_kind === Plan::ACTOR && (int) $r->from_id === $me['id']));
         if ($info > 0) $c['requests'] = ['n' => $info, 'tone' => 'warn'];
         if (($w = Teams::waitingCount($eventId)) > 0) $c['roles'] = ['n' => $w, 'tone' => 'warn'];
+        // The written report: an owner's to sign (not one they wrote), or back with the leads.
+        $rep = EventReport::of($eventId);
+        if ($rep && $rep->status === 'submitted' && (int) $rep->author_id !== $me['id'] && Teams::isOwner($me['id'], $eventId)) $c['reports'] = ['n' => 1, 'tone' => 'warn'];
+        if ($rep && $rep->status === 'returned' && Plan::isLead($me['id'], $eventId)) $c['reports'] = ['n' => 1, 'tone' => 'bad'];
         return $c;
     }
 
@@ -175,7 +179,7 @@ final class EventPages
             },
             'night' => match ($tab) { 'door' => self::door($e), 'safety' => self::safety($e, $owners), default => self::show($e, $owners) },
             'growth' => LeadPages::analytics([$e]),
-            'reports' => match ($tab) { 'post' => self::post($e), 'audit' => self::audit($e), default => self::status($e) },
+            'reports' => match ($tab) { 'post' => self::post($me, $e, $st), 'audit' => self::audit($e), default => self::status($e) },
             'requests' => self::requests($me, $e),
             'settings' => match ($tab) {
                 'members' => self::members($e), 'limits' => self::limits($e), 'devices' => self::devices($e), default => self::general($e),
@@ -1054,26 +1058,81 @@ final class EventPages
         return ['title' => 'Reports', 'secs' => $secs];
     }
 
-    private static function post(object $e): array
+    /**
+     * After the night: the figures, then the WRITTEN report and its sign-off (EventReport).
+     * A lead writes and submits; an owner signs it off or sends it back; the page shows each
+     * person the one thing that is theirs to do, and everybody the report as it stands.
+     */
+    private static function post(array $me, object $e, array $st): array
     {
         $id = (int) $e->id;
-        if (strtotime((string) $e->event_date) > time()) {
-            return ['title' => 'Reports', 'secs' => [['k' => 'note', 'tone' => 'mute',
-                'text' => 'The post-event report fills in after the night, ' . date('D j M', (int) strtotime((string) $e->event_date)) . ': who came, what was spent, what was done.']]];
+        $rep = EventReport::of($id);
+        $after = EventReport::after($e);
+        $secs = [];
+        $status = $rep ? (string) $rep->status : 'none';
+
+        // Where it stands, in one line, with whose move it is.
+        $line = match ($status) {
+            'none'      => $after ? 'No written report yet. A lead writes it, and an owner of the event signs it off.'
+                                  : 'The written report is submitted after the night, ' . date('D j M', (int) strtotime((string) $e->event_date)) . '. A lead can start a draft now.',
+            'draft'     => 'A draft by ' . ($rep->author_name ?: 'a lead') . ', saved ' . Workspace::day((string) $rep->updated_at) . '. Not submitted yet.',
+            'submitted' => 'Submitted by ' . ($rep->author_name ?: 'a lead') . ' ' . Workspace::day((string) $rep->submitted_at) . '. Waiting for an owner to sign it off.',
+            'returned'  => 'Sent back by ' . ($rep->decided_name ?: 'an owner') . ' ' . Workspace::day((string) $rep->decided_at) . ': “' . (string) $rep->decision_note . '”',
+            'approved'  => 'Signed off by ' . ($rep->decided_name ?: 'an owner') . ' ' . Workspace::day((string) $rep->decided_at) . '. This report is final.',
+            default     => '',
+        };
+        $secs[] = ['k' => 'note', 'tone' => match ($status) { 'approved' => 'ok', 'returned' => 'bad', 'submitted' => 'warn', default => 'info' }, 'text' => $line];
+
+        // The figures it is written against: frozen once submitted, live before that.
+        if ($after) {
+            $secs[] = ['k' => 'stats', 'h' => $rep && in_array($status, ['submitted', 'approved', 'returned'], true)
+                ? 'The figures, as submitted ' . Workspace::day((string) $rep->submitted_at) : 'The figures', 'items' => EventReport::figuresFor($e, $rep)];
+            $undone = array_values(array_filter(Plan::work([$id]), static fn ($w) => $w->status !== 'done'));
+            if ($undone) $secs[] = ['k' => 'rows', 'h' => 'Left undone', 'items' => array_map(static fn ($w) => ['t' => (string) $w->title,
+                'sub' => Plan::name($w->owner_kind, $w->owner_id !== null ? (int) $w->owner_id : null) ?: 'Nobody'], $undone)];
         }
-        $s = EventArrivals::summary($id);
-        $r = Plan::readiness($id);
-        $paid = array_sum(array_map(static fn ($l) => (int) $l->paid_minor, Plan::lines([$id])));
-        $cues = Scope::show($id);
-        $stats = [['l' => 'Came', 'v' => number_format($s['in']), 's' => $s['expected'] ? 'of ' . number_format($s['expected']) . ' expected' : '']];
-        $stats[] = ['l' => 'Spent', 'v' => Plan::naira($paid), 's' => isset($e->budget_minor) && $e->budget_minor ? 'of ' . Plan::naira((int) $e->budget_minor) . ' budget' : ''];
-        $stats[] = ['l' => 'Ticket income', 'v' => Plan::naira(Scope::ticketIncomeMinor($id)), 's' => ''];
-        if ($r) $stats[] = ['l' => 'Work done', 'v' => $r['done'] . ' of ' . $r['all'], 's' => ''];
-        if ($cues) $stats[] = ['l' => 'Cues run', 'v' => count(array_filter($cues, static fn ($c) => $c->done_at)) . ' of ' . count($cues), 's' => ''];
-        $undone = array_values(array_filter(Plan::work([$id]), static fn ($w) => $w->status !== 'done'));
-        $secs = [['k' => 'stats', 'items' => $stats]];
-        if ($undone) $secs[] = ['k' => 'rows', 'h' => 'Left undone', 'items' => array_map(static fn ($w) => ['t' => (string) $w->title,
-            'sub' => Plan::name($w->owner_kind, $w->owner_id !== null ? (int) $w->owner_id : null) ?: 'Nobody'], $undone)];
+
+        // The report as written, for everybody who can open the page.
+        if ($rep && in_array($status, ['submitted', 'approved'], true)) {
+            $paras = [];
+            foreach (EventReport::PARTS as $k => [$label]) {
+                if (trim((string) ($rep->$k ?? '')) !== '') $paras[] = ['h' => $label, 'text' => (string) $rep->$k];
+            }
+            $secs[] = ['k' => 'article', 'h' => 'The report', 'blocks' => $paras];
+        }
+
+        // An owner's decision, when it is theirs to make.
+        if ($status === 'submitted' && $st['owner']) {
+            if ((int) $rep->author_id === (int) $me['id']) {
+                $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => 'You wrote this report, so another owner signs it off.'];
+            } else {
+                $secs[] = ['k' => 'form', 'h' => 'Sign it off', 'do' => 'report_decide', 'hidden' => ['event' => $id], 'submit' => 'Record the decision',
+                           'route' => 'Signing off makes the report final. Sending it back returns it to the leads with your note.',
+                           'groups' => [
+                               ['label' => 'Your decision', 'fields' => [['name' => 'verdict', 'label' => 'Your decision', 'type' => 'radio', 'required' => true,
+                                                                           'options' => ['approve' => 'Sign it off', 'return' => 'Send it back'], 'value' => 'approve']]],
+                               ['label' => 'Note', 'help' => 'Needed when you send it back: say what to change.', 'fields' => [['name' => 'note', 'label' => 'Note', 'type' => 'textarea']]],
+                           ]];
+            }
+        }
+        if ($status === 'submitted' && !EventReport::signers($id, $rep)) {
+            $secs[] = ['k' => 'note', 'tone' => 'warn', 'text' => 'This event has no owner who can sign the report off. An administrator can name one under Team & roles.'];
+        }
+
+        // The writing form, while it is the leads' to change.
+        if ($st['lead'] && in_array($status, ['none', 'draft', 'returned'], true)) {
+            $groups = [];
+            foreach (EventReport::PARTS as $k => [$label, $help]) {
+                $groups[] = ['label' => $label, 'help' => $help, 'fields' => [['name' => $k, 'label' => $label, 'type' => 'textarea', 'value' => (string) ($rep->$k ?? ''), 'id' => 'rep_' . $k]]];
+            }
+            $secs[] = ['k' => 'form', 'h' => $status === 'returned' ? 'Change the report' : 'Write the report', 'anchor' => 'write', 'do' => 'report_save',
+                       'hidden' => ['event' => $id], 'submit' => 'Save the draft', 'groups' => $groups,
+                       'route' => $after ? 'Save as often as you like. When it is ready, submit it below for an owner to sign off.' : 'Save drafts now; it is submitted after the night.'];
+            if ($after && $rep) {
+                $secs[] = ['k' => 'note', 'tone' => 'info', 'text' => 'Ready? Submitting sends the saved report, with these figures frozen, to an owner of the event.',
+                           'ctas' => [['label' => 'Submit for sign-off', 'primary' => true, 'post' => ['do' => 'report_submit', 'event' => $id]]]];
+            }
+        }
         return ['title' => 'Reports', 'secs' => $secs];
     }
 
@@ -1089,7 +1148,9 @@ final class EventPages
                   'door_revoke' => 'turned off a scanning link', 'request' => 'made a request', 'lead_grant' => 'gave the event a lead',
                   'team_propose' => 'proposed a team', 'role_propose' => 'proposed a role', 'member_propose' => 'proposed somebody for a role',
                   'proposal_withdraw' => 'withdrew a proposal', 'decide' => 'decided a proposal', 'member_end' => 'ended somebody’s role',
-                  'role_archive' => 'archived a role', 'team_suggest' => 'asked for a suggested team'];
+                  'role_archive' => 'archived a role', 'team_suggest' => 'asked for a suggested team',
+                  'report_save' => 'saved the written report', 'report_submit' => 'submitted the written report for sign-off',
+                  'report_decide' => 'decided the written report'];
         $rows = [];
         foreach (Scope::audit((int) $e->id) as $a) {
             $verb = substr((string) $a->action, 5);

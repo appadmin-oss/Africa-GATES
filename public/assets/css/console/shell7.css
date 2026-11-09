@@ -660,3 +660,8 @@ textarea.sh7-input { height: auto; min-height: 104px; padding-block: 10px; }
 .sh7-step__link:focus-visible { outline: none; }
 /* Page header: the title and its one or two actions on a line, the purpose under it. */
 .sh7-head__acts .sh7-btn { height: 40px; }
+
+/* A written document's parts (an event's report): a heading each, the text as it was typed. */
+.sh7-article__h { margin: 18px 0 4px; font-size: var(--cn-fs-14); font-weight: 600; }
+.sh7-article__h:first-child { margin-top: 0; }
+.sh7-article__p { margin: 0; white-space: pre-line; line-height: 1.6; }
