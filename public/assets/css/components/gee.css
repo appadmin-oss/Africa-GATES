@@ -586,22 +586,6 @@
 }
 
 
-/* ══ A phone: a full-height sheet, not a floating card ═══════════════════════
-   The card floated 56px under the top and 16px above the tab bar, with the page showing
-   round it — on a 390×844 phone that left a conversation window of about 280px once the
-   header and the composer were drawn, and every answer scrolled. On a phone Gee is a
-   sheet (§7.4): from just under the status bar to the bottom edge, over the tab bar, top
-   corners rounded, the composer clear of the home indicator. A scrim behind it says the
-   page is under it. `100%` of a fixed layer, never vh — the layer is the viewport. */
-@media (max-width:599.98px){
-  .gee__layer{ inset:0; padding-top:calc(env(safe-area-inset-top) + 8px) }
-  .gee__layer[data-open]{ background:var(--ag-scrim); pointer-events:auto }
-  .gee__panel{ height:100%; border-radius:var(--ag-r-24) var(--ag-r-24) 0 0; border-bottom:0 }
-  .gee__foot{ padding-bottom:calc(10px + env(safe-area-inset-bottom)) }
-  .gee__head{ padding-block:10px 8px }
-  .gee__hello-t{ font-size:var(--ag-fs-24) }
-}
-
 /* ══ Breakpoint ownership: from 600, the desktop panel ═══════════════════════ */
 
 @media (min-width:600px){
@@ -611,6 +595,64 @@
   .gee__panel{ width:400px; height:min(580px, 100%) }
 }
 
+
+/* ══ A phone: the whole screen ════════════════════════════════════════════════
+   Gee on a phone is a conversation, and a conversation wants every pixel. It used to be a
+   floating card (a 280px window on a 390×844 phone), then a sheet 8px under the status bar
+   with the page dimmed above it; now it is the screen, edge to edge, with the notch, the
+   home indicator and a landscape phone's side insets kept clear by the safe areas.
+
+   THE SAME RULE FOR A PHONE ON ITS SIDE. 740×360 is wider than the 600 breakpoint, so a
+   landscape phone got the desktop card — 400×320 floating over the page with about forty
+   pixels left between the header and the composer. A short screen with a finger is a phone
+   whatever its width; `(max-height:499.98px) and (pointer:coarse)` says so. It comes AFTER
+   the 600 block so it wins there. gee.js reads the same query (SHEET_MQ) for the keyboard.
+
+   THE KEYBOARD. iOS Safari does not shrink the layout viewport for the on-screen keyboard,
+   so a `position:fixed; inset:0` panel kept its full height and the composer sat behind
+   the keys. gee.js writes the VISUAL viewport's height and offset into --gee-vv-h and
+   --gee-vv-top while the sheet is open, and the layer follows them: the composer stays on
+   the line above the keyboard. Without a script, or where the browser does shrink the
+   page (Android Chrome), the fallback is simply the whole layout viewport. */
+@media (max-width:599.98px), (max-height:499.98px) and (pointer:coarse){
+  .gee__layer{
+    inset:auto 0; top:var(--gee-vv-top, 0px); height:var(--gee-vv-h, 100%);
+    padding:0; align-items:stretch;
+  }
+  .gee__layer[data-open]{ background:var(--ag-surface); pointer-events:auto }
+  .gee__panel{ width:100%; height:100%; max-height:none; border:0; border-radius:0; box-shadow:none }
+  .gee__head{
+    padding-block:calc(env(safe-area-inset-top) + 8px) 8px;
+    padding-inline:calc(env(safe-area-inset-left) + 16px) calc(env(safe-area-inset-right) + 10px);
+    border-bottom-color:var(--ag-ground);
+  }
+  .gee__log{ padding-inline:calc(env(safe-area-inset-left) + 16px) calc(env(safe-area-inset-right) + 16px) }
+  .gee__foot{
+    padding-bottom:calc(10px + env(safe-area-inset-bottom));
+    padding-inline:calc(env(safe-area-inset-left) + 12px) calc(env(safe-area-inset-right) + 12px);
+  }
+  /* A wide sheet (a phone on its side, a large phone) keeps a reading measure rather than
+     stretching a starter or a reply across 900px. */
+  .gee__log > *, .gee__foot > *{ width:100%; max-width:720px; margin-inline:auto }
+  .gee__hello-t{ font-size:var(--ag-fs-24) }
+  /* The page under a full-screen conversation must not scroll with a finger dragged past
+     the end of the log (iOS hands the gesture to the document otherwise). */
+  html:has(.gee__layer[data-open]){ overflow:hidden }
+}
+/* Short screens: the greeting is a heading, not a hero, so the starters are reachable
+   without scrolling on a phone held sideways. */
+@media (max-height:499.98px) and (pointer:coarse){
+  .gee__hello-t{ font-size:var(--ag-fs-17) }
+  .gee__hello{ padding-block:2px 0 }
+}
+/* Two columns only where there is width for them: a phone on its side. A portrait phone is
+   also "short" while its keyboard is up, and two columns there wrapped every starter. */
+@media (max-height:499.98px) and (min-width:600px) and (pointer:coarse){
+  .gee__starters{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)) }
+}
+/* Opened by touch, the sheet's first focus goes to the panel itself rather than drawing a
+   focus ring round the first header button nobody pointed at (gee.js). */
+.gee__panel:focus{ outline:0 }
 
 /* ══ Motion ══════════════════════════════════════════════════════════════════ */
 

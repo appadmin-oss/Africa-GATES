@@ -834,6 +834,27 @@
 
   function isOpen() { return layer.hasAttribute('data-open'); }
 
+  /* ── The full-screen sheet follows the VISUAL viewport ─────────────────────────────
+     The same query as gee.css's full-screen block. iOS Safari leaves the layout viewport
+     full height when the on-screen keyboard opens, so a fixed sheet kept its height and
+     the composer sat behind the keys. While the sheet is open its height and top follow
+     visualViewport; closed, or on a desktop panel, the properties are removed and the
+     stylesheet's own sizes stand. */
+  var SHEET_MQ = window.matchMedia('(max-width:599.98px), (max-height:499.98px) and (pointer:coarse)');
+  var vv = window.visualViewport;
+  function fit() {
+    if (!vv || !isOpen() || !SHEET_MQ.matches) {
+      layer.style.removeProperty('--gee-vv-h');
+      layer.style.removeProperty('--gee-vv-top');
+      return;
+    }
+    layer.style.setProperty('--gee-vv-h', Math.round(vv.height) + 'px');
+    layer.style.setProperty('--gee-vv-top', Math.round(vv.offsetTop) + 'px');
+    /* The keyboard took the bottom of the conversation; keep the latest turn in view. */
+    if (document.activeElement === input && !isEmpty()) scrollDown();
+  }
+  if (vv) { vv.addEventListener('resize', fit); vv.addEventListener('scroll', fit); }
+
   function open(opts) {
     opts = opts || {};
     if (opts.mode) setMode(opts.mode);
@@ -857,6 +878,11 @@
        so the sheet's own first focus (the header) stands; with a question handed over
        (`q`) the composer is where the reader is going next either way. */
     if (opts.q || window.matchMedia('(pointer: fine)').matches) setTimeout(function () { input.focus(); }, 0);
+    /* Opened by touch with nothing to type yet: the panel itself takes focus, so screen
+       readers land in the dialog and no focus ring is drawn round a header button nobody
+       pointed at. */
+    else setTimeout(function () { panel.focus({ preventScroll: true }); }, 0);
+    fit();
   }
 
   function close() {
@@ -873,6 +899,7 @@
   if (window.MutationObserver) {
     new MutationObserver(function () {
       if (!isOpen()) { fab.setAttribute('aria-expanded', 'false'); closer = null; }
+      fit();
     }).observe(layer, { attributes: true, attributeFilter: ['data-open'] });
   }
 
