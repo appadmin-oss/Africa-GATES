@@ -262,9 +262,8 @@
       <div class="ed-extras">
         {% if st != 'ended' %}
         <section class="ed-box" aria-labelledby="h-share">
-          <h2 class="ed-box__k" id="h-share">{{ 'Share and save the date'|trans }}</h2>
+          <h2 class="ed-box__k" id="h-share">{{ 'Save the date'|trans }}</h2>
           <div class="ed-box__row">
-            <button type="button" class="ed-mini" data-ag-share data-ag-copied="{{ 'Link copied'|trans }}">{{ 'Share'|trans }}</button>
             <a class="ed-mini" href="/events/{{ event.slug|url_encode }}/calendar.ics">{{ 'Add to calendar'|trans }}</a>
           </div>
           <p class="ed-box__alt">{{ 'Uses Google Calendar?'|trans }} <a href="{{ gcal }}" target="_blank" rel="noopener">{{ 'Add it there instead'|trans }}</a>.</p>

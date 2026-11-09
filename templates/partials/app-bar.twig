@@ -41,13 +41,17 @@
   and no <h1> here, so the page has one. §7.2 lists Home among the large-title roots; the
   conflict is recorded for the owner (docs/handoff/PHASE-4.md, "Home", blocked).
 
-  Args (all optional but `title`): variant, title, sub, back, share, search, avatar, brand,
+  Args (all optional but `title`): variant, title, sub, back, share (opt-in), search, avatar, brand,
   eye (a wallet page's hide-balance icon, bound by wallet.js) and help (an href for a ? icon).
   The sub must ADD information and never repeat the title (skill §3).
 #}
 {% set _root   = (variant|default('root')) != 'child' %}
 {% set _search = search is defined ? search : _root %}
-{% set _share  = share  is defined ? share  : not _root %}
+{# Share is OPT-IN. It used to default on for every child page, so help, legal, status and
+   support pages offered to share themselves, and a page with its own Share button showed two.
+   A page whose point is to be passed on says `share: true`; one with its own share control
+   leaves it off, so there is one Share per page. #}
+{% set _share  = share  is defined ? share  : false %}
 {% set _avatar = avatar is defined ? avatar : _root %}
 {% set _brand  = _root and (brand|default(false)) %}
 {% set _ini    = member_name ? (member_name|split(' ')|filter(w => w != '')|map(w => w|first)|join|upper|slice(0, 2)) : 'AG' %}

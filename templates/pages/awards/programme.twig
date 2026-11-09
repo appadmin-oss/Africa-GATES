@@ -31,7 +31,7 @@
 #}
 
 {% set colour_tier = '2' %}
-{% set app_bar = {variant: 'child', title: a.title, sub: a.soon ? 'Coming soon'|trans : (a.host.name|default('') ?: a.edition), back: '/awards'} %}
+{% set app_bar = {variant: 'child', title: a.title, sub: a.soon ? 'Coming soon'|trans : (a.host.name|default('') ?: a.edition), back: '/awards', share: true} %}
 {% set _ed = a.is_current ? '' : (a.cycle.year|default('')) %}
 {% set _q = _ed ? '&edition=' ~ _ed : '' %}
 {% set _fam = {'gold-ink': 'gold', 'live': 'live', 'info': 'info', 'green': 'green', 'gold': 'gold'} %}

@@ -53,7 +53,6 @@
             <svg width="12" height="12" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true"><path d="M3 1.5v11l9-5.5z"/></svg><span data-pp-listen-label>{{ 'Listen'|trans }}</span>
           </button>
           {% if _owner %}
-            <button type="button" class="pp-pill" data-ag-share data-ag-copied="{{ 'Link copied'|trans }}">{{ 'Share'|trans }}</button>
             {% if editing %}
               <a class="pp-pill pp-pill--edit is-on" href="/registry/{{ p.slug|url_encode }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>{{ 'Done'|trans }}</a>
             {% else %}
