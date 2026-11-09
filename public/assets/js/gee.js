@@ -246,6 +246,7 @@
     input.placeholder = M('input-' + mode);
     input.setAttribute('aria-label', M('input-' + mode));
     input.maxLength = mode === 'support' ? 1500 : 1000;
+    if (typeof count === 'function') count();
     /* The privacy note: second under the header in guide (§7.7), last of the empty
        state in the desk (§8.22). Moved, not copied — one note, one dismissal. */
     var empty = q('[data-gee-empty="support"]');
@@ -476,7 +477,23 @@
     state.busy = on;
     syncSend();
   }
-  function syncSend() { sendBtn.disabled = state.busy || input.value.trim() === ''; }
+  function syncSend() { sendBtn.disabled = state.busy || input.value.trim() === ''; grow(); count(); }
+
+  /* ── The composer grows with what is written, to five lines, then scrolls ──────────── */
+  var countEl = q('[data-gee-count]');
+  function grow() {
+    input.style.height = 'auto';
+    var max = parseFloat(getComputedStyle(input).maxHeight) || 132;
+    input.style.height = Math.min(input.scrollHeight, max) + 'px';
+    input.style.overflowY = input.scrollHeight > max ? 'auto' : 'hidden';
+  }
+  /* The limit, said in the last hundred characters rather than found when typing stops. */
+  function count() {
+    if (!countEl) return;
+    var left = input.maxLength - input.value.length;
+    countEl.hidden = !(input.maxLength > 0 && left <= 100);
+    countEl.textContent = left <= 0 ? M('count-none') : M('count-left', { n: left });
+  }
 
   function post(url, body, json) {
     return fetch(url, {
@@ -495,10 +512,11 @@
     text = String(text || '').trim();
     if (!text || state.busy) return;
     // A pasted reference is the repair, asked for by name — not a question for the planner.
-    if (/^AFG-[A-Za-z0-9_\-]{4,116}$/i.test(text)) { input.value = ''; runCheck(text); return; }
+    if (/^AFG-[A-Za-z0-9_\-]{4,116}$/i.test(text)) { input.value = ''; syncSend(); runCheck(text); return; }
     var prior = priorTurns();
     push({ kind: 'me', text: text });
     input.value = '';
+    syncSend();
     error('');
     busy(true);
     var dots = typing();
@@ -969,6 +987,14 @@
 
   form.addEventListener('submit', function (e) { e.preventDefault(); send(input.value); });
   input.addEventListener('input', syncSend);
+  /* Enter sends, as the keyboard's own Send key says (enterkeyhint); Shift+Enter is a new
+     line. Never while an input method is composing a character — Enter there picks the
+     character, and sending half a word is the bug every chat box ships once. */
+  input.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' || e.shiftKey || e.isComposing || e.keyCode === 229) return;
+    e.preventDefault();
+    send(input.value);
+  });
 
   qa('[data-gee-ask]').forEach(function (b) {
     b.addEventListener('click', function () {

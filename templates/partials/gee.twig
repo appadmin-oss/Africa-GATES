@@ -54,6 +54,8 @@
      data-msg-dialog-support="{{ 'Gee help desk'|trans }}"
      data-msg-input-guide="{{ 'Message Gee'|trans }}"
      data-msg-input-support="{{ 'Describe the problem'|trans }}"
+     data-msg-count-left="{{ '%n% characters left'|trans }}"
+     data-msg-count-none="{{ 'That is the limit for one message'|trans }}"
      data-msg-help-link="{{ 'the Help Centre answer'|trans }}"
      data-msg-pending-for="{{ 'Pending for %t%'|trans }}"
      data-msg-replied-ago="{{ 'A person replied %t% ago'|trans }}"
@@ -244,12 +246,17 @@
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 11-8.6 8.6a5 5 0 0 1-7-7L14 4a3.3 3.3 0 0 1 4.7 4.7l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4L15.5 7"/></svg>
           </button>
           <input class="gee__file-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif" tabindex="-1" hidden data-gee-filein>
-          <input class="gee__input" type="text" maxlength="1500" enterkeyhint="send"
-                 placeholder="{{ 'Message Gee'|trans }}" aria-label="{{ 'Message Gee'|trans }}" data-gee-input>
+          {# A textarea that grows, not a one-line input: a support message may be 1,500
+             characters, and in a single line everything past the first forty scrolled out of
+             sight while it was being written. Enter sends; Shift+Enter is a new line. #}
+          <textarea class="gee__input" rows="1" maxlength="1500" enterkeyhint="send"
+                    placeholder="{{ 'Message Gee'|trans }}" aria-label="{{ 'Message Gee'|trans }}" aria-describedby="gee-count" data-gee-input></textarea>
           <button type="submit" class="gee__send" aria-label="{{ 'Send'|trans }}" data-gee-send>
             <span class="gee__send-o"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></span>
           </button>
         </form>
+        {# The limit, said before it bites: shown only in the last hundred characters. #}
+        <p class="gee__count" id="gee-count" data-gee-count hidden></p>
         <p class="gee__fine gee__only-guide">{{ 'Gee can make mistakes'|trans }} · <a href="/privacy">{{ 'Privacy'|trans }}</a> · <button type="button" class="gee__fine-b" data-gee-person>{{ 'Talk to a person'|trans }}</button></p>
         <p class="gee__fine gee__only-support">{{ 'A person sees every unresolved message'|trans }} · <button type="button" class="gee__fine-b" data-gee-person>{{ 'Talk to a person'|trans }}</button></p>
       </div>
