@@ -177,7 +177,11 @@
             <div class="sh7-head__words">
               {% if sh.kicker|default('') %}<p class="sh7-head__kicker">{{ sh.kicker }}</p>{% endif %}
               <h1 class="sh7-head__title">{{ sh.title }}</h1>
-              {% if sh.purpose %}<p class="sh7-head__purpose">{{ sh.purpose }}</p>{% endif %}
+              {# A section's purpose is said once, on its first tab. Every tab of Money, Settings,
+                 People and the rest repeated the same line ("Budget, approvals, vendors and income,
+                 from the one ledger.") above content that was about one of them. #}
+              {% set _tab1 = sh.tabs|default([])|first %}
+              {% if sh.purpose and (not sh.tabs|default([]) or _tab1.current|default(false)) %}<p class="sh7-head__purpose">{{ sh.purpose }}</p>{% endif %}
             </div>
             {% if sh.acts is defined and sh.acts %}<div class="sh7-head__acts">{% for a in sh.acts %}{{ S.action(a, sh.here, false, act) }}{% endfor %}</div>{% endif %}
           </div>

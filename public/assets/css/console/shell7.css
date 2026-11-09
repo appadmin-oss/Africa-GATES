@@ -65,7 +65,10 @@
 .sh7-tab { display: flex; align-items: center; gap: 6px; color: var(--cn-ink-3) !important; font-size: var(--cn-fs-13-5); border-bottom: 2px solid transparent; white-space: nowrap; }
 .sh7-tab.is-on { color: var(--cn-ink) !important; border-bottom-color: var(--cn-ink); font-weight: 500; }
 
-.sh7-main { flex: 1; overflow-y: auto; }
+/* position:relative makes the scroller the containing block for anything absolute inside it —
+   a screen-reader-only label or title otherwise sits against the DOCUMENT, past the bottom of
+   a 100dvh shell, and the whole page gains a second scroll that drags the header away. */
+.sh7-main { flex: 1; overflow-y: auto; position: relative; }
 .sh7-page { max-width: 1120px; margin: 0 auto; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 32px; }
 .sh7-page.has-side { max-width: 1452px; }
 .sh7-cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 32px; }
@@ -673,12 +676,17 @@ textarea.sh7-input { height: auto; min-height: 104px; padding-block: 10px; }
    what the page is for, smaller. */
 @container shell (max-width: 599px) {
   .sh7-head__kicker { display: none; }
+  /* Anchored to its own header: absolute with no positioned ancestor it was placed against
+     the document, which then grew and scrolled the whole app behind the shell. */
+  .sh7-head { position: relative; }
   .sh7-head__title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
   .sh7-head__purpose { margin-top: 0; font-size: var(--cn-fs-13-5); }
   .sh7-head__acts { width: 100%; }
   .sh7-head__acts > * { flex: 1 1 auto; }
   .sh7-head__acts .sh7-btn { width: 100%; height: 44px; }
-  .sh7-page { gap: 16px; padding: 16px 16px 32px; }
+  /* The bottom padding clears the fixed 64px tab bar: 32px alone left a page's last button
+     half under it, and the scroller cannot scroll further than its content. */
+  .sh7-page { gap: 16px; padding: 16px 16px calc(64px + 32px + env(safe-area-inset-bottom)); }
   /* A note's one button goes under its sentence, the width of the note, not mid-line. */
   .sh7-note > .sh7-btn, .sh7-note > .sh7-inline { display: flex; width: 100%; margin-top: 10px; }
   .sh7-note > .sh7-inline .sh7-btn, .sh7-note > .sh7-btn { width: 100%; height: 44px; justify-content: center; }

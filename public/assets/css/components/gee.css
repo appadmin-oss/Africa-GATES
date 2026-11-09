@@ -67,6 +67,9 @@
              border-radius:var(--ag-r-pill) 0 0 var(--ag-r-pill); box-shadow:var(--ag-sh-float) }
   [dir="rtl"] .gee__fab{ padding:0 7px 0 0; border-radius:0 var(--ag-r-pill) var(--ag-r-pill) 0 }
   .gee__fab .gee__g{ width:26px; height:26px; font-size:var(--ag-fs-15) }
+  /* While the cookie notice asks, the tab rode above it — mid-screen, over the page's own
+     cards. One question at a time: it comes back the moment the notice is answered. */
+  body:has(.ag-consent) .gee__fab{ display:none }
 }
 
 .gee__g{

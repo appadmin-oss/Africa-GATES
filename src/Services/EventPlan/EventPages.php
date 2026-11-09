@@ -1241,9 +1241,16 @@ final class EventPages
         if (Grants::ready()) {
             foreach (DB::table('gates_grants')->where('scope_kind', 'event')->where('scope_id', $id)->whereNull('revoked_at')->where('expires_at', '>', $now)
                 ->orderBy('capability')->orderBy('expires_at')->get()->all() as $g) {
-                $rows[] = ['t' => Plan::name((string) $g->actor_kind, (int) $g->actor_id) ?: 'Someone', 'sub' => (Grants::CAPABILITIES[$g->capability] ?? $g->capability)
-                    . ' · until ' . Workspace::day((string) $g->expires_at) . ($g->actor_kind === 'member' ? ' · volunteer' : ''), 'chip' => ['Ends on its own', 'mute']];
+                // One row per PERSON, their roles together: a lead who is also a team lead was two
+                // rows with the same name. And no "volunteer" on every member — a lead and an
+                // owner are members too, so the word described nobody correctly.
+                $k = $g->actor_kind . ':' . $g->actor_id;
+                $rows[$k] ??= ['t' => Plan::name((string) $g->actor_kind, (int) $g->actor_id) ?: 'Someone', 'roles' => [], 'until' => (string) $g->expires_at];
+                $rows[$k]['roles'][] = Grants::CAPABILITIES[$g->capability] ?? $g->capability;
+                if ((string) $g->expires_at > $rows[$k]['until']) $rows[$k]['until'] = (string) $g->expires_at;
             }
+            $rows = array_values(array_map(static fn ($r) => ['t' => $r['t'], 'sub' => implode(', ', array_unique($r['roles'])) . ' · until ' . Workspace::day($r['until']),
+                                                              'chip' => ['Ends on its own', 'mute']], $rows));
         }
         return ['title' => 'Event settings', 'secs' => [
             $rows ? ['k' => 'rows', 'h' => 'Who has access', 'items' => $rows] : ['k' => 'note', 'tone' => 'mute', 'text' => 'Nobody else has access to this event.'],
@@ -1283,8 +1290,8 @@ final class EventPages
         $secs[] = ['k' => 'form', 'h' => 'Make a scanning link', 'do' => 'door_issue', 'hidden' => ['event' => $id], 'submit' => 'Make the link', 'groups' => [
             ['label' => 'Which door, and when', 'help' => 'The link is shown once, right after you make it. It can scan tickets in and nothing else, and it stops by itself.',
              'fields' => [['name' => 'label', 'label' => 'Door', 'type' => 'text', 'placeholder' => 'Main gate'],
-                          ['name' => 'opens_at', 'label' => 'Opens', 'type' => 'datetime-local', 'step' => '1', 'value' => $day . 'T15:00:00'],
-                          ['name' => 'closes_at', 'label' => 'Closes', 'type' => 'datetime-local', 'step' => '1', 'required' => true, 'value' => $day . 'T23:59:00']]],
+                          ['name' => 'opens_at', 'label' => 'Opens', 'type' => 'datetime-local', 'step' => '60', 'value' => $day . 'T15:00'],
+                          ['name' => 'closes_at', 'label' => 'Closes', 'type' => 'datetime-local', 'step' => '60', 'required' => true, 'value' => $day . 'T23:59']]],
         ]];
         return ['title' => 'Event settings', 'secs' => $secs];
     }

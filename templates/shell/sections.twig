@@ -148,7 +148,14 @@
 {% set _fold = s.fold|default(false) and s.h|default('') %}
 {% if _fold %}<details class="sh7-fold sh7-fold--{{ s.k }}"{% if s.anchor is defined %} id="{{ s.anchor }}"{% endif %}{{ s.open|default(false) ? ' open' }}><summary class="sh7-fold__s"><span class="sh7-fold__t">{{ s.h }}</span>{% if s.foldHint is defined and s.foldHint %}<span class="sh7-fold__hint">{{ s.foldHint }}</span>{% endif %}<span class="sh7-fold__mark" aria-hidden="true"></span></summary>{% endif %}
 <section class="sh7-sec sh7-sec--{{ s.k }}{{ s.box|default(false) ? ' is-boxed' }}{{ _fold ? ' is-folded' }}"{% if s.anchor is defined and not _fold %} id="{{ s.anchor }}" tabindex="-1"{% endif %}>
-  {% if s.h is defined and s.h and s.k != 'hero' and not _fold %}<h2 class="sh7-sec__h">{{ s.h }}</h2>{% endif %}
+  {# A chip EVERY row of a list carries ("Locked" ×4, "Ends on its own" ×3) says nothing about
+     any one row: it is said once, beside the heading, and the rows carry only what differs. #}
+  {% set _common = null %}
+  {% if s.k == 'rows' and s.items|length > 1 and s.h|default('') and not _fold %}
+    {% set _c0 = (s.items|first).chip|default(null) %}
+    {% if _c0 and s.items|filter(r => r.chip|default(null) != _c0)|length == 0 %}{% set _common = _c0 %}{% endif %}
+  {% endif %}
+  {% if s.h is defined and s.h and s.k != 'hero' and not _fold %}<h2 class="sh7-sec__h">{{ s.h }}{% if _common %} {{ M.chip(_common) }}{% endif %}</h2>{% endif %}
 
   {% if s.k == 'rows' %}
     <ul class="sh7-rows">
@@ -204,7 +211,7 @@
             {% endif %}
           </span>
           {% if r.meta is defined and r.meta %}<span class="sh7-row__time">{{ r.meta }}</span>{% endif %}
-          {{ M.chip(r.chip|default(null)) }}
+          {% if not _common %}{{ M.chip(r.chip|default(null)) }}{% endif %}
           {% if r.cta is defined and r.cta %}<span class="sh7-row__cta">{{ M.action(r.cta, here, true, act, r.t) }}</span>{% endif %}
           {% if r.href is defined and r.href and not (r.cta is defined and r.cta) %}<span class="sh7-row__chev" aria-hidden="true">{{ M.icon('chev') }}</span>{% endif %}
         </li>
@@ -330,7 +337,7 @@
       {% for g in s.groups %}
         <div class="sh7-form__block">
           <div class="sh7-form__label"><p class="sh7-form__name">{{ g.label }}</p>{% if g.help is defined and g.help %}<p class="sh7-form__help">{{ g.help }}</p>{% endif %}</div>
-          <div class="sh7-form__fields">{% for f in g.fields %}{{ M.field(f, g.fields|length == 1 and g.label|default("")|trim != "") }}{% endfor %}</div>
+          <div class="sh7-form__fields">{% for f in g.fields %}{{ M.field(f, g.label|default("")|trim != "" and (g.fields|length == 1 or f.label|default("")|lower == g.label|lower)) }}{% endfor %}</div>
         </div>
       {% endfor %}
       {% if s.route is defined and s.route %}<p class="sh7-form__route">{{ s.route }}</p>{% endif %}

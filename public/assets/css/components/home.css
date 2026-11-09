@@ -34,8 +34,10 @@
 .hm-hero__lead{ margin:0; max-width:48ch; font-size:var(--ag-fs-15-5); line-height:1.55; color:var(--ag-ink-2); text-wrap:pretty }
 .hm-hero__ctas{ display:grid; grid-template-columns:minmax(0, 1fr); gap:8px; padding-top:6px }
 .hm-cta{
-  display:flex; align-items:center; justify-content:center;
-  height:54px; padding:0 22px; border-radius:16px;
+  display:flex; align-items:center; justify-content:center; text-align:center;
+  /* min-height, not height: a label that wraps (a long one, or any at 150% text) grows the
+     button instead of spilling out of it. */
+  min-height:54px; padding:8px 22px; border-radius:16px;
   font-size:var(--ag-fs-16); text-decoration:none;
 }
 .hm-cta--go{ background:var(--ag-green); color:var(--ag-surface); font-weight:700 }
@@ -281,7 +283,7 @@
   .hm-hero__h1{ font-size:var(--ag-fs-40) }
   .hm-hero__lead{ font-size:var(--ag-fs-16-5) }
   .hm-hero__ctas{ display:flex; flex-wrap:wrap; padding-top:0 }
-  .hm-cta{ height:50px; border-radius:var(--ag-r-pill) }
+  .hm-cta{ min-height:50px; border-radius:var(--ag-r-pill) }
   .hm-hero__media{ order:0; margin:0; border-radius:20px }
   
   
@@ -447,7 +449,10 @@
 .hm-close__text{ display:flex; flex-direction:column; gap:14px }
 .hm-close__h{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-30); line-height:1.1 }
 .hm-close__d{ margin:0; font-size:var(--ag-fs-16); line-height:1.55; color:var(--ag-ink-2) }
-.hm-close__ctas{ display:flex; flex-wrap:wrap; gap:8px }
+.hm-close__ctas{ display:grid; grid-template-columns:minmax(0, 1fr); gap:8px }
+/* Two CTAs side by side at 360 wrapped the longer label onto two lines inside a 54px pill:
+   stacked full width on a phone, a row from 600. */
+@media (min-width:600px){ .hm-close__ctas{ display:flex; flex-wrap:wrap } }
 .hm-close__pics{ display:flex; align-items:center; justify-content:center }
 .hm-close__pic{ width:96px; height:96px; object-fit:cover; border-radius:50%; border:5px solid var(--ag-green-wash) }
 .hm-close__pic--1{ transform:rotate(-4deg) }
