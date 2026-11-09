@@ -247,10 +247,13 @@
     input.setAttribute('aria-label', M('input-' + mode));
     input.maxLength = mode === 'support' ? 1500 : 1000;
     if (typeof count === 'function') count();
+    qa('[data-gee-to]').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-gee-to') === mode ? 'true' : 'false'); });
     /* The privacy note: second under the header in guide (§7.7), last of the empty
        state in the desk (§8.22). Moved, not copied — one note, one dismissal. */
-    var empty = q('[data-gee-empty="support"]');
-    if (mode === 'support' && empty) empty.appendChild(note);
+    /* Both modes now: a plain line at the end of the greeting, read after it, never a box
+       above it (the simplified panel, 9 Nov 2026). */
+    var empty = q('[data-gee-empty="' + mode + '"]');
+    if (empty) empty.appendChild(note);
     else log.insertBefore(note, log.firstChild);
     if (changed) paint();
   }
@@ -542,7 +545,13 @@
     }).catch(function () {
       dots.remove();
       push({ kind: 'bot', text: M('no-server') });
-    }).then(function () { busy(false); if (isOpen()) input.focus(); });
+    }).then(function () {
+      busy(false);
+      /* Back to the box where a keyboard is attached. On a touch screen that raised the
+         on-screen keyboard over the answer the moment it arrived; there the reader taps
+         the box when they have something to say. */
+      if (isOpen() && window.matchMedia('(pointer: fine)').matches) input.focus();
+    });
   }
 
   /* ══ The repair: Check now / Check / "Check a payment" ═════════════════════ */
@@ -983,6 +992,16 @@
   q('[data-gee-close]').addEventListener('click', close);
   q('[data-gee-reset]').addEventListener('click', newConversation);
   q('[data-gee-note-x]').addEventListener('click', dismissNote);
+  /* The Chat / Help desk switch at the foot. Each half keeps its own conversation
+     (state.history is per mode), so switching back finds it where it was left. */
+  qa('[data-gee-to]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      setMode(b.getAttribute('data-gee-to'));
+      if (state.mode === 'support') loadDesk();
+      if (isEmpty()) log.scrollTop = 0; else scrollDown();
+      if (window.matchMedia('(pointer: fine)').matches) input.focus();
+    });
+  });
   qa('[data-gee-person]').forEach(function (b) { b.addEventListener('click', function () { openHandoff(true); }); });
 
   form.addEventListener('submit', function (e) { e.preventDefault(); send(input.value); });
