@@ -136,6 +136,26 @@ final class EventPages
     }
 
     /**
+     * A form that ADDS something ("Add work", "Add a budget line", "Post a task", "Record a
+     * decision"…) is folded on a page that already lists what it adds, and open on an empty one,
+     * where adding the first is the whole point. Open everywhere, the form was the page: on a
+     * phone the plan's own work sat below a twelve-field form. One rule, here, rather than a
+     * flag remembered in each of fifteen builders.
+     */
+    private static function foldAdders(array $secs): array
+    {
+        $listed = (bool) array_filter($secs, static fn ($s) => in_array($s['k'] ?? '', ['rows', 'table', 'agenda', 'cards'], true));
+        foreach ($secs as &$s) {
+            if (($s['k'] ?? '') !== 'form' || array_key_exists('fold', $s)) continue;
+            if (preg_match('/^(Add|Post|Record|Make|Suggest|End) /', (string) ($s['h'] ?? '')) !== 1) continue;
+            $s['fold'] = true;
+            $s['open'] = !$listed;
+        }
+        unset($s);
+        return $secs;
+    }
+
+    /**
      * One page, drawn for what this member may do here: with a standing that is not a lead's,
      * Today becomes the role's own overview, and every form and button their permissions do
      * not open is left out (EventPermissions::filter) — the writers refuse it regardless.
@@ -145,6 +165,7 @@ final class EventPages
         $st ??= EventPermissions::standing($me['id'], (int) $e->id);
         $c = self::draw($me, $e, $page, $tab, $q, $st);
         $c['secs'] = EventPermissions::filter($c['secs'] ?? [], $st, (int) $e->id);
+        $c['secs'] = self::foldAdders($c['secs']);
         if (isset($c['side'])) $c['side'] = EventPermissions::filter($c['side'], $st, (int) $e->id);
         if (isset($c['acts'])) $c['acts'] = array_values(array_filter($c['acts'], static fn ($a) => EventPermissions::actionOk($a, $st, (int) $e->id)));
         return $c;
