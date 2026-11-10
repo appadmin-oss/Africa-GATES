@@ -55,7 +55,8 @@
 {% block content %}
 <div class="dv" data-dv data-tab="{{ s.tab }}" data-min="{{ min_query }}"
      {% if d %}{% for k, n in d.counts %} data-count-{{ k }}="{{ n }}"{% endfor %}{% endif %}
-     data-one="{{ '1 result'|trans }}" data-many="{{ '%n% results'|trans }}">
+     data-one="{{ '1 result'|trans }}" data-many="{{ '%n% results'|trans }}"
+     data-fresh-one="{{ '1 new update — show it'|trans }}" data-fresh-many="{{ '%n% new updates — show them'|trans }}">
 
   <div class="dv__head"><h1 class="dv__h1">{{ 'Discover'|trans }}</h1></div>
 
@@ -105,9 +106,9 @@
     {# A search that found nothing as typed, shown corrected (DiscoverController): said in
        words, with the original one tap away — a correction the visitor cannot see or undo
        is the search deciding what they meant. #}
-    {% if corrected|default(null) %}
+    <div data-dv-fix>{% if corrected|default(null) %}
       <p class="dv-fix">{{ 'Showing results for'|trans }} <b>{{ corrected.to }}</b>. <a href="{{ corrected.original }}">{{ 'Search instead for “%q%”'|trans({'%q%': corrected.from}) }}</a></p>
-    {% endif %}
+    {% endif %}</div>
     {% if not d %}
       <p class="ag-err" role="alert">{{ 'Too many searches — pause a moment, then try again.'|trans }}</p>
     {% else %}
@@ -279,7 +280,9 @@
     <div class="dv-facets" id="dvFacets" role="dialog" aria-modal="true" aria-labelledby="dvFacetsT" data-dv-facets>
       <form class="dv-facets__form" method="get" action="/discover" data-dv-facetform>
         <input type="hidden" name="tab" value="{{ s.tab }}" data-dv-tabfield>
-        {% if s.q %}<input type="hidden" name="q" value="{{ s.q }}">{% endif %}
+        {# Always present: the search box updates the page as it is typed (discover.js), and
+           the filters must apply to what is in the box now, not what the page loaded with. #}
+        <input type="hidden" name="q" value="{{ s.q }}" data-dv-qmirror>
         {% if s.literal and s.q %}<input type="hidden" name="literal" value="1">{% endif %}
         {% if s.tab == 'live' and s.kind != 'all' %}<input type="hidden" name="kind" value="{{ s.kind }}">{% endif %}
         <div class="dv-facets__head">

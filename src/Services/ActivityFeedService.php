@@ -807,8 +807,10 @@ final class ActivityFeedService
             kind:   'profile',
             label:  'Joined',
             title:  (string) $r->display_name,
-            detail: trim(((string) ($r->category ?? '')) . ' · '
-                . trim(((string) ($r->location_city ?? '')) . ' ' . ((string) ($r->country_code ?? ''))), ' ·'),
+            // The country by name: "Lagos NG" read as a typo.
+            detail: implode(' · ', array_filter([(string) ($r->category ?? ''), trim((string) ($r->location_city ?? '')),
+                (string) ($r->country_code ?? '') !== '' ? \AfricaGates\Support\NationsLive::name((string) $r->country_code) : ''],
+                static fn (string $v): bool => $v !== '')),
             url:    '/registry/' . ($r->slug ?? ''),
             at:     (string) ($r->registered_at ?? ''),
         ), $rows);
@@ -839,14 +841,15 @@ final class ActivityFeedService
             ['p.title', 't.to_status', 'cy.edition_label'],
         )
             ->orderByDesc('t.observed_at')->limit($limit)
-            ->get(['t.id', 't.to_status', 't.observed_at', 'p.title as programme', 'cy.year', 'cy.edition_label'])->all();
+            ->get(['t.id', 't.to_status', 't.observed_at', 'p.title as programme', 'p.slug as programme_slug', 'cy.year', 'cy.edition_label'])->all();
 
         return array_map(fn (object $r): array => $this->item(
             kind:   'phase',
             label:  self::phaseLabel((string) $r->to_status),
             title:  trim(((string) ($r->programme ?? 'Award cycle')) . ' ' . ((string) ($r->year ?? ''))),
             detail: (string) ($r->edition_label ?? ''),
-            url:    '/awards',
+            // The award it happened to, not the index of every award.
+            url:    (string) ($r->programme_slug ?? '') !== '' ? '/awards/' . rawurlencode((string) $r->programme_slug) : '/awards',
             at:     (string) ($r->observed_at ?? ''),
         ) + ['phase' => (string) $r->to_status], $rows);
     }

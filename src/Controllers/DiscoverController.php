@@ -60,6 +60,11 @@ final class DiscoverController
         // search is SHOWN only if it finds something — with the page saying so and offering
         // the original back (`literal=1` is "search for exactly what I typed"). What still
         // finds nothing is counted for the Analytics page, anonymously (SearchMisses).
+        // As-you-type (discover.js, `X-Discover-Live`): the same page, swapped in section by
+        // section. A keystroke is not a search somebody finished, so it is counted as a miss
+        // only when the script says the typing has SETTLED (1.5 s idle on a result that found
+        // nothing) — otherwise "c", "ch", "chi" would each be a miss on the analytics page.
+        $typing  = $req->getHeaderLine('X-Discover-Live');
         $corrected = null;
         if (!$fragment && $s['q'] !== '' && self::found($s, $data) === 0) {
             $fix = $s['literal'] ? null : $this->discover->suggest($s['q']);
@@ -71,7 +76,7 @@ final class DiscoverController
                     [$s, $data] = [$s2, $d2];
                 }
             }
-            if ($corrected === null) \AfricaGates\Services\SearchMisses::record($s['q'], $s['tab']);
+            if ($corrected === null && ($typing === '' || $typing === 'settled')) \AfricaGates\Services\SearchMisses::record($s['q'], $s['tab']);
         }
 
         if ($fragment) {
@@ -83,7 +88,9 @@ final class DiscoverController
         }
 
         return $this->view->render($res, 'pages/discover.twig', $this->vars($s, $data)
-            + ['corrected' => $corrected, 'ad' => \AfricaGates\Services\Ads\AdDelivery::forRequest('discover', $req)]);
+            // No ad for a keystroke: the script keeps the slot it has, and serving one per
+            // request would count an impression per letter typed — money, not a display.
+            + ['corrected' => $corrected, 'ad' => $typing !== '' ? null : \AfricaGates\Services\Ads\AdDelivery::forRequest('discover', $req)]);
     }
 
     /** What the visitor's tab found: its own count, or the updates on Live, plus Live's rows on All. */
