@@ -242,6 +242,8 @@ final class CookieRegistry
             // The search palette's recent searches (search.js, 10 Nov 2026).
             ['key' => 'ag-recent-q', 'category' => self::PREFERENCES, 'where' => 'local-or-session', 'audience' => 'everyone',
              'purpose' => 'Your last six searches, offered when you open search again so you do not have to type them twice, with a button to clear them. Kept on this device between visits if you allow Preferences; otherwise only until you close the tab. Never sent to us, and an email address or phone number typed into search is never kept.'],
+            ['key' => 'ag-recent-view', 'category' => self::PREFERENCES, 'where' => 'local-or-session', 'audience' => 'everyone',
+             'purpose' => 'The last six nominee and profile pages you opened, with their names, offered in search as "Recently viewed" so you can go back to them in one tap; cleared by the same button as your recent searches. Kept on this device between visits if you allow Preferences; otherwise only until you close the tab. Never sent to us.'],
             // The shop's basket (shop.js). Essential: a cart is part of a purchase somebody
             // asked for. Every figure in it is re-priced by the server at checkout.
             ['key' => 'ag-cart', 'category' => self::ESSENTIAL, 'where' => 'local', 'audience' => 'everyone',

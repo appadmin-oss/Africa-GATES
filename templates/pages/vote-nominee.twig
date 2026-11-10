@@ -284,6 +284,8 @@
    ts: _ts, ts_key: turnstile_site_key, url: '/vote/' ~ n.programme_slug ~ '/' ~ n.id} %}
 
 {% block content %}
+{# "Recently viewed" (search.js): this page's name for the search palette, on this device. #}
+<span hidden data-ag-viewed data-t="{{ n.name }}" data-m="{{ n.category }}"></span>
 {# ── THE LAYOUT (2 Nov 2026) ─────────────────────────────────────────────────
    One column on a phone and a tablet, in the order a visitor decides in: who this is, where
    they stand, why they are nominated, then the ballot — the bottom bar's "Vote for …" reaches

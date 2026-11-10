@@ -60,4 +60,17 @@ final class SearchPaletteSmartTest extends TestCase
         $this->assertStringContainsString('never an email or a phone number', $js);
         $this->assertContains('ag-recent-q', array_column(\AfricaGates\Support\CookieRegistry::storage(), 'key'), 'declared on /cookies');
     }
+
+    public function test_recently_viewed_nominees_and_profiles_are_marked_kept_by_consent_and_declared(): void
+    {
+        $root = dirname(__DIR__, 2);
+        foreach (['templates/pages/vote-nominee.twig', 'templates/pages/profile.twig'] as $t) {
+            $this->assertStringContainsString('<span hidden data-ag-viewed data-t=', (string) file_get_contents("$root/$t"), "$t says what it is");
+        }
+        $js = (string) file_get_contents("$root/public/assets/js/search.js");
+        $this->assertStringContainsString("var VIEWED = 'ag-recent-view'", $js);
+        $this->assertStringContainsString("document.addEventListener('ag:load', noteView);", $js, 'a page swapped in place is noted too');
+        $this->assertStringContainsString('store().removeItem(VIEWED)', $js, 'cleared by the same button');
+        $this->assertContains('ag-recent-view', array_column(\AfricaGates\Support\CookieRegistry::storage(), 'key'));
+    }
 }

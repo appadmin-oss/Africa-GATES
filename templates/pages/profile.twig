@@ -36,6 +36,8 @@
 {% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/profile.css') }}">{% endblock %}
 
 {% block content %}
+{# "Recently viewed" (search.js): this page's name for the search palette, on this device. #}
+<span hidden data-ag-viewed data-t="{{ profile.display_name }}" data-m="{{ profile.category|default('') }}"></span>
 <div class="pp{{ editing ? ' is-editing' }}" data-pp data-name="{{ _name }}"
      data-t-listen="{{ 'Listen'|trans }}" data-t-pause="{{ 'Pause'|trans }}" data-t-resume="{{ 'Resume'|trans }}">
   {% if editing %}

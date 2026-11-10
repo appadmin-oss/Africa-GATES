@@ -80,7 +80,29 @@
       l.unshift(q.slice(0, 80));
       try { if (store()) store().setItem(RECENT, JSON.stringify(l.slice(0, MAXR))); } catch (e) {}
     }
-    function forget() { try { if (store()) store().removeItem(RECENT); } catch (e) {} }
+    function forget() { try { if (store()) store().removeItem(RECENT); store().removeItem(VIEWED); } catch (e) {} }
+
+    /* ── Recently viewed ───────────────────────────────────────────────────────
+       The nominees and profiles opened lately, offered under the recent searches: in a
+       voting week the same nominee is visited every evening. A page says what it is with
+       a hidden [data-ag-viewed] marker (name, category); its own address is the link. Same
+       storage rule as above, and cleared by the same button. */
+    var VIEWED = 'ag-recent-view';
+    function viewed() {
+      try { var v = JSON.parse((store() && store().getItem(VIEWED)) || '[]'); return Array.isArray(v) ? v.filter(function (x) { return x && typeof x.u === 'string' && typeof x.t === 'string'; }) : []; }
+      catch (e) { return []; }
+    }
+    function noteView() {
+      var m = document.querySelector('[data-ag-viewed]');
+      if (!m) return;
+      var u = location.pathname, t = (m.getAttribute('data-t') || '').trim();
+      if (!t || u.charAt(0) !== '/') return;
+      var l = viewed().filter(function (x) { return x.u !== u; });
+      l.unshift({ u: u, t: t.slice(0, 80), m: (m.getAttribute('data-m') || '').slice(0, 80) });
+      try { if (store()) store().setItem(VIEWED, JSON.stringify(l.slice(0, MAXR))); } catch (e) {}
+    }
+    noteView();
+    document.addEventListener('ag:load', noteView);   // a page swapped in place (site-nav.js)
 
     /* The combobox wiring lives in the script, so it exists only where something answers it. */
     input.setAttribute('role', 'combobox');
@@ -122,6 +144,9 @@
       // On the empty box, the visitor's own recent searches come first.
       if (data && data.landing) {
         var r = recent();
+        var v = viewed().filter(function (x) { return x.u !== location.pathname; });
+        if (v.length) groups.unshift({ key: 'viewed', label: words('viewed'), recent: true,
+          items: v.map(function (x) { return { url: x.u, title: x.t, meta: x.m || '', tile: 'people', ini: x.t.split(/\s+/).map(function (w) { return w.charAt(0); }).join('').slice(0, 2).toUpperCase() }; }) });
         if (r.length) groups.unshift({ key: 'recent', label: words('recent'), recent: true,
           items: r.map(function (q) { return { url: '/discover?q=' + encodeURIComponent(q), title: q, tile: 'more' }; }) });
       }
