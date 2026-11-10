@@ -70,7 +70,18 @@
   <div class="vb__head{{ ctx.open ? '' : ' vb__head--closed' }}">
     <p class="vb__k"><span class="vb__dot" aria-hidden="true"></span>
       {%- if ctx.open -%}
-        {{ 'Voting open'|trans }}{% if ctx.phase.closes_at %} · <time datetime="{{ ctx.phase.closes_at|date('c') }}">{{ 'closes %d%'|trans({'%d%': ctx.phase.closes_at|when_zoned('j M, H:i')}) }}</time>{% endif %}
+        {{ 'Voting open'|trans }}{% if ctx.phase.closes_at %} · <time datetime="{{ ctx.phase.closes_at|date('c') }}">{{ 'closes %d%'|trans({'%d%': ctx.phase.closes_at|when_zoned('j M, H:i')}) }}</time>
+          {#- In the last three days, how long is LEFT, ticking (awards.js, the award page's own
+              counter: seconds from the server, never the phone's clock, which is often wrong on
+              a cheap Android after a flat battery). A date asks the reader to do arithmetic at
+              the one moment the answer should push them to act. -#}
+          {% set _left = (ctx.phase.closes_at|date('U')) - ('now'|date('U')) %}
+          {%- if _left > 0 and _left < 259200 %} · <span class="vb__left" role="timer" dir="ltr" data-tick data-tick-left="{{ _left }}"
+              aria-label="{{ 'Voting closes in %d% days %h% hours %m% minutes'|trans({'%d%': _left // 86400, '%h%': (_left % 86400) // 3600, '%m%': (_left % 3600) // 60}) }}">
+              {%- if _left >= 86400 %}<b data-tick-d>{{ '%02d'|format(_left // 86400) }}</b>d {% endif -%}
+              <b data-tick-h>{{ '%02d'|format((_left % 86400) // 3600) }}</b>h <b data-tick-m>{{ '%02d'|format((_left % 3600) // 60) }}</b>m {{ 'left'|trans }}</span>
+          {%- endif %}
+        {%- endif %}
       {%- else -%}
         {{ ctx.phase.label|default('Voting closed')|trans }}
       {%- endif -%}
@@ -498,5 +509,6 @@
 {% block foot_scripts %}
   {% if _ts %}<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer data-nav="once"></script>{% endif %}
   <script defer src="{{ asset('/assets/js/vote.js') }}" data-nav="rerun"></script>
+  <script defer src="{{ asset('/assets/js/awards.js') }}" data-nav="rerun"></script>
   {% if photos|default([])|length > 1 %}<script defer src="{{ asset('/assets/js/nominee-photos.js') }}" data-nav="rerun"></script>{% endif %}
 {% endblock %}

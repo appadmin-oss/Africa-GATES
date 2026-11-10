@@ -124,6 +124,9 @@
 /* ── The ballot ─────────────────────────────────────────────────────────────── */
 .vb{ display:flex; flex-direction:column; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-20); overflow:hidden; scroll-margin-top:16px }
 .vb__head{ padding:18px 20px; background:var(--ag-green-wash); border-bottom:1px solid var(--ag-green-edge) }
+/* The last-three-days countdown in the ballot's top line: the figure is the point. */
+.vb__left{ white-space:nowrap; font-variant-numeric:tabular-nums }
+.vb__left b{ font-weight:700 }
 .vb__head--closed{ background:var(--ag-ground); border-bottom-color:var(--ag-line) }
 .vb__k{ margin:0; display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:var(--ag-fs-12-5); font-weight:700; color:var(--ag-green-deep) }
 .vb__head--closed .vb__k{ color:var(--ag-ink-2) }
