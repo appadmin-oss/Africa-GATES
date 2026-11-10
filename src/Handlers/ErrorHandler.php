@@ -92,6 +92,10 @@ class ErrorHandler {
                     // nothing has ever set it, so the block below it has never rendered
                     // once. Same name, loop closed.
                     'error_ref' => $ref,
+                    // "Were you looking for …": the words in a broken address, searched (404 only,
+                    // GET only, never for a scanner's probe — NotFoundSuggest refuses those).
+                    'suggest' => $code === 404 && $req->getMethod() === 'GET'
+                        ? \AfricaGates\Services\NotFoundSuggest::for($req->getUri()->getPath()) : null,
                     'gates_page' => 'error',
                     // A 5xx draws the shell without the footer and Gee: the fewer readers
                     // a page that exists because something failed depends on, the likelier

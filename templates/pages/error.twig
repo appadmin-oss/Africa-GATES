@@ -49,6 +49,19 @@
   <h1 class="er__h" id="er-h">{{ heading|trans }}</h1>
   <p class="er__m">{{ _msg }}</p>
 
+  {# The likeliest answer FIRST: on a phone, below two full-width buttons it was the last
+     thing on screen. #}
+  {% if code == 404 and suggest|default(null) and suggest.items|default([]) %}
+    <section class="er__sug" aria-labelledby="er-sug-h">
+      <h2 class="er__sug-h" id="er-sug-h">{{ 'Were you looking for…'|trans }}</h2>
+      <ul class="er__sug-l">
+        {% for i in suggest.items %}
+          <li><a class="er__sug-a" href="{{ i.url }}"><span class="er__sug-t">{{ i.title }}</span>{% if i.meta %}<span class="er__sug-m">{{ i.meta }}</span>{% endif %}</a></li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
   <div class="er__act">
     {% if _five or code == 503 %}
       <a class="er__btn er__btn--p" href="{{ request_path|default('/') }}">{{ 'Try again'|trans }}</a>
@@ -58,9 +71,23 @@
       <a class="er__btn" href="/">{{ 'Back to home'|trans }}</a>
     {% else %}
       <a class="er__btn er__btn--p" href="/">{{ 'Back to home'|trans }}</a>
-      <a class="er__btn" href="/discover">{{ 'Search Africa GATES'|trans }}</a>
+      {# Not beside a search box that is already filled in below. #}
+      {% if not (code == 404 and suggest|default(null) and suggest.q) %}<a class="er__btn" href="/discover">{{ 'Search Africa GATES'|trans }}</a>{% endif %}
     {% endif %}
   </div>
+
+  {# "Were you looking for …" (NotFoundSuggest): the words in the broken address, searched.
+     A broken link usually still holds what somebody wanted — a name, an award. The box is
+     filled with those words, for whoever the suggestions above did not answer. #}
+  {% if code == 404 and suggest|default(null) and suggest.q %}
+    <form class="er__find" method="get" action="/discover" role="search">
+      <label class="er__find-l" for="er-q">{{ suggest.items|default([]) ? 'Or search for it'|trans : 'Search for it'|trans }}</label>
+      <span class="er__find-row">
+        <input class="er__find-i" id="er-q" type="search" name="q" value="{{ suggest.q }}" autocomplete="off" enterkeyhint="search">
+        <button class="er__btn er__btn--p" type="submit">{{ 'Search'|trans }}</button>
+      </span>
+    </form>
+  {% endif %}
 
   {% if error_ref is defined and error_ref %}
     <div class="er__ref">
