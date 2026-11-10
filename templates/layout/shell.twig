@@ -149,7 +149,9 @@
     {# The cookie notice, the preferences sheet and the "saved" line (§7.9). Inside the
        column on purpose: on a phone the notice is a flex child above the tab bar, so the
        scroller shrinks for it and it can cover nothing (see consent.css). #}
-    {% include 'partials/cookie-consent.twig' %}
+    {# `consent_off`: the offline page only, which is cached once and shown later — a notice
+       baked into it would ask a question nobody can answer while offline. #}
+    {% if not consent_off|default(false) %}{% include 'partials/cookie-consent.twig' %}{% endif %}
 
     {% block bottom_bar %}
       {% if not flow_page|default(false) %}{% include 'partials/tab-bar.twig' with { active: tab|default('') } only %}{% endif %}

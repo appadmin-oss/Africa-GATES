@@ -3117,6 +3117,21 @@ return function(App $app) {
             ]);
         });
 
+        // ── /offline — what the service worker shows when a page cannot be reached ──
+        // (public/sw.js, 10 Nov 2026). Fetched ONCE by the worker as a signed-out visitor and
+        // kept, so it carries nobody's details: no header, no tab bar, no notice, no Gee.
+        // Not a page anybody navigates to, so it is noindex and in no nav.
+        $g->get('/offline', function ($req, $res) use ($tv) {
+            return $tv($req)->render($res->withHeader('Cache-Control', 'no-store'), 'pages/offline.twig', [
+                'page_title'  => 'You’re offline — Africa GATES',
+                'meta_robots' => 'noindex, nofollow',
+                'seo_head'    => false,
+                'hide_chrome' => true,
+                'flow_page'   => true,
+                'consent_off' => true,
+            ]);
+        });
+
         $g->get('/philosophy', function ($req, $res) use ($tv, $integrityFigures) {
             $doc   = \AfricaGates\Services\CommunityVotingPhilosophy::class;
             $figs  = $integrityFigures();

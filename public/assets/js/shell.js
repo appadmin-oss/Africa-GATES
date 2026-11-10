@@ -336,4 +336,13 @@
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
+
+  /* The service worker (public/sw.js): our own page when the network drops, and the
+     fingerprinted files kept on this device. Registered after load so it never competes
+     with the page for the first paint; only on https or localhost, where browsers allow it. */
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('/sw.js').catch(function () {});
+    });
+  }
 })();

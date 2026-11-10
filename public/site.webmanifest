@@ -18,5 +18,9 @@
       "type": "image/png",
       "purpose": "any"
     }
-  ]
+  ],
+  "id": "/",
+  "scope": "/",
+  "display": "standalone",
+  "lang": "en"
 }
