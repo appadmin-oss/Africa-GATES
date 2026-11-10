@@ -116,9 +116,12 @@
       <a class="hm-more hm-more--lg" href="/awards">{{ 'All categories'|trans }}</a>
     </div>
     <ul class="hm-honour" role="list">
+      {# `sizes` is the width each tile is DRAWN at, measured at 360–1600px (10 Nov 2026). It
+         said 46vw — the list item, not the image inside its padding — so a 3× phone chose the
+         960 file for a 145px tile: six of them, ~300KB more than the 480s it needed. #}
       {% for t in honour %}
         <li><a class="hm-hon" href="/nominate?who={{ t.key }}">
-          <img class="hm-hon__img" src="{{ asset(t.src) }}" srcset="{{ t.srcset }}" sizes="(min-width: 1200px) 180px, (min-width: 600px) 200px, 46vw" alt="{{ t.alt }}" loading="lazy" width="480" height="480">
+          <img class="hm-hon__img" src="{{ asset(t.src) }}" srcset="{{ t.srcset }}" sizes="(min-width: 1200px) 160px, (min-width: 1024px) calc(33vw - 41px), (min-width: 600px) 180px, calc(46vw - 35px)" alt="{{ t.alt }}" loading="lazy" width="480" height="480">
           <span class="hm-hon__row"><span class="hm-hon__l">{{ t.label|trans }}</span><span class="hm-hon__go" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M5 10h10M11 6l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span>
         </a></li>
       {% endfor %}
@@ -246,7 +249,11 @@
         {k: 'Governments', cta: 'Talk to us', href: '/partner', img: 'community-leader', alt: 'A community leader speaking'}
       ] %}
         <li><a class="hm-whoc" href="{{ a.href }}">
-          <img class="hm-whoc__img" src="{{ asset('/assets/img/honour/' ~ a.img ~ '-960.webp') }}" alt="{{ a.alt|trans }}" loading="lazy" width="960" height="960">
+          {# Both sizes offered, with the width the card is actually drawn at (measured, 10 Nov
+             2026): it was the 960 file alone, for a card 236–287px wide. #}
+          <img class="hm-whoc__img" src="{{ asset('/assets/img/honour/' ~ a.img ~ '-960.webp') }}"
+               srcset="{{ asset('/assets/img/honour/' ~ a.img ~ '-480.webp') }} 480w, {{ asset('/assets/img/honour/' ~ a.img ~ '-960.webp') }} 960w"
+               sizes="(min-width: 600px) 270px, calc(67vw - 5px)" alt="{{ a.alt|trans }}" loading="lazy" width="960" height="960">
           <span class="hm-whoc__bar"><span class="hm-whoc__t"><b>{{ a.k|trans }}</b><span>{{ a.cta|trans }}</span></span><span class="hm-whoc__go" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></span>
         </a></li>
       {% endfor %}
