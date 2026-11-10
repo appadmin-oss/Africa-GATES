@@ -98,8 +98,22 @@ final class SearchController
 
         $result = $this->feed->search($q, self::ASK, interpret: !$literal, scope: $scope);
 
+        // A slip corrected, as on Discover: when nothing matched, the unknown words are
+        // corrected to words the site holds (Discover::suggest, one vocabulary) and the
+        // corrected search is returned only if it finds something — with `corrected` so the
+        // palette says so and offers the original back (`literal`).
+        $corrected = null;
+        if (!$literal && $result['items'] === []) {
+            $fix = (new \AfricaGates\Services\Discover($this->feed))->suggest($q);
+            if ($fix !== null) {
+                $again = $this->feed->search($fix, self::ASK, interpret: false, scope: $scope);
+                if ($again['items'] !== []) { $result = $again; $corrected = ['from' => $q, 'to' => $fix]; }
+            }
+        }
+
         return $json($res, [
             'ok'         => true,
+            'corrected'  => $corrected,
             'query'      => $result['query'],
             'scope'      => $scope === '' ? 'all' : $scope,
             'landing'    => false,

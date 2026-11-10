@@ -539,7 +539,7 @@ final class Discover
 
             $rows = $b->orderByDesc('n.nominated_at')->orderByDesc('n.id')->limit(2000)
                 ->get(['n.id', 'n.name', 'n.profile_id', 'n.country_code', 'n.organisation',
-                       'n.photo_path', 'c.title as category'])->all();
+                       'n.photo_path', 'c.title as category', 'p.slug as programme_slug'])->all();
         } catch (\Throwable) {
             $rows = [];
         }
@@ -571,7 +571,8 @@ final class Discover
                     $p['n'] === 1 ? Translator::t('nominated in 1 category')
                         : Translator::t('nominated in %n% categories', ['%n%' => (string) $p['n']]),
                 ], static fn (string $v): bool => $v !== '')),
-                'url'      => NomineeUrl::path((int) $r->id),
+                // From the row's own programme slug: path() is a query per person, 48 a page.
+                'url'      => NomineeUrl::of((string) ($r->programme_slug ?? ''), (int) $r->id, (string) $r->name),
             ];
         }
 

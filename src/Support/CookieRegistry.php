@@ -239,6 +239,9 @@ final class CookieRegistry
             // message, so the button stays pressed. Never the vote itself — that is the server's.
             ['key' => 'ag-vote:', 'category' => self::PREFERENCES, 'where' => 'local-or-session', 'audience' => 'everyone',
              'purpose' => 'Which award categories you have voted in on this device, and the messages of support you cheered or reported, so the voting pages can show your progress and keep those buttons pressed. Your vote itself is recorded on our server, not here. Kept on this device between visits if you allow Preferences; otherwise only until you close the tab.'],
+            // The search palette's recent searches (search.js, 10 Nov 2026).
+            ['key' => 'ag-recent-q', 'category' => self::PREFERENCES, 'where' => 'local-or-session', 'audience' => 'everyone',
+             'purpose' => 'Your last six searches, offered when you open search again so you do not have to type them twice, with a button to clear them. Kept on this device between visits if you allow Preferences; otherwise only until you close the tab. Never sent to us, and an email address or phone number typed into search is never kept.'],
             // The shop's basket (shop.js). Essential: a cart is part of a purchase somebody
             // asked for. Every figure in it is re-priced by the server at checkout.
             ['key' => 'ag-cart', 'category' => self::ESSENTIAL, 'where' => 'local', 'audience' => 'everyone',

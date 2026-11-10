@@ -642,6 +642,7 @@ final class ActivityFeedService
                 DB::table('gates_nominees as n')
                     ->leftJoin('gates_award_categories as c', 'c.id', '=', 'n.category_id')
                     ->leftJoin('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
+                    ->leftJoin('gates_award_programmes as pg', 'pg.id', '=', 'cy.programme_id')
                     ->whereIn('n.status', ['approved', 'winner', 'runner_up'])
                     ->whereNull('n.merged_into'),
                 'cy.programme_id'),
@@ -649,14 +650,17 @@ final class ActivityFeedService
             ['n.name', 'n.tagline', 'c.title'],
         )
             ->orderByDesc('n.nominated_at')->limit($limit)
-            ->get(['n.id', 'n.name', 'n.tagline', 'n.nominated_at', 'c.title as category'])->all();
+            ->get(['n.id', 'n.name', 'n.tagline', 'n.nominated_at', 'c.title as category', 'pg.slug as programme_slug'])->all();
 
         return array_map(fn (object $r): array => $this->item(
             kind:   'nominee',
             label:  'Nominee',
             title:  (string) $r->name,
             detail: trim(((string) ($r->category ?? '')) . (($r->tagline ?? '') !== '' ? ' · ' . $r->tagline : ''), ' ·'),
-            url:    '/registry',
+            // The nominee's own page. It was '/registry' — which redirects to the People tab —
+            // so every nominee the search palette or the Live tab found led to a list, never
+            // to the person: the one click a search exists for went nowhere.
+            url:    \AfricaGates\Support\NomineeUrl::of((string) ($r->programme_slug ?? ''), (int) $r->id, (string) $r->name),
             at:     (string) ($r->nominated_at ?? ''),
         ), $rows);
     }

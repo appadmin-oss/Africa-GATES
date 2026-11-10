@@ -57,7 +57,30 @@
     var chips = all('[data-ag-scope]', dlg);
     if (!input || !list) return;
 
-    var scope = '', seq = 0, timer = null, opener = null, active = -1, options = [];
+    var scope = '', seq = 0, timer = null, opener = null, active = -1, options = [], literal = false;
+
+    /* ── Recent searches (10 Nov 2026) ───────────────────────────────────────
+       The palette opened on the same blank every time, so somebody checking the same nominee
+       every evening of a voting week typed the name every evening. The last six searches
+       that led somewhere are offered when the box is empty, with a way to clear them.
+       Kept in THIS browser only, never sent anywhere — across visits only if the visitor
+       allowed Preferences (`data-ag-keep`), otherwise until the tab closes (CookieRegistry). */
+    var RECENT = 'ag-recent-q', MAXR = 6;
+    function store() {
+      try { return document.documentElement.getAttribute('data-ag-keep') === '1' ? localStorage : sessionStorage; } catch (e) { return null; }
+    }
+    function recent() {
+      try { var v = JSON.parse((store() && store().getItem(RECENT)) || '[]'); return Array.isArray(v) ? v.filter(function (x) { return typeof x === 'string'; }) : []; }
+      catch (e) { return []; }
+    }
+    function remember(q) {
+      q = (q || '').trim();
+      if (q.length < 2 || /@|\d{7,}/.test(q.replace(/[\s\-()]/g, ''))) return;   // never an email or a phone number
+      var l = recent().filter(function (x) { return x.toLowerCase() !== q.toLowerCase(); });
+      l.unshift(q.slice(0, 80));
+      try { if (store()) store().setItem(RECENT, JSON.stringify(l.slice(0, MAXR))); } catch (e) {}
+    }
+    function forget() { try { if (store()) store().removeItem(RECENT); } catch (e) {} }
 
     /* The combobox wiring lives in the script, so it exists only where something answers it. */
     input.setAttribute('role', 'combobox');
@@ -95,7 +118,13 @@
     function draw(data) {
       list.textContent = '';
       options = [];
-      var n = 0, groups = (data && data.groups) || [];
+      var n = 0, groups = ((data && data.groups) || []).slice();
+      // On the empty box, the visitor's own recent searches come first.
+      if (data && data.landing) {
+        var r = recent();
+        if (r.length) groups.unshift({ key: 'recent', label: words('recent'), recent: true,
+          items: r.map(function (q) { return { url: '/discover?q=' + encodeURIComponent(q), title: q, tile: 'more' }; }) });
+      }
 
       groups.forEach(function (g, gi) {
         var grp = el('div', 'ag-ss__grp');
@@ -134,6 +163,20 @@
         list.appendChild(grp);
       });
 
+      // "Clear recent searches" lives OUTSIDE the listbox (a listbox may hold only options),
+      // just above it, and only while recent searches are on show.
+      var bar = dlg.querySelector('[data-ag-ss-recentbar]');
+      if (!bar) {
+        bar = el('p', 'ag-ss__recentbar');
+        bar.setAttribute('data-ag-ss-recentbar', '');
+        var clr = el('button', 'ag-ss__clear', words('clear'));
+        clr.type = 'button';
+        clr.addEventListener('click', function () { forget(); run(); input.focus(); });
+        bar.appendChild(clr);
+        list.parentNode.insertBefore(bar, list);
+      }
+      bar.hidden = !groups.some(function (g) { return g.recent; });
+
       setActive(-1);
       input.setAttribute('aria-expanded', String(options.length > 0));
       return n;
@@ -152,17 +195,30 @@
       return s;
     }
 
+    // The message sits ABOVE the list: "Showing results for …" is read before the results.
+    if (msg && msg.parentNode === list.parentNode) list.parentNode.insertBefore(msg, list);
     function note(text) {
       if (!msg) return;
+      msg.classList.remove('ag-ss__msg--fix');
       msg.textContent = text || '';
       msg.hidden = !text;
+    }
+    function fixNote(c) {
+      if (!msg) return;
+      msg.classList.add('ag-ss__msg--fix');
+      msg.textContent = words('fixed', { '%q%': c.to }) + ' ';
+      var b = el('button', 'ag-ss__orig', words('instead', { '%q%': c.from }));
+      b.type = 'button';
+      b.addEventListener('click', function () { literal = true; run(); input.focus(); });
+      msg.appendChild(b);
+      msg.hidden = false;
     }
 
     function run() {
       var q = input.value.trim();
       var mine = ++seq;
       if (q.length >= 2) say(words('searching'));
-      var url = '/search.json?q=' + encodeURIComponent(q) + (scope ? '&scope=' + encodeURIComponent(scope) : '');
+      var url = '/search.json?q=' + encodeURIComponent(q) + (scope ? '&scope=' + encodeURIComponent(scope) : '') + (literal ? '&literal=1' : '');
       fetch(url, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
         .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
         .then(function (res) {
@@ -182,6 +238,13 @@
           if (!shown) {
             var none = words('none', { '%q%': q });
             note(none); say(none);
+            return;
+          }
+          if (res.d.corrected) {
+            // Said, with the original one tap away: a correction nobody can see or undo is
+            // the search deciding what they meant.
+            fixNote(res.d.corrected);
+            say(words('fixed', { '%q%': res.d.corrected.to }));
             return;
           }
           note('');
@@ -273,13 +336,18 @@
       }
     });
 
-    input.addEventListener('input', later);
+    input.addEventListener('input', function () { literal = false; later(); });
 
     if (form) form.addEventListener('submit', function (e) {
       e.preventDefault();
+      remember(input.value);
       var go = options[active >= 0 ? active : 0];
       if (go) { location.href = go.href; return; }
       if (input.value.trim().length >= 2) form.submit();
+    });
+    /* A result chosen with the mouse or a finger remembers what led to it, too. */
+    list.addEventListener('click', function (e) {
+      if (e.target.closest && e.target.closest('.ag-ss__opt')) remember(input.value);
     });
 
     /* ── The scope chips: a tablist, one tab stop, arrows move and re-run ── */
