@@ -427,6 +427,15 @@ final class Discover
      */
     private function people(array $s): array
     {
+        // ── A SEARCH IS NOT "THIS MONTH" ─────────────────────────────────────────────
+        //
+        // Browsing, the tab is "Most nominated this month" and the month is the point. A
+        // SEARCH kept the month too, so a nominee entered in October could not be found by
+        // name in November, and on the first of every month the tab emptied. With a query
+        // the people are everyone standing in a live award, whenever they were entered, and
+        // the registry's own profiles beside them — which no tab here searched at all, while
+        // the page's own footer promised "everyone standing in a category".
+        $searching = $s['q'] !== '';
         $since = Carbon::now()->startOfMonth()->toDateTimeString();
         try {
             $b = DemoSeeder::notSandbox(
@@ -436,9 +445,9 @@ final class Discover
                     ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
                     ->where('p.is_active', 1)
                     ->whereIn('n.status', ['approved', 'winner', 'runner_up'])
-                    ->whereNull('n.merged_into')
-                    ->where('n.nominated_at', '>=', $since),
+                    ->whereNull('n.merged_into'),
                 'cy.programme_id');
+            if (!$searching) $b->where('n.nominated_at', '>=', $since);
 
             if ($s['q'] !== '') {
                 $like = Like::contains($s['q']);
@@ -471,8 +480,10 @@ final class Discover
         uasort($people, static fn (array $a, array $b): int => [$b['n'], $a['order']] <=> [$a['n'], $b['order']]);
 
         $out = [];
+        $seen = [];
         foreach ($people as $p) {
             $r = $p['row'];
+            if ($r->profile_id) $seen[(int) $r->profile_id] = true;
             $place = trim((string) ($r->organisation ?? '')) !== '' ? (string) $r->organisation : (string) $r->category;
             $nation = (string) ($r->country_code ?? '') !== '' ? NationsLive::name((string) $r->country_code) : '';
             $out[] = [
@@ -488,7 +499,64 @@ final class Discover
             ];
         }
 
-        return ['items' => array_slice($out, 0, self::MAX_ROWS), 'total' => count($out)];
+        // The registry's people. Searching, they join the same list (a profile already
+        // standing as a nominee is listed once, as the nominee); browsing, they are their own
+        // short list under the month's, so the tab is never empty for want of a nomination.
+        // A trust filter is about awards, which a profile alone cannot satisfy — honest answer
+        // there is none of them.
+        $reg = $s['trust'] === [] ? self::registry($s, ['individual'], $seen) : [];
+        if ($searching) {
+            $out = array_merge($out, $reg);
+            return ['items' => array_slice($out, 0, self::MAX_ROWS), 'total' => count($out), 'searching' => true, 'registry' => []];
+        }
+        return ['items' => array_slice($out, 0, self::MAX_ROWS), 'total' => count($out) + count($reg),
+                'searching' => false, 'registry' => array_slice($reg, 0, self::MAX_ROWS)];
+    }
+
+    /**
+     * Approved registry profiles of these types, as Discover rows, matching the state's query
+     * and country. The same columns the search index reads (ActivityFeedService::profiles) and
+     * deliberately not email, phone or a handle: a search box is not a directory of contacts.
+     *
+     * @param list<string> $types profile_type values
+     * @param array<int,true> $skip profile ids already listed
+     * @return list<array<string,string>>
+     */
+    private static function registry(array $s, array $types, array $skip = []): array
+    {
+        try {
+            if (!SchemaHas::table('gates_profiles')) return [];
+            $b = DB::table('gates_profiles')->where('status', 'approved')->whereNull('merged_into')
+                ->whereIn('profile_type', $types);
+            if ($s['q'] !== '') {
+                $like = Like::contains($s['q']);
+                $b->where(function ($w) use ($like) {
+                    $w->whereRaw(Like::clause('display_name'), [$like])
+                      ->orWhereRaw(Like::clause('category'), [$like])
+                      ->orWhereRaw(Like::clause('location_city'), [$like]);
+                });
+            }
+            if ($s['where'] !== '') $b->where('country_code', $s['where']);
+            $rows = $b->orderByDesc('registered_at')->orderByDesc('id')->limit(400)
+                ->get(['id', 'slug', 'display_name', 'category', 'location_city', 'country_code', 'avatar_path'])->all();
+        } catch (\Throwable) {
+            return [];
+        }
+        $out = [];
+        foreach ($rows as $r) {
+            if (isset($skip[(int) $r->id]) || (string) ($r->slug ?? '') === '') continue;
+            $nation = (string) ($r->country_code ?? '') !== '' ? NationsLive::name((string) $r->country_code) : '';
+            $out[] = [
+                'name'     => (string) $r->display_name,
+                'initials' => self::initials((string) $r->display_name),
+                'initial'  => mb_substr((string) $r->display_name, 0, 1),
+                'photo'    => (string) ($r->avatar_path ?? ''),
+                'meta'     => implode(' · ', array_filter([(string) ($r->category ?? ''), trim((string) ($r->location_city ?? '')), $nation,
+                    Translator::t('Registered profile')], static fn (string $v): bool => $v !== '')),
+                'url'      => '/registry/' . rawurlencode((string) $r->slug),
+            ];
+        }
+        return $out;
     }
 
     /** Trust · "Recognised before": won, runner-up in an ANNOUNCED award, or on a published shortlist. */
@@ -584,7 +652,15 @@ final class Discover
             ];
         }
 
-        return ['items' => array_slice($out, 0, self::MAX_ROWS), 'total' => count($out)];
+        // Organisations in the registry. The tab was award hosts alone, so an organisation
+        // with a registered profile could not be found by name on the tab named for it.
+        $reg = self::registry($s, ['organisation', 'business']);
+        if ($s['q'] !== '') {
+            $out = array_merge($out, $reg);
+            return ['items' => array_slice($out, 0, self::MAX_ROWS), 'total' => count($out), 'searching' => true, 'registry' => []];
+        }
+        return ['items' => array_slice($out, 0, self::MAX_ROWS), 'total' => count($out) + count($reg),
+                'searching' => false, 'registry' => array_slice($reg, 0, self::MAX_ROWS)];
     }
 
     /** "Upcoming ceremonies": published events still to come, soonest first. */

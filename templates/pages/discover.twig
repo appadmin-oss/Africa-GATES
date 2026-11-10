@@ -165,7 +165,9 @@
           </section>
 
           <section class="dv-sec dv-only dv-only--people" aria-labelledby="dvH-people">
-            <h2 class="dv-sec__h" id="dvH-people">{{ 'Most nominated this month'|trans }}</h2>
+            {# Searching, this is everybody: nominees in a live award whenever they were entered,
+               and registered profiles. Browsing, the month's most nominated, then the registry. #}
+            <h2 class="dv-sec__h" id="dvH-people">{{ sec.people.searching|default(false) ? 'People'|trans : 'Most nominated this month'|trans }}</h2>
             {% if sec.people.items %}
               <div class="dv-rows dv-rows--two">
                 {% for p in sec.people.items %}
@@ -177,16 +179,28 @@
               </div>
             {% else %}
               <p class="dv-empty">
-                {%- if s.q or _applied -%}{{ 'Nobody nominated this month matches these filters.'|trans }} <a href="{{ _f.clear }}">{{ 'Clear filters'|trans }}</a>
+                {%- if s.q -%}{{ 'Nobody matches “%q%”.'|trans({'%q%': s.q}) }}{% if _applied %} <a href="{{ _f.clear }}">{{ 'Clear filters'|trans }}</a>{% endif %}
+                {%- elseif _applied -%}{{ 'Nobody nominated this month matches these filters.'|trans }} <a href="{{ _f.clear }}">{{ 'Clear filters'|trans }}</a>
                 {%- else -%}{{ 'Nobody has been nominated yet this month.'|trans }}{%- endif -%}
               </p>
+            {% endif %}
+            {% if sec.people.registry|default([]) %}
+              <h3 class="dv-sec__h dv-sec__h--sub">{{ 'Registered profiles'|trans }}</h3>
+              <div class="dv-rows dv-rows--two">
+                {% for p in sec.people.registry %}
+                  <a class="dv-item" href="{{ p.url }}">
+                    <span class="dv-av" aria-hidden="true">{{ p.initials }}{% if p.photo %}<img src="{{ p.photo|media_url }}" alt="" loading="lazy" width="44" height="44">{% endif %}</span>
+                    <span class="dv-item__b"><span class="dv-item__t dv-item__t--s">{{ p.name }}</span><span class="dv-item__m dv-item__m--s">{{ p.meta }}</span></span>
+                  </a>
+                {% endfor %}
+              </div>
             {% endif %}
           </section>
         </div>
 
         <div class="dv-col">
           <section class="dv-sec dv-only dv-only--orgs" aria-labelledby="dvH-orgs">
-            <h2 class="dv-sec__h" id="dvH-orgs">{{ 'Award hosts'|trans }}</h2>
+            <h2 class="dv-sec__h" id="dvH-orgs">{{ sec.orgs.searching|default(false) ? 'Organisations'|trans : 'Award hosts'|trans }}</h2>
             {% if sec.orgs.items %}
               <div class="dv-rows">
                 {% for h in sec.orgs.items %}
@@ -197,7 +211,18 @@
                 {% endfor %}
               </div>
             {% else %}
-              <p class="dv-empty">{{ 'No award host matches “%q%”.'|trans({'%q%': s.q}) }}</p>
+              <p class="dv-empty">{{ s.q ? 'No organisation matches “%q%”.'|trans({'%q%': s.q}) : 'No award is running yet.'|trans }}</p>
+            {% endif %}
+            {% if sec.orgs.registry|default([]) %}
+              <h3 class="dv-sec__h dv-sec__h--sub">{{ 'Registered organisations'|trans }}</h3>
+              <div class="dv-rows">
+                {% for h in sec.orgs.registry %}
+                  <a class="dv-item" href="{{ h.url }}">
+                    <span class="dv-host" aria-hidden="true">{{ h.initial }}</span>
+                    <span class="dv-item__b"><span class="dv-item__t dv-item__t--s">{{ h.name }}</span><span class="dv-item__m dv-item__m--s">{{ h.meta }}</span></span>
+                  </a>
+                {% endfor %}
+              </div>
             {% endif %}
           </section>
 
