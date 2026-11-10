@@ -21,4 +21,14 @@ final class BallotCountdownTest extends TestCase
         $this->assertStringContainsString('<b data-tick-h>', $tpl);
         $this->assertStringContainsString("asset('/assets/js/awards.js') }}\" data-nav=\"rerun\"", $tpl, 'the one counter, not a second copy');
     }
+
+    public function test_the_phone_bar_carries_it_too_and_the_code_step_cannot_wipe_it(): void
+    {
+        $tpl = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/vote-nominee.twig');
+        // vote.js replaces the [data-bar-go] element's text with "Enter your code": it must be
+        // the label alone, never the link holding the clock.
+        $this->assertMatchesRegularExpression('/<span data-bar-go data-otp="[^"]*">\{\{ \'Vote for %first%\'/', $tpl);
+        $this->assertDoesNotMatchRegularExpression('/<a class="vn-bar__go[^"]*" href="#ballot"[^>]*data-bar-go/', $tpl);
+        $this->assertStringContainsString('class="vn-bar__left" role="timer" dir="ltr" data-tick data-tick-left="{{ _bleft }}"', $tpl);
+    }
 }

@@ -499,7 +499,20 @@
     {% elseif voting_open %}
       {# Says what the ballot is waiting for: on the code screen the next act is the code,
          and a bar still reading "Vote for …" looked like the vote had not started (vote.js). #}
-      <a class="vn-bar__go" href="#ballot" data-bar-go data-otp="{{ 'Enter your code'|trans }}">{{ 'Vote for %first%'|trans({'%first%': first}) }}</a>
+      {# The last three days' countdown rides in the bar too, under the label, so it stays in
+         view however far down the page somebody has read. `data-bar-go` is on the LABEL: vote.js
+         replaces that element's text on the code step, and the clock must survive it. Set in
+         this block and read only here. #}
+      {% set _bleft = phase.closes_at|default(null) ? (phase.closes_at|date('U')) - ('now'|date('U')) : 0 %}
+      <a class="vn-bar__go{{ _bleft > 0 and _bleft < 259200 ? ' vn-bar__go--clock' }}" href="#ballot">
+        <span data-bar-go data-otp="{{ 'Enter your code'|trans }}">{{ 'Vote for %first%'|trans({'%first%': first}) }}</span>
+        {%- if _bleft > 0 and _bleft < 259200 %}
+        <span class="vn-bar__left" role="timer" dir="ltr" data-tick data-tick-left="{{ _bleft }}"
+              aria-label="{{ 'Voting closes in %d% days %h% hours %m% minutes'|trans({'%d%': _bleft // 86400, '%h%': (_bleft % 86400) // 3600, '%m%': (_bleft % 3600) // 60}) }}">
+          {%- if _bleft >= 86400 %}<b data-tick-d>{{ '%02d'|format(_bleft // 86400) }}</b>d {% endif -%}
+          <b data-tick-h>{{ '%02d'|format((_bleft % 86400) // 3600) }}</b>h <b data-tick-m>{{ '%02d'|format((_bleft % 3600) // 60) }}</b>m {{ 'left'|trans }}</span>
+        {%- endif %}
+      </a>
     {% else %}
       <a class="vn-bar__go vn-bar__go--line" href="/vote/{{ n.programme_slug }}">{{ 'Back to the award'|trans }}</a>
     {% endif %}

@@ -120,6 +120,10 @@
 .vn-bar__share{ flex:none; width:52px; height:52px; border:1px solid var(--ag-line-2); border-radius:50%; background:var(--ag-surface); color:var(--ag-ink); display:flex; align-items:center; justify-content:center; cursor:pointer }
 .vn-bar__go{ flex:1; display:flex; align-items:center; justify-content:center; height:52px; border-radius:var(--ag-r-pill); background:var(--ag-green); color:var(--ag-surface); font-weight:700; font-size:var(--ag-fs-16); text-decoration:none }
 .vn-bar__go--line{ background:var(--ag-surface); color:var(--ag-ink); border:1px solid var(--ag-line-2) }
+/* The bar's countdown: a second line under the label, in the button's own colour. */
+.vn-bar__go--clock{ flex-direction:column; gap:1px; line-height:1.15 }
+.vn-bar__left{ font-size:var(--ag-fs-12-5); font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap }
+.vn-bar__left b{ font-weight:700 }
 
 /* ── The ballot ─────────────────────────────────────────────────────────────── */
 .vb{ display:flex; flex-direction:column; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-20); overflow:hidden; scroll-margin-top:16px }
