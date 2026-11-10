@@ -53,6 +53,27 @@ final class DiscoverController
 
         $data = $this->discover->page($s);
 
+        // ── NOTHING FOUND: CORRECT A SLIP, THEN COUNT WHAT IS LEFT ──────────────────────
+        //
+        // Roughly one search in ten carries a typo. When this one found nothing, its unknown
+        // words are corrected to the nearest words the site actually holds, and the corrected
+        // search is SHOWN only if it finds something — with the page saying so and offering
+        // the original back (`literal=1` is "search for exactly what I typed"). What still
+        // finds nothing is counted for the Analytics page, anonymously (SearchMisses).
+        $corrected = null;
+        if (!$fragment && $s['q'] !== '' && self::found($s, $data) === 0) {
+            $fix = $s['literal'] ? null : $this->discover->suggest($s['q']);
+            if ($fix !== null) {
+                $s2 = ['q' => $fix] + $s;
+                $d2 = $this->discover->page($s2);
+                if (self::found($s2, $d2) > 0) {
+                    $corrected = ['from' => $s['q'], 'to' => $fix, 'original' => Discover::url($s, ['literal' => true, 'page' => 1])];
+                    [$s, $data] = [$s2, $d2];
+                }
+            }
+            if ($corrected === null) \AfricaGates\Services\SearchMisses::record($s['q'], $s['tab']);
+        }
+
         if ($fragment) {
             return $this->view->render(
                 $res->withHeader('Cache-Control', 'no-store'),
@@ -62,7 +83,15 @@ final class DiscoverController
         }
 
         return $this->view->render($res, 'pages/discover.twig', $this->vars($s, $data)
-            + ['ad' => \AfricaGates\Services\Ads\AdDelivery::forRequest('discover', $req)]);
+            + ['corrected' => $corrected, 'ad' => \AfricaGates\Services\Ads\AdDelivery::forRequest('discover', $req)]);
+    }
+
+    /** What the visitor's tab found: its own count, or the updates on Live, plus Live's rows on All. */
+    private static function found(array $s, array $data): int
+    {
+        $live = count($data['live']['rows'] ?? []);
+        if ($s['tab'] === 'live') return $live;
+        return (int) ($data['counts'][$s['tab']] ?? 0) + ($s['tab'] === 'all' ? $live : 0);
     }
 
     /** GET /discover/count — JSON `{ok, count}` for the filter panel's button. */

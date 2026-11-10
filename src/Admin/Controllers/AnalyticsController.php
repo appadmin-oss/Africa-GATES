@@ -72,6 +72,8 @@ final class AnalyticsController
             // gates_events: written on four paths since the day it was added, read by
             // nothing until this line. See AnalyticsService::platformEvents().
             'events'     => AnalyticsService::platformEvents($days),
+            // Discover searches that found nothing, after typo correction (SearchMisses).
+            'search_misses' => \AfricaGates\Services\SearchMisses::top($days, 20),
         ]);
     }
 }

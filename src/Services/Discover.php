@@ -8,6 +8,7 @@ use AfricaGates\Support\NationsLive;
 use AfricaGates\Support\NomineeUrl;
 use AfricaGates\Support\ProgrammeHost;
 use AfricaGates\Support\SchemaHas;
+use AfricaGates\Support\SearchWords;
 use AfricaGates\Support\Translator;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
@@ -331,30 +332,17 @@ final class Discover
     /** Case-insensitive "does this text contain the query", for the small in-PHP sets. */
     private static function has(string $q, string ...$hay): bool
     {
-        if ($q === '') return true;
-        $all = implode(' ', $hay);
-        foreach (self::words($q) as $w) if (mb_stripos($all, $w) === false) return false;
-        return true;
+        return $q === '' || SearchWords::matches($q, ...$hay);
     }
 
     /**
-     * A query as the words a person typed. The search used to match the WHOLE phrase, so
-     * "Tolu Lagos" found nothing although both words were on Tolu's profile — a name and a
-     * city, which is how people actually look somebody up. Every word must appear somewhere
-     * in the row; at most six, so a pasted paragraph is not sixty LIKE clauses.
-     *
-     * @return list<string>
+     * Every word (its singular stem) in at least one of these columns — AND of ORs, through
+     * Like's escaped clause. Accents are the collation's job inside SQL (utf8mb4_unicode_ci
+     * on production); SearchWords folds them everywhere PHP compares.
      */
-    private static function words(string $q): array
-    {
-        $w = preg_split('/\s+/u', trim($q), -1, PREG_SPLIT_NO_EMPTY) ?: [];
-        return array_slice(array_values(array_unique(array_map(static fn ($x) => mb_strtolower($x), $w))), 0, 6);
-    }
-
-    /** Every word in at least one of these columns (AND of ORs), through Like's escaped clause. */
     private static function matchWords(object $b, string $q, array $cols): void
     {
-        foreach (self::words($q) as $word) {
+        foreach (SearchWords::stems($q) as $word) {
             $like = Like::contains($word);
             $b->where(function ($w) use ($like, $cols) {
                 foreach ($cols as $i => $c) $i === 0 ? $w->whereRaw(Like::clause($c), [$like]) : $w->orWhereRaw(Like::clause($c), [$like]);
@@ -363,24 +351,72 @@ final class Discover
     }
 
     /**
-     * Best match first: the name exactly, then a name that starts with the query, then one
-     * containing it, then a row matched on its other fields. Stable within each, so the
-     * tab's own order (most nominated, newest) still decides among equals.
+     * Best match first (SearchWords::score), stable within each grade, so the tab's own order
+     * (most nominated, newest) still decides among equals.
      *
      * @param list<array<string,string>> $rows
      * @return list<array<string,string>>
      */
     private static function ranked(array $rows, string $q): array
     {
-        $q = mb_strtolower(trim($q));
-        $score = static function (array $r) use ($q): int {
-            $n = mb_strtolower((string) ($r['name'] ?? ''));
-            return $n === $q ? 3 : (str_starts_with($n, $q) ? 2 : (str_contains($n, $q) ? 1 : 0));
-        };
         $i = 0;
-        $keyed = array_map(static function ($r) use (&$i, $score) { return [$score($r), $i++, $r]; }, $rows);
+        $keyed = array_map(static function ($r) use (&$i, $q) { return [SearchWords::score((string) ($r['name'] ?? ''), $q), $i++, $r]; }, $rows);
         usort($keyed, static fn ($a, $b) => [$b[0], $a[1]] <=> [$a[0], $b[1]]);
         return array_map(static fn ($k) => $k[2], $keyed);
+    }
+
+    /**
+     * A correction for a search that found nothing, made only from words this site holds —
+     * the names of everyone standing in a live award and every approved profile, the award,
+     * category, host and event titles — and only when the corrected search finds something
+     * (the controller checks). Null when there is nothing to correct.
+     */
+    public function suggest(string $q): ?string
+    {
+        return SearchWords::correct($q, $this->vocabulary());
+    }
+
+    /**
+     * The site's own words, folded, with how many rows use each. Ten minutes in cache: it is
+     * read only when a search finds nothing, and a name added a minute ago being uncorrectable
+     * for a few minutes costs nothing.
+     *
+     * @return array<string,int>
+     */
+    private function vocabulary(): array
+    {
+        return $this->cached('discover:vocab', 600, static function (): array {
+            $texts = [];
+            try {
+                $texts = array_merge($texts, DemoSeeder::notSandbox(
+                    DB::table('gates_nominees as n')
+                        ->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+                        ->join('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
+                        ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
+                        ->where('p.is_active', 1)->whereIn('n.status', ['approved', 'winner', 'runner_up'])->whereNull('n.merged_into'),
+                    'cy.programme_id')->limit(20000)->pluck('n.name')->all());
+                $texts = array_merge($texts, DB::table('gates_award_programmes')->where('is_active', 1)->pluck('title')->all());
+                $texts = array_merge($texts, DB::table('gates_award_categories as c')
+                    ->join('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
+                    ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
+                    ->where('p.is_active', 1)->pluck('c.title')->all());
+                if (SchemaHas::table('gates_profiles')) {
+                    foreach (DB::table('gates_profiles')->where('status', 'approved')->whereNull('merged_into')->limit(20000)
+                                 ->get(['display_name', 'category', 'location_city']) as $r) {
+                        $texts[] = (string) $r->display_name; $texts[] = (string) $r->category; $texts[] = (string) $r->location_city;
+                    }
+                }
+                foreach (SearchLanding::upcomingEvents(null, 60) as $e) { $texts[] = (string) $e['title']; $texts[] = (string) $e['location']; }
+            } catch (\Throwable) {}
+            $vocab = [];
+            foreach ($texts as $t) {
+                foreach (SearchWords::words((string) $t) as $w) {
+                    $w = trim($w, ".,'’()-");
+                    if (mb_strlen($w) >= 3 && !preg_match('/\d/', $w)) $vocab[$w] = ($vocab[$w] ?? 0) + 1;
+                }
+            }
+            return $vocab;
+        });
     }
 
     /** "Open for nominations" — or, under the Status facet, "Voting now" / "Decided". */

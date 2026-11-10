@@ -102,6 +102,12 @@
   </div>
 
   <div class="dv__panel" id="dvPanel" role="tabpanel" aria-labelledby="dvTab-{{ s.tab }}" data-dv-panel>
+    {# A search that found nothing as typed, shown corrected (DiscoverController): said in
+       words, with the original one tap away — a correction the visitor cannot see or undo
+       is the search deciding what they meant. #}
+    {% if corrected|default(null) %}
+      <p class="dv-fix">{{ 'Showing results for'|trans }} <b>{{ corrected.to }}</b>. <a href="{{ corrected.original }}">{{ 'Search instead for “%q%”'|trans({'%q%': corrected.from}) }}</a></p>
+    {% endif %}
     {% if not d %}
       <p class="ag-err" role="alert">{{ 'Too many searches — pause a moment, then try again.'|trans }}</p>
     {% else %}

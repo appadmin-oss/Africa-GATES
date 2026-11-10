@@ -607,6 +607,29 @@
   </div>
 </section>
 
+{# ══ SEARCHES THAT FOUND NOTHING ═════════════════════════════════════════════
+   What visitors looked for on Discover and did not find, after the typo correction had
+   its try (SearchMisses). Anonymous by construction: the words only, never who; an email
+   or a phone number is never stored. #}
+<section class="an-sec" id="report-search">
+  <div class="an-sec__h"><h2>Searches that found nothing</h2><span>last {{ days }} days</span></div>
+  <p class="an-sec__note">
+    Each is somebody who came looking and left with nothing. A name spelled another way is a
+    nominee or profile to check; a word the site does not use is a title or category to rename.
+  </p>
+  {% if search_misses %}
+    <div class="an-scroll"><table class="an-tbl">
+      <thead><tr><th>Searched for</th><th>Tab</th><th class="n">Times</th><th>Last</th></tr></thead>
+      <tbody>
+        {% for m in search_misses %}
+          <tr><td><a href="/discover?{{ {q: m.query, tab: m.tab == 'all' ? null : m.tab}|filter(v => v)|url_encode }}" target="_blank" rel="noopener">{{ m.query }}</a></td>
+              <td>{{ m.tab }}</td><td class="n">{{ m.hits|number_format }}</td><td>{{ m.last_at|date('j M, H:i') }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  {% else %}<p class="an-empty">Every search in this period found something.</p>{% endif %}
+</section>
+
 {# ══ COMMUNITY + SUPPORT + MAIL ═════════════════════════════════════════════ #}
 <section class="an-sec" id="report-delivery">
   <div class="an-sec__h"><h2>Community, support and delivery</h2><span>last {{ days }} days</span></div>
