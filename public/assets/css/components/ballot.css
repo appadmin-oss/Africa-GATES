@@ -212,7 +212,23 @@
   .vn-head__h1{ font-size:var(--ag-fs-44) }
   /* The ballot beside the page and in view while it is read. Its own scroll only if a long
      paid form outgrows the screen. */
-  .vn__rail{ display:block; position:sticky; top:24px; max-height:calc(100dvh - 120px); overflow:auto; overscroll-behavior:contain }
+  /* 200px, not 120: before the page scrolls the rail starts under the 105px header, and at
+     120 its foot ran under the floating Ask Gee button — which sat on the Vote button. */
+  .vn__rail{ display:block; position:sticky; top:24px; max-height:calc(100dvh - 200px - var(--ag-bottom-ui, 0px)); overflow:auto; overscroll-behavior:contain }
+  /* THE VOTE BUTTON IS ALWAYS IN VIEW. On a laptop the free form outgrows the rail and the
+     button was the part scrolled out of sight — the one control the card exists for, below
+     three fields, a link and a checkbox, with nothing on screen saying it was there. It now
+     sticks to the foot of the rail, on a band of the card's own white so the fields scroll
+     away under it rather than through it. */
+  .vn__rail .vb-free [data-step="form"] > .vb-btn--go,
+  .vn__rail .vb-free [data-step="otp"] > .vb-btn--go{
+    position:sticky; bottom:12px; z-index:1; box-shadow:0 0 0 12px var(--ag-surface);
+  }
+  /* `clip`, not `hidden`: hidden makes the card a scroll container, and a sticky child then
+     sticks to the card (which never scrolls) instead of the rail. Clip keeps the corners. */
+  .vn__rail .vb{ overflow:clip }
+  .vn__rail .vb__head{ padding:14px 20px }
+  .vn__rail .vb__body{ gap:10px; padding:16px 20px 20px }
   .vn__ballot--wide{ display:block }
   .vn__ballot--phone{ display:none }
   .vn-bar{ display:none }

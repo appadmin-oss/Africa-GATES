@@ -214,7 +214,12 @@
             data-e-confirm-net="{{ 'We couldn’t confirm the response. Your vote may already be counted. Try again to check.'|trans }}"
             data-e-ts="{{ 'The security check is still loading. Try again in a moment.'|trans }}">
         <div data-step="form">
-          <p class="vb__p">{{ 'One vote per category, confirmed by a code we email you.'|trans }}</p>
+          {# THE FORM IN THE ORDER IT IS USED (10 Nov 2026). Email comes before phone because
+             the code goes there — it is the field the whole vote turns on — and each field
+             says why it is asked: a phone number requested with no reason is the field people
+             abandon a form at, and the server requires it (stored with the vote for
+             accountability, ApiController). #}
+          <p class="vb__p">{{ 'One free vote per category. We email you a code to confirm it.'|trans }}</p>
           <div class="vb-field">
             <label class="vb-label" for="{{ ctx.pre }}vbName">{{ 'Full name'|trans }}</label>
             <input class="vb-input" id="{{ ctx.pre }}vbName" name="name" type="text" required autocomplete="name" placeholder="{{ 'Your full name'|trans }}" aria-describedby="{{ ctx.pre }}vbNameHint" value="{{ ctx.member ? ctx.member.name : '' }}">
@@ -223,12 +228,14 @@
             <p class="vb-hint" id="{{ ctx.pre }}vbNameHint">{{ 'First and last name. Never shown unless you ask.'|trans }}</p>
           </div>
           <div class="vb-field">
-            <label class="vb-label" for="{{ ctx.pre }}vbPhone">{{ 'Phone number'|trans }}</label>
-            <input class="vb-input" id="{{ ctx.pre }}vbPhone" name="phone" type="tel" required autocomplete="tel" inputmode="tel" placeholder="{{ 'e.g. +234 801 234 5678'|trans }}" value="{{ ctx.member ? ctx.member.phone|default('') : '' }}">
+            <label class="vb-label" for="{{ ctx.pre }}vbEmail">{{ 'Email'|trans }}</label>
+            <input class="vb-input" id="{{ ctx.pre }}vbEmail" name="email" type="email" required autocomplete="email" inputmode="email" placeholder="you@email.com" aria-describedby="{{ ctx.pre }}vbEmailHint" value="{{ ctx.member ? ctx.member.email : '' }}">
+            <p class="vb-hint" id="{{ ctx.pre }}vbEmailHint">{{ 'Your 6-digit code is sent here.'|trans }}</p>
           </div>
           <div class="vb-field">
-            <label class="vb-label" for="{{ ctx.pre }}vbEmail">{{ 'Email'|trans }}</label>
-            <input class="vb-input" id="{{ ctx.pre }}vbEmail" name="email" type="email" required autocomplete="email" inputmode="email" placeholder="you@email.com" value="{{ ctx.member ? ctx.member.email : '' }}">
+            <label class="vb-label" for="{{ ctx.pre }}vbPhone">{{ 'Phone number'|trans }}</label>
+            <input class="vb-input" id="{{ ctx.pre }}vbPhone" name="phone" type="tel" required autocomplete="tel" inputmode="tel" placeholder="{{ 'e.g. +234 801 234 5678'|trans }}" aria-describedby="{{ ctx.pre }}vbPhoneHint" value="{{ ctx.member ? ctx.member.phone|default('') : '' }}">
+            <p class="vb-hint" id="{{ ctx.pre }}vbPhoneHint">{{ 'Kept with your vote so each one can be checked. Never shown or shared.'|trans }}</p>
           </div>
           <details class="vb-msg">
             <summary class="vb-msg__s">{{ '+ Add a message for %first% (optional)'|trans({'%first%': first}) }}</summary>
