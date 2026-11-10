@@ -43,6 +43,7 @@
 <style nonce="{{ csp_nonce }}">{{ ag_accents('console')|raw }}</style>
 <link rel="stylesheet" href="{{ asset('/assets/css/console/tokens.css') }}">
 <link rel="stylesheet" href="{{ asset('/assets/css/console/shell7.css') }}">
+<link rel="stylesheet" href="{{ asset('/assets/css/console/role-switch.css') }}">
 {% include 'partials/csrf-fresh.twig' %}
 {# Every page here was a full load, and so every click read as a reload. Prefetch on intent and
    a cross-fade, as on the public site (partials/instant-nav.twig, shell7.css). #}
@@ -54,23 +55,12 @@
 
   <aside class="sh7-rail" aria-label="{{ sh.scope == 'root' ? sh.railLabel|default('My volunteering') : (sh.instance.name|default('Profile and access')) }}">
     {% if sh.scope == 'root' %}
-      {% if acct %}
-        {# The product switcher (after ElevenLabs): the top of the rail names the part of the
-           account you are in and opens the others. The foot stays personal. #}
-        <details class="sh7-prod">
-          <summary class="sh7-brand sh7-prod__btn" aria-label="{{ acctLabel }}. Switch to another part of your account">
-            <span class="sh7-brand__tile" aria-hidden="true">AG</span>
-            <span class="sh7-brand__words"><span class="sh7-brand__name">{{ acctLabel }}</span><span class="sh7-brand__sub">{{ sh.brand }}</span></span>
-            <span class="sh7-prod__chev" aria-hidden="true">{{ S.icon('chev') }}</span>
-          </summary>
-          <div class="sh7-prod__menu" role="menu" aria-label="Your account">{{ S.acctSwitch(acct, acctHere) }}</div>
-        </details>
-      {% else %}
-        <div class="sh7-brand">
-          <span class="sh7-brand__tile" aria-hidden="true">AG</span>
-          <span class="sh7-brand__words"><span class="sh7-brand__name">Africa GATES</span><span class="sh7-brand__sub">{{ sh.brand }}</span></span>
-        </div>
-      {% endif %}
+      {# The brand. The role switch is at the FOOT of the rail since 4 Nov 2026
+         (partials/role-switch.twig), as in the staff console. #}
+      <div class="sh7-brand">
+        <span class="sh7-brand__tile" aria-hidden="true">AG</span>
+        <span class="sh7-brand__words"><span class="sh7-brand__name">{{ acct ? acctLabel : 'Africa GATES' }}</span><span class="sh7-brand__sub">{{ sh.brand }}</span></span>
+      </div>
     {% else %}
       <a class="sh7-back" href="{{ sh.back.href }}" title="{{ sh.back.label }}">{{ S.icon('back') }}<span class="sh7-label">{{ sh.back.label }}</span></a>
       {% if sh.instance is defined and sh.instance %}
@@ -113,6 +103,7 @@
       {% endfor %}
     </nav>
     <div class="sh7-foot">
+      {% include 'partials/role-switch.twig' with {items: acct|default([]), here: acctHere, csrf_token: csrf_token} only %}
       <a class="sh7-item" href="{{ sh.foot.href|default('/account') }}" title="{{ sh.foot.label|default('Your account') }}">{{ S.icon('user') }}<span class="sh7-label">{{ sh.me.name }}</span></a>
     </div>
   </aside>
@@ -207,7 +198,7 @@
         {% for g in sh.nav %}{% for i in g.items %}
           <a class="sh7-item" href="{{ i.href }}"{% if i.current %} aria-current="page"{% endif %}>{{ S.icon(i.icon) }}<span class="sh7-label">{{ i.label }}</span>{% if i.count %}<span class="sh7-badge sh7-badge--{{ i.count.tone }}" aria-hidden="true">{{ i.count.n }}</span><span class="sh7-sr">, {{ i.count.n }} waiting</span>{% endif %}</a>
         {% endfor %}{% endfor %}
-        {% if acct %}<p class="sh7-bellpanel__h">Switch to</p>{{ S.acctSwitch(acct, acctHere) }}{% endif %}
+        {% if acct and acct|length > 1 %}<p class="sh7-bellpanel__h">Switch role</p>{% include 'partials/role-switch.twig' with {items: acct, here: acctHere, csrf_token: csrf_token, inline: true} only %}{% endif %}
       </div>
     </details>
   </nav>

@@ -1,0 +1,50 @@
+{#
+  THE ROLE SWITCH (owner, 4 Nov 2026, from a reference drawn for it): the FOOT of the rail
+  names the role you are working as — a square, its name, and a "Switch" button — and opens
+  the others upward. One row each: the square, the role's name, one line of what it is; the
+  current one sits on a tint with a tick. Switching starts that role's own session, so each
+  other row is a POST (Account\Roles, /account/switch), never a link a prefetch could follow.
+
+  One partial for every console that carries it (the staff console and the volunteer and
+  lead workspace), so the two cannot drift into two designs of one control.
+
+  Takes: items — account_switch() (Account\Roles::menu); here — the kind this surface is;
+  csrf_token; inline — true for the rows alone, in a sheet that is already open (the phone's
+  "More pages"), where a menu opening upward from a bar would be a menu inside a menu.
+  Draws nothing when the account holds only itself.
+#}
+{% set _cur = items|filter(m => m.kind == here)|first %}
+{% if items|length > 1 %}
+{% if not inline|default(false) %}
+<details class="rs">
+  <summary class="rs__bar" aria-label="{{ _cur ? _cur.label : 'Africa GATES' }}. Switch role">
+    <span class="rs__sw rs__sw--on" aria-hidden="true"></span>
+    <span class="rs__cur">{{ _cur ? _cur.label : 'Africa GATES' }}</span>
+    <span class="rs__btn" aria-hidden="true">Switch</span>
+  </summary>
+  <div class="rs__menu" role="menu" aria-label="Switch role">
+{% else %}
+  <div class="rs__list" role="menu" aria-label="Switch role">
+{% endif %}
+    {% for m in items %}
+      {% if m.kind == here %}
+        <span class="rs__i is-on" role="menuitem" aria-current="true">
+          <span class="rs__sw rs__sw--on" aria-hidden="true"></span>
+          <span class="rs__t"><span class="rs__n">{{ m.label }}</span><span class="rs__s">{{ m.sub }}</span></span>
+          <span class="rs__tick" aria-hidden="true">✓</span>
+        </span>
+      {% elseif m.live %}
+        <form method="post" action="/account/switch" class="rs__f" data-cn-safe>
+          <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="kind" value="{{ m.kind }}">
+          <button type="submit" class="rs__i" role="menuitem">
+            <span class="rs__sw" aria-hidden="true"></span>
+            <span class="rs__t"><span class="rs__n">{{ m.label }}</span><span class="rs__s">{{ m.sub }}</span></span>
+          </button>
+        </form>
+      {% endif %}
+    {% endfor %}
+  </div>
+{% if not inline|default(false) %}
+</details>
+{% endif %}
+{% endif %}

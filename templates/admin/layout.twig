@@ -59,6 +59,7 @@ window.cnPage = (function () {
 <link rel="stylesheet" href="{{ asset('/assets/css/vendor/tippy.css') }}">
 <link rel="stylesheet" href="{{ asset('/assets/css/console/tokens.css') }}">
 <link rel="stylesheet" href="{{ asset('/assets/css/console/console.css') }}">
+<link rel="stylesheet" href="{{ asset('/assets/css/console/role-switch.css') }}">
 <link rel="stylesheet" href="{{ asset('/assets/css/console/assistant.css') }}">
 {% block head_styles %}{% endblock %}
   {% include 'partials/csrf-fresh.twig' %}
@@ -77,48 +78,14 @@ window.cnPage = (function () {
      tree opened as a sheet from the tab bar's More. One tree, three widths, so the phone
      can never offer a page the desktop does not. #}
   <aside class="cn-side" id="cnSide" aria-label="Console">
-    {# THE PRODUCT SWITCHER (owner, 29 Oct 2026, after ElevenLabs): one account, and the top of
-       the rail says which part of it you are in — here, the staff console — and opens the
-       others. One row each: icon, name, one line of what it is, a tick on the current one.
-       Switching starts that part's session, so each row is a POST (Account\Roles). The
-       account menu at the foot stays personal. Absent when no member account is signed in
-       here, or it holds nothing but itself (account_switch()). #}
+    {# The brand. The role switch (Account\Roles) is at the FOOT of the rail since 4 Nov
+       2026 — partials/role-switch.twig — beside the personal account menu. #}
     {% set acct = account_switch() %}
-    {% set prodIcon = {member: 'ic-profiles', volunteer: 'ic-heart', admin: 'ic-dashboard', judge: 'ic-judges', org: 'ic-partner-orgs'} %}
     <div class="cn-side__top">
-      {% if acct %}
-        <details class="cn-prod">
-          <summary class="cn-side__brand cn-prod__btn" aria-label="Staff console. Switch to another part of your account">
-            <span class="cn-side__mark" aria-hidden="true">AG</span>
-            <span class="cn-side__who"><span class="cn-side__name">Staff console</span><span class="cn-side__role">{{ shell.role_label }}</span></span>
-            <svg class="cn-prod__chev" aria-hidden="true" focusable="false"><use href="#ic-down"/></svg>
-          </summary>
-          <div class="cn-menu cn-prod__menu" role="menu" aria-label="Your account">
-            {% for m in acct %}
-              {% if m.kind == 'admin' %}
-                <span class="cn-prod__i is-on" role="menuitem" aria-current="true">
-                  <span class="cn-prod__ic" aria-hidden="true"><svg focusable="false"><use href="#{{ prodIcon[m.kind] }}"/></svg></span>
-                  <span class="cn-prod__t"><span class="cn-prod__n">{{ m.label }}</span><span class="cn-prod__s">{{ m.sub }}</span></span>
-                  <svg class="cn-prod__tick" aria-hidden="true" focusable="false"><use href="#ic-check"/></svg>
-                </span>
-              {% elseif m.live %}
-                <form method="post" action="/account/switch" class="cn-menu__form" data-cn-safe>
-                  <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="kind" value="{{ m.kind }}">
-                  <button type="submit" class="cn-prod__i" role="menuitem">
-                    <span class="cn-prod__ic" aria-hidden="true"><svg focusable="false"><use href="#{{ prodIcon[m.kind] }}"/></svg></span>
-                    <span class="cn-prod__t"><span class="cn-prod__n">{{ m.label }}</span><span class="cn-prod__s">{{ m.sub }}</span></span>
-                  </button>
-                </form>
-              {% endif %}
-            {% endfor %}
-          </div>
-        </details>
-      {% else %}
-        <div class="cn-side__brand" title="Africa GATES · {{ shell.role_label }}">
-          <span class="cn-side__mark" aria-hidden="true">AG</span>
-          <span class="cn-side__who"><span class="cn-side__name">Africa GATES</span><span class="cn-side__role">{{ shell.role_label }}</span></span>
-        </div>
-      {% endif %}
+      <div class="cn-side__brand" title="Africa GATES · {{ shell.role_label }}">
+        <span class="cn-side__mark" aria-hidden="true">AG</span>
+        <span class="cn-side__who"><span class="cn-side__name">Africa GATES</span><span class="cn-side__role">{{ shell.role_label }}</span></span>
+      </div>
       <button type="button" class="cn-side__close" data-ag-do="side-close" aria-label="Close menu">✕</button>
     </div>
 
@@ -206,6 +173,7 @@ window.cnPage = (function () {
           <kbd class="cn-side__kbd" data-cn-kbd-j>⌘J</kbd>
         </button>
       {% endif %}
+      {% include 'partials/role-switch.twig' with {items: acct|default([]), here: 'admin', csrf_token: csrf_token} only %}
       <div class="cn-acct">
         <button type="button" class="cn-nav__i cn-side__me" data-ag-do="acct-toggle" aria-haspopup="menu"
                 aria-expanded="false" aria-controls="cnAcct" title="{{ shell.name }}">
