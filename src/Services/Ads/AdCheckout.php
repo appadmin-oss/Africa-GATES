@@ -215,8 +215,11 @@ final class AdCheckout
     {
         if (!AdCampaigns::ready() || !SchemaHas::column('gates_ad_campaigns', 'refunded_vat_kobo')) return 0;
         try {
-            $rows = DB::table('gates_ad_campaigns')->where('trial', 0)->whereNotNull('paid_at')->whereNull('refunded_at')
-                ->orderBy('id')->limit(200)->get()->all();
+            // Self-serve only: a campaign sold by staff was paid outside the site, so its
+            // unspent money goes back by a person, never through the gateway.
+            $q = DB::table('gates_ad_campaigns')->where('trial', 0)->whereNotNull('paid_at')->whereNull('refunded_at');
+            if (SchemaHas::column('gates_ad_campaigns', 'source')) $q->where('source', 'self');
+            $rows = $q->orderBy('id')->limit(200)->get()->all();
         } catch (\Throwable) {
             return 0;
         }

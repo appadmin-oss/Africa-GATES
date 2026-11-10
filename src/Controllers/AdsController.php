@@ -54,6 +54,12 @@ final class AdsController
         }
         return $this->view->render($res, 'pages/advertise.twig', [
             'market' => \AfricaGates\Services\Ads\AdMarket::card(), 'plan' => $plan,
+            'reach' => \AfricaGates\Services\Ads\AdMarket::reach(),
+            // The FAQ's figures, read from the rules that apply them, never typed.
+            'facts' => ['vat_pct' => \AfricaGates\Services\Ads\AdCheckout::vatBps() / 100,
+                        'min_budget' => \AfricaGates\Services\Ads\AdCheckout::MIN_BUDGET_NAIRA,
+                        'max_days' => AdRules::MAX_DAYS, 'freq' => AdRules::FREQUENCY_CAP,
+                        'standards' => AdRules::STANDARDS],
             'goals' => \AfricaGates\Services\Ads\AdPlanner::GOALS,
             'plan_in' => ['goal' => (string) ($q['goal'] ?? 'visits'), 'n' => (int) ($q['n'] ?? 0) ?: '', 'days' => (int) ($q['days'] ?? 14) ?: 14],
             'max_days' => AdRules::MAX_DAYS,

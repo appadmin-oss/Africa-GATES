@@ -169,6 +169,8 @@ final class AdminNav
                  ['page' => 'shop-codes',  'label' => 'Shop discount codes', 'href' => '/admin/shop/codes'],
                  ['page' => 'shipping',    'label' => 'Delivery charges',    'href' => '/admin/shop/shipping'],
              ]],
+            ['page' => 'ads', 'label' => 'Ads', 'href' => '/admin/ads', 'icon' => 'mega',
+             'sub' => 'Every campaign running, and ads posted by us: sold directly or our own.'],
         ]],
         ['key' => 'content', 'label' => 'Content', 'tip' => 'Everything the public reads.', 'items' => [
             ['page' => 'posts', 'label' => 'Posts', 'href' => '/admin/posts', 'icon' => 'doc', 'sub' => 'The blog.',

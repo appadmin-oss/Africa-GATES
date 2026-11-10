@@ -113,6 +113,20 @@
 .am-check--agree input{ margin-top:2px; flex:none }
 .am-submit{ display:flex; flex-direction:column; align-items:flex-start; gap:10px }
 .am-rates{ width:100%; border-collapse:collapse; font-size:var(--ag-fs-15) }
+/* The site in numbers: measured figures only (AdMarket::reach), each a number and a line. */
+.am-figs{ display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px }
+.am-fig{ display:flex; flex-direction:column; gap:4px; padding:16px; border:1px solid var(--ag-line); border-radius:var(--ag-r-16); background:var(--ag-surface) }
+.am-fig b{ font-size:var(--ag-fs-17); font-weight:700; color:var(--ag-ink) }
+.am-fig span{ font-size:var(--ag-fs-14); line-height:1.4; color:var(--ag-ink-2) }
+/* The questions: plain <details>, so they open with no script. */
+.am-faq{ display:flex; flex-direction:column }
+.am-faq details{ border-top:1px solid var(--ag-line-3) }
+.am-faq summary{ min-height:48px; display:flex; align-items:center; justify-content:space-between; gap:12px; font-size:var(--ag-fs-15); font-weight:600; cursor:pointer; list-style:none }
+.am-faq summary::-webkit-details-marker{ display:none }
+.am-faq summary::after{ content:"+"; flex:none; font-size:var(--ag-fs-17); font-weight:400; color:var(--ag-soft) }
+.am-faq details[open] > summary::after{ content:"−" }
+.am-faq summary:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
+.am-faq p{ margin:0 0 14px; font-size:var(--ag-fs-15); line-height:1.55; color:var(--ag-ink-2) }
 /* Places, ordered by what people do with an ad there (AdMarket::card). The tier is a word in
    an outline, not a colour: the word is the signal, so nothing here spends the page's green. */
 .am-places{ display:flex; flex-direction:column; margin:0; padding:0; list-style:none }

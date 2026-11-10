@@ -4556,6 +4556,10 @@ return function(App $app) {
         // Its own section in Permissions::MATRIX (superadmin + admin), deliberately
         // narrower than /admin/data; the controller re-checks rather than trusting the nav.
         $a->get('/finance',                      AdminFinanceController::class.':index');
+        // Ads: every campaign, and posting one from the console (Services\Ads\AdStaff).
+        $a->get('/ads',                          \AfricaGates\Admin\Controllers\AdsController::class.':index');
+        $a->post('/ads',                         \AfricaGates\Admin\Controllers\AdsController::class.':store');
+        $a->post('/ads/{id:[0-9]+}/{action:pause|resume|end}', \AfricaGates\Admin\Controllers\AdsController::class.':status');
 
         // ── REFERRAL PAYOUTS ──────────────────────────────────────────────
         //

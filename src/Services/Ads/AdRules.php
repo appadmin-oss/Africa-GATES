@@ -41,11 +41,25 @@ final class AdRules
      * are priced on what each actually delivers (AdMarket).
      */
     public const PLACEMENTS = [
+        'home'       => 'Homepage',
         'vote_hub'   => 'Vote page',
         'discover'   => 'Discover',
         'events'     => 'Events list',
         'event_page' => 'Event pages',
     ];
+
+    /**
+     * Places only a PAYING campaign (or our own, posted by staff) may take — never a free
+     * trial. The homepage is the first impression for nominees' families and sponsors, so it
+     * carries ads somebody has paid for and a person has approved (owner, 4 Nov 2026).
+     */
+    public const PAID_ONLY = ['home'];
+
+    /**
+     * Who made a campaign. `self` is the advertiser through the Ads Manager; `direct` is sold
+     * by staff and paid outside the site; `house` is our own (AdStaff).
+     */
+    public const SOURCES = ['self' => 'Self-serve', 'direct' => 'Sold by us', 'house' => 'Our own'];
 
     /** Meta's three simplest objectives. The objective decides which result the manager leads with. */
     public const OBJECTIVES = [

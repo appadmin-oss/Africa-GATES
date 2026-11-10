@@ -56,6 +56,10 @@ final class HomeController
                 . NationsLive::phrase() . '.',
             'gates_page'       => 'home',
             'tab'              => 'home',
+            // One ad, paid or our own (AdRules::PAID_ONLY): the homepage band (owner, 4 Nov
+            // 2026). Never a trial, never our "advertise here" notice, never a nominee's while
+            // their award is open (AdDelivery).
+            'ad'               => \AfricaGates\Services\Ads\AdDelivery::forRequest('home', $req),
             'hero_slides'      => HomeFront::heroSlides($front['decided']),
             'honour'           => HomeFront::honourTiles(),
             'challenge'        => $front['challenge'],

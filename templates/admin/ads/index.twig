@@ -1,0 +1,129 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  /admin/ads — every campaign running on the site, and posting one from the console
+  (Services\Ads\AdStaff; owner, 4 Nov 2026). Two kinds can be posted here and the reader is
+  told which: SOLD BY US is "Sponsored" by the business, money recorded under advertising;
+  OUR OWN is "From Africa GATES" and only ever fills space nobody bought. Both are approved
+  by the person posting them. Plain forms, so it works with no script.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .ads-lede{ padding:18px 20px; margin-bottom:16px }
+  .ads-lede p{ margin:6px 0 0; font-size:var(--cn-fs-13-5); line-height:1.6; color:var(--cn-ink-2); max-width:80ch }
+  .ads-post{ padding:18px 20px; margin-bottom:16px }
+  .ads-post h2, .ads-list h2{ margin:0 0 12px; font-size:var(--cn-fs-15); font-weight:600 }
+  .ads-kind{ border:0; margin:0; padding:0; display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:10px }
+  .ads-kind label{ display:flex; gap:10px; align-items:flex-start; padding:12px; border:1px solid var(--cn-line); border-radius:var(--cn-r-10); cursor:pointer }
+  .ads-kind label:has(input:checked){ border:2px solid var(--cn-ink); padding:11px }
+  .ads-kind small, .ads-hint{ display:block; font-size:var(--cn-fs-12-5); color:var(--cn-soft); line-height:1.45 }
+  .ads-places{ display:flex; flex-wrap:wrap; gap:8px 16px }
+  .ads-places label{ display:flex; gap:8px; align-items:center; font-size:var(--cn-fs-13-5) }
+  .ads-err{ color:var(--cn-red-ink); font-size:var(--cn-fs-12-5) }
+  .ads-list{ padding:18px 20px }
+  .ads-acts{ display:flex; gap:6px; flex-wrap:wrap }
+  .ads-acts form{ margin:0 }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="cn-card ads-lede" aria-labelledby="adsH">
+  <h1 class="cn-h1" id="adsH">Ads</h1>
+  <p>Everything running on the site, and ads posted by us. <b>Sold by us</b> is for a business that bought space
+     by talking to us: it is labelled Sponsored with their name and its money is recorded under advertising when you
+     post it. <b>Our own</b> promotes Africa GATES: it says “From Africa GATES” and only fills space no paying campaign
+     wants. Ads from the Ads Manager are checked in <a href="/admin/moderation">Moderation</a>; prices are in
+     <a href="/admin/settings">Settings, Ad prices</a>.</p>
+</section>
+
+{% if ready %}
+<section class="cn-card ads-post" id="post" aria-labelledby="adsPostH">
+  <h2 id="adsPostH">Post an ad</h2>
+  <form class="ad-form" method="post" action="/admin/ads" enctype="multipart/form-data">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <fieldset class="ads-kind">
+      <legend class="sr-only">What kind of ad</legend>
+      <label><input type="radio" name="source" value="direct" required{% if old.source|default('direct') == 'direct' %} checked{% endif %}>
+        <span><b>Sold by us</b><small>A business paid us directly. Labelled Sponsored. Its budget and VAT are recorded as advertising income.</small></span></label>
+      <label><input type="radio" name="source" value="house"{% if old.source|default('') == 'house' %} checked{% endif %}>
+        <span><b>Our own</b><small>An Africa GATES promotion. Labelled “From Africa GATES”, shown only where nobody has bought the space.</small></span></label>
+    </fieldset>
+    {% if errors.source %}<p class="ads-err">{{ errors.source }}</p>{% endif %}
+    <div class="row">
+      <div><label for="ads-adv">Business name <small>(sold by us)</small></label><input id="ads-adv" name="advertiser" maxlength="60" value="{{ old.advertiser|default('') }}">{% if errors.advertiser %}<p class="ads-err">{{ errors.advertiser }}</p>{% endif %}</div>
+      <div><label for="ads-name">Campaign name <small>(only staff see it)</small></label><input id="ads-name" name="name" maxlength="80" value="{{ old.name|default('') }}"></div>
+    </div>
+    <div>
+      <span class="ads-hint">Where it runs</span>
+      <div class="ads-places">
+        {% for k, label in placements %}
+          <label><input type="checkbox" name="placements[]" value="{{ k }}"{% if k in old.placements|default([]) %} checked{% endif %}> {{ label }}{% if market[k].price|default(null) %} <small class="ads-hint">₦{{ market[k].price|number_format }} per 1,000 today</small>{% endif %}</label>
+        {% endfor %}
+      </div>
+      {% if errors.placements %}<p class="ads-err">{{ errors.placements }}</p>{% endif %}
+    </div>
+    <div class="row">
+      <div><label for="ads-hl">Headline <small>(up to {{ limits.headline }})</small></label><input id="ads-hl" name="headline" maxlength="{{ limits.headline }}" required value="{{ old.headline|default('') }}">{% if errors.headline %}<p class="ads-err">{{ errors.headline }}</p>{% endif %}</div>
+      <div><label for="ads-url">Link <small>(https://… or a path on this site)</small></label><input id="ads-url" name="url" required value="{{ old.url|default('') }}">{% if errors.url %}<p class="ads-err">{{ errors.url }}</p>{% endif %}</div>
+    </div>
+    <div><label for="ads-body">Text <small>(up to {{ limits.body }})</small></label><textarea id="ads-body" name="body" maxlength="{{ limits.body }}" rows="2" required>{{ old.body|default('') }}</textarea>{% if errors.body %}<p class="ads-err">{{ errors.body }}</p>{% endif %}</div>
+    <div class="row">
+      <div><label for="ads-cta">Button</label><select id="ads-cta" name="cta">{% for k, l in ctas %}<option value="{{ k }}"{% if old.cta|default('learn_more') == k %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+      <div><label for="ads-offer">Offer <small>(optional, open to everyone)</small></label><input id="ads-offer" name="offer" maxlength="40" value="{{ old.offer|default('') }}">{% if errors.offer %}<p class="ads-err">{{ errors.offer }}</p>{% endif %}</div>
+    </div>
+    <div class="row">
+      <div><label for="ads-img">Image <small>(square)</small></label><input id="ads-img" name="image" type="file" accept="image/jpeg,image/png,image/webp" required>{% if errors.image %}<p class="ads-err">{{ errors.image }}</p>{% endif %}</div>
+      <div><label for="ads-logo">Logo <small>(optional)</small></label><input id="ads-logo" name="logo" type="file" accept="image/jpeg,image/png,image/webp"></div>
+    </div>
+    <div class="row">
+      <div><label for="ads-start">Starts <small>(blank for today)</small></label><input id="ads-start" name="starts_on" type="date" value="{{ old.starts_on|default('') }}">{% if errors.starts_on %}<p class="ads-err">{{ errors.starts_on }}</p>{% endif %}</div>
+      <div><label for="ads-days">Days <small>(up to {{ limits.days }})</small></label><input id="ads-days" name="days" type="number" min="1" max="{{ limits.days }}" required value="{{ old.days|default(14) }}">{% if errors.days %}<p class="ads-err">{{ errors.days }}</p>{% endif %}</div>
+    </div>
+    <div class="row">
+      <div><label for="ads-budget">Budget paid, ₦ <small>(sold by us; VAT is added on the record)</small></label><input id="ads-budget" name="budget" type="number" min="0" step="500" value="{{ old.budget|default('') }}">{% if errors.budget %}<p class="ads-err">{{ errors.budget }}</p>{% endif %}</div>
+      <div><label for="ads-cap">Views at most <small>(our own; blank for no limit)</small></label><input id="ads-cap" name="view_cap" type="number" min="0" step="100" value="{{ old.view_cap|default('') }}"></div>
+    </div>
+    <p class="ads-hint">It goes live on its start date, approved by you. The same rules apply as to any ad: never about an award, a nominee or a vote, and never linking to a ballot.</p>
+    <div><button type="submit" class="cn-btn cn-btn--primary">Post the ad</button></div>
+  </form>
+</section>
+{% else %}
+<section class="cn-card ads-post"><p>Posting ads needs the latest migrations. Run them from Settings, then come back.</p></section>
+{% endif %}
+
+<section class="cn-card ads-list" aria-labelledby="adsListH">
+  <h2 id="adsListH">Every campaign</h2>
+  {% if campaigns %}
+  <table class="cn-table">
+    <thead><tr><th scope="col">Campaign</th><th scope="col">Kind</th><th scope="col">State</th><th scope="col">Views</th><th scope="col">Clicks</th><th scope="col">Spent</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+    <tbody>
+    {% for c in campaigns %}
+      <tr>
+        <td><span class="cn-table__main">{{ c.name }}</span><span class="ads-hint">{{ c.advertiser }} · {% for p in c.placements %}{{ placements[p]|default(p) }}{% if not loop.last %}, {% endif %}{% endfor %}</span></td>
+        <td>{{ c.trial ? 'Free trial' : c.source_label }}</td>
+        <td>{{ c.delivery_label }}</td>
+        <td>{{ c.views|number_format }}</td>
+        <td>{{ c.clicks|number_format }}{% if c.ctr is not null %} <span class="ads-hint">{{ c.ctr }}%</span>{% endif %}</td>
+        <td>{{ c.budget_label ? c.spent_label ~ ' of ' ~ c.budget_label : '—' }}</td>
+        <td>
+          {% if c.staff and c.delivery not in ['completed', 'cancelled'] %}
+          <div class="ads-acts">
+            {% if c.status == 'paused' %}
+              <form method="post" action="/admin/ads/{{ c.id }}/resume"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="cn-btn cn-btn--sm" type="submit">Resume</button></form>
+            {% else %}
+              <form method="post" action="/admin/ads/{{ c.id }}/pause"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="cn-btn cn-btn--sm" type="submit">Pause</button></form>
+            {% endif %}
+            <form method="post" action="/admin/ads/{{ c.id }}/end" data-confirm="End this campaign? It stops showing at once."><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="cn-btn cn-btn--sm cn-btn--danger" type="submit">End</button></form>
+          </div>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <p class="ads-hint">No campaigns yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

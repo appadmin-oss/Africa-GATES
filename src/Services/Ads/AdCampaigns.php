@@ -69,6 +69,9 @@ final class AdCampaigns
 
         $v = self::validate($in);
         $errors = $v['errors'];
+        // A trial never runs where only paying campaigns may (AdRules::PAID_ONLY).
+        $v['placements'] = array_values(array_diff($v['placements'], AdRules::PAID_ONLY));
+        if ($v['placements'] === []) $errors['placements'] ??= 'The free trial runs on the other places. Choose at least one.';
         if ($imagePath === null || $imagePath === '') $errors['image'] ??= 'Add a square image.';
         // Meta and Google both make an advertiser accept the standards before an ad is sent;
         // so does this. The confirmation is stored, not just ticked.
@@ -489,7 +492,10 @@ final class AdCampaigns
                     ->join('gates_ad_campaigns as c', 'c.id', '=', 's.campaign_id')
                     ->where('a.id', $fromAdId)->select('c.user_id', 'c.advertiser')->first();
                 if (!$owner) return ['advertiser' => null, 'ads' => []];
-                $q->where('c.user_id', (int) $owner->user_id);
+                // Staff-posted campaigns have no account behind them (AdStaff), so they are
+                // one advertiser by NAME; everybody else by account.
+                (int) $owner->user_id > 0 ? $q->where('c.user_id', (int) $owner->user_id)
+                                          : $q->where('c.user_id', 0)->where('c.advertiser', (string) $owner->advertiser);
                 $name = (string) $owner->advertiser;
             }
             $rows = $q->get()->all();

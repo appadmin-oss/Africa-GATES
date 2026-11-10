@@ -79,6 +79,7 @@ final class AdMarket
      * /advertise and in the builder; the label is AdRules::PLACEMENTS.
      */
     public const POSITIONS = [
+        'home'       => ['where' => 'On the homepage, after the stories and the giving', 'who' => 'Everyone who comes to Africa GATES'],
         'event_page' => ['where' => 'On an event’s own page, under the tickets', 'who' => 'People deciding whether to go'],
         'events'     => ['where' => 'In the list of events, after what is on', 'who' => 'People looking for something to attend'],
         'discover'   => ['where' => 'Between awards and results, where people look for things', 'who' => 'People exploring the site'],
@@ -335,7 +336,7 @@ final class AdMarket
                 'quality' => (float) $quality, 'demand' => (float) ($q['demand'] ?? 1.0), 'sell' => $q['sell'] ?? self::sellThrough($p, $m),
                 'measured' => $measured, 'ctr_pct' => $measured ? round(100 * $ctr, 2) : null,
                 'seen_pct' => $m['slots'] > 0 && $m['views'] > 0 ? (int) round(100 * min(1, $m['views'] / $m['slots'])) : null,
-                'daily' => $daily, 'tier' => $tier, 'tier_label' => self::TIERS[$tier][0], 'tier_note' => self::TIERS[$tier][1],
+                'daily' => $daily, 'tier' => $tier, 'paid_only' => in_array($p, AdRules::PAID_ONLY, true), 'tier_label' => self::TIERS[$tier][0], 'tier_note' => self::TIERS[$tier][1],
                 // What one visit costs at today's price and the click rate credited: the
                 // number an advertiser who wants visits actually compares.
                 'per_visit_kobo' => isset($q['cpm']) && $ctr > 0 ? (int) ceil($q['cpm'] * 100 / 1000 / $ctr) : null,
@@ -343,6 +344,25 @@ final class AdMarket
         }
         usort($out, static fn ($a, $b) => [$b['price'] !== null, $b['quality']] <=> [$a['price'] !== null, $a['quality']]);
         return $out;
+    }
+
+    /**
+     * The site as an advertiser sizes it up: seen views a day across every place, and how
+     * often people tap an ad here. Measured or null — /advertise prints a figure only when
+     * there is one, because an invented audience is the thing an advertiser can check first.
+     *
+     * @return array{daily:?int, ctr_pct:?float, places:int}
+     */
+    public static function reach(): array
+    {
+        $daily = null;
+        foreach (array_keys(AdRules::PLACEMENTS) as $p) {
+            $d = self::supplyDaily($p);
+            if ($d !== null) $daily = ($daily ?? 0) + $d;
+        }
+        $all = self::measure(null);
+        return ['daily' => $daily, 'places' => count(AdRules::PLACEMENTS),
+                'ctr_pct' => $all['views'] >= self::MIN_VIEWS && $all['ctr'] !== null ? round(100 * $all['ctr'], 2) : null];
     }
 
     // ── the business side ───────────────────────────────────────────────────

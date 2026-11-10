@@ -300,7 +300,8 @@ final class AdsTest extends TestCase
     public function test_only_the_four_approved_pages_may_draw_an_ad(): void
     {
         $root = dirname(__DIR__, 2) . '/templates';
-        $allowed = ['pages/discover.twig', 'pages/vote.twig', 'pages/events.twig', 'pages/events/detail.twig'];
+        // The homepage joined on 4 Nov 2026, paid campaigns and our own only (AdRules::PAID_ONLY).
+        $allowed = ['pages/discover.twig', 'pages/vote.twig', 'pages/events.twig', 'pages/events/detail.twig', 'pages/home.twig'];
         $found = [];
         $it = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($root));
         foreach ($it as $f) {
