@@ -288,7 +288,32 @@
   <div class="vn__main">
     <div class="vn-top">
     {% set _portrait = n.photo_path|default('') ?: profile.avatar_path|default('') %}
-    {% if _portrait %}
+    {% set _photos = photos|default([]) %}
+    {% if _photos|length > 1 %}
+    {# EVERY PHOTOGRAPH, NOT JUST THE FIRST (10 Nov 2026). A nominee holds up to six of their
+       own and staff may add more; the page drew `photo_path` alone, so only one was ever
+       visible. One swipeable set in the portrait's own slot — scroll-snap, so it works with
+       no script — with a count and a dot per photograph (nominee-photos.js moves to a dot
+       and keeps them current). The portrait is first, as before. #}
+    <div class="vn-photo vn-photo--many" data-vn-photos>
+      <ul class="vn-photo__track" data-vn-track aria-label="{{ 'Photographs of %n%'|trans({'%n%': n.name}) }}" tabindex="0">
+        {% for ph in _photos %}
+        <li class="vn-photo__slide" id="vn-ph-{{ loop.index }}">
+          {% include 'partials/photo.twig' with {kind: 'person', src: ph, name: n.name, id: n.profile_id|default(n.id), size: 160,
+               alt: loop.first ? 'Portrait of %n%'|trans({'%n%': n.name}) : 'Photograph %i% of %c% of %n%'|trans({'%i%': loop.index, '%c%': _photos|length, '%n%': n.name}),
+               eager: loop.first} only %}
+        </li>
+        {% endfor %}
+      </ul>
+      <span class="vn-photo__n" aria-hidden="true"><span data-vn-at>1</span> / {{ _photos|length }}</span>
+      <div class="vn-photo__dots">
+        {% for ph in _photos %}
+        <a class="vn-photo__dot" href="#vn-ph-{{ loop.index }}" data-vn-dot="{{ loop.index0 }}"{% if loop.first %} aria-current="true"{% endif %}
+           aria-label="{{ 'Photograph %i% of %c%'|trans({'%i%': loop.index, '%c%': _photos|length}) }}"></a>
+        {% endfor %}
+      </div>
+    </div>
+    {% elseif _portrait %}
     <div class="vn-photo">
       {% include 'partials/photo.twig' with {kind: 'person', src: _portrait, name: n.name, id: n.profile_id|default(n.id), size: 160, alt: 'Portrait of %n%'|trans({'%n%': n.name}), eager: true} only %}
     </div>
@@ -465,4 +490,5 @@
 {% block foot_scripts %}
   {% if _ts %}<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer data-nav="once"></script>{% endif %}
   <script defer src="{{ asset('/assets/js/vote.js') }}" data-nav="rerun"></script>
+  {% if photos|default([])|length > 1 %}<script defer src="{{ asset('/assets/js/nominee-photos.js') }}" data-nav="rerun"></script>{% endif %}
 {% endblock %}

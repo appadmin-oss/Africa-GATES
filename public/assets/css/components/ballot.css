@@ -31,6 +31,33 @@
 .vn-photo img{ object-position:50% 0 }
 .vn-photo .ag-photo{ position:absolute; inset:0 }
 .vn-photo--none{ aspect-ratio:16 / 7; display:flex; align-items:center; justify-content:center }
+/* Several photographs: a scroll-snap row in the portrait's own slot (vote-nominee.twig), so
+   it swipes with no script. A count at the top, a dot per photograph at the foot — each dot
+   a 24px target (WCAG 2.5.8), drawn smaller inside it. Over a photograph, so every mark
+   carries a ring of ink to stay visible on a white background. */
+.vn-photo__track{
+  position:absolute; inset:0; display:flex; margin:0; padding:0; list-style:none;
+  overflow-x:auto; overflow-y:hidden; scroll-snap-type:x mandatory; overscroll-behavior-x:contain;
+  scrollbar-width:none;
+}
+.vn-photo__track::-webkit-scrollbar{ display:none }
+.vn-photo__track:focus-visible{ outline:3px solid var(--ag-green); outline-offset:-3px }
+.vn-photo__slide{ position:relative; flex:0 0 100%; scroll-snap-align:start; scroll-snap-stop:always }
+.vn-photo__n{
+  position:absolute; top:10px; inset-inline-end:10px; padding:2px 9px; border-radius:var(--ag-r-pill);
+  background:color-mix(in srgb, var(--ag-ink) 64%, transparent); color:var(--ag-surface);
+  font-size:var(--ag-fs-12-5); font-weight:600; line-height:1.5; pointer-events:none;
+}
+.vn-photo__dots{ position:absolute; inset-inline:0; bottom:4px; display:flex; justify-content:center }
+.vn-photo__dot{ display:flex; align-items:center; justify-content:center; width:24px; height:24px }
+.vn-photo__dot::before{
+  content:""; width:7px; height:7px; border-radius:var(--ag-r-pill);
+  background:color-mix(in srgb, var(--ag-surface) 70%, transparent);
+  box-shadow:0 0 0 1px color-mix(in srgb, var(--ag-ink) 35%, transparent);
+  transition:width var(--ag-dur-1) var(--ag-ease);
+}
+.vn-photo__dot[aria-current="true"]::before{ width:16px; background:var(--ag-surface) }
+.vn-photo__dot:focus-visible{ outline:2px solid var(--ag-surface); outline-offset:-2px; border-radius:var(--ag-r-pill) }
 .vn-photo__av{ position:relative; display:flex; border-radius:50%; box-shadow:0 0 0 4px var(--ag-surface) }
 .vn-photo__av--l{ display:none }
 .vn__rail, .vn__ballot--wide{ display:none }
