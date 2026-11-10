@@ -299,7 +299,11 @@
           {{ verified.clean }} were genuinely abandoned. Checked {{ verified.at }}.
         {% else %}
           Checked {{ verified.at }} — the gateway has no successful payment for any of the
-          {{ verified.clean }} stuck orders. Those buyers were not charged; the checkouts were abandoned.
+          {{ verified.clean + verified.failed|default(0) }} stuck orders. Those buyers were not charged.
+        {% endif %}
+        {% if verified.failed|default(0) > 0 %}
+          {# Said, because the count the operator came here about moves because of it. #}
+          <br>{{ verified.failed }} the gateway reports as failed {{ verified.failed == 1 ? 'is' : 'are' }} now marked failed, and no longer counted as pending.
         {% endif %}
       </div>
 

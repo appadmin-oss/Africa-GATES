@@ -5,6 +5,7 @@ namespace AfricaGates\Services;
 
 use AfricaGates\Support\Env;
 use AfricaGates\Support\NomineeUrl;
+use AfricaGates\Support\OptionalColumn;
 use AfricaGates\Support\SiteUrl;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
@@ -61,6 +62,9 @@ use Illuminate\Support\Carbon;
  */
 final class CheckoutMailer
 {
+    /** Who the "you didn't finish" nudge may reach: a checkout left open, or one the gateway declined. */
+    private const NUDGEABLE = ['pending', 'failed'];
+
     /**
      * How long after starting a checkout before a buyer is treated as gone.
      *
@@ -485,10 +489,16 @@ final class CheckoutMailer
             // who walked away from it was nudged to go back and finish paying for
             // votes that could no longer be delivered. See
             // PaidVoteService::whereCheckoutDead().
+            // A DECLINED card is still somebody who did not finish. Since the gateway's
+            // "failed" is recorded as failed (PaymentReconciler::gatewayFailed), reading
+            // `pending` alone would have stopped this nudge for exactly the people whose
+            // bank said no — the likeliest to try again. Our own write-off (`expired_at`)
+            // stays out: that row is past this window anyway, and was never answered.
             $q = DB::table('gates_donations')
-                ->where('status', 'pending')
+                ->whereIn('status', self::NUDGEABLE)
                 ->whereNull('abandoned_mail_at')
                 ->where('created_at', '>=', $oldest);
+            if (OptionalColumn::on('gates_donations', 'expired_at')) $q->whereNull('expired_at');
 
             $rows = PaidVoteService::whereCheckoutDead($q, $now)
                 ->orderBy('id')
@@ -524,7 +534,7 @@ final class CheckoutMailer
 
                 // Claim re-checks status: between the SELECT above and here the
                 // gateway webhook may have confirmed this very order.
-                if (!self::claim((int) $don->id, 'abandoned_mail_at', 'pending')) {
+                if (!self::claim((int) $don->id, 'abandoned_mail_at', self::NUDGEABLE)) {
                     $bump('confirmed_or_claimed');
                     continue;
                 }
@@ -656,11 +666,13 @@ final class CheckoutMailer
      * winner without a transaction or a lock — identical in shape to the guarded
      * `votes_used` flip that mints an order's votes once.
      */
-    private static function claim(int $donationId, string $column, ?string $requireStatus = null): bool
+    /** @param string|list<string>|null $requireStatus */
+    private static function claim(int $donationId, string $column, string|array|null $requireStatus = null): bool
     {
         try {
             $q = DB::table('gates_donations')->where('id', $donationId)->whereNull($column);
-            if ($requireStatus !== null) $q->where('status', $requireStatus);
+            if (is_array($requireStatus)) $q->whereIn('status', $requireStatus);
+            elseif ($requireStatus !== null) $q->where('status', $requireStatus);
             return $q->update([$column => Carbon::now()->toDateTimeString()]) > 0;
         } catch (\Throwable $e) {
             error_log('[CheckoutMailer] claim on ' . $column . ' failed: ' . $e->getMessage());
