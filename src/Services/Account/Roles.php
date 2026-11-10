@@ -43,7 +43,7 @@ use Illuminate\Database\Capsule\Manager as DB;
  */
 final class Roles
 {
-    public const KINDS = ['admin' => 'Staff console', 'org' => 'Organisation', 'judge' => 'Judging'];
+    public const KINDS = ['admin' => 'Platform admin', 'org' => 'Org console', 'judge' => 'Judging'];
     public const CONFIRM_MINUTES = 30;
     public const OTP_MINUTES = 10;
     public const MAX_ATTEMPTS = 5;
@@ -128,9 +128,13 @@ final class Roles
         elseif ($other > 0) $out[] = ['kind' => 'lead', 'label' => 'My event roles', 'live' => true, 'sub' => $other . ($other === 1 ? ' event' : ' events')];
         foreach (self::held($user) as $kind => $row) {
             $active = (int) ($row->is_active ?? 1) === 1;
+            // The role switch's one line (owner, 4 Nov 2026, from its reference). "Every host,
+            // every page" is true of a superadmin only; every other staff role opens the
+            // pages its role reaches, and says which role that is rather than over-promising.
             $sub = match ($kind) {
-                'admin' => Permissions::ROLES[$row->role]['label'] ?? ucfirst((string) $row->role),
-                'org' => self::orgName((int) $row->org_id),
+                'admin' => (string) $row->role === 'superadmin' ? 'Every host, every page'
+                    : (Permissions::ROLES[$row->role]['label'] ?? ucfirst((string) $row->role)) . ' · the pages your role opens',
+                'org' => 'What a partner organisation sees',
                 default => 'Your panels and scorecards',
             };
             $out[] = ['kind' => $kind, 'label' => self::KINDS[$kind], 'sub' => $active ? $sub : 'Switched off by an administrator', 'live' => $active];

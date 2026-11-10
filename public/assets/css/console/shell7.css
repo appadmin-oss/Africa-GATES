@@ -494,31 +494,7 @@ details.sh7-switch { display: block; min-width: 0; }
   .sh7-item[aria-current], .sh7-tab[aria-current] { outline: 2px solid Highlight; outline-offset: -2px; }
 }
 
-/* ── The product switcher (after ElevenLabs): the rail's top names the part of the account
-   you are in and opens the others — icon, name, one line, a tick on the current one. ──── */
-.sh7-prod { position: relative; }
-.sh7-prod > summary { list-style: none; cursor: pointer; border-radius: var(--cn-r-10); }
-.sh7-prod > summary::-webkit-details-marker { display: none; }
-.sh7-prod > summary:hover, .sh7-prod[open] > summary { background: var(--cn-hover); }
-.sh7-prod__chev { margin-left: auto; color: var(--cn-faint); display: inline-flex; transform: rotate(90deg); }
-.sh7-prod__menu { position: absolute; left: 0; top: calc(100% + 4px); width: 300px; padding: 6px; z-index: 30;
-  background: var(--cn-surface); border: 1px solid var(--cn-line); border-radius: var(--cn-r-12); box-shadow: var(--cn-sh-menu); }
-.sh7-prod__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-.sh7-prod__list form { margin: 0; }
-.sh7-prod__i { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px; border: 0; border-radius: var(--cn-r-8);
-  background: none; font: inherit; color: var(--cn-ink); text-align: left; cursor: pointer; }
-.sh7-prod__i:hover, .sh7-prod__i:focus-visible { background: var(--cn-hover); }
-.sh7-prod__i.is-on { cursor: default; }
-.sh7-prod__ic { flex: none; width: 32px; height: 32px; border-radius: var(--cn-r-8); display: grid; place-items: center; background: var(--cn-hover); }
-.sh7-prod__i.is-on .sh7-prod__ic { background: var(--cn-green); color: var(--cn-surface); }
-.sh7-prod__t { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
-.sh7-prod__n { font-size: var(--cn-fs-13-5); font-weight: 600; }
-.sh7-prod__s { font-size: var(--cn-fs-12); color: var(--cn-ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sh7-prod__tick { flex: none; color: var(--cn-green); font-weight: 700; }
-.sh7-sheet .sh7-prod__list { margin-top: 4px; }
-@container shell (min-width: 600px) and (max-width: 1023px) {
-  .sh7-prod__chev { display: none; }
-}
+/* The role switch moved to the foot of the rail, in its own sheet: role-switch.css. */
 
 /* ── a finger, not a cursor (owner, 31 Oct 2026: "improve the responsiveness of the entire
    volunteer"). On a touch screen every control the shell draws reaches 44px — buttons were 36,

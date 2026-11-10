@@ -63,25 +63,6 @@
   role, because switching starts that role's session — never a link a prefetch can follow.
   `current` is the kind this surface is; it is marked, not offered.
 #}
-{% macro acctSwitch(items, current) %}
-  {% import _self as M %}
-  {% set ic = {member: 'user', volunteer: 'users', lead: 'ticket', admin: 'shield', judge: 'trophy', org: 'flag'} %}
-  <ul class="sh7-prod__list">
-    {% for m in items %}
-      <li>
-        {% if m.kind == current %}
-          <span class="sh7-prod__i is-on" role="menuitem" aria-current="true"><span class="sh7-prod__ic" aria-hidden="true">{{ M.icon(ic[m.kind]) }}</span><span class="sh7-prod__t"><span class="sh7-prod__n">{{ m.label }}</span><span class="sh7-prod__s">{{ m.sub }}</span></span><span class="sh7-prod__tick" aria-hidden="true">✓</span></span>
-        {% elseif m.live %}
-          <form method="post" action="/account/switch">
-            <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="kind" value="{{ m.kind }}">
-            <button class="sh7-prod__i" type="submit" role="menuitem"><span class="sh7-prod__ic" aria-hidden="true">{{ M.icon(ic[m.kind]) }}</span><span class="sh7-prod__t"><span class="sh7-prod__n">{{ m.label }}</span><span class="sh7-prod__s">{{ m.sub }}</span></span></button>
-          </form>
-        {% endif %}
-      </li>
-    {% endfor %}
-  </ul>
-{% endmacro %}
-
 {% macro chip(c) %}{% if c %}<span class="sh7-chip sh7-chip--{{ c[1]|default('mute') }}">{{ c[0] }}</span>{% endif %}{% endmacro %}
 
 {% macro bar(pct, label) %}<span class="sh7-meter"><span class="sh7-meter__track"><span class="sh7-meter__fill" style="width:{{ min(100, max(0, pct)) }}%"></span></span>{% if label %}<span class="sh7-meter__label">{{ label }}</span>{% endif %}</span>{% endmacro %}
