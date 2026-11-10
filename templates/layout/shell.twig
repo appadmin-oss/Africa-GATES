@@ -76,6 +76,12 @@
   <title>{{ page_title|default('Africa GATES') }}</title>
   {% if meta_description is defined %}<meta name="description" content="{{ meta_description }}">{% endif %}
   {% if meta_robots is defined %}<meta name="robots" content="{{ meta_robots }}">{% endif %}
+  {# EVERY PUBLIC PAGE carries its canonical, share card and structured data (10 Nov 2026).
+     It was opt-in: 21 pages included this partial from their own head block and every other
+     page — a registry profile among them, whose controller built a Person record and a share
+     image that nothing printed — went out with a title and nothing else. A page that must
+     not have it says `seo_head: false`. #}
+  {% if seo_head is not defined or seo_head %}{% include 'partials/seo-head.twig' %}{% endif %}
   {# Only for a signed-in member: the token a11y.js sends with POST /account/display. #}
   {# …and on a page that posts by script with no session to speak of (the account-free
      support-ticket link, Phase 9): `csrf_meta`, so the token comes from this one tag. #}

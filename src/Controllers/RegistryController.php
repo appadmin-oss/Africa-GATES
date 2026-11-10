@@ -75,10 +75,23 @@ class RegistryController {
             'profile'          => $p,
             'pg'               => $pg,
             'editing'          => $editing,
+            'meta_robots'      => $editing ? 'noindex, nofollow' : 'index, follow',
             'about_max'        => self::ABOUT_MAX,
-            // Person JSON-LD, through Schema::text() — a typed name is untrusted.
-            'schema'           => Schema::person($p, $base, $base . '/registry/' . rawurlencode((string) $p['slug']),
+            // ProfilePage JSON-LD (a Person or an Organization inside), through Schema::text().
+            'schema'           => Schema::profilePage($p, $base, $base . '/registry/' . rawurlencode((string) $p['slug']),
                                      (string) (Assets::absoluteOg($p['avatar_path'] ?? null) ?? '')),
+            // The canonical is the bare profile: `?edit=1` and tracking parameters are not
+            // other pages. An owner's edit view is never indexed.
+            'canonical_path'   => '/registry/' . rawurlencode((string) $p['slug']),
+            'og_type'          => 'profile',
+            'og_image_alt'     => (string) $p['display_name'],
+            'breadcrumbs'      => [
+                ['label' => 'Africa GATES', 'url' => '/'],
+                in_array((string) ($p['profile_type'] ?? ''), ['organisation', 'business'], true)
+                    ? ['label' => 'Organisations', 'url' => '/discover?tab=orgs']
+                    : ['label' => 'People', 'url' => '/discover?tab=people'],
+                ['label' => (string) $p['display_name']],
+            ],
         ] + array_filter(['og_image' => Assets::absoluteOg($p['avatar_path'] ?? null)], static fn ($v) => $v !== null));
     }
 

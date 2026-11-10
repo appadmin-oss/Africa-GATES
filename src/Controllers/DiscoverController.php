@@ -80,16 +80,42 @@ final class DiscoverController
     }
 
     /** @param array<string,mixed>|null $data null when the request was refused for rate */
+    /**
+     * What each tab is, for a search engine and a link preview. Every tab used to go out as
+     * "Discover — Africa GATES" with one description and no canonical, so People and
+     * Organisations — the directory pages most worth finding — read to a crawler as
+     * duplicates of the hub. Each tab is its own page now, with its own title and words.
+     */
+    private const TAB_SEO = [
+        'all'     => ['Discover', 'Find people, organisations, awards, results and events on Africa GATES, and follow everything happening now.'],
+        'live'    => ['What’s happening now', 'Nominations, votes, results and events across Africa GATES, as they happen.'],
+        'people'  => ['People', 'Nominees standing in Africa GATES awards and the people registered on the platform, across Africa.'],
+        'orgs'    => ['Organisations', 'The organisations that run Africa GATES awards and those registered on the platform.'],
+        'awards'  => ['Awards open now', 'Africa GATES awards taking nominations or votes, and the categories inside them.'],
+        'results' => ['Results', 'Every announced Africa GATES result: winners and runners-up, by award and category.'],
+        'events'  => ['Upcoming ceremonies', 'Award ceremonies and events coming up on Africa GATES.'],
+    ];
+
     private function vars(array $s, ?array $data): array
     {
+        [$label, $about] = self::TAB_SEO[$s['tab']] ?? self::TAB_SEO['all'];
+        // A search, a filter or a deeper page is the same page as the bare tab to a crawler:
+        // noindex, and the canonical names the tab itself so any link equity lands there.
+        $filtered = $s['q'] !== '' || $s['page'] > 1 || $s['where'] !== '' || $s['status'] !== ''
+            || $s['trust'] !== [] || ($s['tab'] === 'live' && $s['kind'] !== 'all');
         return [
             'page_title'       => ($s['q'] !== '' ? Translator::t('Search: %q%', ['%q%' => $s['q']]) . ' — ' : '')
-                . Translator::t('Discover') . ' — Africa GATES',
-            'meta_description' => Translator::t('Find people, organisations, awards, results and events on Africa GATES, and follow everything happening now.'),
+                . Translator::t($label) . ($s['tab'] !== 'all' ? ' — ' . Translator::t('Discover') : '') . ' — Africa GATES',
+            'meta_description' => Translator::t($about),
+            'canonical_path'   => '/discover' . ($s['tab'] !== 'all' ? '?tab=' . $s['tab'] : ''),
+            'breadcrumbs'      => array_values(array_filter([
+                ['label' => 'Africa GATES', 'url' => '/'],
+                ['label' => Translator::t('Discover'), 'url' => '/discover'],
+                $s['tab'] !== 'all' ? ['label' => Translator::t($label), 'url' => '/discover?tab=' . $s['tab']] : null,
+            ])),
             'tab'              => 'discover',
             'app_bar'          => ['variant' => 'root', 'title' => Translator::t('Discover'), 'search' => false],
-            // A filtered or searched view is the same page as the bare one for a crawler.
-            'meta_robots'      => ($s['q'] !== '' || $s['page'] > 1) ? 'noindex, follow' : 'index, follow',
+            'meta_robots'      => $filtered ? 'noindex, follow' : 'index, follow',
             's'                => $s,
             'd'                => $data,
             'min_query'        => ActivityFeedService::MIN_QUERY,

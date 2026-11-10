@@ -26,7 +26,6 @@
 {% set app_bar = {variant: 'child', title: 'Blog'|trans, back: '/blog'} %}
 
 {% block head_styles %}
-{% include 'partials/seo-head.twig' %}
 <link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}">
 <link rel="stylesheet" href="{{ asset('/assets/css/components/blog.css') }}">
 {% if poll %}<link rel="stylesheet" href="{{ asset('/assets/css/components/poll.css') }}">{% endif %}

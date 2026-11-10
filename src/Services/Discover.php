@@ -332,8 +332,55 @@ final class Discover
     private static function has(string $q, string ...$hay): bool
     {
         if ($q === '') return true;
-        foreach ($hay as $h) if (mb_stripos($h, $q) !== false) return true;
-        return false;
+        $all = implode(' ', $hay);
+        foreach (self::words($q) as $w) if (mb_stripos($all, $w) === false) return false;
+        return true;
+    }
+
+    /**
+     * A query as the words a person typed. The search used to match the WHOLE phrase, so
+     * "Tolu Lagos" found nothing although both words were on Tolu's profile — a name and a
+     * city, which is how people actually look somebody up. Every word must appear somewhere
+     * in the row; at most six, so a pasted paragraph is not sixty LIKE clauses.
+     *
+     * @return list<string>
+     */
+    private static function words(string $q): array
+    {
+        $w = preg_split('/\s+/u', trim($q), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        return array_slice(array_values(array_unique(array_map(static fn ($x) => mb_strtolower($x), $w))), 0, 6);
+    }
+
+    /** Every word in at least one of these columns (AND of ORs), through Like's escaped clause. */
+    private static function matchWords(object $b, string $q, array $cols): void
+    {
+        foreach (self::words($q) as $word) {
+            $like = Like::contains($word);
+            $b->where(function ($w) use ($like, $cols) {
+                foreach ($cols as $i => $c) $i === 0 ? $w->whereRaw(Like::clause($c), [$like]) : $w->orWhereRaw(Like::clause($c), [$like]);
+            });
+        }
+    }
+
+    /**
+     * Best match first: the name exactly, then a name that starts with the query, then one
+     * containing it, then a row matched on its other fields. Stable within each, so the
+     * tab's own order (most nominated, newest) still decides among equals.
+     *
+     * @param list<array<string,string>> $rows
+     * @return list<array<string,string>>
+     */
+    private static function ranked(array $rows, string $q): array
+    {
+        $q = mb_strtolower(trim($q));
+        $score = static function (array $r) use ($q): int {
+            $n = mb_strtolower((string) ($r['name'] ?? ''));
+            return $n === $q ? 3 : (str_starts_with($n, $q) ? 2 : (str_contains($n, $q) ? 1 : 0));
+        };
+        $i = 0;
+        $keyed = array_map(static function ($r) use (&$i, $score) { return [$score($r), $i++, $r]; }, $rows);
+        usort($keyed, static fn ($a, $b) => [$b[0], $a[1]] <=> [$a[0], $b[1]]);
+        return array_map(static fn ($k) => $k[2], $keyed);
     }
 
     /** "Open for nominations" — or, under the Status facet, "Voting now" / "Decided". */
@@ -449,14 +496,7 @@ final class Discover
                 'cy.programme_id');
             if (!$searching) $b->where('n.nominated_at', '>=', $since);
 
-            if ($s['q'] !== '') {
-                $like = Like::contains($s['q']);
-                $b->where(function ($w) use ($like) {
-                    $w->whereRaw(Like::clause('n.name'), [$like])
-                      ->orWhereRaw(Like::clause('n.organisation'), [$like])
-                      ->orWhereRaw(Like::clause('c.title'), [$like]);
-                });
-            }
+            if ($s['q'] !== '') self::matchWords($b, $s['q'], ['n.name', 'n.organisation', 'c.title']);
             if ($s['where'] !== '') $b->where('n.country_code', $s['where']);
             if (in_array('won', $s['trust'], true)) self::recognised($b);
             if (in_array('ev', $s['trust'], true)) self::reviewed($b);
@@ -506,7 +546,7 @@ final class Discover
         // there is none of them.
         $reg = $s['trust'] === [] ? self::registry($s, ['individual'], $seen) : [];
         if ($searching) {
-            $out = array_merge($out, $reg);
+            $out = self::ranked(array_merge($out, $reg), $s['q']);
             return ['items' => array_slice($out, 0, self::MAX_ROWS), 'total' => count($out), 'searching' => true, 'registry' => []];
         }
         return ['items' => array_slice($out, 0, self::MAX_ROWS), 'total' => count($out) + count($reg),
@@ -528,14 +568,7 @@ final class Discover
             if (!SchemaHas::table('gates_profiles')) return [];
             $b = DB::table('gates_profiles')->where('status', 'approved')->whereNull('merged_into')
                 ->whereIn('profile_type', $types);
-            if ($s['q'] !== '') {
-                $like = Like::contains($s['q']);
-                $b->where(function ($w) use ($like) {
-                    $w->whereRaw(Like::clause('display_name'), [$like])
-                      ->orWhereRaw(Like::clause('category'), [$like])
-                      ->orWhereRaw(Like::clause('location_city'), [$like]);
-                });
-            }
+            if ($s['q'] !== '') self::matchWords($b, $s['q'], ['display_name', 'category', 'location_city']);
             if ($s['where'] !== '') $b->where('country_code', $s['where']);
             $rows = $b->orderByDesc('registered_at')->orderByDesc('id')->limit(400)
                 ->get(['id', 'slug', 'display_name', 'category', 'location_city', 'country_code', 'avatar_path'])->all();
@@ -656,7 +689,7 @@ final class Discover
         // with a registered profile could not be found by name on the tab named for it.
         $reg = self::registry($s, ['organisation', 'business']);
         if ($s['q'] !== '') {
-            $out = array_merge($out, $reg);
+            $out = self::ranked(array_merge($out, $reg), $s['q']);
             return ['items' => array_slice($out, 0, self::MAX_ROWS), 'total' => count($out), 'searching' => true, 'registry' => []];
         }
         return ['items' => array_slice($out, 0, self::MAX_ROWS), 'total' => count($out) + count($reg),

@@ -49,7 +49,6 @@
 {% macro mark(state, cls) %}<span class="st-m st-m--{{ state }}{{ cls ? ' ' ~ cls }}" aria-hidden="true"></span>{% endmacro %}
 
 {% block head_styles %}
-{% include 'partials/seo-head.twig' %}
 <link rel="stylesheet" href="{{ asset('/assets/css/components/status.css') }}">
 {% endblock %}
 

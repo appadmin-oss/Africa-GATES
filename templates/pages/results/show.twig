@@ -40,7 +40,7 @@
 {% set app_bar = {variant: 'child', title: r.category.title, sub: r.programme ~ (r.edition ? ' · ' ~ r.edition), back: '/results/' ~ r.programme_slug ~ '-' ~ r.cycle_year} %}
 {% set _edition_url = '/results/' ~ r.programme_slug ~ '-' ~ r.cycle_year %}
 
-{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/results.css') }}">{% include 'partials/seo-head.twig' %}{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/results.css') }}">{% endblock %}
 
 {% block content %}
 <div class="rs">

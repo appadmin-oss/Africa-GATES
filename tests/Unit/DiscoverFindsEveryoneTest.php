@@ -82,6 +82,41 @@ final class DiscoverFindsEveryoneTest extends TestCase
         $this->assertStringContainsString('href="/registry/ibadan-arts-trust"', $this->section($this->main('/discover?tab=orgs'), 'orgs'));
     }
 
+    public function test_every_word_is_matched_somewhere_and_the_best_name_match_comes_first(): void
+    {
+        // Name and city: the phrase appears nowhere, both words do.
+        $this->assertStringContainsString('href="/registry/tolu-bakare"', $this->section($this->main('/discover?tab=people&q=Tolu%20Ibadan'), 'people'));
+        $this->assertStringNotContainsString('tolu-bakare', $this->section($this->main('/discover?tab=people&q=Tolu%20Kano'), 'people'),
+            'every word must match; one missing word is no match');
+
+        $this->profile('Ada', 'ada', 'individual');
+        $this->profile('Adaeze Nnaji', 'adaeze-nnaji', 'individual');
+        $people = $this->section($this->main('/discover?tab=people&q=Ada'), 'people');
+        $this->assertLessThan(strpos($people, 'href="/registry/adaeze-nnaji"'), strpos($people, 'href="/registry/ada"'), 'the exact name first');
+    }
+
+    public function test_each_tab_is_its_own_page_to_a_search_engine_and_a_search_is_not_indexed(): void
+    {
+        $html = (string) ChromeRender::page('/discover?tab=people')->getBody();
+        $this->assertStringContainsString('<title>People — Discover — Africa GATES</title>', $html);
+        $this->assertMatchesRegularExpression('~<link rel="canonical" href="[^"]+/discover\?tab=people">~', $html);
+        $this->assertStringContainsString('<meta name="robots" content="index, follow">', $html);
+
+        $q = (string) ChromeRender::page('/discover?tab=people&q=Tolu')->getBody();
+        $this->assertStringContainsString('<meta name="robots" content="noindex, follow">', $q);
+        $this->assertMatchesRegularExpression('~<link rel="canonical" href="[^"]+/discover\?tab=people">~', $q, 'a search points at its tab');
+    }
+
+    public function test_a_profile_page_is_a_profile_page_to_a_search_engine(): void
+    {
+        $html = (string) ChromeRender::page('/registry/ibadan-arts-trust')->getBody();
+        $this->assertMatchesRegularExpression('~<link rel="canonical" href="[^"]+/registry/ibadan-arts-trust">~', $html);
+        $this->assertStringContainsString('<meta property="og:type" content="profile">', $html);
+        $this->assertStringContainsString('"@type":"ProfilePage"', $html);
+        $this->assertStringContainsString('"mainEntity":{"@type":"Organization"', $html, 'an organisation is not a Person');
+        $this->assertStringContainsString('"@type":"BreadcrumbList"', $html);
+    }
+
     public function test_a_profile_not_approved_is_never_listed(): void
     {
         $this->assertStringNotContainsString('not-yet-approved', $this->main('/discover?q=Approved'));

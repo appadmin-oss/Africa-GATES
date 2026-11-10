@@ -34,7 +34,7 @@
 {% set app_bar = {variant: 'child', title: _p.title, sub: _f.sub, back: '/vote', share: true} %}
 {% set _base = '/vote/' ~ _p.slug %}
 
-{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/vote.css') }}">{% include 'partials/seo-head.twig' %}{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/vote.css') }}">{% endblock %}
 
 {% macro clock(left, cls) %}
   <span class="{{ cls }}" role="timer" dir="ltr" data-tick data-tick-left="{{ left }}"
