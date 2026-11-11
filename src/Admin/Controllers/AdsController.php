@@ -152,6 +152,17 @@ final class AdsController
         return $res->withHeader('Location', $back === 'show' ? '/admin/ads/' . $id : '/admin/ads')->withStatus(303);
     }
 
+    /** POST /admin/ads/{id}/extend — a make-good for an under-delivered free trial (AdStaff::extendTrial). */
+    public function extend(Request $req, Response $res, array $args): Response
+    {
+        $id = (int) ($args['id'] ?? 0);
+        $days = (int) (((array) $req->getParsedBody())['days'] ?? 7);
+        $ok = AdStaff::extendTrial($id, $days);
+        if ($ok) $this->audit?->record($this->adminId(), 'ads.trial_extended', 'ad_campaign', $id, ['days' => $days]);
+        $_SESSION[$ok ? 'flash_ok' : 'flash_error'] = $ok ? sprintf('Extended by %d days, at no cost to the advertiser.', $days) : 'Only a free trial that has started can be extended.';
+        return $res->withHeader('Location', '/admin/ads/' . $id)->withStatus(303);
+    }
+
     /** @param array<string,string> $errors */
     private function upload(Request $req, string $field, string $profile, array &$errors): ?string
     {

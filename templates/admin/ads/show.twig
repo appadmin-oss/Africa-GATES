@@ -42,6 +42,15 @@
   {% elseif not staff %}
   <p class="adc-hint">An advertiser’s own campaign: they pause and cancel it, and its ads are checked in <a href="/admin/moderation">Moderation</a>.</p>
   {% endif %}
+  {# A make-good (AdStaff::extendTrial): a free trial that under-delivered for a reason that
+     was ours gets more days, at no cost. Asks for the reason, which goes on the audit row. #}
+  {% if c.trial and c.starts_at and c.delivery != 'cancelled' %}
+  <form class="adc-acts" method="post" action="/admin/ads/{{ c.id }}/extend" data-confirm="Give this free trial 7 more days, at no cost? Say why: it is kept with the change.">
+    <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="days" value="7">
+    <button class="cn-btn" type="submit">Extend 7 days</button>
+    <span class="adc-hint">For a trial that under-delivered for a reason that was not the advertiser’s. It runs until the new end or its {{ c.view_cap|default(0)|number_format }} views.</span>
+  </form>
+  {% endif %}
 </section>
 
 <div class="adc-grid">

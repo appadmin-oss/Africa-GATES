@@ -4570,6 +4570,7 @@ return function(App $app) {
         $a->get('/ads',                          \AfricaGates\Admin\Controllers\AdsController::class.':index');
         $a->post('/ads',                         \AfricaGates\Admin\Controllers\AdsController::class.':store');
         $a->get('/ads/{id:[0-9]+}',              \AfricaGates\Admin\Controllers\AdsController::class.':show');
+        $a->post('/ads/{id:[0-9]+}/extend',      \AfricaGates\Admin\Controllers\AdsController::class.':extend');
         $a->post('/ads/{id:[0-9]+}/{action:pause|resume|end}', \AfricaGates\Admin\Controllers\AdsController::class.':status');
 
         // ── REFERRAL PAYOUTS ──────────────────────────────────────────────

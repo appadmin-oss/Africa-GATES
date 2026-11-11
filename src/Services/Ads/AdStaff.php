@@ -157,4 +157,30 @@ final class AdStaff
         return DB::table('gates_ad_campaigns')->where('id', $id)->whereIn('source', ['direct', 'house'])->whereIn('status', $from)
             ->update(['status' => $to, 'updated_at' => $now] + ($to === AdCampaigns::ST_CANCELLED ? ['cancelled_at' => $now] : [])) > 0;
     }
+
+    /** The longest one make-good may add. */
+    public const EXTEND_MAX_DAYS = 14;
+
+    /**
+     * A MAKE-GOOD for a free trial: more days, at no cost, when it under-delivered for a
+     * reason that was not the advertiser's (owner, 11 Nov 2026: a live trial ran its seven
+     * days for 43 views while pages reached by tapping inside the site were drawn with no
+     * ad). Ad platforms call this a make-good and owe it when they fail to deliver.
+     *
+     * Only a trial (a paid campaign's days are what was bought, and its unspent money goes
+     * back — AdCheckout::settle), only one not cancelled, and from now or its end, whichever
+     * is later, so days already gone are not counted twice. Its views cap is untouched: it
+     * runs until those days end or it reaches its views, as a trial always does.
+     */
+    public static function extendTrial(int $id, int $days): bool
+    {
+        if ($days < 1 || $days > self::EXTEND_MAX_DAYS || !AdCampaigns::ready()) return false;
+        $c = DB::table('gates_ad_campaigns')->where('id', $id)->first();
+        if (!$c || (int) $c->trial !== 1 || (string) $c->status === AdCampaigns::ST_CANCELLED) return false;
+        $set = DB::table('gates_ad_sets')->where('campaign_id', $id)->orderBy('id')->first();
+        if (!$set || $set->starts_at === null) return false;     // not started: nothing to make good
+        $from = max(time(), (int) strtotime((string) ($set->ends_at ?? 'now')));
+        return DB::table('gates_ad_sets')->where('id', $set->id)
+            ->update(['ends_at' => date('Y-m-d H:i:s', $from + $days * 86400), 'updated_at' => date('Y-m-d H:i:s')]) > 0;
+    }
 }

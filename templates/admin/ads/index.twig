@@ -53,9 +53,10 @@
    market's window (AdMarket::card): the figures a sale by phone is made from. #}
 <section class="cn-card ads-places-t" aria-labelledby="adsPlH">
   <h2 id="adsPlH">By place</h2>
-  <p class="ads-hint">Today’s price and the last {{ window }} days. A place is premium when people act on ads there more than the site average.</p>
+  <p class="ads-hint">Today’s price and the last {{ window }} days. A place is premium when people act on ads there more than the site average.
+    <b>Seen when shown</b> is how often an ad drawn on that page was actually on screen (half of it, for a second): a low figure means the slot sits where few people scroll, and is the number to move a slot by.</p>
   <table class="cn-table">
-    <thead><tr><th scope="col">Place</th><th scope="col">Price per 1,000</th><th scope="col">Tier</th><th scope="col">Views a day</th><th scope="col">Click rate</th><th scope="col">Booked, next 7 days</th></tr></thead>
+    <thead><tr><th scope="col">Place</th><th scope="col">Price per 1,000</th><th scope="col">Tier</th><th scope="col">Views a day</th><th scope="col">Click rate</th><th scope="col">Seen when shown</th><th scope="col">Booked, next 7 days</th></tr></thead>
     <tbody>
     {% for p in market %}
       <tr>
@@ -64,6 +65,7 @@
         <td>{{ p.tier_label }}</td>
         <td>{{ p.daily is null ? '—' : p.daily|number_format }}</td>
         <td>{{ p.ctr_pct is null ? '—' : p.ctr_pct ~ '%' }}</td>
+        <td>{{ p.seen_pct is null ? '—' : p.seen_pct ~ '%' }}</td>
         <td>{{ p.sell is null ? '—' : (p.sell * 100)|round ~ '%' }}</td>
       </tr>
     {% endfor %}

@@ -5,6 +5,7 @@ namespace Tests\Unit;
 
 use AfricaGates\Services\Ads\AdCampaigns;
 use AfricaGates\Services\Ads\AdReview;
+use AfricaGates\Services\Ads\AdStaff;
 use Illuminate\Database\Capsule\Manager as DB;
 use Tests\Support\ChromeRender;
 use Tests\TestCase;
@@ -113,5 +114,72 @@ final class AdsUxTest extends TestCase
         $this->assertStringContainsString('flex:1 1 170px', $css);
         $this->assertStringContainsString('.ag-ad--wide:has(.ag-ad__media--landscape){ grid-template-columns:minmax(0,1.15fr) minmax(0,1fr) }', $css);
         $this->assertStringContainsString('.ag-ad--wide:has(.ag-ad__media--portrait){ grid-template-columns:minmax(0,300px) minmax(0,1fr) }', $css);
+    }
+
+    /**
+     * The live fault (owner, 11 Nov 2026: a trial ran seven days for 43 views): site-nav.js
+     * prefetches a page on the touch that starts every tap and shows that copy, and a
+     * prefetch was drawn with no ad, so only the first page of a visit could carry one.
+     */
+    public function test_a_page_fetched_ahead_by_site_nav_carries_the_ad_without_spending_anything(): void
+    {
+        DB::table('gates_settings')->updateOrInsert(['key_name' => 'ads_cpm_discover'], ['value' => '1000']);
+        $uid = $this->user();
+        $r = AdCampaigns::createTrial($uid, ['objective' => 'traffic', 'advertiser' => 'Alimosho Choir', 'category' => 'events', 'placements' => ['discover'],
+            'headline' => 'Hear the choir live', 'body' => 'An evening of choral music in Alimosho.', 'cta' => 'get_tickets',
+            'url' => 'https://choir.example.ng', 'standards' => '1'], '/uploads/ads/t.jpg');
+        $ad = (int) DB::table('gates_ads as a')->join('gates_ad_sets as s', 's.id', '=', 'a.ad_set_id')->where('s.campaign_id', $r['id'])->value('a.id');
+        AdReview::decide($ad, 1, true);
+
+        $req = (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET', '/discover')
+            ->withHeader('User-Agent', 'Mozilla/5.0 (Linux; Android 14) Chrome/120 Mobile')->withHeader('Accept-Language', 'en-NG')
+            ->withHeader('Accept', 'text/html,application/xhtml+xml')->withHeader('X-Site-Nav', '1')->withHeader('X-Site-Prefetch', 'prefetch');
+        $_SERVER['HTTP_X_SITE_PREFETCH'] = 'prefetch';
+        try {
+            $drawn = \AfricaGates\Services\Ads\AdDelivery::forRequest('discover', $req);
+            $_SESSION = [];
+            $this->assertSame('Alimosho Choir', $drawn['advertiser'] ?? null, 'a page fetched ahead is drawn with no ad, and it is the page that is shown');
+            $this->assertSame(0, (int) DB::table('gates_ad_inventory')->sum('slots'), 'a prefetch filled the slot count');
+            $this->assertNull(\AfricaGates\Services\Ads\AdDelivery::forRequest('nowhere', $req));
+
+            DB::table('gates_ad_campaigns')->where('id', $r['id'])->update(['status' => 'cancelled']);
+            $this->assertNull(\AfricaGates\Services\Ads\AdDelivery::forRequest('discover', $req), 'a prefetch spent the once-a-day "advertise here" notice');
+            // A browser's own prefetch (no site-nav) is still nobody's page.
+            $bare = $req->withoutHeader('X-Site-Nav');
+            $this->assertNull(\AfricaGates\Services\Ads\AdDelivery::forRequest('discover', $bare));
+        } finally {
+            unset($_SERVER['HTTP_X_SITE_PREFETCH']);
+        }
+        $this->assertStringContainsString('Seen when shown', ChromeRender::code('templates/admin/ads/index.twig'));
+    }
+
+    public function test_an_under_delivered_trial_can_be_made_good_and_nothing_else_can(): void
+    {
+        $uid = $this->user();
+        $r = AdCampaigns::createTrial($uid, ['objective' => 'traffic', 'advertiser' => 'Alimosho Choir', 'category' => 'events', 'placements' => ['discover'],
+            'headline' => 'Hear the choir live', 'body' => 'An evening of choral music in Alimosho.', 'cta' => 'get_tickets',
+            'url' => 'https://choir.example.ng', 'standards' => '1'], '/uploads/ads/t.jpg');
+        $this->assertFalse(\AfricaGates\Services\Ads\AdStaff::extendTrial($r['id'], 7), 'a trial still in review was extended');
+        $ad = (int) DB::table('gates_ads as a')->join('gates_ad_sets as s', 's.id', '=', 'a.ad_set_id')->where('s.campaign_id', $r['id'])->value('a.id');
+        AdReview::decide($ad, 1, true);
+        DB::table('gates_ad_sets')->where('campaign_id', $r['id'])->update(['starts_at' => date('Y-m-d H:i:s', time() - 8 * 86400), 'ends_at' => date('Y-m-d H:i:s', time() - 86400)]);
+        $this->assertSame('completed', AdCampaigns::detail($r['id'], $uid)['delivery']);
+        $this->assertTrue(\AfricaGates\Services\Ads\AdStaff::extendTrial($r['id'], 7));
+        $end = strtotime((string) DB::table('gates_ad_sets')->where('campaign_id', $r['id'])->value('ends_at'));
+        $this->assertEqualsWithDelta(time() + 7 * 86400, $end, 5, 'the days already gone were counted again');
+        $this->assertSame('active', AdCampaigns::detail($r['id'], $uid)['delivery'], 'the make-good did not put it back on the site');
+        $this->assertFalse(\AfricaGates\Services\Ads\AdStaff::extendTrial($r['id'], 60), 'more than a make-good allows');
+
+        DB::table('gates_settings')->updateOrInsert(['key_name' => 'ads_cpm_discover'], ['value' => '1000']);
+        \AfricaGates\Services\Ads\AdMarket::forget();
+        $paid = AdStaff::post(7, ['source' => 'direct', 'advertiser' => 'Lens', 'placements' => ['discover'], 'budget' => '50000', 'days' => '14',
+            'headline' => 'Portraits in an hour', 'body' => 'Studio portraits in Yaba, ready to print.', 'cta' => 'book_now', 'url' => 'https://lens.example.ng'], '/uploads/ads/d.jpg');
+        $this->assertTrue($paid['ok'], json_encode($paid));
+        $this->assertFalse(\AfricaGates\Services\Ads\AdStaff::extendTrial($paid['id'], 7), 'a paid campaign’s days are what was bought');
+
+        $aid = (int) DB::table('gates_admins')->insertGetId(['name' => 'Kemi', 'email' => 'kemi@example.com', 'role' => 'admin', 'is_active' => 1, 'password_hash' => 'x']);
+        $html = ChromeRender::html('/admin/ads/' . $r['id'], ['admin_id' => $aid, 'admin_role' => 'admin', 'admin_name' => 'Kemi']);
+        $this->assertStringContainsString('action="/admin/ads/' . $r['id'] . '/extend"', $html);
+        $this->assertMatchesRegularExpression('~action="/admin/ads/' . $r['id'] . '/extend" data-confirm=~', $html, 'a make-good with no reason recorded');
     }
 }

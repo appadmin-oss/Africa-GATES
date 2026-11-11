@@ -252,10 +252,25 @@ final class AdDelivery
     {
         try {
             $reader = \AfricaGates\Services\VisitTracker::isReader($req);
+            // A page site-nav.js fetched AHEAD is, usually, the page that is then shown: it
+            // prefetches on a 70ms hover and on the touch that starts every tap on a phone,
+            // and swaps that copy in. isReader() refuses a prefetch (nobody is looking at it
+            // yet), so every page reached by tapping inside the site was drawn with no ad at
+            // all — only the first page of a visit could carry one. A live trial ran seven
+            // days for 43 views. So the prefetch is drawn for, and drawn UNCOUNTED: pick()
+            // already sees it as ahead (Support\Speculative) and spends no slot and no
+            // frequency cap on it; the view is counted by ads.js when the ad is actually on
+            // screen, and the slot by the HEAD site-nav sends when it shows the page.
+            if (!$reader && $req->getHeaderLine('X-Site-Nav') === '1' && \AfricaGates\Support\Speculative::is($req)
+                && \AfricaGates\Services\VisitTracker::isPerson($req)) {
+                $reader = true;
+            }
             // Our "advertise here" notice fills an empty slot everywhere but the homepage,
             // which stays clean unless somebody has bought it or staff chose to post there.
+            // The "advertise here" notice is shown once a day per visitor (house()), so a
+            // prefetch that may never be shown does not spend it.
             return self::pick($placement, ['reader' => $reader])
-                ?? ($reader && !in_array($placement, AdRules::PAID_ONLY, true) ? self::house() : null);
+                ?? ($reader && !\AfricaGates\Support\Speculative::is($req) && !in_array($placement, AdRules::PAID_ONLY, true) ? self::house() : null);
         } catch (\Throwable) {
             return null; // an ad must never be the reason a page does not draw
         }
