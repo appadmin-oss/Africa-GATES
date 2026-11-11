@@ -73,7 +73,9 @@ final class AdDelivery
                 ->where(static fn ($q) => $q->where('c.trial', 1)->orWhereNotNull('c.paid_at'))
                 ->whereNotNull('s.starts_at')->where('s.starts_at', '<=', $now)
                 ->where(static fn ($q) => $q->whereNull('s.ends_at')->orWhere('s.ends_at', '>=', $now))
-                ->select('s.*', 'c.user_id', 'c.advertiser', 'c.logo_path', 'c.trial', 'c.id as campaign_id')->limit(200)->get()->all();
+                ->select('s.*', 'c.user_id', 'c.advertiser', 'c.logo_path', 'c.trial', 'c.id as campaign_id',
+                         ...(\AfricaGates\Support\SchemaHas::column('gates_ad_campaigns', 'source') ? ['c.source'] : []))
+                ->limit(200)->get()->all();
         } catch (\Throwable) {
             return null;
         }
@@ -83,8 +85,13 @@ final class AdDelivery
         foreach ($sets as $s) {
             if (!in_array($placement, explode(',', (string) $s->placements), true)) continue;
             if (in_array((int) $s->campaign_id, $hidden, true)) continue;
-            if ($placement === 'vote_hub' && AdRules::inOpenAward((int) $s->user_id)) continue;
-            $room = self::roomToday($s, $day);
+            $source = (string) ($s->source ?? 'self');
+            // The homepage takes paying campaigns and our own; never a free trial.
+            if (in_array($placement, AdRules::PAID_ONLY, true) && (int) $s->trial === 1) continue;
+            // Rule 3, and the homepage with it: a nominee's ads stay off the vote page AND the
+            // homepage while their award is taking votes — the homepage asks people to vote.
+            if (in_array($placement, ['vote_hub', 'home'], true) && $source === 'self' && AdRules::inOpenAward((int) $s->user_id)) continue;
+            $room = $source === 'house' ? 0.5 : self::roomToday($s, $day);
             if ($room === null) continue;
             $ad = self::rotate((int) $s->id, $day);
             if ($ad === null || self::seenToday((int) $ad->id, $day) >= AdRules::FREQUENCY_CAP) continue;
@@ -94,12 +101,14 @@ final class AdDelivery
             // campaigns of the same kind the one furthest behind today's share goes first,
             // which is what lets a paid budget finish on time: an undelivered budget is
             // refunded, so every view it misses is revenue that goes back.
-            $paid = (int) $s->trial !== 1;
+            // Paid (self-serve or sold by us) first, then trials, then our own, which only
+            // ever fills space nobody has bought.
+            $rank = $source === 'house' ? 0 : ((int) $s->trial === 1 ? 1 : 2);
             $better = $best === null
-                || ($paid && !$best['paid'])
-                || ($paid === $best['paid'] && ($room < $best['room'] || ($room === $best['room'] && random_int(0, 1) === 1)));
+                || $rank > $best['rank']
+                || ($rank === $best['rank'] && ($room < $best['room'] || ($room === $best['room'] && random_int(0, 1) === 1)));
             if ($better) {
-                $best = ['room' => $room, 'set' => $s, 'ad' => $ad, 'paid' => $paid];
+                $best = ['room' => $room, 'set' => $s, 'ad' => $ad, 'rank' => $rank, 'own' => $source === 'house'];
             }
         }
         if ($best === null) return null;
@@ -122,6 +131,8 @@ final class AdDelivery
             'domain' => AdRules::displayDomain((string) $ad->url),
             'href' => '/ads/go/' . $token, 'token' => $token, 'external' => !str_starts_with((string) $ad->url, '/'),
             'reasons' => AdRules::REPORT_REASONS,
+            // Our own, posted by staff: counted like any ad, labelled "From Africa GATES".
+            'own' => (bool) $best['own'],
         ];
     }
 
@@ -193,7 +204,10 @@ final class AdDelivery
     {
         try {
             $reader = \AfricaGates\Services\VisitTracker::isReader($req);
-            return self::pick($placement, ['reader' => $reader]) ?? ($reader ? self::house() : null);
+            // Our "advertise here" notice fills an empty slot everywhere but the homepage,
+            // which stays clean unless somebody has bought it or staff chose to post there.
+            return self::pick($placement, ['reader' => $reader])
+                ?? ($reader && !in_array($placement, AdRules::PAID_ONLY, true) ? self::house() : null);
         } catch (\Throwable) {
             return null; // an ad must never be the reason a page does not draw
         }

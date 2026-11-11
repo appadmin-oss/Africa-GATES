@@ -34,6 +34,7 @@
 {% block head_styles %}
   <link rel="stylesheet" href="{{ asset('/assets/css/components/home.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}">
+  {% if ad|default(null) %}<link rel="stylesheet" href="{{ asset('/assets/css/components/ad-slot.css') }}">{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -232,6 +233,12 @@
   </section>
   {% endif %}
 
+  {# ── 9b · One ad (Services\Ads; owner, 4 Nov 2026) ─────────────────────────────
+     Below the stories and the giving, never in the hero and never beside the sections
+     that show nominees or ask somebody to choose. Paid campaigns and our own only, wide on
+     a desktop so it reads as part of the band, labelled like every ad. #}
+  {% if ad|default(null) %}<div class="ag-ad-slot hm-ad">{% include 'partials/ad-slot.twig' with {ad: ad, csrf_token: csrf_token, back: '/', wide: true} only %}</div>{% endif %}
+
   {# ── 10 · Recognise with Africa GATES — four audiences, only what exists today ── #}
   <section class="hm-sec" id="hm-host" aria-labelledby="hm-host-h" tabindex="-1">
     <div class="hm-head hm-head--row">
@@ -286,4 +293,5 @@
 {% block foot_scripts %}
   <script defer src="{{ asset('/assets/js/we-are-africa.js') }}" data-nav="rerun"></script>
   <script defer src="{{ asset('/assets/js/home.js') }}" data-nav="rerun"></script>
+  {% if ad|default(null) %}<script defer src="{{ asset('/assets/js/ads.js') }}" data-nav="rerun"></script>{% endif %}
 {% endblock %}

@@ -20,9 +20,11 @@
       <span class="am-beta">{{ 'Beta'|trans }}</span>
       <h1 class="am-h1">{{ 'Advertise on Africa GATES'|trans }}</h1>
       <p class="am-lead">{{ 'Put your business, product or event in front of the people who come here to celebrate, vote and attend.'|trans }}</p>
+      {#- One main action, and the second answers the question every first advertiser has:
+          "what will it cost to reach people?" (the planner below). -#}
       <div class="am-hero__acts">
         <a class="ag-btn ag-btn--primary ag-btn--pill" href="/account/ads/new">{{ 'Start your free trial'|trans }}</a>
-        <a class="ag-btn ag-btn--secondary ag-btn--pill" href="/legal/advertising">{{ 'Read the policy'|trans }}</a>
+        <a class="ag-btn ag-btn--secondary ag-btn--pill" href="#plan">{{ 'Plan a campaign'|trans }}</a>
       </div>
       <p class="am-note">{{ 'Free trial: up to %v% views over %d% days. No card needed.'|trans({'%v%': trial.views|number_format, '%d%': trial.days}) }}</p>
     </div>
@@ -30,6 +32,19 @@
       {% include 'partials/ad-slot.twig' with {ad: sample, preview: true} only %}
       <figcaption class="am-note">{{ 'An example of how your ad looks.'|trans }}</figcaption>
     </figure>
+  </section>
+
+  {#
+    THE SITE IN NUMBERS, MEASURED (AdMarket::reach). An advertiser's first question is "who
+    will see it", and every "advertise with us" page that converts answers it with figures.
+    Only figures this platform has measured are printed; with none yet, the band says what
+    the trial costs instead of inventing an audience.
+  #}
+  <section class="am-figs" aria-label="{{ 'Africa GATES in numbers'|trans }}">
+    {% if reach.daily %}<div class="am-fig"><b>{{ reach.daily|number_format }}</b><span>{{ 'ads seen a day, across the site'|trans }}</span></div>{% endif %}
+    {% if reach.ctr_pct %}<div class="am-fig"><b>{{ reach.ctr_pct }}%</b><span>{{ 'of people who see an ad here tap it'|trans }}</span></div>{% endif %}
+    <div class="am-fig"><b>{{ reach.places }}</b><span>{{ 'places your ad can run, from the homepage to event pages'|trans }}</span></div>
+    <div class="am-fig"><b>{{ trial.views|number_format }}</b><span>{{ 'views free on your first campaign'|trans }}</span></div>
   </section>
 
   <section class="am-sec" aria-labelledby="adv-how">
@@ -59,8 +74,9 @@
         </div>
         <p class="am-place__w">{{ c.where|trans }} · {{ c.who|trans }}</p>
         <p class="am-place__p">
+          {% if c.paid_only %}<span class="am-rates__s">{{ 'Paid campaigns only — the free trial runs on the other places.'|trans }}</span> {% endif %}
           {% if c.price %}<b>₦{{ c.price|number_format }}</b> {{ 'per 1,000 views today'|trans }}{% if c.per_visit_kobo %} · {{ 'about %v% a visit'|trans({'%v%': '₦' ~ (c.per_visit_kobo / 100)|number_format(c.per_visit_kobo < 10000 ? 2 : 0)}) }}{% endif %}
-          {% else %}{{ 'Free trial only for now'|trans }}{% endif %}
+          {% else %}{{ c.paid_only ? 'Not on sale yet'|trans : 'Free trial only for now'|trans }}{% endif %}
         </p>
         <p class="am-place__s">
           {% if c.price or c.measured %}{{ c.tier_note|trans }}{% endif %}
@@ -126,6 +142,28 @@
       <p class="am-est">{{ 'No place is on sale yet, so there is nothing to plan with. The free trial runs everywhere.'|trans }}</p>
       {% endif %}
     {% endif %}
+  </section>
+
+  {#
+    THE QUESTIONS A FIRST ADVERTISER ASKS, answered with the rules' own figures (`facts`,
+    read from AdCheckout and AdRules), so an answer here cannot outlive the rule it states.
+  #}
+  <section class="am-sec" aria-labelledby="adv-faq">
+    <h2 class="am-h2" id="adv-faq">{{ 'Questions advertisers ask'|trans }}</h2>
+    <div class="am-faq">
+      <details><summary>{{ 'What does it cost?'|trans }}</summary>
+        <p>{{ 'You choose a budget from ₦%m% and how many days it runs. You pay only for views delivered, at the day’s price for each place.'|trans({'%m%': facts.min_budget|number_format}) }}{% if facts.vat_pct > 0 %} {{ 'VAT at %v%% is added at checkout, as its own line on the receipt.'|trans({'%v%': facts.vat_pct}) }}{% endif %}</p></details>
+      <details><summary>{{ 'What if my budget is not all spent?'|trans }}</summary>
+        <p>{{ 'What a campaign does not spend goes back to the card or account you paid with, with its VAT, when it ends or you cancel it.'|trans }}</p></details>
+      <details><summary>{{ 'How soon does it start?'|trans }}</summary>
+        <p>{{ 'A person checks every ad first. It starts when it is both paid for and approved, and runs the days you bought from then, up to %d% days.'|trans({'%d%': facts.max_days}) }}</p></details>
+      <details><summary>{{ 'Will the same people see it again and again?'|trans }}</summary>
+        <p>{{ 'One person sees the same ad at most %n% times a day, so your budget reaches more people instead of the same few.'|trans({'%n%': facts.freq}) }}</p></details>
+      <details><summary>{{ 'What can I not advertise?'|trans }}</summary>
+        <p>{% for s in facts.standards %}{{ s[0]|trans }}{% if not loop.last %} · {% endif %}{% endfor %}. <a class="am-link" href="/legal/advertising">{{ 'The full policy'|trans }}</a></p></details>
+      <details><summary>{{ 'I am a nominee. Can I advertise?'|trans }}</summary>
+        <p>{{ 'Yes, for your business, never your nomination. While your award is open, your ads stay off the vote page and the homepage.'|trans }}</p></details>
+    </div>
   </section>
 
   <section class="am-sec" aria-labelledby="adv-trust">

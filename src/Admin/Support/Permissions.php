@@ -149,6 +149,10 @@ final class Permissions
         // volunteers — see the section's note in MATRIX (owner, 31 Oct 2026)
         'volunteers' => 'volunteers',
         'finance' => 'finance', 'refunds' => 'finance', 'vote-delivery' => 'finance',
+        // Ads posted from the console (owner, 4 Nov 2026: "allow admin be able to post ads"):
+        // a direct sale records income and the homepage is the platform speaking, so it sits
+        // with the money — superadmin and admin.
+        'ads' => 'finance',
         'payments' => 'finance',
         // configuration (superadmin)
         'admins' => 'configuration', 'settings' => 'configuration', 'webhooks' => 'configuration', 'judges' => 'configuration',

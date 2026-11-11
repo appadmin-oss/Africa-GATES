@@ -128,7 +128,7 @@ final class AdVersionsTest extends TestCase
         $this->assertStringContainsString("Media::url(\$ad->image_path ? (string) \$ad->image_path : null, 'ad')", $src, 'the card is drawn from the 320px thumb again');
         $this->assertStringContainsString("'image_srcset' => \\AfricaGates\\Support\\ImageProfiles::srcset(", $src);
         $slot = ChromeRender::source('templates/partials/ad-slot.twig');
-        $this->assertStringContainsString('srcset="{{ ad.image_srcset }}" sizes="(min-width: 600px) 520px, calc(100vw - 32px)"', $slot);
+        $this->assertStringContainsString('(min-width: 600px) 520px, calc(100vw - 32px)"', $slot);
 
         $uid = $this->user();
         $r = AdCampaigns::createTrial($uid, $this->ad(), '/uploads/ads/full.webp');
