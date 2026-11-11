@@ -66,16 +66,19 @@
   <section class="am-box am-advice" aria-labelledby="am-adv-h">
     <h2 class="am-h2" id="am-adv-h">{{ 'What to try next'|trans }}</h2>
     <ul class="am-advice__l">
-      {% for a in c.advice %}<li>{{ a.text|trans }}{% if a.action == 'add' and c.can_add %} <a class="am-link" href="#ad-version">{{ 'Add a version'|trans }}</a>{% endif %}</li>{% endfor %}
+      {% for a in c.advice %}<li>{{ a.text|trans }}{% if a.action == 'add' and c.can_add %} <a class="am-link" href="?add=1#ad-version">{{ 'Add a version'|trans }}</a>{% endif %}</li>{% endfor %}
     </ul>
   </section>
   {% endif %}
 
   <section class="am-box" aria-labelledby="am-days-h">
     <div class="am-box__head">
-      <h2 class="am-h2" id="am-days-h">{{ 'Last 14 days'|trans }}</h2>
+      <h2 class="am-h2" id="am-days-h">{{ c.days|length == 1 ? 'Today'|trans : 'By day'|trans }}</h2>
       {% if c.views > 0 %}<a class="am-link" href="/account/ads/{{ c.id }}/results.csv" download>{{ 'Download results'|trans }}</a>{% endif %}
     </div>
+    {% if not c.days %}
+    <p class="am-note">{{ 'Results appear here, day by day, from the day it starts.'|trans }}</p>
+    {% else %}
     <table class="am-days">
       <thead><tr><th scope="col">{{ 'Day'|trans }}</th><th scope="col">{{ 'Views'|trans }}</th><th scope="col">{{ 'Clicks'|trans }}</th></tr></thead>
       <tbody>
@@ -84,6 +87,8 @@
         {% endfor %}
       </tbody>
     </table>
+    {% if c.days|length >= 14 %}<p class="am-note">{{ 'The last 14 days. Every day since it started is in the download.'|trans }}</p>{% endif %}
+    {% endif %}
   </section>
 
   {% if c.places|length %}
@@ -193,7 +198,7 @@
      button prefilled from the first, because a version usually changes one thing. #}
   {% set _f = c.ads|first %}
   {% set _n = new_old %}
-  <details class="am-edit am-version" id="ad-version"{% if new_errors or new_summary %} open{% endif %}>
+  <details class="am-edit am-version" id="ad-version"{% if new_errors or new_summary or adding %} open{% endif %}>
     <summary class="am-edit__s">{{ 'Add another version'|trans }} <span class="am-opt">{{ '(%n% of %m%)'|trans({'%n%': c.ads|length + 1, '%m%': rules.versions}) }}</span></summary>
     <p class="am-note">{{ 'Try a different picture or headline. A person checks it first, then it joins the rotation.'|trans }}</p>
     {% if new_summary %}<p class="am-err" role="alert">{{ new_summary|trans }}</p>{% endif %}

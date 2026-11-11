@@ -363,8 +363,12 @@ final class AdCampaigns
         foreach ($out['ads'] as &$a) $a['ctr'] = $a['views'] > 0 ? round(100 * $a['clicks'] / $a['views'], 1) : null;
         unset($a);
         $out['can_add'] = $set !== null && self::editable($out['delivery']) && count($ads) < AdRules::ADS_PER_SET;
-        $out['days'] = self::daily(array_map(static fn ($a) => (int) $a->id, $ads), 14);
-        $out['days_max'] = max(1, ...array_map(static fn ($d) => (int) $d['views'], $out['days']));
+        // The last fourteen days, from the day it STARTED: rows of noughts from before the
+        // campaign existed are a table to scroll past, and read as a campaign that did nothing.
+        $from = $set && $set->starts_at ? substr((string) $set->starts_at, 0, 10) : null;
+        $out['days'] = $from === null ? [] : array_values(array_filter(self::daily(array_map(static fn ($a) => (int) $a->id, $ads), 14),
+            static fn ($d) => $d['day'] >= $from));
+        $out['days_max'] = max(1, 0, ...array_map(static fn ($d) => (int) $d['views'], $out['days']));
         $out['editable'] = self::editable($out['delivery']);
         // The approvals this kind of ad needs, so an edit carries them (and keeps what was given).
         $out['needs'] = AdRules::CATEGORIES[$out['category']][2] ?? [];

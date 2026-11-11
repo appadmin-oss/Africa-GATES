@@ -175,7 +175,14 @@
     }
   }
 
+  // The phone's action bar says which kind of campaign the button sends.
+  var barKind = form.querySelector('[data-bar-kind]');
+  function kind(radio) {
+    if (barKind && radio.checked) barKind.textContent = barKind.getAttribute(radio.value === 'paid' ? 'data-paid' : 'data-trial') || barKind.textContent;
+  }
+
   form.addEventListener('change', function (e) {
+    if (e.target.name === 'kind') kind(e.target);
     if (e.target.name === 'shape') reshape(e.target);
     if (e.target.hasAttribute && e.target.hasAttribute('data-pv-video')) showVideo(e.target);
     if (e.target.hasAttribute && e.target.hasAttribute('data-pv-file') && !e.target.hasAttribute('data-ag-image')) showFile(e.target);

@@ -26,7 +26,7 @@
   offer: old.offer|default(''), offer_code: old.offer_code|default(''), cta: rules.ctas[old.cta|default('learn_more')]|default('Learn more'), url: '#', external: false
 } %}
 
-{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/ads.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/ad-slot.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/image-tool.css') }}">{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/library.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/ads.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/ad-slot.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/image-tool.css') }}">{% endblock %}
 
 {% block content %}
 {# The image editor (image-tool.js): the person chooses the square, and it is made small on
@@ -219,20 +219,34 @@
         </fieldset>
       </fieldset>
 
+      {# The live preview, right after the fields it shows: on a phone that is under "Your ad"
+         rather than below the button, where nobody writing an ad would scroll to it; from
+         1024px the grid lifts it into a sticky column beside the steps (ads.css). #}
+      <aside class="am-build__pv" id="ad-preview" aria-label="{{ 'Preview'|trans }}">
+        <p class="am-pv__h">{{ 'Preview'|trans }}</p>
+        {% set _pvs = _pv|merge({shape: _shape}) %}
+        <div data-ad-preview>{% include 'partials/ad-slot.twig' with {ad: _pvs, preview: true, media_box: true} only %}</div>
+        <p class="am-note">{{ 'How your ad looks on the page. The real one is labelled the same way.'|trans }}</p>
+      </aside>
+
       <div class="am-submit">
         <label class="am-check am-check--agree"><input type="checkbox" name="standards" value="1" required{% if old.standards|default(false) %} checked{% endif %}{% if errors.standards %} aria-invalid="true" aria-describedby="ad-std-e"{% endif %}> <span>{{ 'My ad follows the'|trans }} <a class="am-link" href="/legal/advertising" target="_blank" rel="noopener">{{ 'Advertising Policy'|trans }}</a>{{ ', and its claims are true.'|trans }}</span></label>
         {% if errors.standards %}<p class="am-err" id="ad-std-e" role="alert">{{ errors.standards|trans }}</p>{% endif %}
         <p class="am-note">{{ 'A person checks every ad before it runs. Ads are labelled Sponsored.'|trans }}</p>
+        <button type="submit" class="ag-btn ag-btn--primary ag-btn--pill am-submit__btn">{{ paid.open ? 'Continue'|trans : 'Send for review'|trans }}</button>
+      </div>
+      {# THE PHONE'S ACTION BAR (library.css .ag-actionbar): a long form's one action stays
+         under the thumb, the tab bar is off (flow_page), and the summary says what is being
+         sent. It is the same submit button, so validation and the agreement still apply. #}
+      <div class="ag-actionbar am-actbar" data-bottom-ui>
+        <span class="ag-actionbar__sum">
+          <b data-bar-kind data-trial="{{ 'Free trial'|trans }}" data-paid="{{ 'Paid campaign'|trans }}">{{ (paid.open and old.kind|default(trial_left ? 'trial' : 'paid') == 'paid') or not trial_left ? 'Paid campaign'|trans : 'Free trial'|trans }}</b>
+          <span>{{ 'A person checks it before it runs'|trans }}</span>
+        </span>
         <button type="submit" class="ag-btn ag-btn--primary ag-btn--pill">{{ paid.open ? 'Continue'|trans : 'Send for review'|trans }}</button>
       </div>
     </div>
 
-    <aside class="am-build__pv" aria-label="{{ 'Preview'|trans }}">
-      <p class="am-pv__h">{{ 'Preview'|trans }}</p>
-      {% set _pvs = _pv|merge({shape: _shape}) %}
-      <div data-ad-preview>{% include 'partials/ad-slot.twig' with {ad: _pvs, preview: true, media_box: true} only %}</div>
-      <p class="am-note">{{ 'How your ad looks on the page. The real one is labelled the same way.'|trans }}</p>
-    </aside>
   </form>
   {% endif %}
 </div>

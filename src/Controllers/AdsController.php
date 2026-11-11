@@ -132,6 +132,8 @@ final class AdsController
         return $this->view->render($res, 'pages/account/ads-new.twig', [
             'app_bar' => ['variant' => 'child', 'title' => 'New campaign', 'back' => '/account/ads', 'share' => false],
             'page_title' => 'New campaign — Africa GATES', 'gates_page' => 'account',
+            // A flow: its own back button and its own bottom bar, no tab bar (layout/shell.twig).
+            'flow_page' => true,
             'trial_left' => !AdCampaigns::trialUsed((int) $user->id),
             'nominee_open' => AdRules::inOpenAward((int) $user->id),
             'rules' => self::rules(), 'estimate' => $est,
@@ -313,6 +315,9 @@ final class AdsController
             'c' => $c, 'rules' => self::rules(),
             'errors' => $form['errors'] ?? [], 'old' => $form['old'] ?? [], 'fixing' => (int) ($form['old']['ad_id'] ?? 0),
             'new_errors' => $new['errors'] ?? [], 'new_old' => $new['old'] ?? [], 'new_summary' => $new['summary'] ?? '',
+            // "Add a version" from the advice opens the form it points at (a <details> does
+            // not open for a fragment by itself).
+            'adding' => isset($req->getQueryParams()['add']),
         ]);
     }
 

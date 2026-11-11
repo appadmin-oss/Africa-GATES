@@ -44,7 +44,7 @@
 .am-how b{ display:block; color:var(--ag-ink) }
 /* Editing any ad: closed unless the ad was refused or the last save bounced. */
 .am-edit{ border-top:1px solid var(--ag-line-3); padding-top:4px }
-.am-edit__s{ min-height:44px; display:inline-flex; align-items:center; cursor:pointer; color:var(--ag-green); font-weight:600; font-size:var(--ag-fs-14-5) }
+.am-edit__s{ min-height:44px; display:inline-flex; align-items:center; gap:6px; cursor:pointer; color:var(--ag-green); font-weight:600; font-size:var(--ag-fs-14-5) }
 .am-ads{ display:grid; grid-template-columns:minmax(0,1fr); gap:14px }
 .am-ad{ display:flex; flex-direction:column; gap:10px }
 .am-ad__r{ margin:0; font-size:var(--ag-fs-14); color:var(--ag-ink-2) }
@@ -70,7 +70,7 @@
 .am-chip input{ position:absolute; opacity:0; width:1px; height:1px }
 .am-chip:has(input:checked){ border:2px solid var(--ag-ink) }
 .am-chip:has(input:focus-visible){ outline:3px solid var(--ag-green); outline-offset:2px }
-.am-check{ display:flex; align-items:center; gap:10px; min-height:44px; font-size:var(--ag-fs-15) }
+.am-check{ display:flex; align-items:flex-start; gap:10px; min-height:44px; box-sizing:border-box; padding-block:10px; font-size:var(--ag-fs-15) }
 .am-check input{ width:20px; height:20px; accent-color:var(--ag-green) }
 .am-est{ margin:0; padding:12px 14px; border-radius:var(--ag-r-12); background:var(--ag-bar); font-size:var(--ag-fs-14-5); line-height:1.5; color:var(--ag-ink-2) }
 .am-est b{ color:var(--ag-ink) }
@@ -162,8 +162,14 @@
   .am-hero{ grid-template-columns:minmax(0,1.1fr) minmax(0,1fr); gap:48px }
   .am-points{ grid-template-columns:repeat(3,minmax(0,1fr)) }
   .am-steps{ grid-template-columns:repeat(4,minmax(0,1fr)) }
-  .am-build{ grid-template-columns:minmax(0,1fr) 380px; align-items:start }
-  .am-build__pv{ position:sticky; top:24px }
+  /* The preview sits after "Your ad" in the markup, so on a phone it is under the fields it
+     shows; here the form column dissolves into the grid and the preview takes a sticky
+     column of its own, spanning the steps (the optional error line, three steps, and the
+     agreement are never more than five rows, and four is what it must span). */
+  .am-build{ grid-template-columns:minmax(0,1fr) 380px; align-items:start; row-gap:18px }
+  .am-build__form{ display:contents }
+  .am-build__form > *{ grid-column:1 }
+  .am-build__form > .am-build__pv{ grid-column:2; grid-row:1 / span 4; position:sticky; top:24px }
 }
 
 /* The builder's two live panels (11 Nov 2026): what the budget should reach, and the ad's
@@ -185,3 +191,19 @@
 .am-pace b{ color:var(--ag-ink) }
 .am-advice__l{ margin:0; padding-inline-start:18px; display:flex; flex-direction:column; gap:10px; font-size:var(--ag-fs-15); line-height:1.5; color:var(--ag-ink-2) }
 .am-ad__str b{ color:var(--ag-ink) }
+
+/* Phone flow (11 Nov 2026, UX pass): the action bar carries the submit, so the in-flow
+   button would be the same action twice on one screen. From 600px the bar is gone
+   (library.css) and the button is back. */
+@media (max-width:599.98px){ .am-submit__btn{ display:none } }
+
+/* Fieldsets that group choices: no browser groove around them, the legend is a label. */
+.am-cats, .am-approvals{ margin:0; padding:0; border:0; min-width:0 }
+.am-cats > legend, .am-approvals > legend{ padding:0; margin:0 0 6px }
+/* Multi-line choices: the control at the first line, never squeezed by a long label. */
+.am-check > input{ flex:none; margin:2px 0 0 }
+/* A file picker that looks like part of this form rather than the browser's default. */
+.am-input--file{ cursor:pointer }
+.am-input--file::file-selector-button{ min-height:36px; padding:0 16px; margin-inline-end:12px; border:1px solid var(--ag-line-2);
+  border-radius:var(--ag-r-pill); background:var(--ag-surface); color:var(--ag-ink); font:inherit; font-size:var(--ag-fs-14-5); font-weight:600; cursor:pointer }
+.am-input--file:hover::file-selector-button{ border-color:var(--ag-ink) }
