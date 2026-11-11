@@ -301,7 +301,7 @@ final class EventsPagesTest extends TestCase
      * well: a second colour in the comet, a glow washing round the whole card, a rim turning
      * for ever beside a form, two clocks drifting apart, a linear turn, a sweep running off
      * screen or pausing while a quarter of it was in view, and a double edge over the card's
-     * hairline.
+     * hairline. Refined 11 Nov 2026 to design.google's spec for the Gemini gradients.
      */
     public function test_the_glow_is_a_one_colour_sweep_round_the_card_that_rests_after(): void
     {
@@ -309,7 +309,9 @@ final class EventsPagesTest extends TestCase
         $this->assertMatchesRegularExpression("~@property --ev-a\{\s*syntax:'<angle>'; initial-value:0deg; inherits:true \}~", $css, 'the halo and the ring need one clock');
         $this->assertSame(1, preg_match('~\.ed-glow\{(.*?)\n\}~s', $css, $g));
         $glow = $g[1];
-        $this->assertMatchesRegularExpression('~animation:edAngle [0-9.]+s cubic-bezier\([^)]*\) 2 both;~', $glow, 'two eased laps, then rest — not linear, not for ever');
+        // One lap with a defined start and end (design.google, the Gemini system: "each
+        // animation has a defined start and end point"), on an eased curve, then rest.
+        $this->assertMatchesRegularExpression('~animation:edAngle [0-9.]+s cubic-bezier\([^)]*\) 1 both;~', $glow, 'one eased lap, then rest — not linear, not two laps, not for ever');
         $this->assertStringNotContainsString('infinite', substr($css, (int) strpos($css, '@property --ev-a'), 4000), 'a rim turning for ever beside a form');
         $this->assertMatchesRegularExpression('~inset:-1px~', $glow, 'the ring is a second edge inside the card\'s own');
 
@@ -318,14 +320,22 @@ final class EventsPagesTest extends TestCase
         $this->assertNotEmpty($h);
         preg_match_all('~var\((--[a-z0-9-]+)\)~', $h[1], $v);
         $this->assertSame([], array_values(array_filter(array_unique($v[1]), fn($n) => !str_starts_with($n, '--tier-'))), 'the comet is drawn in a colour that is not the tier\'s');
-        $this->assertStringContainsString('--ev-cg:conic-gradient(from var(--ev-a), var(--ag-line) 0deg 190deg, var(--ev-head), var(--ag-line) 360deg);', $glow, 'away from the comet the rim is the ordinary card edge');
-        $this->assertStringContainsString('--ev-halo:conic-gradient(from var(--ev-a), transparent 0deg 220deg, var(--ev-head), transparent 360deg);', $glow, 'a halo of the whole ring washes round the card');
+        $this->assertStringContainsString('--ev-cg:conic-gradient(from var(--ev-a), var(--ag-line) 0deg 210deg, var(--ev-head), var(--ag-line) 356deg 360deg);', $glow, 'away from the comet the rim is the ordinary card edge');
+        // A SHARP, OPAQUE LEADING EDGE THAT DIFFUSES AT THE TAIL (design.google): the head is
+        // the tier's deep colour held to 356deg and then stops hard — it used to fade back to
+        // the accent before ending, a soft leading edge, which is the spec inverted.
+        $this->assertStringContainsString('var(--tier-deep) 352deg, var(--tier-deep) 356deg', $h[1], 'the leading edge fades out instead of stopping sharp');
+        $this->assertStringStartsWith('transparent ', trim($h[1]), 'the tail does not diffuse from nothing');
+        $this->assertStringContainsString('--ev-halo:conic-gradient(from var(--ev-a), transparent 0deg 318deg, var(--tier-accent) 344deg, var(--tier-deep) 356deg, transparent 356deg 360deg);', $glow, 'the halo is more than the head — it washes round the card');
         $this->assertDoesNotMatchRegularExpression('~\.ed-glow__(halo|ring)\{[^}]*edAngle~', $css, 'a second clock on a child drifts from the first');
 
-        $this->assertMatchesRegularExpression('~\.ed-glow__halo\{[^}]*inset:-3px[^}]*filter:blur\(10px\)~s', $css, 'the glow sits tight to the card');
+        // Tight to the card: it was a 10px blur on a box 3px outside it, scaled to 102% — a
+        // green smear ~20px beyond the edge (owner: "fix the … lightening").
+        $this->assertMatchesRegularExpression('~\.ed-glow__halo\{[^}]*inset:0;[^}]*filter:blur\(4px\)~s', $css, 'the glow smears beyond the card again');
+        $this->assertDoesNotMatchRegularExpression('~@keyframes edHalo\{[^\n]*scale~', $css, 'the halo grows past the card');
         $this->assertMatchesRegularExpression('~\.ed-glow__ring\{[^}]*padding-box, var\(--ev-cg\) border-box~s', $css);
         $this->assertMatchesRegularExpression('~@keyframes edSweep\{[^\n]*100%\{ opacity:0 \} \}~', $css, 'the card is left as it was drawn');
-        $this->assertMatchesRegularExpression('~@keyframes edHalo\{[^\n]*100%\{ opacity:0;~', $css);
+        $this->assertMatchesRegularExpression('~@keyframes edHalo\{[^\n]*100%\{ opacity:0 \} \}~', $css);
         $this->assertStringContainsString('.ed-card[data-ev-idle] .ed-glow > *{ animation-play-state:paused }', $css, 'a sweep nobody can see');
         $this->assertMatchesRegularExpression('~prefers-reduced-motion:reduce\)\{ \[data-ev-glow\]\{ display:none \} \}~', $css);
         $this->assertStringContainsString('html.ag-rm [data-ev-glow]{ display:none }', $css, 'the site\'s own reduce-motion setting left the rim drawn, still');

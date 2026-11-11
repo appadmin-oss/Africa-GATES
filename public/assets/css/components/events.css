@@ -230,53 +230,57 @@ button.ev-btn{ cursor:pointer; font-family:inherit }
 .ed-card__note{ margin:0; font-size:var(--ag-fs-13); font-weight:700; color:var(--ag-ink-2) }
 .ed-tint{ color:var(--ev-deep) }
 
-/* THE GLOW — the card's rim, after Google's AI-mode glow, in ONE colour: the chosen tier's
-   (owner, 2 Nov 2026, superseding §8.10's two-ended ring; "cleaner, like Google's").
-   Three layers, as that control is built:
-     top     the card's face — the ring's `padding-box` fill, so no light reaches the form;
-     middle  the comet, a conic gradient shown only through the 1.5px `border-box`. Away from
-             the comet it is the card's own hairline (`--ag-line`), so the rim reads as the
-             ordinary card edge everywhere but where the light is; the tail rises through
-             `light` and `accent` to a `deep` head that softens again rather than stopping hard;
-     bottom  the halo: a blurred copy of the comet ALONE (transparent elsewhere), tight to the
-             card, so the glow is under the head and nowhere else — no wash round the card.
+/* THE GLOW — a light that runs once round the card's rim in the chosen tier's colour (owner,
+   2 Nov 2026: "cleaner, like Google's"; refined 11 Nov 2026: "fix the event registration div
+   lightening — check out design.google for specs").
 
-   · IT PLAYS, THEN RESTS. Two laps on an eased curve (the head surges out of each and eases
-     into the next), the light fading in over the first beat and out over the last, and the
-     card is left exactly as it was drawn. A rim turning for ever beside a form somebody is
-     filling in is the opposite of clean. It plays on every pick and the first time the card
-     is in view with a tier already chosen (event-detail.js), which is when it means
-     something: "this is what you are booking".
-   · ONE CLOCK. `--ev-a` is registered (so it interpolates) and INHERITS, and is turned on
-     `.ed-glow` alone, so the halo and the ring can never drift apart. Unregistered (no
-     @property) the angle does not move and the sweep is a still gradient fading in and out.
-   · PAUSED OFF SCREEN. event-detail.js marks the card `data-ev-idle` while none of it is
-     visible, so a sweep somebody scrolled away from waits for them.
-   · aria-hidden and untouchable: the tier's border, wash and radio say everything it says,
-     which is what makes it safe to drop entirely under reduced motion — the OS's or the
-     site's own (`html.ag-rm`). */
+   THE SPEC IT FOLLOWS. Google's write-up of the Gemini visual system ("Illustrating the
+   Gemini App", design.google): its gradients have "sharp, almost opaque leading edges that
+   diffuse at the tail", and "each animation has a defined start and end point" — anticipation,
+   then release. Material 3's elevation guidance (m3.material.io) says the card itself sits on
+   level 0 with a hairline, and that a lift is a neutral shadow, never a coloured one.
+
+   WHAT WAS WRONG. The halo was a 10px blur on a box 3px outside the card, scaled to 102%:
+   a green smear spreading ~20px beyond the edge, so the effect read as a stain rather than a
+   light. And the head faded back down to the accent before it ended — a soft LEADING edge,
+   the opposite of the spec — while the whole thing ran two laps.
+
+   NOW:
+     ring  a 2px light on the card's own edge (-1px, over the hairline, so it IS the edge).
+           Behind the head it is the hairline (--ag-line); the tail rises from transparent
+           through `light` and `accent` to a `deep`, fully opaque head that STOPS HARD — the
+           sharp leading edge — then the hairline again.
+     halo  the head alone, blurred 4px and tight to the card (inset 0, no scale), at 40%:
+           a soft bloom under the light and nowhere else.
+     time  ONE lap, 1.8s on an anticipate-then-release curve; the light fades in over the
+           first tenth and out over the last, and the card is left exactly as drawn — the
+           outlined card of Material's level 0.
+
+   Unchanged: it plays on a pick and the first time the card is in view with a tier chosen
+   (event-detail.js), pauses off screen (`data-ev-idle`), is aria-hidden, and is dropped
+   entirely under reduced motion — the OS's or the site's own (`html.ag-rm`). */
 @property --ev-a{ syntax:'<angle>'; initial-value:0deg; inherits:true }
-@keyframes edAngle{ to{ --ev-a:360deg } }
-@keyframes edSweep{ 0%{ opacity:0 } 8%{ opacity:1 } 78%{ opacity:1 } 100%{ opacity:0 } }
-@keyframes edHalo{ 0%{ opacity:0; transform:scale(.99) } 12%{ opacity:.7; transform:scale(1.02) } 70%{ opacity:.5; transform:scale(1) } 100%{ opacity:0; transform:scale(1) } }
+@keyframes edAngle{ from{ --ev-a:-40deg } to{ --ev-a:320deg } }
+@keyframes edSweep{ 0%{ opacity:0 } 10%{ opacity:1 } 82%{ opacity:1 } 100%{ opacity:0 } }
+@keyframes edHalo{ 0%{ opacity:0 } 14%{ opacity:.4 } 72%{ opacity:.32 } 100%{ opacity:0 } }
 .ed-glow{
-  --ev-head:var(--tier-light) 250deg, var(--tier-accent) 322deg, var(--tier-deep) 346deg, var(--tier-accent) 353deg;
-  --ev-cg:conic-gradient(from var(--ev-a), var(--ag-line) 0deg 190deg, var(--ev-head), var(--ag-line) 360deg);
-  --ev-halo:conic-gradient(from var(--ev-a), transparent 0deg 220deg, var(--ev-head), transparent 360deg);
-  /* -1px: over the card's own hairline, so the ring IS the card's edge, not a second one. */
+  /* The tail diffuses up to the head; the head ends hard at 356deg. */
+  --ev-head:transparent 210deg, var(--tier-light) 270deg, var(--tier-accent) 330deg, var(--tier-deep) 352deg, var(--tier-deep) 356deg;
+  --ev-cg:conic-gradient(from var(--ev-a), var(--ag-line) 0deg 210deg, var(--ev-head), var(--ag-line) 356deg 360deg);
+  --ev-halo:conic-gradient(from var(--ev-a), transparent 0deg 318deg, var(--tier-accent) 344deg, var(--tier-deep) 356deg, transparent 356deg 360deg);
   position:absolute; inset:-1px; z-index:-1; pointer-events:none;
-  animation:edAngle 2.4s cubic-bezier(.55,.1,.35,.95) 2 both;
+  animation:edAngle 1.8s cubic-bezier(.3,0,.15,1) 1 both;
 }
 .ed-glow__halo{
-  position:absolute; inset:-3px; border-radius:23px; background:var(--ev-halo);
-  filter:blur(10px); opacity:0;
-  animation:edHalo 4.8s var(--ag-ease) both;
+  position:absolute; inset:0; border-radius:var(--ag-r-20); background:var(--ev-halo);
+  filter:blur(4px); opacity:0;
+  animation:edHalo 1.8s var(--ag-ease) both;
 }
 .ed-glow__ring{
-  position:absolute; inset:0; border-radius:var(--ag-r-20); border:1.5px solid transparent;
+  position:absolute; inset:0; border-radius:var(--ag-r-20); border:2px solid transparent;
   background:linear-gradient(var(--ag-surface), var(--ag-surface)) padding-box, var(--ev-cg) border-box;
   opacity:0;
-  animation:edSweep 4.8s var(--ag-ease) both;
+  animation:edSweep 1.8s var(--ag-ease) both;
 }
 .ed-card[data-ev-idle] .ed-glow,
 .ed-card[data-ev-idle] .ed-glow > *{ animation-play-state:paused }
