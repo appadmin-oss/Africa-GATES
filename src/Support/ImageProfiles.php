@@ -31,6 +31,12 @@ final class ImageProfiles
         // The ad card's square (partials/ad-slot.twig): drawn up to ~520 CSS px, so 1080
         // covers a 2× phone and 540 a 1× one.
         'ad'      => ['aspect' => 1.0, 'min' => 600, 'out' => 1080, 'variants' => [540], 'quality' => 82, 'label' => 'square'],
+        // The two other shapes an ad may take (AdRules::SHAPES, owner 11 Nov 2026: "should not
+        // allow just square posts anymore"), Meta's feed set: upright 4:5, which fills more of
+        // a phone's screen, and wide 16:9, the shape most video and most banners are made in.
+        // `out` is the LONGEST side, so the upright is 1080 × 1350 and the wide 1280 × 720.
+        'ad_portrait'  => ['aspect' => 0.8, 'min' => 600, 'out' => 1350, 'variants' => [540], 'quality' => 82, 'label' => 'upright 4:5 shape'],
+        'ad_landscape' => ['aspect' => 1.7778, 'min' => 450, 'out' => 1280, 'variants' => [640], 'quality' => 82, 'label' => 'wide 16:9 shape'],
         // An advertiser's logo: a 40px circle on the card. 400 for the editor and the
         // library, 96 for the card itself (2× of 40, with room).
         'ad_logo' => ['aspect' => 1.0, 'min' => 200, 'out' => 400, 'variants' => [96], 'quality' => 86, 'label' => 'square'],

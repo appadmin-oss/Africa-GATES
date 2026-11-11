@@ -24,6 +24,8 @@
     wide        true for the homepage band: picture beside the words from 900px up
     ad.own      our own campaign posted by staff (AdStaff): counted like any ad, labelled
                 "From Africa GATES", never "Sponsored"
+    ad.video    a short MP4 over the image (AdVideo), with ad.video_watch the seconds after
+                which a play counts as watched
 
   WHAT MAKES ONE WORTH TAPPING (owner, 4 Nov 2026: "make it more enticing"), from the native
   advertising guidance (IAB, Outbrain, TripleLift, Dable): a picture that carries the
@@ -72,14 +74,28 @@
     {% endif %}
   </header>
   <p class="ag-ad__text" data-pv="body">{{ ad.body }}</p>
-  {%- set _pic = ad.image|default(null) or media_box|default(false) -%}
+  {%- set _vid = ad.video|default(null) -%}
+  {%- set _pic = ad.image|default(null) or _vid or media_box|default(false) -%}
   {#- The offer rides ON the picture when there is one: it is the most clickable fact an ad
       can carry, and the picture is where the eye already is. Outside the hidden picture
       link, so a screen reader reads it. -#}
   {%- set _offer -%}<span class="ag-ad__offer" data-pv="offer"{% if not ad.offer %} hidden{% endif %}>{{ ad.offer }}{% if ad.offer_code %} · <span class="ag-ad__code">{{ ad.offer_code }}</span>{% endif %}</span>{%- endset -%}
   {% if _pic %}
-  <div class="ag-ad__media">
-    <a class="ag-ad__pic" href="{{ _href }}"{% if _rel %} rel="{{ _rel }}"{% endif %} tabindex="-1" aria-hidden="true" data-pv="image">{% if ad.image|default(null) %}<img src="{{ ad.image }}"{% if ad.image_srcset|default(null) %} srcset="{{ ad.image_srcset }}" sizes="{{ wide|default(false) ? '(min-width: 900px) 360px, ' : '' }}(min-width: 600px) 520px, calc(100vw - 32px)"{% endif %} alt="" loading="lazy" decoding="async" width="600" height="600">{% else %}<span class="ag-ad__ph">{{ 'Your square image'|trans }}</span>{% endif %}</a>
+  {#- A VIDEO (Services\Ads\AdVideo) plays inside the same picture link, silently, with the
+      image as its poster, in the ad's SHAPE (AdRules::SHAPES: square, upright 4:5, wide 16:9).
+      It plays by default, without sound, once ads.js sees it half on screen; nothing is
+      fetched before then. With no script, on Save-Data or 2G, or under reduced motion, the
+      poster is the ad until somebody presses play. Play/pause is always offered — a clip
+      that moves by itself for more than five seconds must be stoppable (WCAG 2.2.2) — and
+      sound is one tap. Both sit OUTSIDE the hidden link so they can be reached and named,
+      and stay hidden until the script can make them do something. -#}
+  {%- set _shape = ad.shape|default('square') -%}
+  <div class="ag-ad__media ag-ad__media--{{ _shape in ['portrait', 'landscape'] ? _shape : 'square' }}{% if _vid %} ag-ad__media--video{% endif %}"{% if _vid %} data-ad-video{% if ad.video_watch|default(null) %} data-watch="{{ ad.video_watch }}"{% endif %}{% endif %}>
+    <a class="ag-ad__pic" href="{{ _href }}"{% if _rel %} rel="{{ _rel }}"{% endif %} tabindex="-1" aria-hidden="true" data-pv="image">{% if _vid %}<video class="ag-ad__vid" muted playsinline loop preload="none" width="600" height="600"{% if ad.image|default(null) %} poster="{{ ad.image }}"{% endif %}><source src="{{ _vid }}" type="video/mp4"></video>{% elseif ad.image|default(null) %}<img src="{{ ad.image }}"{% if ad.image_srcset|default(null) %} srcset="{{ ad.image_srcset }}" sizes="{{ wide|default(false) ? '(min-width: 900px) 360px, ' : '' }}(min-width: 600px) 520px, calc(100vw - 32px)"{% endif %} alt="" loading="lazy" decoding="async" width="600" height="600">{% else %}<span class="ag-ad__ph">{{ 'Your image'|trans }}</span>{% endif %}</a>
+    {% if _vid %}
+    <button type="button" class="ag-ad__vbtn ag-ad__play" data-ad-play hidden aria-label="{{ 'Play the video'|trans }}" data-play="{{ 'Play the video'|trans }}" data-pause="{{ 'Pause the video'|trans }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path class="ag-ad__i-play" d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/><path class="ag-ad__i-pause" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg></button>
+    <button type="button" class="ag-ad__vbtn ag-ad__snd" data-ad-sound hidden aria-pressed="false" aria-label="{{ 'Turn the sound on'|trans }}" data-on="{{ 'Turn the sound on'|trans }}" data-off="{{ 'Turn the sound off'|trans }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path class="ag-ad__wave" d="M15.5 8.5a5 5 0 0 1 0 7"/><path class="ag-ad__mute" d="m22 9-6 6m0-6 6 6"/></svg></button>
+    {% endif %}
     {{ _offer }}
   </div>
   {% endif %}

@@ -1431,8 +1431,10 @@ final class HelpCentre
                         . 'from a member account too; the organisation console is for money and documents.',
                     'Open <a href="/account/ads">Ads</a> in your account and choose '
                         . '<strong>Create campaign</strong>.',
-                    'Write the ad and watch the preview: who it is from, your text, a square image, '
-                        . 'a headline and a button. You can add an offer for our readers.',
+                    'Write the ad and watch the preview: who it is from, your text, an image in the '
+                        . 'shape you choose (square, upright or wide), a headline and a button. You can '
+                        . 'add a short video, which plays without sound until somebody turns it up, and '
+                        . 'an offer for our readers.',
                     'Send it for review. A person checks it against the '
                         . '<a href="/legal/advertising">Advertising Policy</a>, and you are told the '
                         . 'reason if it is not approved, so you can fix it and send it again.',

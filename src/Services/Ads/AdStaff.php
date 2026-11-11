@@ -61,7 +61,7 @@ final class AdStaff
 
         $c = AdRules::creative($in);
         $e += $c['errors'];
-        if ($imagePath === null || $imagePath === '') $e['image'] = 'Add a square image.';
+        if ($imagePath === null || $imagePath === '') $e['image'] = 'Add an image.';
 
         $days = (int) ($in['days'] ?? 0);
         if ($days < 1 || $days > self::MAX_DAYS) $e['days'] = sprintf('From 1 to %d days.', self::MAX_DAYS);

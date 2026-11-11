@@ -59,6 +59,8 @@ final class Media
         // An ad's square (Support\ImageProfiles 'ad'): drawn up to ~520 CSS px, so 1080 for a
         // 2× phone. It was served as 'thumb' (320) — a soft square on every retina screen.
         'ad'       => 'c_fill,g_auto,w_1080,h_1080,f_auto,q_auto',
+        'ad_portrait'  => 'c_fill,g_auto,w_1080,h_1350,f_auto,q_auto',
+        'ad_landscape' => 'c_fill,g_auto,w_1280,h_720,f_auto,q_auto',
         // Wide covers: shop items, blog heroes, event banners. No face gravity —
         // g_auto picks the salient region, which for a product or a venue is right
         // where a face crop would be wrong.

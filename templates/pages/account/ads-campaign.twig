@@ -46,6 +46,9 @@
     <div class="am-fig"><dt>{{ 'Views'|trans }}</dt><dd>{{ c.views|number_format }}{% if c.view_cap %} <span class="am-opt">/ {{ c.view_cap|number_format }}</span>{% endif %}</dd></div>
     <div class="am-fig"><dt>{{ 'Clicks'|trans }}</dt><dd>{{ c.clicks|number_format }}</dd></div>
     <div class="am-fig"><dt>{{ 'Click rate'|trans }}</dt><dd>{{ c.ctr is null ? '–' : c.ctr ~ '%' }}</dd></div>
+    {# A video ad is judged by whether it was watched (Meta's ThruPlay: the end, or fifteen
+       seconds), beside whether it was tapped. #}
+    {% if c.ads|filter(x => x.video)|length %}<div class="am-fig"><dt>{{ 'Watched through'|trans }}</dt><dd>{{ c.completes|number_format }} <span class="am-opt">/ {{ '%p% plays'|trans({'%p%': c.plays|number_format}) }}</span></dd></div>{% endif %}
     <div class="am-fig"><dt>{{ c.trial ? 'Ends'|trans : 'Spent'|trans }}</dt><dd>{% if c.trial %}{{ c.ends_at ? c.ends_at|date('j M') : '–' }}{% else %}{{ c.spent_label }}{% if c.budget_label %} <span class="am-opt">/ {{ c.budget_label }}</span>{% endif %}{% endif %}</dd></div>
   </dl>
 
@@ -105,7 +108,7 @@
   <div class="am-ads">
     {% for a in c.ads %}
     <div class="am-ad" id="ad-{{ a.id }}">
-      <p class="am-ad__r"><span class="am-state am-state--{{ a.review == 'approved' ? 'active' : (a.review == 'rejected' ? 'not_approved' : 'in_review') }}">{{ _review[a.review]|default(a.review)|trans }}</span>{% if c.leader == a.id %} <span class="am-lead">{{ 'Leading'|trans }}</span>{% endif %} · {{ a.views|number_format }} {{ 'views'|trans }} · {{ a.clicks|number_format }} {{ 'clicks'|trans }}{% if a.ctr is not null %} · {{ '%r%% click rate'|trans({'%r%': a.ctr}) }}{% endif %}</p>
+      <p class="am-ad__r"><span class="am-state am-state--{{ a.review == 'approved' ? 'active' : (a.review == 'rejected' ? 'not_approved' : 'in_review') }}">{{ _review[a.review]|default(a.review)|trans }}</span>{% if c.leader == a.id %} <span class="am-lead">{{ 'Leading'|trans }}</span>{% endif %} · {{ a.views|number_format }} {{ 'views'|trans }} · {{ a.clicks|number_format }} {{ 'clicks'|trans }}{% if a.ctr is not null %} · {{ '%r%% click rate'|trans({'%r%': a.ctr}) }}{% endif %}{% if a.video %} · {{ 'Video, %s% seconds: %p% plays, %f% watched through'|trans({'%s%': a.video_seconds, '%p%': a.plays|number_format, '%f%': a.completes|number_format}) }}{% endif %}</p>
       {% include 'partials/ad-slot.twig' with {ad: a, preview: true} only %}
       <p class="am-note am-ad__str">{{ 'Ad strength:'|trans }} <b>{{ a.strength.label|trans }}</b>{% if a.strength.tips %} · {{ a.strength.tips|first|trans }}{% endif %}</p>
       {% if a.review == 'rejected' %}<p class="am-err">{{ a.reason }}</p>{% endif %}
@@ -145,11 +148,28 @@
           <label class="ag-label" for="fx-k-{{ a.id }}">{{ 'Offer code'|trans }} <span class="am-opt">{{ '(optional)'|trans }}</span></label>
           <input class="am-input" id="fx-k-{{ a.id }}" name="offer_code" type="text" maxlength="{{ rules.code }}" value="{{ _o.offer_code|default('') }}">
         </div>
+        {% set _osh = _o.shape|default('square') %}
+        <div class="am-field">
+          <label class="ag-label" for="fx-s-{{ a.id }}">{{ 'Shape'|trans }}</label>
+          <select class="am-input" id="fx-s-{{ a.id }}" name="shape" aria-describedby="fx-s-h-{{ a.id }}">
+            {% for k, sh in rules.shapes %}<option value="{{ k }}" data-aspect="{{ sh.aspect }}" data-min="{{ sh.min }}" data-out="{{ sh.out }}"{% if _osh == k %} selected{% endif %}>{{ sh.label|trans }}</option>{% endfor %}
+          </select>
+          <p class="ag-hint" id="fx-s-h-{{ a.id }}">{{ 'A new shape needs a new image, cut to it.'|trans }}</p>
+        </div>
         <div class="am-field">
           <label class="ag-label" for="fx-i-{{ a.id }}">{{ 'New image'|trans }} <span class="am-opt">{{ '(optional)'|trans }}</span></label>
-          <input class="am-input am-input--file" id="fx-i-{{ a.id }}" name="image" type="file" accept="image/jpeg,image/png,image/webp" {{ imgtool.attrs('ad') }}>
+          <input class="am-input am-input--file" id="fx-i-{{ a.id }}" name="image" type="file" accept="image/jpeg,image/png,image/webp" {{ imgtool.attrs(rules.shapes[_osh].profile|default('ad')) }} data-shape-from="shape">
           {% if fixing == a.id and errors.image %}<p class="am-err" role="alert">{{ errors.image|trans }}</p>{% endif %}
         </div>
+        {% if rules.video.on %}
+        <div class="am-field">
+          <label class="ag-label" for="fx-v-{{ a.id }}">{{ a.video ? 'New video'|trans : 'Video'|trans }} <span class="am-opt">{{ '(optional)'|trans }}</span></label>
+          <input class="am-input am-input--file" id="fx-v-{{ a.id }}" name="video" type="file" accept="video/mp4" aria-describedby="fx-v-h-{{ a.id }}">
+          <p class="ag-hint" id="fx-v-h-{{ a.id }}">{{ 'An MP4 of %min% to %max% seconds, up to %mb%MB, in the shape above. It plays by itself without sound.'|trans({'%min%': rules.video.min, '%max%': rules.video.max, '%mb%': rules.video.mb}) }}</p>
+          {% if a.video %}<label class="am-check"><input type="checkbox" name="remove_video" value="1"> {{ 'Take the video off (the image stays)'|trans }}</label>{% endif %}
+          {% if fixing == a.id and errors.video %}<p class="am-err" role="alert">{{ errors.video|trans }}</p>{% endif %}
+        </div>
+        {% endif %}
         {# The approvals this kind of ad carries, prefilled, so an edit neither loses one that
            was given nor is refused for one it was never asked for (AdRules::CATEGORIES). #}
         {% for k in ['arcon']|merge(c.needs|filter(n => n != 'arcon' and n != 'licence')) %}
@@ -179,11 +199,26 @@
     {% if new_summary %}<p class="am-err" role="alert">{{ new_summary|trans }}</p>{% endif %}
     <form class="am-step" method="post" action="/account/ads/{{ c.id }}/ads" enctype="multipart/form-data" novalidate data-ag-validate>
       <input type="hidden" name="_token" value="{{ csrf_token }}">
+      {% set _nsh = _n.shape|default(_f.shape|default('square')) %}
+      <div class="am-field">
+        <label class="ag-label" for="nv-s">{{ 'Shape'|trans }}</label>
+        <select class="am-input" id="nv-s" name="shape">
+          {% for k, sh in rules.shapes %}<option value="{{ k }}" data-aspect="{{ sh.aspect }}" data-min="{{ sh.min }}" data-out="{{ sh.out }}"{% if _nsh == k %} selected{% endif %}>{{ sh.label|trans }}</option>{% endfor %}
+        </select>
+      </div>
       <div class="am-field">
         <label class="ag-label" for="nv-i">{{ 'Image'|trans }}</label>
-        <input class="am-input am-input--file" id="nv-i" name="image" type="file" accept="image/jpeg,image/png,image/webp" required {{ imgtool.attrs('ad') }}{% if new_errors.image|default(false) %} aria-invalid="true" aria-describedby="nv-i-e"{% endif %}>
+        <input class="am-input am-input--file" id="nv-i" name="image" type="file" accept="image/jpeg,image/png,image/webp" required {{ imgtool.attrs(rules.shapes[_nsh].profile|default('ad')) }} data-shape-from="shape"{% if new_errors.image|default(false) %} aria-invalid="true" aria-describedby="nv-i-e"{% endif %}>
         {% if new_errors.image|default(false) %}<p class="am-err" id="nv-i-e" role="alert">{{ new_errors.image|trans }}</p>{% endif %}
       </div>
+      {% if rules.video.on %}
+      <div class="am-field">
+        <label class="ag-label" for="nv-v">{{ 'Video'|trans }} <span class="am-opt">{{ '(optional)'|trans }}</span></label>
+        <input class="am-input am-input--file" id="nv-v" name="video" type="file" accept="video/mp4" aria-describedby="nv-v-h">
+        <p class="ag-hint" id="nv-v-h">{{ 'An MP4 of %min% to %max% seconds, up to %mb%MB, in the shape above. It plays by itself without sound.'|trans({'%min%': rules.video.min, '%max%': rules.video.max, '%mb%': rules.video.mb}) }}</p>
+        {% if new_errors.video|default(false) %}<p class="am-err" role="alert">{{ new_errors.video|trans }}</p>{% endif %}
+      </div>
+      {% endif %}
       <div class="am-field">
         <label class="ag-label" for="nv-h">{{ 'Headline'|trans }}</label>
         <input class="am-input" id="nv-h" name="headline" type="text" required maxlength="{{ rules.headline }}" value="{{ _n.headline|default('') }}"{% if new_errors.headline|default(false) %} aria-invalid="true"{% endif %}>
@@ -243,4 +278,4 @@
 </div>
 {% endblock %}
 
-{% block foot_scripts %}{% if c.editable %}<script defer src="{{ asset('/assets/js/image-tool.js') }}" data-nav="rerun"></script>{% endif %}{% endblock %}
+{% block foot_scripts %}{% if c.editable %}<script defer src="{{ asset('/assets/js/image-tool.js') }}" data-nav="rerun"></script>{% endif %}{% if c.ads|filter(x => x.video)|length %}<script defer src="{{ asset('/assets/js/ads.js') }}" data-nav="rerun"></script>{% endif %}{% endblock %}

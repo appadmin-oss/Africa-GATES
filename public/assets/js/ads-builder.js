@@ -62,16 +62,22 @@
     out.textContent = el.value.length + '/' + max;
   }
 
+  // The image into its slot — or, while a video is previewing, as that video's poster, which
+  // is what the image is on a video ad.
+  function picture(target, url) {
+    var v = target.querySelector('video');
+    if (v && target.getAttribute('data-pv') === 'image') { v.setAttribute('poster', url); return; }
+    var img = target.querySelector('img') || document.createElement('img');
+    img.alt = ''; img.src = url;
+    if (!img.parentNode) { target.textContent = ''; target.appendChild(img); }
+  }
+
   function showFile(input) {
     var target = slot(input.getAttribute('data-pv-file'));
     var f = input.files && input.files[0];
     if (!target || !f || !/^image\//.test(f.type)) return;
     var r = new FileReader();
-    r.onload = function () {
-      var img = target.querySelector('img') || document.createElement('img');
-      img.alt = ''; img.src = String(r.result);
-      if (!img.parentNode) { target.textContent = ''; target.appendChild(img); }
-    };
+    r.onload = function () { picture(target, String(r.result)); };
     r.readAsDataURL(f);
   }
 
@@ -132,11 +138,46 @@
     var t = e.target, target = t && t.getAttribute && slot(t.getAttribute('data-pv-file'));
     if (t && t.getAttribute) { chosen[t.getAttribute('data-pv-file')] = true; later(); }
     if (!target || !e.detail || !e.detail.url) return;
-    var img = target.querySelector('img') || document.createElement('img');
-    img.alt = ''; img.src = e.detail.url;
-    if (!img.parentNode) { target.textContent = ''; target.appendChild(img); }
+    picture(target, e.detail.url);
   });
+  // A video chosen plays in the preview, from this device (a blob: address; nothing is
+  // uploaded until the form is sent), with the image chosen as its poster. Removing the file
+  // puts the image back.
+  var videoUrl = '';
+  function showVideo(input) {
+    var target = slot('image');
+    if (!target) return;
+    var f = input.files && input.files[0];
+    if (videoUrl) { URL.revokeObjectURL(videoUrl); videoUrl = ''; }
+    var old = target.querySelector('video');
+    if (!f || !/^video\//.test(f.type)) {
+      if (old) { var poster = old.getAttribute('poster'); old.remove(); if (poster) { var img = document.createElement('img'); img.alt = ''; img.src = poster; target.appendChild(img); } }
+      return;
+    }
+    videoUrl = URL.createObjectURL(f);
+    var img0 = target.querySelector('img');
+    var v = old || document.createElement('video');
+    v.muted = true; v.loop = true; v.autoplay = true; v.playsInline = true; v.className = 'ag-ad__vid';
+    if (img0) { v.setAttribute('poster', img0.src); img0.remove(); }
+    v.src = videoUrl;
+    if (!v.parentNode) { target.textContent = ''; target.appendChild(v); }
+    var p = v.play(); if (p && p.catch) p.catch(function () {});
+  }
+
+  // The ad's shape (AdRules::SHAPES): the image editor follows it by itself (image-tool.js,
+  // `data-shape-from`) and cuts again from the original photo; here the preview's box changes
+  // to match, so what is shown is what will run, in every shape.
+  function reshape(radio) {
+    var box = card.querySelector('.ag-ad__media');
+    if (box) {
+      box.classList.remove('ag-ad__media--square', 'ag-ad__media--portrait', 'ag-ad__media--landscape');
+      box.classList.add('ag-ad__media--' + radio.value);
+    }
+  }
+
   form.addEventListener('change', function (e) {
+    if (e.target.name === 'shape') reshape(e.target);
+    if (e.target.hasAttribute && e.target.hasAttribute('data-pv-video')) showVideo(e.target);
     if (e.target.hasAttribute && e.target.hasAttribute('data-pv-file') && !e.target.hasAttribute('data-ag-image')) showFile(e.target);
     if (e.target.name === 'category') approvals();
     if (e.target.hasAttribute && e.target.hasAttribute('data-pv-file')) {

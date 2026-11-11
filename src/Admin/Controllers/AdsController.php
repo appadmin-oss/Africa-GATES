@@ -85,7 +85,8 @@ final class AdsController
                       'target' => $rev['target_kobo'] !== null ? \AfricaGates\Services\Ads\AdRateCard::format($rev['target_kobo']) : null,
                       'gap' => $rev['gap_kobo'] ? \AfricaGates\Services\Ads\AdRateCard::format($rev['gap_kobo']) : null,
                       'on_track' => $rev['on_track']],
-            'placements' => AdRules::PLACEMENTS, 'ctas' => AdRules::CTAS,
+            'placements' => AdRules::PLACEMENTS, 'ctas' => AdRules::CTAS, 'shapes' => AdRules::SHAPES,
+            'video' => ['on' => \AfricaGates\Services\Ads\AdVideo::ready(), 'max' => \AfricaGates\Services\Ads\AdVideo::MAX_SECONDS, 'mb' => \AfricaGates\Services\Ads\AdVideo::limitMb()],
             'market' => array_column(AdMarket::card(), null, 'key'), 'window' => AdMarket::WINDOW_DAYS,
             'ready' => AdStaff::ready(), 'old' => $old, 'errors' => $errors,
             'limits' => ['headline' => AdRules::HEADLINE_MAX, 'body' => AdRules::BODY_MAX, 'days' => AdStaff::MAX_DAYS],
@@ -111,7 +112,7 @@ final class AdsController
         $owner = $row && (int) $row->user_id > 0 ? \Illuminate\Database\Capsule\Manager::table('gates_users')->where('id', (int) $row->user_id)->value('name') : null;
         return $this->view->render($res, 'admin/ads/show.twig', [
             'admin_page' => 'ads', 'topbar_title' => 'Ads',
-            'c' => $c, 'placements' => AdRules::PLACEMENTS,
+            'c' => $c, 'placements' => AdRules::PLACEMENTS, 'shapes' => AdRules::SHAPES,
             'source_label' => $c['trial'] ? 'Free trial' : (AdRules::SOURCES[$c['source']] ?? $c['source']),
             'staff' => in_array($c['source'], ['direct', 'house'], true),
             'posted_by' => $by ? (string) $by : null, 'owner' => $owner ? (string) $owner : null,
@@ -122,11 +123,12 @@ final class AdsController
     {
         $b = (array) $req->getParsedBody();
         $errors = [];
-        $image = $this->upload($req, 'image', 'ad', $errors);
+        if (($verr = \AfricaGates\Services\Ads\AdVideo::take($req->getUploadedFiles(), $b)) !== null) $errors['video'] = $verr;
+        $image = $this->upload($req, 'image', AdRules::imageProfile($b['shape'] ?? null), $errors);
         $logo  = $this->upload($req, 'logo', 'ad_logo', $errors);
         $r = $errors === [] ? AdStaff::post($this->adminId(), $b, $image, $logo) : ['ok' => false, 'errors' => $errors];
         if (!$r['ok']) {
-            $_SESSION['ad_staff_old'] = array_intersect_key($b, array_flip(['source', 'advertiser', 'name', 'objective', 'placements',
+            $_SESSION['ad_staff_old'] = array_intersect_key($b, array_flip(['source', 'advertiser', 'name', 'objective', 'placements', 'shape',
                 'headline', 'body', 'cta', 'url', 'offer', 'offer_code', 'days', 'starts_on', 'budget', 'view_cap']));
             $_SESSION['ad_staff_errors'] = $r['errors'] ?? [];
             $_SESSION['flash_error'] = 'Not posted. ' . implode(' ', array_values($r['errors'] ?? []));

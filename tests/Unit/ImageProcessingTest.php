@@ -166,7 +166,9 @@ final class ImageProcessingTest extends TestCase
         $this->assertSame('data-ag-image="ad" data-aspect="1" data-min="600" data-out="1080"', ImageProfiles::attrs('ad'));
         $this->assertSame(\AfricaGates\Services\Ads\AdRules::IMAGE_MIN, ImageProfiles::get('ad')['min'], 'two minimums for one image');
         $t = ChromeRender::source('templates/pages/account/ads-new.twig');
-        $this->assertStringContainsString("{{ imgtool.attrs('ad') }}", $t);
+        // The ad image's frame is its SHAPE's profile, and follows the shape when it changes.
+        $this->assertStringContainsString("{{ imgtool.attrs(rules.shapes[_shape].profile) }} data-shape-from=\"shape\"", $t);
+        foreach (\AfricaGates\Services\Ads\AdRules::SHAPES as [, $profile]) ImageProfiles::get($profile);
         $this->assertStringContainsString("{{ imgtool.attrs('ad_logo', true) }}", $t);
     }
 }

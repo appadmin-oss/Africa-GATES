@@ -130,12 +130,34 @@
 
       <fieldset class="am-step">
         <legend><span class="am-step__k">{{ '3 of 3'|trans }}</span>{{ 'Your ad'|trans }}</legend>
+        {# The ad's SHAPE (AdRules::SHAPES, owner 11 Nov 2026: "should not allow just square
+           posts anymore"). Each choice carries its image profile's frame, so the editor, the
+           server's cut and the card's box are one shape; ads-builder.js moves the editor and
+           the preview when it changes. #}
+        {% set _shape = old.shape|default('square') %}
+        <fieldset class="am-chips" data-ad-shapes>
+          <legend class="ag-label">{{ 'Shape'|trans }}</legend>
+          {% for k, sh in rules.shapes %}
+          <label class="ag-chip am-chip"><input type="radio" name="shape" value="{{ k }}" data-aspect="{{ sh.aspect }}" data-min="{{ sh.min }}" data-out="{{ sh.out }}"{% if _shape == k %} checked{% endif %}> {{ sh.label|trans }}</label>
+          {% endfor %}
+        </fieldset>
+        <p class="ag-hint">{{ 'Upright fills more of a phone screen. Wide suits a video made for YouTube or a TV.'|trans }}</p>
         <div class="am-field">
           <label class="ag-label" for="ad-img">{{ 'Image'|trans }}</label>
-          <input class="am-input am-input--file" id="ad-img" name="image" type="file" accept="image/jpeg,image/png,image/webp" required data-pv-file="image" aria-describedby="ad-img-h{% if errors.image %} ad-img-e{% endif %}"{% if errors.image %} aria-invalid="true"{% endif %} {{ imgtool.attrs('ad') }}>
-          <p class="ag-hint" id="ad-img-h">{{ 'Any photo: once you pick it, you choose the square that shows. At least %n%px on each side. Little or no text on the image works best.'|trans({'%n%': rules.image}) }}</p>
+          <input class="am-input am-input--file" id="ad-img" name="image" type="file" accept="image/jpeg,image/png,image/webp" required data-pv-file="image" aria-describedby="ad-img-h{% if errors.image %} ad-img-e{% endif %}"{% if errors.image %} aria-invalid="true"{% endif %} {{ imgtool.attrs(rules.shapes[_shape].profile) }} data-shape-from="shape">
+          <p class="ag-hint" id="ad-img-h">{{ 'Any photo: once you pick it, you choose the part that shows, in the shape above. At least %n%px on its shorter side. Little or no text on the image works best.'|trans({'%n%': rules.shapes[_shape].min}) }}</p>
           {% if errors.image %}<p class="am-err" id="ad-img-e" role="alert">{{ errors.image|trans }}</p>{% endif %}
         </div>
+        {% if rules.video.on %}
+        {# A short video over the image (Services\Ads\AdVideo): optional, and the image stays
+           its poster and the whole ad wherever the video does not play. #}
+        <div class="am-field">
+          <label class="ag-label" for="ad-vid">{{ 'Video'|trans }} <span class="am-opt">{{ '(optional)'|trans }}</span></label>
+          <input class="am-input am-input--file" id="ad-vid" name="video" type="file" accept="video/mp4" data-pv-video aria-describedby="ad-vid-h{% if errors.video %} ad-vid-e{% endif %}"{% if errors.video %} aria-invalid="true"{% endif %}>
+          <p class="ag-hint" id="ad-vid-h">{{ 'An MP4 of %min% to %max% seconds, up to %mb%MB. It plays by itself, without sound, as people scroll past, in the shape above: make it in that shape, and make it work silently. Your image shows until it plays.'|trans({'%min%': rules.video.min, '%max%': rules.video.max, '%mb%': rules.video.mb}) }}</p>
+          {% if errors.video %}<p class="am-err" id="ad-vid-e" role="alert">{{ errors.video|trans }}</p>{% endif %}
+        </div>
+        {% endif %}
         <div class="am-field">
           <label class="ag-label" for="ad-b">{{ 'Text'|trans }} <span class="am-count" data-count-for="ad-b"></span></label>
           <textarea class="am-input am-input--area" id="ad-b" name="body" rows="3" required minlength="{{ rules.body_min }}" maxlength="{{ rules.body }}" data-pv-in="body" aria-describedby="ad-b-h{% if errors.body %} ad-b-e{% endif %}"{% if errors.body %} aria-invalid="true"{% endif %}>{{ old.body|default('') }}</textarea>
@@ -207,7 +229,8 @@
 
     <aside class="am-build__pv" aria-label="{{ 'Preview'|trans }}">
       <p class="am-pv__h">{{ 'Preview'|trans }}</p>
-      <div data-ad-preview>{% include 'partials/ad-slot.twig' with {ad: _pv, preview: true, media_box: true} only %}</div>
+      {% set _pvs = _pv|merge({shape: _shape}) %}
+      <div data-ad-preview>{% include 'partials/ad-slot.twig' with {ad: _pvs, preview: true, media_box: true} only %}</div>
       <p class="am-note">{{ 'How your ad looks on the page. The real one is labelled the same way.'|trans }}</p>
     </aside>
   </form>

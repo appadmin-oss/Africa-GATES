@@ -37,9 +37,26 @@
 /* The advertiser's words, then the image, edge to edge. */
 .ag-ad__text{ margin:0; padding:0 14px 12px; font-size:var(--ag-fs-15); line-height:1.45; color:var(--ag-ink); overflow-wrap:anywhere;
   display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden }
+/* The box follows the ad's shape (AdRules::SHAPES); square is the default and every older ad. */
 .ag-ad__media{ position:relative; aspect-ratio:1/1; overflow:hidden; background:var(--ag-ground); border-block:1px solid var(--ag-line-3) }
+.ag-ad__media--portrait{ aspect-ratio:4/5 }
+.ag-ad__media--landscape{ aspect-ratio:16/9 }
 .ag-ad__pic{ display:block; width:100%; height:100% }
-.ag-ad__media img{ display:block; width:100%; height:100%; object-fit:cover }
+.ag-ad__media img, .ag-ad__vid{ display:block; width:100%; height:100%; object-fit:cover }
+/* A video ad's two controls (AdVideo): play/pause at the top left, sound at the top right. Round, white, 44px — the same white chip the
+   offer is, so they read as part of the card and not as a player's chrome. */
+.ag-ad__vbtn{ position:absolute; display:grid; place-items:center; width:44px; height:44px; padding:0; border:0;
+  border-radius:var(--ag-r-pill); background:var(--ag-surface); box-shadow:var(--ag-sh-menu); color:var(--ag-ink); cursor:pointer }
+.ag-ad__vbtn[hidden]{ display:none }
+.ag-ad__vbtn:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
+.ag-ad__play{ inset-inline-start:12px; top:12px }
+.ag-ad__play .ag-ad__i-pause{ display:none }
+.ag-ad__play[aria-pressed="true"] .ag-ad__i-pause{ display:inline }
+.ag-ad__play[aria-pressed="true"] .ag-ad__i-play{ display:none }
+.ag-ad__snd{ inset-inline-end:12px; top:12px }
+.ag-ad__snd .ag-ad__wave{ display:none }
+.ag-ad__snd[aria-pressed="true"] .ag-ad__wave{ display:inline }
+.ag-ad__snd[aria-pressed="true"] .ag-ad__mute{ display:none }
 .ag-ad__media[hidden]{ display:none }
 .ag-ad__ph{ display:grid; place-items:center; height:100%; font-size:var(--ag-fs-14); color:var(--ag-soft) }
 /* The offer, ON the picture: a white chip at the bottom left, where the eye finishes reading

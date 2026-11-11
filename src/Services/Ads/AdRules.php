@@ -93,7 +93,32 @@ final class AdRules
      */
     public const WHATSAPP_GREETING = 'Hello, I saw your ad on Africa GATES.';
 
-    // The one standard format: a square image, a headline, a line of text, a button.
+    /**
+     * The shapes an ad may take, Meta's feed set (owner, 11 Nov 2026: "the ads should not
+     * allow just square posts anymore"): key => [what the advertiser is told, the image
+     * profile that cuts it (Support\ImageProfiles, also its Media preset)]. The image, the
+     * editor's frame, the server's cut, the card's box and a video's frame all follow it.
+     * Square stays the default, so every ad made before shapes existed keeps its look.
+     */
+    public const SHAPES = [
+        'square'    => ['Square, 1:1', 'ad'],
+        'portrait'  => ['Upright, 4:5', 'ad_portrait'],
+        'landscape' => ['Wide, 16:9', 'ad_landscape'],
+    ];
+
+    /** A shape, from anything: unknown or missing is square. */
+    public static function shape(mixed $s): string
+    {
+        return is_string($s) && isset(self::SHAPES[$s]) ? $s : 'square';
+    }
+
+    /** The image profile (and Media preset) for a shape. */
+    public static function imageProfile(mixed $shape): string
+    {
+        return self::SHAPES[self::shape($shape)][1];
+    }
+
+    // The one standard format: an image, a headline, a line of text, a button.
     public const HEADLINE_MAX = 40;
     public const BODY_MIN     = 10;
     public const BODY_MAX     = 125;
@@ -254,12 +279,23 @@ final class AdRules
         if ($arcon !== '' && preg_match('{^[A-Z0-9/ .-]{3,40}$}', $arcon) !== 1) $e['arcon_ref'] = 'Letters, numbers and / or - only.';
         if ($nafdac !== '' && preg_match('{^[A-Z0-9/ .-]{3,40}$}', $nafdac) !== 1) $e['nafdac_ref'] = 'Letters, numbers and / or - only.';
 
-        return ['row' => [
+        $row = [
             'headline' => $headline, 'body' => $body, 'cta' => $cta, 'url' => (string) $safe,
             'offer' => $offer !== '' ? $offer : null, 'offer_code' => $code !== '' ? $code : null,
             'arcon_ref' => $arcon !== '' ? $arcon : null,
             'nafdac_ref' => $nafdac !== '' ? $nafdac : null,
-        ], 'errors' => $e];
+        ];
+        if (SchemaHas::column('gates_ads', 'shape')) $row['shape'] = self::shape($in['shape'] ?? null);
+        // The video (AdVideo), only when the CONTROLLER put one here after storing it: the
+        // key's absence means "leave the video as it is" (an edit with no new file), null
+        // means "take it off". Never a path a form posted — the controllers drop `_video*`
+        // from the body before anything else — and re-checked by AdVideo::url regardless.
+        if (array_key_exists('_video', $in) && AdVideo::ready()) {
+            $vp = AdVideo::url(is_string($in['_video']) ? $in['_video'] : null);
+            $row['video_path'] = $vp;
+            $row['video_seconds'] = $vp === null ? null : max(1, min(AdVideo::MAX_SECONDS, (int) ($in['_video_seconds'] ?? 0)));
+        }
+        return ['row' => $row, 'errors' => $e];
     }
 
     /**

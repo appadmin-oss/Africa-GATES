@@ -60,7 +60,7 @@ final class AdStrength
         // [points, passed, the tip when it did not], in the order a reader meets each part
         // of the card: the picture, the headline under it, the text, the offer, the button.
         $checks = [
-            [25, $hasImage, 'Add a square image. It is the first thing people see, and an ad cannot run without one.'],
+            [25, $hasImage, 'Add an image. It is the first thing people see, and an ad cannot run without one.'],
             [10, $headline !== '' && mb_strlen($headline) <= self::HEADLINE_IDEAL, sprintf('Shorten the headline to %d characters or fewer. Short headlines are read in full on a phone.', self::HEADLINE_IDEAL)],
             [15, mb_strlen($body) >= self::BODY_IDEAL_MIN, 'Say a little more in the text: what you offer, and why it is worth a look.'],
             [15, $offer !== '', 'Add an offer that is open to everyone, like “10% off this week” or “free delivery in Lagos”. A concrete offer gives people a reason to tap now.'],

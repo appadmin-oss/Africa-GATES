@@ -125,8 +125,11 @@ final class AdDelivery
             'logo_srcset' => \AfricaGates\Support\ImageProfiles::srcset($set->logo_path ? (string) $set->logo_path : null),
             'headline' => (string) $ad->headline, 'body' => (string) $ad->body,
             'cta' => AdRules::CTAS[(string) $ad->cta] ?? 'Learn more',
-            'image' => Media::url($ad->image_path ? (string) $ad->image_path : null, 'ad'),
+            'image' => Media::url($ad->image_path ? (string) $ad->image_path : null, AdRules::imageProfile($ad->shape ?? null)),
             'image_srcset' => \AfricaGates\Support\ImageProfiles::srcset($ad->image_path ? (string) $ad->image_path : null),
+            // A short video over that image, which stays its poster (AdVideo).
+            'shape' => AdRules::shape($ad->shape ?? null), 'video' => AdVideo::url($ad->video_path ?? null), 'video_seconds' => (int) ($ad->video_seconds ?? 0),
+            'video_watch' => AdVideo::WATCHED_SECONDS,
             'offer' => $ad->offer ? (string) $ad->offer : null, 'offer_code' => $ad->offer_code ? (string) $ad->offer_code : null,
             'domain' => AdRules::displayDomain((string) $ad->url),
             'href' => '/ads/go/' . $token, 'token' => $token, 'external' => !str_starts_with((string) $ad->url, '/'),
@@ -355,6 +358,22 @@ final class AdDelivery
         if ($url === null || AdRules::pointsAtANominee($url)) return '/';
         if ($reader && self::once($token, 'c')) self::bump($t['a'], $t['p'], $t['d'], 'clicks');
         return $url;
+    }
+
+    /**
+     * A drawn ad's video started (`play`), or was watched to the end or for
+     * AdVideo::WATCHED_SECONDS (`done`, Meta's ThruPlay). Each counted once per drawing, by
+     * the same single-use token and the same ledger as a view, so a looping clip or a
+     * replayed beacon is still one play. Only for an ad that has a video.
+     */
+    public static function watched(string $token, string $kind): bool
+    {
+        $col = ['play' => 'plays', 'done' => 'completes'][$kind] ?? null;
+        $t = self::read($token);
+        if ($col === null || $t === null || !SchemaHas::column('gates_ad_stats', $col)) return false;
+        $has = DB::table('gates_ads')->where('id', $t['a'])->value('video_path');
+        if (AdVideo::url($has === null ? null : (string) $has) === null) return false;
+        return self::once($token, $kind === 'play' ? 'vp' : 'vf') && self::bump($t['a'], $t['p'], $t['d'], $col);
     }
 
     private static function once(string $token, string $kind): bool

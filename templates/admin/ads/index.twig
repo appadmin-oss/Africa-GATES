@@ -107,8 +107,12 @@
       <div><label for="ads-offer">Offer <small>(optional, open to everyone)</small></label><input id="ads-offer" name="offer" maxlength="40" value="{{ old.offer|default('') }}">{% if errors.offer %}<p class="ads-err">{{ errors.offer }}</p>{% endif %}</div>
     </div>
     <div class="row">
-      <div><label for="ads-img">Image <small>(square)</small></label><input id="ads-img" name="image" type="file" accept="image/jpeg,image/png,image/webp" required>{% if errors.image %}<p class="ads-err">{{ errors.image }}</p>{% endif %}</div>
+      <div><label for="ads-img">Image</label><input id="ads-img" name="image" type="file" accept="image/jpeg,image/png,image/webp" required>{% if errors.image %}<p class="ads-err">{{ errors.image }}</p>{% endif %}</div>
       <div><label for="ads-logo">Logo <small>(optional)</small></label><input id="ads-logo" name="logo" type="file" accept="image/jpeg,image/png,image/webp"></div>
+    </div>
+    <div class="row">
+      <div><label for="ads-shape">Shape <small>(the image is cut to it from the centre)</small></label><select id="ads-shape" name="shape">{% for k, sh in shapes %}<option value="{{ k }}"{% if old.shape|default('square') == k %} selected{% endif %}>{{ sh[0] }}</option>{% endfor %}</select></div>
+      {% if video.on %}<div><label for="ads-vid">Video <small>(optional: MP4, up to {{ video.max }} seconds and {{ video.mb }}MB; plays without sound, the image is its poster)</small></label><input id="ads-vid" name="video" type="file" accept="video/mp4">{% if errors.video %}<p class="ads-err">{{ errors.video }}</p>{% endif %}</div>{% endif %}
     </div>
     <div class="row">
       <div><label for="ads-start">Starts <small>(blank for today)</small></label><input id="ads-start" name="starts_on" type="date" value="{{ old.starts_on|default('') }}">{% if errors.starts_on %}<p class="ads-err">{{ errors.starts_on }}</p>{% endif %}</div>

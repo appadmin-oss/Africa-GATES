@@ -59,6 +59,7 @@ final class AdsController
             'facts' => ['vat_pct' => \AfricaGates\Services\Ads\AdCheckout::vatBps() / 100,
                         'min_budget' => \AfricaGates\Services\Ads\AdCheckout::MIN_BUDGET_NAIRA,
                         'max_days' => AdRules::MAX_DAYS, 'freq' => AdRules::FREQUENCY_CAP, 'wa_greeting' => AdRules::WHATSAPP_GREETING,
+                        'video_max' => \AfricaGates\Services\Ads\AdVideo::MAX_SECONDS,
                         'standards' => AdRules::STANDARDS],
             'goals' => \AfricaGates\Services\Ads\AdPlanner::GOALS,
             'plan_in' => ['goal' => (string) ($q['goal'] ?? 'visits'), 'n' => (int) ($q['n'] ?? 0) ?: '', 'days' => (int) ($q['days'] ?? 14) ?: 14],
@@ -228,6 +229,10 @@ final class AdsController
             return $this->back($res);
         }
 
+        if (($err = \AfricaGates\Services\Ads\AdVideo::take($req->getUploadedFiles(), $b)) !== null) {
+            $f->add('video', $err)->flash();
+            return $this->back($res);
+        }
         $image = $this->image($req, $f);
         $logo  = $this->image($req, $f, 'logo');
         if ($paid) {
@@ -359,6 +364,10 @@ final class AdsController
         $id = (int) ($args['id'] ?? 0);
         $b = (array) $req->getParsedBody();
         $f = FormErrors::for('ad_new')->keep($b);
+        if (($err = \AfricaGates\Services\Ads\AdVideo::take($req->getUploadedFiles(), $b)) !== null) {
+            $f->add('video', $err)->flash();
+            return $res->withHeader('Location', '/account/ads/' . $id . '#ad-version')->withStatus(303);
+        }
         $image = $this->image($req, $f);
         $r = AdCampaigns::addAd($id, (int) $user->id, $b, $image);
         if (!$r['ok']) {
@@ -382,6 +391,10 @@ final class AdsController
 
         $b = (array) $req->getParsedBody();
         $f = FormErrors::for('ad_fix')->keep($b + ['ad_id' => $adId]);
+        if (($err = \AfricaGates\Services\Ads\AdVideo::take($req->getUploadedFiles(), $b, true)) !== null) {
+            $f->add('video', $err)->flash();
+            return $res->withHeader('Location', '/account/ads/' . $campaignId . '#ad-' . $adId)->withStatus(303);
+        }
         $image = $this->image($req, $f);
         $r = AdCampaigns::resubmitAd($adId, (int) $user->id, $b, $image);
         if (!$r['ok']) {
@@ -399,6 +412,15 @@ final class AdsController
         $b = (array) $req->getParsedBody();
         $token = (string) ($b['t'] ?? '');
         $counted = $token !== '' && AdDelivery::seen($token);
+        return $res->withStatus($counted ? 204 : 202);
+    }
+
+    /** POST /ads/video — a drawn ad's video started, or was watched through (AdDelivery::watched). */
+    public function video(Request $req, Response $res): Response
+    {
+        $b = (array) $req->getParsedBody();
+        $token = (string) ($b['t'] ?? '');
+        $counted = $token !== '' && AdDelivery::watched($token, (string) ($b['k'] ?? ''));
         return $res->withStatus($counted ? 204 : 202);
     }
 
@@ -457,6 +479,11 @@ final class AdsController
             'placements' => AdRules::PLACEMENTS, 'objectives' => AdRules::OBJECTIVES, 'ctas' => AdRules::CTAS,
             'categories' => AdRules::CATEGORIES, 'approvals' => AdRules::APPROVALS, 'beta' => AdRules::inBeta(),
             'standards' => AdRules::STANDARDS, 'wa_greeting' => AdRules::WHATSAPP_GREETING,
+            // Each shape with the editor's frame for it, read from its image profile.
+            'shapes' => array_map(static fn ($s) => ['label' => $s[0], 'profile' => $s[1]] + \AfricaGates\Support\ImageProfiles::get($s[1]), AdRules::SHAPES),
+            // Video ads (AdVideo): the limits the form states are the limits store() enforces.
+            'video' => ['on' => \AfricaGates\Services\Ads\AdVideo::ready(), 'min' => \AfricaGates\Services\Ads\AdVideo::MIN_SECONDS,
+                        'max' => \AfricaGates\Services\Ads\AdVideo::MAX_SECONDS, 'mb' => \AfricaGates\Services\Ads\AdVideo::limitMb()],
             'versions' => AdRules::ADS_PER_SET, 'test_views' => AdCampaigns::TEST_VIEWS, 'lead_share' => AdCampaigns::LEAD_SHARE,
         ];
     }
@@ -465,19 +492,21 @@ final class AdsController
      * An uploaded image (`image`, or the `logo`), made into its profile's shape and stored
      * (UploadService::uploadProcessed()), or null with the reason added to the form.
      *
-     * The editor (image-tool.js) sends either the chosen square itself or the original with
+     * The editor (image-tool.js) sends either the chosen cut itself or the original with
      * the cut in `<field>_crop`; with no script the server cuts the centre. A cut too small
      * for the profile is refused in the editor's own words — the pixels it has and the
      * pixels it needs — rather than "use a larger image" about a photo that may be 4000px.
      */
     private function image(Request $req, FormErrors $f, string $field = 'image'): ?string
     {
-        $min = \AfricaGates\Support\ImageProfiles::get($field === 'logo' ? 'ad_logo' : 'ad')['min'];
+        // The image is cut to the SHAPE chosen on the same form (AdRules::SHAPES).
+        $profile = $field === 'logo' ? 'ad_logo' : AdRules::imageProfile(((array) $req->getParsedBody())['shape'] ?? null);
+        $min = \AfricaGates\Support\ImageProfiles::get($profile)['min'];
         $file = $req->getUploadedFiles()[$field] ?? null;
         if (!$file || $file->getError() === UPLOAD_ERR_NO_FILE) return null;
         $crop = (string) (((array) $req->getParsedBody())[$field . '_crop'] ?? '');
         try {
-            $r = ($this->uploads ?? new UploadService())->uploadProcessed($file, 'ads', $field === 'logo' ? 'ad_logo' : 'ad', $crop, null, 'ad', null);
+            $r = ($this->uploads ?? new UploadService())->uploadProcessed($file, 'ads', $profile, $crop, null, 'ad', null);
             return (string) ($r['path'] ?? $r['url'] ?? '') ?: null;
         } catch (\Throwable $e) {
             $m = $e->getMessage();

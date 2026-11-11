@@ -80,7 +80,7 @@ final class AdCheckout
         if (!AdCampaigns::ready() || $userId < 1) return ['ok' => false, 'errors' => ['form' => 'Ads are not available right now.']];
         $v = AdCampaigns::validate($in);
         $errors = $v['errors'];
-        if ($imagePath === null || $imagePath === '') $errors['image'] ??= 'Add a square image.';
+        if ($imagePath === null || $imagePath === '') $errors['image'] ??= 'Add an image.';
         if (empty($in['standards'])) $errors['standards'] = 'Confirm your ad meets the ad standards.';
 
         // Only places that are on sale can be bought; the trial runs everywhere, money does not.

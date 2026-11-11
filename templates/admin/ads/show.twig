@@ -50,6 +50,7 @@
     <dl class="cn-facts">
       <div><dt>Views</dt><dd>{{ c.views|number_format }}{% if c.view_cap %} of {{ c.view_cap|number_format }}{% endif %}</dd></div>
       <div><dt>Clicks</dt><dd>{{ c.clicks|number_format }}</dd></div>
+      {% if c.ads|filter(x => x.video)|length %}<div><dt>Video</dt><dd>{{ c.plays|number_format }} plays · {{ c.completes|number_format }} watched through</dd></div>{% endif %}
       <div><dt>Click rate</dt><dd>{{ c.ctr is null ? '—' : c.ctr ~ '%' }}{% if c.benchmark is not null %} <span class="adc-hint">site average {{ c.benchmark }}%</span>{% endif %}</dd></div>
       <div><dt>Cost per 1,000 views</dt><dd>{{ c.cpm_kobo is null ? '—' : '₦' ~ (c.cpm_kobo / 100)|number_format }}</dd></div>
       <div><dt>Cost per click</dt><dd>{{ c.cpc_kobo is null ? '—' : '₦' ~ (c.cpc_kobo / 100)|number_format }}</dd></div>
@@ -90,7 +91,7 @@
     <tbody>
     {% for a in c.ads %}
       <tr>
-        <td><span class="cn-table__main">{{ a.headline }}</span><span class="adc-hint">{{ a.cta }} · {{ a.domain }}{% if c.leader == a.id %} · leading{% endif %}</span></td>
+        <td><span class="cn-table__main">{{ a.headline }}</span><span class="adc-hint">{{ shapes[a.shape][0]|default(a.shape) }}{% if a.video %} · video, {{ a.video_seconds }} s, {{ a.plays|number_format }} plays, {{ a.completes|number_format }} watched{% endif %} · {{ a.cta }} · {{ a.domain }}{% if c.leader == a.id %} · leading{% endif %}</span></td>
         <td>{{ _review[a.review]|default(a.review) }}{% if a.review == 'rejected' and a.reason %}<span class="adc-hint">{{ a.reason }}</span>{% endif %}</td>
         <td>{{ a.views|number_format }}</td>
         <td>{{ a.clicks|number_format }}</td>

@@ -125,7 +125,10 @@ final class AdVersionsTest extends TestCase
         $remote = 'https://res.cloudinary.com/demo/image/upload/v1/ads/a.jpg';
         $this->assertStringContainsString('w_1080,h_1080', (string) Media::url($remote, 'ad'));
         $src = ChromeRender::code('src/Services/Ads/AdDelivery.php');
-        $this->assertStringContainsString("Media::url(\$ad->image_path ? (string) \$ad->image_path : null, 'ad')", $src, 'the card is drawn from the 320px thumb again');
+        // Drawn at its SHAPE's size (AdRules::SHAPES): the preset is the shape's image profile.
+        $this->assertStringContainsString("Media::url(\$ad->image_path ? (string) \$ad->image_path : null, AdRules::imageProfile(\$ad->shape ?? null))", $src, 'the card is drawn from the 320px thumb again');
+        $this->assertStringContainsString('w_1080,h_1350', (string) Media::url($remote, \AfricaGates\Services\Ads\AdRules::imageProfile('portrait')));
+        $this->assertStringContainsString('w_1280,h_720', (string) Media::url($remote, \AfricaGates\Services\Ads\AdRules::imageProfile('landscape')));
         $this->assertStringContainsString("'image_srcset' => \\AfricaGates\\Support\\ImageProfiles::srcset(", $src);
         $slot = ChromeRender::source('templates/partials/ad-slot.twig');
         $this->assertStringContainsString('(min-width: 600px) 520px, calc(100vw - 32px)"', $slot);

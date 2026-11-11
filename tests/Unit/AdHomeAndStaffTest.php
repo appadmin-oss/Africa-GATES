@@ -138,7 +138,7 @@ final class AdHomeAndStaffTest extends TestCase
         ])->getBody();
         $this->assertStringContainsString('class="ag-ad ag-ad--wide"', $html, 'no ad band on the homepage');
         $this->assertStringContainsString('Sponsored', $html);
-        $this->assertMatchesRegularExpression('~<div class="ag-ad__media">.*?class="ag-ad__offer"[^>]*>10% off this week~s', $html,
+        $this->assertMatchesRegularExpression('~<div class="ag-ad__media[^"]*">.*?class="ag-ad__offer"[^>]*>10% off this week~s', $html,
             'the offer is not on the picture');
         $this->assertStringContainsString('<span class="ag-btn ag-ad__cta"', $html, 'the button is an outline again');
         $this->assertStringContainsString('/assets/js/ads.js', $html, 'views on the homepage are never counted');
