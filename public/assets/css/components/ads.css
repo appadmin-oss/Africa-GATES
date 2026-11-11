@@ -207,3 +207,7 @@
 .am-input--file::file-selector-button{ min-height:36px; padding:0 16px; margin-inline-end:12px; border:1px solid var(--ag-line-2);
   border-radius:var(--ag-r-pill); background:var(--ag-surface); color:var(--ag-ink); font:inherit; font-size:var(--ag-fs-14-5); font-weight:600; cursor:pointer }
 .am-input--file:hover::file-selector-button{ border-color:var(--ag-ink) }
+
+/* The links row under "Why people trust the ads here": two standalone links, each a 44px
+   target rather than a 17px line. */
+.am-note .am-link{ display:inline-flex; align-items:center; min-height:44px }

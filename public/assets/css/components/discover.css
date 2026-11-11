@@ -495,3 +495,6 @@
 @media (hover:hover){
   .dv-card:hover{ border-color:var(--ag-mute); box-shadow:var(--ag-sh-float) }
 }
+/* The holder the swap writes a corrected search into: empty, it was a 0px flex child that
+   cost the panel two 30px gaps — a blank band under the filters on every visit. */
+.dv__panel > [data-dv-fix]:empty{ display:none }

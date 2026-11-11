@@ -6,7 +6,7 @@
    place for its window and note. The announcement sits on the green wash with its link in
    green; planned work on white with the info mark; under way and closed turn to the live
    family with a breathing dot. Words carry the state; colour repeats it. */
-.ag-notices{ display:flex; flex-direction:column; gap:8px; padding:12px var(--ag-gutter) 4px }
+.ag-notices{ display:flex; flex-direction:column; gap:8px; padding:12px var(--ag-gutter) 12px }
 
 .ag-notice{
   display:flex; align-items:flex-start;

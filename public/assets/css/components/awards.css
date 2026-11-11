@@ -336,3 +336,7 @@
   .aw-tl__i--now .aw-tl__d{ color:var(--ag-ink); font-weight:600 }
   .aw-ed__cta{ align-self:stretch; height:52px; font-size:var(--ag-fs-15-5) }
 }
+
+/* A link that stands on its own is a control, so it gets a control's height (44px, the
+   site's floor) — at 18px "Become a sponsor" was a target a thumb could miss (WCAG 2.5.8). */
+.aw-sec__link{ display:inline-flex; align-items:center; min-height:44px }

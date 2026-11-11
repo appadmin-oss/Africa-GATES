@@ -340,3 +340,6 @@
   .gv-seg__o input:checked + span,
   .gv-amt input:checked + span{ forced-color-adjust:none; background:Highlight; color:HighlightText }
 }
+
+/* "Report this page" stands alone in the meta row: a 44px target. */
+.gv-meta a{ display:inline-flex; align-items:center; min-height:44px }

@@ -102,6 +102,9 @@ button.ev-btn{ cursor:pointer; font-family:inherit }
 }
 .ed-sec__h{ margin:0; font-weight:700; font-size:var(--ag-fs-19) }
 .ed-about{ margin:0; font-size:var(--ag-fs-16); line-height:1.65; color:var(--ag-ink) }
+.ed-about > :where(p, ul, ol){ margin:0 0 .75em }
+.ed-about > :last-child{ margin-bottom:0 }
+.ed-about a{ color:var(--ag-green-deep) }
 /* The awards this event presents (EventsFront::awards()). Links in the house green, a list a thumb can hit. */
 .ed-awards{ list-style:none; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:8px }
 .ed-awards a{ display:inline-flex; align-items:center; min-height:44px; padding:0 14px; border:1px solid var(--ag-line); border-radius:var(--ag-r-pill); color:var(--ag-ink); font-size:var(--ag-fs-15); font-weight:600; text-decoration:none; background:var(--ag-surface) }
@@ -426,7 +429,9 @@ body:has(.ed-bar) .ag-main{ padding-bottom:var(--ag-bottom-ui) }
   .ed-hero__media{ position:absolute; inset:0; aspect-ratio:auto }
   .ed-hero__media::after{
     content:''; position:absolute; inset:0;
-    background:linear-gradient(180deg, color-mix(in srgb, var(--ag-ink) 15%, transparent) 30%, color-mix(in srgb, var(--ag-ink) 90%, transparent) 100%);
+    /* Dark enough by the words' band (the lower half) that white reads on ANY cover: the
+       old ramp was ~50% ink where the date sits, and a pale cover left the date unreadable. */
+    background:linear-gradient(180deg, color-mix(in srgb, var(--ag-ink) 10%, transparent) 0%, color-mix(in srgb, var(--ag-ink) 55%, transparent) 45%, color-mix(in srgb, var(--ag-ink) 92%, transparent) 100%);
   }
   .ed-hero__btns{ inset-block-start:14px; inset-inline:14px }
   .ed-hero__end{ display:none }
@@ -436,7 +441,9 @@ body:has(.ed-bar) .ag-main{ padding-bottom:var(--ag-bottom-ui) }
     width:100%; max-width:1120px; margin:0 auto; padding:40px 32px; box-sizing:border-box;
     background:none; border-radius:0;
   }
-  .ed-hero__date{ color:var(--ag-green-light) }
+  /* White over the photo, as the title is: pale green on a pale cover was the one line on
+     the hero nobody could read, and it is the line people come for. */
+  .ed-hero__date{ color:var(--ag-surface) }
   .ed-hero__h1{ font-size:var(--ag-fs-34); line-height:1.1; text-wrap:balance }
   .ed-hero__by{ font-size:var(--ag-fs-15); color:var(--ag-surface) }
   .ed-grid{ padding:28px 28px 48px; gap:20px }
