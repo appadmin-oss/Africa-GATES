@@ -37,6 +37,9 @@ final class ChromeRender
      * @param array<string,mixed>  $session  $_SESSION as the visitor's (e.g. ['user_id' => 1, 'user_name' => 'Chioma Obi'])
      * @param array<string,string> $cookies
      */
+    /** Answer a refused request with the site's own error page (Handlers\ErrorHandler). */
+    public static bool $brandedErrors = false;
+
     public static function page(string $uri = '/_dev/ui', array $session = [], array $cookies = [], string $method = 'GET', ?array $body = null, array $headers = []): ResponseInterface
     {
         $root = dirname(__DIR__, 2);
@@ -58,9 +61,14 @@ final class ChromeRender
             // state the layout draws (CookiePrefs::observe()); without it every render here
             // would agree that the cookie notice is never shown.
             $app->add(new \AfricaGates\Middleware\VisitTrackingMiddleware());
+            $app->add(new \AfricaGates\Middleware\MaintenanceGateMiddleware());
             $app->add(new LanguageMiddleware());
             $app->addRoutingMiddleware();
-            $app->addErrorMiddleware(false, false, false);
+            $err = $app->addErrorMiddleware(false, false, false);
+            // The site's own error page, for a test about what a visitor is shown when a
+            // request is refused (the planned-work 503). Off by default: most tests here
+            // read a 404's status, not its page.
+            if (self::$brandedErrors) $err->setDefaultErrorHandler(new \AfricaGates\Handlers\ErrorHandler($app));
 
             $req = (new ServerRequestFactory())->createServerRequest($method, $uri);
             parse_str((string) parse_url($uri, PHP_URL_QUERY), $q);

@@ -26,6 +26,9 @@ use Illuminate\Support\Carbon;
  *              when it starts and one when it is seen to recover, per confirmed address,
  *              each CLAIMED in gates_broadcast_log before it is sent (BroadcastLog), so two
  *              overlapping ticks cannot mail anybody twice.
+ *              And ONCE for planned work an operator announces (PlannedWork), keyed by its
+ *              window — the confirmation always promised "planned work" in spirit and the
+ *              sweep never sent it, so the people who asked to be told were the last to know.
  *   stop()     the token in every message. One click, no account.
  *
  * ── WHAT IT WILL NOT MAIL ABOUT ──────────────────────────────────────────────
@@ -146,13 +149,22 @@ final class StatusAlert
      * recover, within the freshness window and past the blip threshold.
      *
      * @param list<array<string,mixed>>|null $incidents injectable for the test
-     * @return list<array{key:string, kind:string, incident:array<string,mixed>}>
+     * @param array<string,mixed>|false|null $planned injectable; PlannedWork::current() otherwise
+     * @return list<array{key:string, kind:string, incident?:array<string,mixed>, planned?:array<string,mixed>}>
      */
-    public static function news(?array $incidents = null): array
+    public static function news(?array $incidents = null, array|false|null $planned = null): array
     {
+        $out = [];
+        // Planned work: once per WINDOW (its start and end), so moving it is news and
+        // re-saving the same window is not. Not once it has ended; PlannedWork::current()
+        // already returns nothing then. `false` = the caller says there is none (tests).
+        $planned ??= PlannedWork::current();
+        if (is_array($planned)) {
+            $out[] = ['key' => 'status:planned:' . substr(sha1($planned['from'] . '|' . $planned['to']), 0, 20),
+                      'kind' => 'planned', 'planned' => $planned];
+        }
         $incidents ??= SystemStatus::timeline()['incidents'];
         $since = Carbon::now()->subHours(self::FRESH_HOURS)->toDateTimeString();
-        $out   = [];
         foreach ($incidents as $i) {
             if ((int) ($i['checks'] ?? 0) < self::MIN_CHECKS) continue;
             $id = substr(sha1($i['name'] . '|' . $i['from']), 0, 20);
@@ -169,10 +181,10 @@ final class StatusAlert
     }
 
     /** @return int messages sent (0 = ran, nothing due) */
-    public static function sweep(?OtpService $mailer, ?string $site = null, ?array $incidents = null): int
+    public static function sweep(?OtpService $mailer, ?string $site = null, ?array $incidents = null, array|false|null $planned = null): int
     {
         if ($mailer === null) return 0;
-        $news = self::news($incidents);
+        $news = self::news($incidents, $planned);
         if ($news === []) return 0;
         $site = rtrim($site ?? SiteUrl::base(), '/');
 
@@ -214,7 +226,7 @@ final class StatusAlert
         $url  = self::confirmUrl($site, (string) $row->token);
         $e    = static fn (string $v): string => htmlspecialchars($v, ENT_QUOTES, 'UTF-8');
         $lede = 'Somebody — we hope you — asked for Africa GATES status updates. Confirm, and we will email '
-              . 'you when a problem we measure starts and when it is fixed. Nothing else.';
+              . 'you when a problem we measure starts and when it is fixed, and before planned work. Nothing else.';
         $after = 'If it was not you, ignore this email. Nothing is sent to an address that has not been confirmed.';
         $html = '<h1 style="margin:0;font-family:Helvetica,Arial,sans-serif;font-weight:700;font-size:24px;line-height:30px;color:' . Accent::hex('ink') . '">Confirm status updates</h1>'
               . '<p style="margin:13px 0 0;font-size:16px;line-height:1.6;color:' . Accent::hex('ink-2') . '">' . $e($lede) . '</p>'
@@ -230,6 +242,7 @@ final class StatusAlert
      */
     public static function newsMail(object $row, array $n, string $site): array
     {
+        if ($n['kind'] === 'planned') return self::plannedMail($row, $n['planned'], $site);
         $i     = $n['incident'];
         $name  = (string) $i['name'];
         $state = mb_strtolower(SystemStatus::LABELS[(string) $i['status']] ?? (string) $i['status']);
@@ -249,6 +262,37 @@ final class StatusAlert
               . '<p style="text-align:center;margin:24px 0"><a href="' . $e($url) . '" style="display:inline-block;padding:13px 28px;background:' . Accent::hex('ink') . ';color:' . Accent::hex('surface') . ';border-radius:999px;font-weight:700;text-decoration:none;font-size:16px">See the status page</a></p>'
               . '<p style="margin:0;font-size:13px;line-height:1.6;color:' . Accent::hex('soft') . '"><a href="' . $e($stop) . '" style="color:' . Accent::hex('ink-2') . '">Stop status updates</a>.</p>';
         $plain = "{$subject}\n\n{$lede}\n\n{$url}\n\nStop status updates: {$stop}";
+        return [$subject, $html, $plain];
+    }
+
+    /**
+     * Planned work, once. Times in the display zone with its abbreviation, because "14:00" in
+     * an inbox is read in whatever zone the reader is in.
+     *
+     * @param array<string,mixed> $p PlannedWork::current()
+     * @return array{0:string,1:string,2:string}
+     */
+    public static function plannedMail(object $row, array $p, string $site): array
+    {
+        $e    = static fn (string $v): string => htmlspecialchars($v, ENT_QUOTES, 'UTF-8');
+        $tz   = \AfricaGates\Support\DisplayTime::abbr();
+        $from = \AfricaGates\Support\DisplayTime::show((string) $p['from'], 'D j M, H:i');
+        $sameDay = \AfricaGates\Support\DisplayTime::show((string) $p['from'], 'Y-m-d')
+                === \AfricaGates\Support\DisplayTime::show((string) $p['to'], 'Y-m-d');
+        $to   = \AfricaGates\Support\DisplayTime::show((string) $p['to'], $sameDay ? 'H:i' : 'D j M, H:i');
+        $when = $from . ' to ' . $to . ' ' . $tz;
+        $subject = ($p['started'] ? 'Planned work under way: ' : 'Planned work: ') . $p['title'];
+        $lede = ($p['started'] ? 'Planned work is under way, ' : 'We have planned work, ') . $when . '.'
+              . (!empty($p['close']) ? ' The site will be closed to visitors while it runs; nothing of yours is lost, and it opens again when the work ends.' : '');
+        $note = trim((string) ($p['note'] ?? ''));
+        $url  = $site . '/status';
+        $stop = self::stopUrl($site, (string) $row->token);
+        $html = '<h1 style="margin:0;font-family:Helvetica,Arial,sans-serif;font-weight:700;font-size:24px;line-height:30px;color:' . Accent::hex('ink') . '">' . $e($subject) . '</h1>'
+              . '<p style="margin:13px 0 0;font-size:16px;line-height:1.6;color:' . Accent::hex('ink-2') . '">' . $e($lede) . '</p>'
+              . ($note !== '' ? '<p style="margin:13px 0 0;font-size:16px;line-height:1.6;color:' . Accent::hex('ink-2') . '"><strong>What you will notice:</strong> ' . $e($note) . '</p>' : '')
+              . '<p style="text-align:center;margin:24px 0"><a href="' . $e($url) . '" style="display:inline-block;padding:13px 28px;background:' . Accent::hex('ink') . ';color:' . Accent::hex('surface') . ';border-radius:999px;font-weight:700;text-decoration:none;font-size:16px">See the status page</a></p>'
+              . '<p style="margin:0;font-size:13px;line-height:1.6;color:' . Accent::hex('soft') . '"><a href="' . $e($stop) . '" style="color:' . Accent::hex('ink-2') . '">Stop status updates</a>.</p>';
+        $plain = "{$subject}\n\n{$lede}" . ($note !== '' ? "\n\nWhat you will notice: {$note}" : '') . "\n\n{$url}\n\nStop status updates: {$stop}";
         return [$subject, $html, $plain];
     }
 }

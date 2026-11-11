@@ -1495,7 +1495,7 @@ return function(App $app) {
         if (!$setupGuard($req)) return $res->withStatus(404);
 
         $e    = fn ($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
-        $file = dirname(__DIR__) . '/var/logs/error-detail.log';
+        $file = \AfricaGates\Support\PublicFault::logFile();
         $want = max(1, min(50, (int) ($req->getQueryParams()['n'] ?? 10)));
 
         $h = '<!doctype html><meta charset="utf-8"><title>Recent errors — Africa GATES</title>'
@@ -1874,6 +1874,16 @@ return function(App $app) {
         $g->post('/ads/video',     \AfricaGates\Controllers\AdsController::class.':video');
         // A page's engaged view (Services\PageViews): once it has been visible a few seconds.
         $g->post('/views',         \AfricaGates\Controllers\PageViewsController::class.':engaged');
+        // "Hide" on a site notice (Services\SiteNotice): kept in the visitor's session, keyed
+        // by the notice's content, and back to the same page. A plain form, so it works with
+        // no script. Only a path on this site is gone back to.
+        $g->post('/notice/hide', function ($req, $res) {
+            $b = (array) ($req->getParsedBody() ?? []);
+            \AfricaGates\Services\SiteNotice::hide((string) ($b['id'] ?? ''));
+            $back = \AfricaGates\Services\SiteNotice::safeUrl((string) ($b['back'] ?? ''));
+            if ($back === null || !str_starts_with($back, '/')) $back = '/';
+            return $res->withHeader('Location', $back)->withStatus(303);
+        });
         $g->post('/ads/hide',      \AfricaGates\Controllers\AdsController::class.':hide');
         $g->post('/ads/report',    \AfricaGates\Controllers\AdsController::class.':report');
         $g->get('/ads/go/{token:[0-9]+\.[a-z_]+\.[0-9]{8}\.[a-f0-9]{12}\.[a-f0-9]{32}}', \AfricaGates\Controllers\AdsController::class.':go');
@@ -4910,6 +4920,9 @@ return function(App $app) {
         $a->get('/requests',  \AfricaGates\Admin\Controllers\RequestsController::class.':index');
         $a->post('/requests', \AfricaGates\Admin\Controllers\RequestsController::class.':act');
         $a->get('/alerts', \AfricaGates\Admin\Controllers\AlertsController::class.':index');
+        // Errors visitors saw (the `faults` alert's page). Unmapped in Permissions, so the guard
+        // holds it to superadmin: an entry carries file paths and stack frames.
+        $a->get('/errors', \AfricaGates\Admin\Controllers\ErrorsController::class.':index');
         // "Assign to me" — the alert's owner and its timeline (AdminConsole v2).
         $a->post('/alerts/{key:[a-z_]+}/assign', \AfricaGates\Admin\Controllers\AlertsController::class.':assign');
 

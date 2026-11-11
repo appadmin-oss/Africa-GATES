@@ -116,6 +116,8 @@
      form-validate.js below, because a form saying `novalidate data-ag-validate` turns the
      browser's messages off on the promise that these replace them (FormErrorStateTest). #}
   <link rel="stylesheet" href="{{ asset('/assets/css/components/forms.css') }}">
+  {# Planned work and the operator's announcement (partials/site-notice.twig). #}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/notice.css') }}">
   {# Every image slot with no upload draws a default cover or avatar (DEFAULT-GRAPHICS §2). #}
   <link rel="stylesheet" href="{{ asset('/assets/css/components/cover.css') }}">
   {% if not hide_chrome|default(false) %}<link rel="stylesheet" href="{{ asset('/assets/css/components/footer.css') }}">{% endif %}
@@ -139,6 +141,12 @@
     {% block app_bar %}{% include 'partials/app-bar.twig' with _bar only %}{% endblock %}
 
     <main class="ag-main" id="main" tabindex="-1">
+      {# Planned work and the operator's announcement (Services\SiteNotice). Inside <main>
+         so site-nav swaps it with the page; above the flash, because a notice is about the
+         site and a flash is about what somebody just did. #}
+      {# Not on the error page: it states its own situation, and a banner's link would lead
+         somewhere that is failing or closed. #}
+      {% if gates_page|default('') != 'error' %}{% include 'partials/site-notice.twig' %}{% endif %}
       {% if not own_flash|default(false) %}{% include 'partials/flash.twig' %}{% endif %}
       {% block content %}{% endblock %}
       {# The site's only footer (Phase 4), inside the scroller so it is reached by scrolling

@@ -276,7 +276,9 @@ final class ShellLayoutTest extends TestCase
                  // The Menu sheet, rebuilt whole out of chrome.css (4 Oct 2026, MENU-SHEET.md).
                  'assets/css/components/menu-sheet.css', 'assets/css/components/consent.css',
                  // The field macros' sheet, and the default graphics (5 Oct 2026).
-                 'assets/css/components/forms.css', 'assets/css/components/cover.css',
+                 'assets/css/components/forms.css',
+                 // Site notices — planned work and the operator's announcement (11 Nov 2026).
+                 'assets/css/components/notice.css', 'assets/css/components/cover.css',
                  'assets/css/components/footer.css', 'assets/css/components/gee.css', 'assets/css/components/photo-upload.css'];
         $this->assertSame($want, $shell,
             'the shell must load the base, in the bundle\'s order, and nothing destroyed');

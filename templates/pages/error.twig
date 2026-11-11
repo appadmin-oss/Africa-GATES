@@ -25,6 +25,9 @@
 {% set colour_tier = '1' %}
 {% set app_bar = {variant: 'child', title: 'Africa GATES', back: '/'} %}
 {% set _five = code >= 500 and code != 503 %}
+{# A site closed for planned work has no tabs to offer: every one of them is the same closed
+   page. The flow shell drops the tab bar (MaintenanceGate). #}
+{% set flow_page = code == 503 and planned|default(null) is not empty %}
 
 {% if code == 404 %}
   {% set _m = 'The page you’re looking for has moved or never existed. Everything else is still here.'|trans %}
@@ -32,6 +35,12 @@
   {% set _m = 'You may need to sign in, or to have permission for this page. Signing in with the right account usually fixes it.'|trans %}
 {% elseif code == 503 %}
   {% set _m = 'Part of the site is paused while we finish some work. Nothing of yours is lost — try again shortly.'|trans %}
+  {# The window an operator announced (MaintenanceGate): what, and until when, so nobody is
+     sent back forty times by "shortly" about a two-hour job. #}
+  {% set _plan = planned|default(null) %}
+  {% if _plan %}
+    {% set _m = 'The site is closed while we finish planned work. Nothing of yours is lost: votes, entries, tickets and payments made before it started are all kept.'|trans %}
+  {% endif %}
 {% elseif _five %}
   {% set _m = 'This is our fault, not yours. Your votes, entries and payments are safe. Try again soon; if it happens twice, send us the reference below.'|trans %}
 {% else %}
@@ -48,6 +57,13 @@
   <p class="er__code">{{ 'Error %c%'|trans({'%c%': code}) }}</p>
   <h1 class="er__h" id="er-h">{{ heading|trans }}</h1>
   <p class="er__m">{{ _msg }}</p>
+  {% if code == 503 and _plan|default(null) %}
+    <dl class="er__plan">
+      <div><dt>{{ 'What'|trans }}</dt><dd>{{ _plan.title }}</dd></div>
+      <div><dt>{{ 'Back by'|trans }}</dt><dd><time datetime="{{ _plan.to|date('c') }}">{{ _plan.to|when('j M, H:i') }}</time> {{ tz_abbr() }}</dd></div>
+      {% if _plan.note %}<div><dt>{{ 'What you will notice'|trans }}</dt><dd>{{ _plan.note }}</dd></div>{% endif %}
+    </dl>
+  {% endif %}
 
   {# The likeliest answer FIRST: on a phone, below two full-width buttons it was the last
      thing on screen. #}
@@ -63,7 +79,11 @@
   {% endif %}
 
   <div class="er__act">
-    {% if _five or code == 503 %}
+    {% if code == 503 and _plan|default(null) %}
+      <a class="er__btn er__btn--p" href="/status">{{ 'Follow it on the status page'|trans }}</a>
+      {# The one way back in for whoever is doing the work: sign-in stays open (MaintenanceGate). #}
+      <a class="er__btn" href="/account/login?next=%2Fadmin">{{ 'Staff sign-in'|trans }}</a>
+    {% elseif _five or code == 503 %}
       <a class="er__btn er__btn--p" href="{{ request_path|default('/') }}">{{ 'Try again'|trans }}</a>
       <a class="er__btn" href="/status">{{ 'Is it working?'|trans }}</a>
     {% elseif code == 403 %}

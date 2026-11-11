@@ -32,10 +32,17 @@ class ErrorHandler {
         // could find their entry among a day of them. The detail and the person were in
         // the same building and could not be introduced. PublicFault::record() writes the
         // reference first on the line so grepping what somebody quoted finds it.
-        $ref = $code >= 500 ? \AfricaGates\Support\PublicFault::record($ex, $req->getMethod()
+        // Planned work an operator closed the site for is not a fault: no reference (it
+        // invites a report of something nobody broke), and Retry-After from the window's end.
+        $planned = $ex instanceof \AfricaGates\Exceptions\PlannedWorkClosed ? $ex : null;
+        $ref = $code >= 500 && $planned === null ? \AfricaGates\Support\PublicFault::record($ex, $req->getMethod()
             . ' ' . $req->getUri()->getPath()) : null;
         $isJson=str_contains($req->getHeaderLine('Accept'),'application/json')||str_starts_with($req->getUri()->getPath(),'/api/');
         $res=$this->app->getResponseFactory()->createResponse($code);
+        if($planned !== null){
+            $res = $res->withHeader('Retry-After', (string) $planned->retryAfter())
+                       ->withHeader('Cache-Control', 'no-store');
+        }
         // Never leak internal exception details to clients on 5xx; 4xx messages
         // (validation/not-found) are safe and intentional. $displayDetails is
         // true only when APP_ENV=development.
@@ -48,6 +55,10 @@ class ErrorHandler {
         if($isJson){
             $body = ['success'=>false,'message'=>$safeMsg];
             if($ref !== null) $body['reference'] = $ref;
+            if($planned !== null){
+                $body['message'] = 'Closed for planned work until ' . (string) $planned->planned['to'] . ' UTC.';
+                $body['retry_after'] = $planned->retryAfter();
+            }
             $res->getBody()->write((string) json_encode($body));
             return $res->withHeader('Content-Type','application/json');
         }
@@ -101,6 +112,9 @@ class ErrorHandler {
                     // a page that exists because something failed depends on, the likelier
                     // it is to draw at all.
                     'hide_chrome' => $code >= 500,
+                    // The window itself, so the page says WHEN — "try again shortly" about a
+                    // two-hour migration sends somebody back forty times.
+                    'planned' => $planned?->planned,
                 ]);
             } catch(\Throwable $e3){ /* fall through to minimal output */ }
         }

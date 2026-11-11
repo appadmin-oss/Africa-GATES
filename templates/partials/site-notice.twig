@@ -1,0 +1,61 @@
+{#
+  THE NOTICES ABOVE EVERY PUBLIC PAGE (Services\SiteNotice): planned work while it is close,
+  and the operator's own announcement. Inside <main>, above the flash rail, so site-nav swaps
+  it with the page and a notice hidden on one page is gone from the next.
+
+  ONE SLIM ROW EACH (owner, 11 Nov 2026: the first cut "looks pretty low level", the second —
+  two full cards — "UX is a no no": on a phone they took the whole first screen before the
+  page began). So a notice is a single row the height of a button: its kind in words, the
+  sentence, one action, hide. Planned work keeps its detail (the window, what people will
+  notice) behind the row as a <details> — a real button to a keyboard and a screen reader,
+  working with no script — so the row says "Planned work · Starts in 20 hours · Card
+  payments" and the rest is one tap away. The words carry the state; colour repeats it.
+
+  "Hide" is a form that posts — a dismiss that needs a script is missing for exactly the
+  people likeliest to block one — kept in the session, keyed by the notice's content, so
+  planned work that moves or begins shows again.
+#}
+{% set _notices = site_notices(request_path|default('/'), flow_page|default(false)) %}
+{% if _notices %}
+<div class="ag-notices">
+  {% for n in _notices %}
+    {% set _ann = n.kind == 'announce' %}
+    <section class="ag-notice ag-notice--{{ n.kind }}{{ not _ann and n.started ? ' is-live' : '' }}" aria-label="{{ _ann ? 'Announcement'|trans : 'Planned work'|trans }}">
+      {% if _ann %}
+        <div class="ag-notice__row">
+          <span class="ag-notice__mark" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg></span>
+          <p class="ag-notice__t">{{ n.text }}</p>
+          {% if n.url %}<a class="ag-notice__cta" href="{{ n.url }}">{{ n.cta|trans }}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>{% endif %}
+        </div>
+      {% else %}
+        {% set _same = n.from|when('Y-m-d') == n.to|when('Y-m-d') %}
+        <details class="ag-notice__more">
+          <summary class="ag-notice__row">
+            <span class="ag-notice__mark" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg></span>
+            <p class="ag-notice__t">
+              <b class="ag-notice__k">{% if n.kind == 'closed' %}{{ 'Closed to the public'|trans }}{% elseif n.started %}{{ 'Planned work under way'|trans }}{% else %}{{ 'Planned work'|trans }}{% endif %}</b>
+              <span class="ag-notice__when">{{ n.when|trans }}</span>
+              <span class="ag-notice__title">{{ n.title }}</span>
+            </p>
+            <span class="ag-notice__chev" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
+          </summary>
+          <div class="ag-notice__body">
+            <p class="ag-notice__m"><time datetime="{{ n.from|date('c') }}">{{ n.from|when('D j M, H:i') }}</time> – <time datetime="{{ n.to|date('c') }}">{{ n.to|when(_same ? 'H:i' : 'D j M, H:i') }}</time> {{ tz_abbr() }}</p>
+            {% if n.kind == 'closed' %}<p class="ag-notice__n">{{ 'Visitors see the planned-work page. You can see the site because you are signed in as staff.'|trans }}</p>
+            {% elseif n.note %}<p class="ag-notice__n">{{ n.note }}</p>{% endif %}
+            <a class="ag-notice__cta" href="/status">{{ 'Follow it on the status page'|trans }}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+          </div>
+        </details>
+      {% endif %}
+      {% if n.dismiss %}
+        <form class="ag-notice__x" method="post" action="/notice/hide">
+          <input type="hidden" name="_token" value="{{ csrf_token|default('') }}">
+          <input type="hidden" name="id" value="{{ n.id }}">
+          <input type="hidden" name="back" value="{{ request_path|default('/') }}">
+          <button type="submit" class="ag-notice__b" aria-label="{{ 'Hide this notice'|trans }}" title="{{ 'Hide'|trans }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+        </form>
+      {% endif %}
+    </section>
+  {% endfor %}
+</div>
+{% endif %}

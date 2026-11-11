@@ -106,6 +106,10 @@ final class AdminNavTest extends TestCase
         // New 4 Nov 2026: ads posted from the console. With the money (superadmin + admin),
         // as the owner asked that admins can post: a direct sale records income.
         '/admin/ads'                => 'finance',
+        // New 11 Nov 2026: errors visitors saw, under Alerts. Left UNMAPPED — superadmin only —
+        // because each entry carries file paths and stack frames; who else reads those is the
+        // owner's call.
+        '/admin/errors'             => null,
     ];
 
     private const ROLES = ['superadmin', 'admin', 'editor', 'moderator', 'viewer'];

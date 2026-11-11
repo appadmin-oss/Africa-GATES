@@ -198,7 +198,11 @@ final class AdminNav
                  ['page' => 'requests', 'label' => 'Requests', 'href' => '/admin/requests'],
              ]],
             ['page' => 'alerts', 'label' => 'Alerts', 'href' => '/admin/alerts', 'icon' => 'bell',
-             'sub' => 'Everything the platform noticed on its own, most severe first. Each one says what to do next.'],
+             'sub' => 'Everything the platform noticed on its own, most severe first. Each one says what to do next.',
+             'children' => [
+                 // The `faults` alert's page: every error a visitor was shown, by reference.
+                 ['page' => 'errors', 'label' => 'Errors visitors saw', 'href' => '/admin/errors'],
+             ]],
             ['page' => 'handbook', 'label' => 'Handbook', 'href' => '/admin/handbook', 'icon' => 'hb',
              'sub' => 'How this console is organised, who can open what, and the rules it runs on.'],
             ['page' => 'audit', 'label' => 'Audit log', 'href' => '/admin/audit', 'icon' => 'clock',

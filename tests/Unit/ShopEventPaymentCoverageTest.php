@@ -720,7 +720,7 @@ final class ShopEventPaymentCoverageTest extends TestCase
      */
     public function test_a_checkout_that_cannot_start_records_the_gateways_own_words(): void
     {
-        $log = dirname(__DIR__, 2) . '/var/logs/error-detail.log';
+        $log = \AfricaGates\Support\PublicFault::logFile();
         $kept = is_file($log) ? (string) file_get_contents($log) : null;
         @unlink($log);
 

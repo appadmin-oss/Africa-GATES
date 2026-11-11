@@ -23,6 +23,8 @@
 {% block topbar_title %}Alerts{% endblock %}
 {% block topbar_actions %}
   <a class="cn-pillbtn" href="/status" target="_blank" rel="noopener">Status page</a>
+  {# Held to superadmin by the guard (unmapped), so drawn only for a role it lets through. #}
+  {% if can_errors %}<a class="cn-pillbtn" href="/admin/errors">Errors visitors saw</a>{% endif %}
   <a class="al2-btn al2-btn--primary" href="{{ m.url('/admin/alerts', q, {}) }}">Run all checks</a>
 {% endblock %}
 

@@ -220,18 +220,12 @@ final class GatewayHandoff
      */
     private static function noteLost(string $reference, string $why): void
     {
-        try {
-            $dir = dirname(__DIR__, 2) . '/var/logs';
-            if (!is_dir($dir)) @mkdir($dir, 0775, true);
-            @file_put_contents(
-                $dir . '/error-detail.log',
-                '[' . date('c') . '] HandoffLost: a buyer was sent back instead of to the '
-                . 'payment page — ' . $why
-                . ($reference !== '' ? ' (reference ' . $reference . ')' : '')
-                . "\n(no exception: the gateway was never called, so nothing else records this)\n\n",
-                FILE_APPEND
-            );
-        } catch (\Throwable) { /* a diagnostic must never be the thing that breaks */ }
+        \AfricaGates\Support\PublicFault::append(
+            '[' . date('c') . '] HandoffLost: a buyer was sent back instead of to the '
+            . 'payment page — ' . $why
+            . ($reference !== '' ? ' (reference ' . $reference . ')' : '')
+            . "\n(no exception: the gateway was never called, so nothing else records this)\n\n"
+        );
     }
 
     /**

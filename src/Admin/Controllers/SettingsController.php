@@ -57,6 +57,18 @@ class SettingsController
             'tz_abbr'        => \AfricaGates\Support\DisplayTime::abbr(),
             'smtp_configured'=> $this->mailer?->canSend() ?? false,
             'planned_work'   => \AfricaGates\Services\PlannedWork::stored(),
+            // What the public site is showing from the banner fields, said beside them: an
+            // operator who saved a link the page refuses to print learns it here, not never.
+            'announce_state' => (static function (array $v): array {
+                $text = trim((string) ($v['announce_text'] ?? ''));
+                $url  = trim((string) ($v['announce_url'] ?? ''));
+                $a    = \AfricaGates\Services\SiteNotice::announcement($v);
+                return [
+                    'showing'  => $a !== null,
+                    'ended'    => $text !== '' && $a === null,
+                    'bad_link' => $url !== '' && \AfricaGates\Services\SiteNotice::safeUrl($url) === null,
+                ];
+            })($this->settings->all()),
             'mail_config'    => (static function (): array {
                 $c = \AfricaGates\Services\Mail\MailConfig::load();
                 return $c->describe() + ['login_source' => match ($c->source('username')) {
@@ -1277,6 +1289,13 @@ class SettingsController
                     (string) $b[\AfricaGates\Services\GatewayFee::BEARER_KEY] === 'platform' ? 'platform' : 'organisation', $adminId);
             }
             \AfricaGates\Services\GatewayFee::forget();
+        }
+
+        // When the announcement stops — typed in the display zone, stored in UTC, the same
+        // pair as the planned-work window. Blank means until somebody clears the text.
+        if (array_key_exists('announce_until', $b)) {
+            $u = trim(str_replace('T', ' ', (string) $b['announce_until']));
+            $this->settings->set('announce_until', $u === '' ? '' : (\AfricaGates\Support\DisplayTime::toStored($u) ?? ''), $adminId);
         }
 
         // Planned work on /status (Phase 9) — normalised by its one reader's own writer.
