@@ -229,6 +229,9 @@ final class AdVideoShapeTest extends TestCase
         $js = ChromeRender::code('public/assets/js/ads.js');
         $this->assertMatchesRegularExpression('~var auto = !lowData && !calm~', $js, 'autoplay is not the default');
         $this->assertStringContainsString('var wanted = auto', $js);
+        // The site's own reduce-motion switch counts as much as the device's (ReduceMotionSwitchTest
+        // reads the file for the token, which a comment satisfies; this reads the code).
+        $this->assertMatchesRegularExpression("~var calm = document\.documentElement\.classList\.contains\('ag-rm'\)~", $js, 'the site’s reduce-motion switch is ignored');
         $this->assertStringContainsString("playBtn.hidden = false;", $js, 'no way to pause a clip that moves by itself (WCAG 2.2.2)');
         $this->assertMatchesRegularExpression('~else \{ wanted = false; v\.pause\(\); \}~', $js, 'a pause is overridden the next time it scrolls into view');
         $this->assertMatchesRegularExpression('~if \(seen && wanted && v\.paused\) go\(\);~', $js);

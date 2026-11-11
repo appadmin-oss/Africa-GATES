@@ -53,7 +53,10 @@
   //     once for a drawn ad; on the advertiser's own previews nothing is.
   var conn = navigator.connection;
   var lowData = !!(conn && (conn.saveData || /(^|-)2g$/.test(conn.effectiveType || '')));
-  var calm = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  // Reduced motion is the device's setting OR the site's own switch (html.ag-rm, set by the
+  // accessibility panel for somebody whose phone does not offer one).
+  var calm = document.documentElement.classList.contains('ag-rm')
+    || !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   var auto = !lowData && !calm && !!window.IntersectionObserver;
   Array.prototype.forEach.call(document.querySelectorAll('[data-ad-video]'), function (box) {
     var v = box.querySelector('video');
