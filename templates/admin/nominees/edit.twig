@@ -1,0 +1,57 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}Edit nominee{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/console/manage.css') }}">{% endblock %}
+{% block content %}
+{% set labels = {'nominee.edit': 'Details changed', 'nominee.approve': 'Approved', 'nominee.remove': 'Returned to pending',
+  'nominee.winner': 'Marked as winner', 'nominee.runner_up': 'Marked as runner-up', 'nominee.photo.add': 'Photo added',
+  'nominee.photo.primary': 'Main photo changed', 'nominee.photo.delete': 'Photo removed', 'nominee.link': 'Profile link changed',
+  'nominee.merge': 'Merged', 'nominee.unmerge': 'Unmerged'} %}
+<p style="margin:0 0 12px"><a href="/admin/nominees?category={{ n.category_id }}">← {{ n.category }}</a></p>
+<div class="nm-edit">
+  <div class="ad-card">
+    <div class="ad-card__head"><div class="ad-card__title">{{ n.name }}<small>{{ n.programme }} {{ n.year }} · {{ n.category }} · {{ n.vote_count|number_format }} vote{{ n.vote_count == 1 ? '' : 's' }} · {{ n.status|replace({'_': ' '})|capitalize }}</small></div></div>
+    <div class="ad-card__body">
+      <p class="nm-edit__meta">What you change here is what the ballot, the leaderboard and every share card print. <a href="{{ url }}" target="_blank" rel="noopener">See their public page<span class="sr-only"> (opens in a new tab)</span></a></p>
+      <form class="ad-form" method="post" action="/admin/nominees/{{ n.id }}/edit">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <div><label for="nm-name">Name</label><input type="text" id="nm-name" name="name" value="{{ n.name }}" required minlength="2" maxlength="200" autocomplete="off"></div>
+        <div><label for="nm-tagline">Short line</label><input type="text" id="nm-tagline" name="tagline" value="{{ n.tagline }}" maxlength="300" aria-describedby="nm-tagline-h">
+          <p class="hint" id="nm-tagline-h">One line under their name on cards and the leaderboard. Up to 300 characters.</p></div>
+        <div class="row">
+          {% if has_org %}<div><label for="nm-org">School or organisation</label><input type="text" id="nm-org" name="organisation" value="{{ n.organisation }}" maxlength="200"></div>{% endif %}
+          <div><label for="nm-country">Country code</label><input type="text" id="nm-country" name="country_code" value="{{ n.country_code }}" maxlength="2" pattern="[A-Za-z]{2}" aria-describedby="nm-country-h" style="max-width:6rem">
+            <p class="hint" id="nm-country-h">Two letters, such as NG or GH.</p></div>
+        </div>
+        {% if has_story %}<div><label for="nm-story">Their story</label><textarea id="nm-story" name="story" rows="8" maxlength="20000" aria-describedby="nm-story-h">{{ n.story }}</textarea>
+          <p class="hint" id="nm-story-h">The nominator's case for them, printed in full on the ballot.</p></div>{% endif %}
+        {% if siblings|length > 1 %}
+        <div><label for="nm-cat">Category</label>
+          <select id="nm-cat" name="category_id" aria-describedby="nm-cat-h">
+            {% for c in siblings %}<option value="{{ c.id }}" {% if c.id == n.category_id %}selected{% endif %}>{{ c.title }}</option>{% endfor %}
+          </select>
+          <p class="hint" id="nm-cat-h">Only categories of the {{ n.year }} edition: a nominee's votes belong to one award.</p>
+          {% if n.vote_count > 0 %}
+          <label class="nm-edit__move"><input type="checkbox" name="move_with_votes" value="1"> If I change the category, move their {{ n.vote_count|number_format }} vote{{ n.vote_count == 1 ? '' : 's' }} with them.</label>
+          {% endif %}
+        </div>
+        {% endif %}
+        <div><button class="ad-btn ad-btn--primary" type="submit">Save changes</button></div>
+      </form>
+    </div>
+  </div>
+  <div class="ad-card">
+    <div class="ad-card__head"><div class="ad-card__title">History<small>Every change to this nominee, newest first</small></div></div>
+    <div class="ad-card__body">
+      {% if history %}
+      <ol class="nm-log">
+        {% for h in history %}
+        <li><strong>{{ labels[h.action]|default(h.action|replace({'nominee.': '', '_': ' ', '.': ' '})|capitalize) }}</strong>{% if h.changed %} — {{ h.changed|join(', ')|replace({'_id': '', '_code': '', '_': ' '}) }}{% endif %}
+          {% if h.reason %}<br>“{{ h.reason }}”{% endif %}
+          <span class="nm-log__time">{{ h.who }} · {{ h.at }}</span></li>
+        {% endfor %}
+      </ol>
+      {% else %}<p class="nm-edit__meta">Nothing has been changed since they were entered.</p>{% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

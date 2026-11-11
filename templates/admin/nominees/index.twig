@@ -1,26 +1,59 @@
 {% extends "admin/layout.twig" %}
 {% block topbar_title %}Nominees{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/console/manage.css') }}">{% endblock %}
 {% block content %}
 <form class="ad-filters" method="get" action="/admin/nominees" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
-  <input type="search" name="q" value="{{ filters.q }}" placeholder="Search nominee name…" aria-label="Search nominee name">
+  <input type="search" name="q" value="{{ filters.q }}" placeholder="Name, organisation or short line…" aria-label="Search nominees">
   <select name="cycle" aria-label="Filter by cycle">
     <option value="">All cycles</option>
     {% for c in cycles %}<option value="{{ c.id }}" {% if filters.cycle == c.id %}selected{% endif %}>{{ c.title }} · {{ c.year }}</option>{% endfor %}
   </select>
+  {% if categories %}
+  <select name="category" aria-label="Filter by category">
+    <option value="">All categories</option>
+    {% for c in categories %}<option value="{{ c.id }}" {% if filters.category == c.id %}selected{% endif %}>{{ c.title }}{% if not filters.cycle %} · {{ c.programme }} {{ c.year }}{% endif %}</option>{% endfor %}
+  </select>
+  {% endif %}
   <select name="status" aria-label="Filter by status">
     <option value="">All statuses</option>
-    {% for s in ['pending','approved','winner','runner_up'] %}<option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ s|capitalize|replace({'_':' '}) }}</option>{% endfor %}
+    {% for s in statuses %}<option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ s|capitalize|replace({'_':' '}) }}</option>{% endfor %}
+  </select>
+  <select name="sort" aria-label="Order the list">
+    {% for k, label in {'votes': 'Most votes first', 'name': 'Name, A to Z', 'newest': 'Newest first'} %}<option value="{{ k }}" {% if filters.sort == k %}selected{% endif %}>{{ label }}</option>{% endfor %}
   </select>
   {% include 'admin/partials/datefields.twig' with {range: filters.range, from: filters.from, to: filters.to} only %}
   <button class="ad-btn ad-btn--primary" type="submit">Filter</button>
-  {% if filters.q or filters.cycle or filters.status or (filters.range not in ['','all']) or filters.from or filters.to %}<a class="ad-btn" href="/admin/nominees">Clear</a>{% endif %}
+  {% if filters.q or filters.cycle or filters.category or filters.status or filters.sort != 'votes' or (filters.range not in ['','all']) or filters.from or filters.to %}<a class="ad-btn" href="/admin/nominees">Clear</a>{% endif %}
 </form>
 
 {% if total is defined %}
-<p style="margin:0 0 12px;font-size:13px;color:var(--cn-ink-3)">
-  {{ total|number_format }} nominee{{ total == 1 ? '' : 's' }}{% if pages > 1 %} · page {{ page }} of {{ pages }}{% endif %}
-</p>
+<div class="nm-sum">
+  <p role="status">{{ total|number_format }} nominee{{ total == 1 ? '' : 's' }}{% if pages > 1 %} · page {{ page }} of {{ pages }}{% endif %}</p>
+  {# How many in each state, under the other filters — the "needs attention" number is
+     the pending one, and it should not take a click to learn it. #}
+  <nav class="nm-states" aria-label="Show by status">
+    {% for s in statuses %}{% set k = counts[s]|default(0) %}
+      <a href="?{{ export_qs ? export_qs ~ '&' : '' }}status={{ s }}" {% if filters.status == s %}aria-current="true"{% endif %}>{{ s|capitalize|replace({'_':' '}) }} <span class="nm-states__n">{{ k|number_format }}</span></a>
+    {% endfor %}
+  </nav>
+  <a class="ad-btn ad-btn--sm" href="/admin/nominees/export.csv{{ export_qs ? '?' ~ export_qs : '' }}" download>Download this list (CSV)</a>
+</div>
 {% endif %}
+
+{# BULK: approve, or send back to pending, every ticked row in one press. The ticks live
+   in the rows and join this form through form="bulkForm" — a form inside the table would
+   nest inside each row's own action forms, and the parser silently drops a nested form. #}
+<form id="bulkForm" class="nm-bulk" method="post" action="/admin/nominees/bulk">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+  <span class="nm-bulk__n" data-nm-picked aria-live="polite">None ticked</span>
+  <label for="nm-bulk-act" class="sr-only">With the ticked nominees</label>
+  <select id="nm-bulk-act" name="bulk_action">
+    <option value="approve">Approve</option>
+    <option value="pending">Return to pending</option>
+  </select>
+  <button class="ad-btn ad-btn--sm ad-btn--primary" type="submit">Apply to ticked</button>
+  <span class="nm-bulk__note">Crowning a winner is never a bulk action — it is in each row's More menu.</span>
+</form>
 
 <p style="margin:0 0 12px;font-size:13px"><a href="/admin/nominees/duplicates">Duplicates and people counts</a> — who is entered twice, who stands in several categories, and how many people (not entries) were nominated and voted.</p>
 {% if admin_role in ['superadmin','admin'] %}
@@ -46,10 +79,11 @@
 
 <div class="ad-card"><div class="ad-table-wrap">
   <table class="ad-table nm-table" id="nmTable">
-    <thead><tr>{% if admin_role in ['superadmin','admin'] %}<th scope="col" class="nm-merge ux-when-on">Merge</th>{% endif %}<th scope="col">Nominee</th><th scope="col">Programme · Category</th><th scope="col">Country</th><th scope="col">Votes</th><th scope="col">Profile (CPI link)</th><th scope="col">Status</th><th scope="col" class="col-actions">Actions</th></tr></thead>
+    <thead><tr><th scope="col" class="nm-pick"><input type="checkbox" data-nm-all aria-label="Tick every nominee on this page"></th>{% if admin_role in ['superadmin','admin'] %}<th scope="col" class="nm-merge ux-when-on">Merge</th>{% endif %}<th scope="col">Nominee</th><th scope="col">Programme · Category</th><th scope="col">Country</th><th scope="col">Votes</th><th scope="col">Profile (CPI link)</th><th scope="col">Status</th><th scope="col" class="col-actions">Actions</th></tr></thead>
     <tbody>
       {% for r in rows %}
       <tr>
+        <td class="nm-pick"><input type="checkbox" name="ids[]" value="{{ r.id }}" form="bulkForm" aria-label="Tick {{ r.name }}"></td>
         {% if admin_role in ['superadmin','admin'] %}
         <td class="nm-merge ux-when-on" style="white-space:nowrap">
           <label style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--cn-ink-3)" title="Include in a merge">
@@ -67,7 +101,7 @@
             {% else %}
               <span aria-hidden="true" style="width:40px;height:40px;border-radius:8px;background:var(--cn-panel);border:1px solid var(--cn-line-card);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--cn-soft);flex:none">{{ r.name|first|upper }}</span>
             {% endif %}
-            <div><strong>{{ r.name }}</strong><div style="font-size:12px;color:var(--cn-ink-3)">{{ r.tagline }}</div></div>
+            <div><a href="/admin/nominees/{{ r.id }}/edit"><strong>{{ r.name }}</strong></a><div style="font-size:12px;color:var(--cn-ink-3)">{{ r.tagline }}</div></div>
           </div>
         </td>
         <td>{{ r.programme }} · {{ r.category }}<div style="font-size:11px;color:var(--cn-soft)">Cycle {{ r.year }}</div></td>
@@ -97,6 +131,7 @@
           <span class="ad-chip ad-chip--{{ chip }}">{{ r.status|replace({'_':' '})|capitalize }}</span>
         </td>
         <td class="col-actions">
+          <a class="ad-btn ad-btn--xs" href="/admin/nominees/{{ r.id }}/edit" aria-label="Edit {{ r.name }}">Edit</a>
           {% set photo_count = r.photos|default([])|length %}
           <details class="ad-photo-edit" style="display:inline-block;margin-bottom:4px">
             <summary class="ad-btn ad-btn--xs" style="list-style:none;cursor:pointer">{{ photo_count > 0 ? '🖼 Photos (' ~ photo_count ~ ')' : '＋ Photo' }}</summary>
@@ -150,13 +185,14 @@
           {% endif %}
         </td>
       </tr>
-      {% else %}<tr><td colspan="8" style="text-align:center;color:var(--cn-soft);padding:30px">No nominees.</td></tr>{% endfor %}
+      {% else %}<tr><td colspan="9" style="text-align:center;color:var(--cn-soft);padding:30px">No nominees.</td></tr>{% endfor %}
     </tbody>
   </table>
 </div></div>
 
 {% if pages is defined and pages > 1 %}
-{% set qs = (filters.q ? '&q=' ~ filters.q : '') ~ (filters.cycle ? '&cycle=' ~ filters.cycle : '') ~ (filters.status ? '&status=' ~ filters.status : '') %}
+{# `qs` is built by the controller (Filters::qs, url-encoded, every filter kept). This used to
+   be rebuilt here by hand, which dropped the date range and did not escape the search. #}
 <div class="ad-pager">
   {% if page > 1 %}<a href="?page={{ page - 1 }}{{ qs }}" rel="prev">← Prev</a>{% endif %}
   {% for p in 1..pages %}
@@ -174,6 +210,24 @@
 <p style="margin:18px 0 0"><a class="ad-btn ad-btn--sm" href="/admin/nominees/duplicates?tab=merged">Recently merged · {{ merged|length }}</a></p>
 {% endif %}
 
+<script nonce="{{ csp_nonce }}" data-nav="rerun">
+/* Tick-all and the running count for the bulk bar. Bound to this page's own elements only,
+   so it is safe to run again on every console swap (ConsoleNavTest). */
+(function () {
+  var all = document.querySelector('[data-nm-all]');
+  var out = document.querySelector('[data-nm-picked]');
+  var boxes = function () { return Array.prototype.slice.call(document.querySelectorAll('input[name="ids[]"][form="bulkForm"]')); };
+  if (!out) return;
+  function count() {
+    var b = boxes(), n = b.filter(function (x) { return x.checked; }).length;
+    out.textContent = n === 0 ? 'None ticked' : n + ' ticked';
+    if (all) { all.checked = n > 0 && n === b.length; all.indeterminate = n > 0 && n < b.length; }
+  }
+  if (all) all.addEventListener('change', function () { boxes().forEach(function (x) { x.checked = all.checked; }); count(); });
+  boxes().forEach(function (x) { x.addEventListener('change', count); });
+  count();
+})();
+</script>
 {% if admin_role in ['superadmin','admin'] %}
 <script nonce="{{ csp_nonce }}" data-nav="rerun">
 /* AI-assisted duplicate scan: fetch likely-same-person nominee groups for the

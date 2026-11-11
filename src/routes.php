@@ -4409,6 +4409,11 @@ return function(App $app) {
         $a->post('/shop/shipping',     AdminShopController::class.':saveShipping');
 
         $a->get('/nominees',        AdminNomineesController::class.':index');
+        $a->get('/nominees/export.csv', AdminNomineesController::class.':export');
+        $a->post('/nominees/bulk',  AdminNomineesController::class.':bulk');
+        // Before `/nominees/{id}/{action}`, which would otherwise take POST …/edit and 404.
+        $a->get('/nominees/{id:[0-9]+}/edit',  AdminNomineesController::class.':edit');
+        $a->post('/nominees/{id:[0-9]+}/edit', AdminNomineesController::class.':update');
         $a->get('/nominees/duplicate-scan', AdminNomineesController::class.':duplicateScan');
         // Duplicates and net counts: people, not entries — nominees across the whole
         // edition, voters by inbox. A sub-page of Nominees, linked from it.
@@ -4446,6 +4451,7 @@ return function(App $app) {
         $a->get('/events/{id:[0-9]+}',           AdminEventsController::class.':form');
         $a->post('/events/{id:[0-9]+}',          AdminEventsController::class.':save');
         $a->post('/events/{id:[0-9]+}/delete',   AdminEventsController::class.':delete');
+        $a->post('/events/{id:[0-9]+}/duplicate', AdminEventsController::class.':duplicate');
         // Tickets, attendees and the door. Its own screen because an organiser reading a
         // door list on the morning of an event is doing a different job from one editing a
         // description, and check-in is the only thing they want on that page.
