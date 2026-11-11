@@ -35,3 +35,9 @@
 .rd__i--todo .rd__mark { background: var(--cn-red-wash); border-color: var(--cn-red-edge); color: var(--cn-red-ink); }
 .rd__i--note .rd__mark { background: var(--cn-gold-wash); border-color: var(--cn-gold-edge); color: var(--cn-gold-ink); }
 .rd__d { color: var(--cn-ink-3); }
+
+/* The bulk bar's select was the browser default, 20px tall: under WCAG 2.5.8's 24px floor,
+   and it changed height when the console's own styles arrived, shifting the table below. */
+.nm-bulk select { min-height: 32px; padding: 4px 28px 4px 10px; border: 1px solid var(--cn-line-card); border-radius: 8px;
+  background-color: var(--cn-surface); color: var(--cn-ink); font: inherit; font-size: var(--cn-fs-13); }
+.nm-pick input { width: 20px; height: 20px; margin: 2px; }
