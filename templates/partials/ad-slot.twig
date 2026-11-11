@@ -24,6 +24,8 @@
     wide        true for the homepage band: picture beside the words from 900px up
     ad.own      our own campaign posted by staff (AdStaff): counted like any ad, labelled
                 "From Africa GATES", never "Sponsored"
+    ad.seen     the views the ad carries on its card ({short, full}; AdDelivery::seenLabel),
+                or null below the threshold
     ad.video    a short MP4 over the image (AdVideo), with ad.video_watch the seconds after
                 which a play counts as watched
 
@@ -46,7 +48,7 @@
     <span class="ag-ad__logo" aria-hidden="true" data-pv="logo">{% if ad.logo|default(null) %}<img src="{{ ad.logo }}"{% if ad.logo_srcset|default(null) %} srcset="{{ ad.logo_srcset }}" sizes="40px"{% endif %} alt="" width="40" height="40" loading="lazy">{% else %}{{ ad.initials|default('?') }}{% endif %}</span>
     <span class="ag-ad__who">
       <span class="ag-ad__by" data-pv="by">{{ ad.advertiser }}</span>
-      <span class="ag-ad__tag">{{ _own ? 'From Africa GATES'|trans : 'Sponsored'|trans }}</span>
+      <span class="ag-ad__tag">{{ _own ? 'From Africa GATES'|trans : 'Sponsored'|trans }}{% if ad.seen|default(null) %}<span class="ag-ad__seen" title="{{ '%n% views'|trans({'%n%': ad.seen.full}) }}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>{{ '%n% views'|trans({'%n%': ad.seen.short}) }}</span>{% endif %}</span>
     </span>
     {% if not _pv %}
     <details class="ag-ad__menu">

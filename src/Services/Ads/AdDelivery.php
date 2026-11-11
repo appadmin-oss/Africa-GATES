@@ -136,7 +136,52 @@ final class AdDelivery
             'reasons' => AdRules::REPORT_REASONS,
             // Our own, posted by staff: counted like any ad, labelled "From Africa GATES".
             'own' => (bool) $best['own'],
+            // How many people the ad has reached, on the ad itself (owner, 11 Nov 2026: "the
+            // ads itself you carry view amount"). See seenLabel().
+            'seen' => self::seenLabel(self::viewsBySet([(int) $set->id])[(int) $set->id] ?? 0),
         ];
+    }
+
+    // ── the count an ad carries ──────────────────────────────────────────────
+
+    /**
+     * The views an ad shows on its own card ("2.3k views"), or null below the threshold.
+     *
+     * The figure is the campaign's counted VIEWS — an ad at least half on screen for a
+     * second, once per drawing, never a crawler (seen()) — which is exactly what an
+     * advertiser is billed on, so the number a reader sees and the number on the
+     * advertiser's invoice are one number. The threshold and the way it is written are the
+     * site's page counts' (Services\PageViews): one rule for "a number worth showing".
+     *
+     * @return array{short:string, full:string}|null
+     */
+    public static function seenLabel(int $views): ?array
+    {
+        if ($views < \AfricaGates\Services\PageViews::showMin()) return null;
+        return ['short' => \AfricaGates\Services\PageViews::short($views), 'full' => number_format($views)];
+    }
+
+    /**
+     * All-time counted views per ad set, in one query.
+     *
+     * @param list<int> $setIds
+     * @return array<int,int>
+     */
+    public static function viewsBySet(array $setIds): array
+    {
+        $setIds = array_values(array_unique(array_filter($setIds)));
+        if ($setIds === [] || !SchemaHas::table('gates_ad_stats')) return [];
+        try {
+            $out = [];
+            foreach (DB::table('gates_ad_stats as st')->join('gates_ads as a', 'a.id', '=', 'st.ad_id')
+                         ->whereIn('a.ad_set_id', $setIds)->groupBy('a.ad_set_id')
+                         ->selectRaw('a.ad_set_id as sid, SUM(st.views) as v')->get() as $r) {
+                $out[(int) $r->sid] = (int) $r->v;
+            }
+            return $out;
+        } catch (\Throwable) {
+            return [];
+        }
     }
 
     // ── the reader's own say: hide, report ───────────────────────────────────

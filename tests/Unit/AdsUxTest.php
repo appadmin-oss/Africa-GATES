@@ -84,4 +84,34 @@ final class AdsUxTest extends TestCase
             $this->assertDoesNotMatchRegularExpression('~a square image|the square that shows|your square image~i', ChromeRender::source($f), $f);
         }
     }
+
+    public function test_an_ad_carries_its_own_view_count_from_the_threshold(): void
+    {
+        DB::table('gates_settings')->updateOrInsert(['key_name' => 'views_show_min'], ['value' => '100']);
+        DB::table('gates_settings')->updateOrInsert(['key_name' => 'ads_cpm_discover'], ['value' => '1000']);
+        $uid = $this->user();
+        $r = AdCampaigns::createTrial($uid, ['objective' => 'traffic', 'advertiser' => 'Mama Put', 'category' => 'general', 'placements' => ['discover'],
+            'headline' => 'Jollof by the tray', 'body' => 'Party trays delivered across Lagos.', 'cta' => 'shop_now',
+            'url' => 'https://mamaput.example.ng', 'standards' => '1'], '/uploads/ads/t.jpg');
+        $ad = (int) DB::table('gates_ads as a')->join('gates_ad_sets as s', 's.id', '=', 'a.ad_set_id')->where('s.campaign_id', $r['id'])->value('a.id');
+        AdReview::decide($ad, 1, true);
+        $this->assertNull(\AfricaGates\Services\Ads\AdDelivery::pick('discover', ['reader' => true])['seen'], 'a count shown on an ad nobody has seen yet');
+
+        DB::table('gates_ad_stats')->insert(['ad_id' => $ad, 'placement' => 'discover', 'day' => date('Y-m-d', time() - 86400), 'views' => 734, 'clicks' => 9]);
+        $_SESSION = [];
+        $seen = \AfricaGates\Services\Ads\AdDelivery::pick('discover', ['reader' => true])['seen'];
+        $this->assertSame(['short' => '734', 'full' => '734'], $seen, 'the card’s number is not the views the advertiser is billed on');
+        $this->assertSame($seen, AdCampaigns::detail($r['id'], $uid)['ads'][0]['seen'], 'the preview is not the card readers see');
+        $this->assertSame($seen, AdCampaigns::library()['ads'][0]['seen']);
+        $this->assertStringContainsString('<span class="ag-ad__seen"', ChromeRender::html('/account/ads/' . $r['id'], $this->me($uid)));
+    }
+
+    public function test_the_card_reflows_by_its_content_and_the_wide_band_by_its_shape(): void
+    {
+        $css = ChromeRender::code('public/assets/css/components/ad-slot.css');
+        $this->assertStringContainsString('.ag-ad__foot{ display:flex; flex-wrap:wrap;', $css, 'a long button squeezes the headline to two words on a phone');
+        $this->assertStringContainsString('flex:1 1 170px', $css);
+        $this->assertStringContainsString('.ag-ad--wide:has(.ag-ad__media--landscape){ grid-template-columns:minmax(0,1.15fr) minmax(0,1fr) }', $css);
+        $this->assertStringContainsString('.ag-ad--wide:has(.ag-ad__media--portrait){ grid-template-columns:minmax(0,300px) minmax(0,1fr) }', $css);
+    }
 }

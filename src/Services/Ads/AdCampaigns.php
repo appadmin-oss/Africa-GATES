@@ -369,6 +369,11 @@ final class AdCampaigns
         $out['days'] = $from === null ? [] : array_values(array_filter(self::daily(array_map(static fn ($a) => (int) $a->id, $ads), 14),
             static fn ($d) => $d['day'] >= $from));
         $out['days_max'] = max(1, 0, ...array_map(static fn ($d) => (int) $d['views'], $out['days']));
+        // The count every card of this campaign carries in public (AdDelivery::seenLabel), so
+        // the preview is the card readers see.
+        $seen = AdDelivery::seenLabel((int) $out['views']);
+        foreach ($out['ads'] as &$a) $a['seen'] = $seen;
+        unset($a);
         $out['editable'] = self::editable($out['delivery']);
         // The approvals this kind of ad needs, so an edit carries them (and keeps what was given).
         $out['needs'] = AdRules::CATEGORIES[$out['category']][2] ?? [];
@@ -532,6 +537,9 @@ final class AdCampaigns
         } catch (\Throwable) {
             return ['advertiser' => null, 'ads' => []];
         }
+        // The views each card carries on the page, so the library shows the card as readers
+        // meet it — nothing beyond what the ad itself already shows the public.
+        $views = AdDelivery::viewsBySet(array_map(static fn ($r) => (int) $r->ad_set_id, $rows));
         return ['advertiser' => $name, 'ads' => array_map(static fn ($r) => [
             'id' => (int) $r->id, 'advertiser' => (string) $r->advertiser,
             'initials' => mb_strtoupper(implode('', array_slice(\AfricaGates\Support\AvatarMark::letters((string) $r->advertiser), 0, 2))) ?: '?',
@@ -545,6 +553,7 @@ final class AdCampaigns
             'cta' => AdRules::CTAS[(string) $r->cta] ?? 'Learn more', 'url' => (string) (AdRules::safeUrl((string) $r->url) ?? '#'),
             'domain' => AdRules::displayDomain((string) $r->url), 'external' => !str_starts_with((string) $r->url, '/'),
             'since' => (string) $r->starts_at,
+            'seen' => AdDelivery::seenLabel($views[(int) $r->ad_set_id] ?? 0),
             'placements' => array_values(array_filter(explode(',', (string) $r->placements))),
         ], $rows)];
     }
