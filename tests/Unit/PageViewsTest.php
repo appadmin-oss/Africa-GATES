@@ -129,6 +129,40 @@ final class PageViewsTest extends TestCase
         }
     }
 
+    /**
+     * Owner, 11 Nov 2026: "I do not see the view feature". A new deployment starts every page
+     * at nought, staff are never counted, and the threshold was 100: the feature was there,
+     * counting, and invisible to the person checking it had shipped. Staff see the count at
+     * any number, marked as theirs alone; visitors still see it only from the threshold.
+     */
+    public function test_staff_see_the_count_below_the_threshold_and_visitors_do_not(): void
+    {
+        DB::table('gates_settings')->where('key_name', 'views_show_min')->delete();
+        $this->assertSame(10, PageViews::showMin(), 'the default keeps the feature hidden for the first hundred readers');
+        DB::table('gates_page_views')->insert(['page_key' => 'post:88', 'views' => 4, 'updated_at' => date('Y-m-d H:i:s')]);
+        $this->assertNull(PageViews::badge('post', 88), 'a visitor saw a count below the threshold');
+        $this->assertNull(\AfricaGates\Services\Ads\AdDelivery::seenLabel(4));
+
+        $_SESSION['admin_id'] = 3;
+        $b = PageViews::badge('post', 88);
+        $this->assertNotNull($b, 'staff cannot see the feature they are checking');
+        $this->assertTrue($b['staff_only']);
+        $this->assertTrue(\AfricaGates\Services\Ads\AdDelivery::seenLabel(4)['staff_only']);
+        DB::table('gates_page_views')->where('page_key', 'post:88')->update(['views' => 40]);
+        $this->assertFalse(PageViews::badge('post', 88)['staff_only'], 'a public count marked as staff-only');
+        $_SESSION = [];
+
+        $id = (int) DB::table('gates_site_events')->insertGetId(['slug' => 'ikeja-gala', 'title' => 'Ikeja gala', 'status' => 'published',
+            'event_date' => date('Y-m-d 18:00:00', strtotime('+10 days')), 'created_at' => date('Y-m-d H:i:s')]);
+        DB::table('gates_page_views')->insert(['page_key' => 'event:' . $id, 'views' => 3, 'updated_at' => date('Y-m-d H:i:s')]);
+        $this->assertStringNotContainsString('class="ag-views', ChromeRender::html('/events/ikeja-gala'));
+        $aid = (int) DB::table('gates_admins')->insertGetId(['name' => 'Kemi', 'email' => 'kemi2@example.com', 'role' => 'admin', 'is_active' => 1, 'password_hash' => 'x']);
+        $html = ChromeRender::html('/events/ikeja-gala', ['admin_id' => $aid, 'admin_role' => 'admin', 'admin_name' => 'Kemi']);
+        $this->assertStringContainsString('class="ag-views ag-views--staff"', $html);
+        $this->assertStringContainsString('Only staff see this yet.', $html);
+        $this->assertStringContainsString('3 views', $html);
+    }
+
     public function test_the_threshold_is_set_in_the_console(): void
     {
         $aid = (int) DB::table('gates_admins')->insertGetId(['name' => 'Kemi', 'email' => 'kemi@example.com', 'role' => 'superadmin', 'is_active' => 1, 'password_hash' => 'x']);

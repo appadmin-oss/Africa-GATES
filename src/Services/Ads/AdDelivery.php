@@ -153,12 +153,16 @@ final class AdDelivery
      * advertiser's invoice are one number. The threshold and the way it is written are the
      * site's page counts' (Services\PageViews): one rule for "a number worth showing".
      *
-     * @return array{short:string, full:string}|null
+     * Staff see it below the threshold too, marked as theirs alone (PageViews::staffOnly()).
+     *
+     * @return array{short:string, full:string, staff_only:bool, min:int}|null
      */
     public static function seenLabel(int $views): ?array
     {
-        if ($views < \AfricaGates\Services\PageViews::showMin()) return null;
-        return ['short' => \AfricaGates\Services\PageViews::short($views), 'full' => number_format($views)];
+        $staffOnly = \AfricaGates\Services\PageViews::staffOnly($views);
+        if ($views < \AfricaGates\Services\PageViews::showMin() && !$staffOnly) return null;
+        return ['short' => \AfricaGates\Services\PageViews::short($views), 'full' => number_format($views),
+                'staff_only' => $staffOnly, 'min' => \AfricaGates\Services\PageViews::showMin()];
     }
 
     /**

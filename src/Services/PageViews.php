@@ -47,11 +47,18 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * Not on a ballot, a nominee's page or a result (D15, the rule ads follow): a view count
  * beside a nominee is a popularity signal during a vote. Not below SHOW_MIN either (a
  * setting): "3 views" on a new page advertises the opposite of an audience.
+ *
+ * ── STAFF SEE IT ALWAYS ─────────────────────────────────────────────────────────────
+ * Owner, 11 Nov 2026: "I do not see the view feature". Every page starts at nought, staff are
+ * never counted, and the threshold was 100 — so on a new deployment the feature was present,
+ * counting, and invisible to the one person checking it had shipped. Somebody signed in as
+ * staff now sees the count at any number, marked as theirs alone ({@see staffOnly()}), and
+ * the default threshold is 10.
  */
 final class PageViews
 {
     /** Below this a page's count is not shown (settable: views_show_min). */
-    public const SHOW_MIN = 100;
+    public const SHOW_MIN = 10;
     /** Seconds a page must be visible before it counts as a view. */
     public const ENGAGED_SECONDS = 5;
     /** People counted per page per day from one network, at most. */
@@ -186,7 +193,8 @@ final class PageViews
     public static function badge(string $kind, int $id, array $promote = []): ?array
     {
         $s = self::stats($kind, $id);
-        if ($s['total'] < self::showMin()) return null;
+        $staffOnly = self::staffOnly($s['total']);
+        if ($s['total'] < self::showMin() && !$staffOnly) return null;
         $trending = $s['week'] >= self::TREND_MIN && $s['week'] >= self::TREND_RATIO * max(1, $s['prev']);
         $event = null;
         if (isset($promote['event']['slug'])) {
@@ -198,8 +206,18 @@ final class PageViews
         $reach = AdMarket::reach();
         $prices = array_values(array_filter(array_map(static fn ($c) => $c['price'], AdMarket::card())));
         return ['total' => $s['total'], 'week' => $s['week'], 'trending' => $trending,
+                'staff_only' => $staffOnly, 'min' => self::showMin(),
                 'short' => self::short($s['total']), 'full' => number_format($s['total']), 'week_full' => number_format($s['week']),
                 'daily' => $reach['daily'] ?? null, 'from' => $prices !== [] ? min($prices) : null, 'event' => $event];
+    }
+
+    /**
+     * Is this a count only the person looking may see — staff, below the threshold? Staff are
+     * never counted, so the number they are shown is everybody else's.
+     */
+    public static function staffOnly(int $views): bool
+    {
+        return $views < self::showMin() && (int) ($_SESSION['admin_id'] ?? 0) > 0;
     }
 
     /** 940 · 1.2k · 10k · 1.5m — the way every feed writes a count. Never rounded up. */

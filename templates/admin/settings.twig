@@ -1074,9 +1074,9 @@
       </div>
       {# "Seen by" (Services\PageViews): events, stories and discussions show how many people
          have read them, with a way in to advertising. Counted by the same rules as arrivals. #}
-      <div style="margin-top:14px"><label for="f-views_show_min">Show a page's view count from <small>views (events, stories and discussions)</small></label>
+      <div style="margin-top:14px"><label for="f-views_show_min">Show view counts from <small>views (events, stories, discussions and ads)</small></label>
         <input type="number" name="views_show_min" id="f-views_show_min" min="1" step="1" inputmode="numeric" value="{{ views_min }}">
-        <small>Below this the count is gathered but not shown, so a new page never reads "3 views". A view is a person who stayed on the page for {{ views_secs }} seconds, counted once a day; bots, staff and people who refused Analytics are never counted.</small>
+        <small>Below this the count is gathered but not shown, so a new page never reads "3 views". A view is a person who stayed on the page for {{ views_secs }} seconds, counted once a day; bots, staff and people who refused Analytics are never counted. Staff see the count at any number, marked "only staff see this", so you can check it is working.</small>
       </div>
       {# Google Analytics 4, beside our own counting (Services\GoogleAnalytics). #}
       <div style="margin-top:14px"><label for="f-ga_measurement_id">Google Analytics <small>measurement ID — leave blank to keep it off</small></label>

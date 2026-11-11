@@ -155,3 +155,4 @@
   .ag-ad--wide:has(.ag-ad__media--landscape){ grid-template-columns:minmax(0,1.15fr) minmax(0,1fr) }
   .ag-ad--wide:has(.ag-ad__media--portrait){ grid-template-columns:minmax(0,300px) minmax(0,1fr) }
 }
+.ag-ad__staff{ color:var(--ag-soft); font-weight:400 }

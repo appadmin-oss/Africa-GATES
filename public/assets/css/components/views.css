@@ -18,3 +18,8 @@
 .ag-views__a{ justify-content:center }
 .ag-views__t{ color:var(--ag-ink); font-weight:700 }
 .ag-views__rule{ margin:2px 0; border:0; border-top:1px solid var(--ag-line) }
+/* Below the threshold only staff see the chip (PageViews::staffOnly()): dashed, so it reads
+   as a preview of the public's count rather than as the count itself. */
+.ag-views--staff > .ag-views__s{ border-style:dashed }
+.ag-views__staff{ padding:10px 12px; border-radius:var(--ag-r-12); background:var(--ag-bar) }
+.ag-views__staff b{ color:var(--ag-ink) }
