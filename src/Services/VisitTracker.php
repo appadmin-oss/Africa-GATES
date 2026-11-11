@@ -481,10 +481,16 @@ final class VisitTracker
      * because Nigerian mobile networks put thousands of phones behind one address (carrier
      * NAT); the browser string splits them apart without identifying anybody.
      */
-    private static function visitorHash(Request $request): ?string
+    public static function visitorHash(Request $request): ?string
     {
         $ip = self::ip($request);
         return $ip === '' ? null : hash_hmac('sha256', $ip . '|' . self::header($request, 'User-Agent'), self::salt());
+    }
+
+    /** A daily-salted hash of the network alone (PageViews' per-connection ceiling). */
+    public static function networkHash(Request $request): ?string
+    {
+        return self::ipHash($request);
     }
 
     private static function ip(Request $request): string
@@ -560,6 +566,17 @@ final class VisitTracker
      * (Services\Ads\AdDelivery), which bill per view and must not count a bot the arrivals
      * report would refuse.
      */
+    /**
+     * A person's browser, for a request that is NOT a page: a beacon a page's own script
+     * sends (PageViews). isReader() asks for a page navigation, which a fetch never is, so
+     * it would refuse every beacon; the checks that still mean something for one are these
+     * two. The page itself was a reader's, or the script would not be running in it.
+     */
+    public static function isPerson(Request $request): bool
+    {
+        return !self::looksLikeBot($request) && self::hasLanguage($request);
+    }
+
     public static function isReader(Request $request): bool
     {
         return !self::looksLikeBot($request) && self::isPageNavigation($request)

@@ -110,6 +110,7 @@
         {%- if ev.where and ev.host %} · {% endif -%}
         {%- if ev.host %}{{ 'Hosted by %host%'|trans({'%host%': ev.host}) }}{% endif -%}
       </span>
+      {% if views %}<div class="ed-views">{% include 'partials/views-badge.twig' with {v: views, csrf_token: csrf_token} only %}</div>{% endif %}
       {% if early_bird %}
       <a class="ed-eb ed-eb--row" href="{{ early_bird.url ?: '#ev-rsvp' }}">
         <span><b>{{ early_bird.text }}</b>{% if early_bird.until %} · {{ 'ends %date%'|trans({'%date%': early_bird.until}) }}{% endif %}</span>
@@ -355,7 +356,7 @@
   {% if st not in ['ended'] %}{% include 'pages/events/_flier.twig' %}{% endif %}
 {% endblock %}
 
-{% block foot_scripts %}
+{% block foot_scripts %}{% if views %}<script defer src="{{ asset('/assets/js/views.js') }}" data-nav="rerun"></script>{% endif %}
   <script type="application/json" id="ed-flier-data" nonce="{{ csp_nonce }}">{{ {styles: flier_styles, defaults: flier_style_default, title: event.title, date: event.event_date|slice(0, 10), pct: referral ? referral.pct : 0}|json_encode(constant('JSON_HEX_TAG') b-or constant('JSON_UNESCAPED_UNICODE'))|raw }}</script>
   <script defer src="{{ asset('/assets/js/event-detail.js') }}" data-nav="rerun"></script>
   {% if st != 'ended' %}<script defer src="{{ asset('/assets/js/event-flier.js') }}" data-nav="rerun"></script>{% endif %}

@@ -210,7 +210,12 @@ class EventsController
 
         $awardsHere = \AfricaGates\Services\EventsFront::awards($id);
 
+        // How many people have seen it, and "promote this event" beside the number
+        // (Services\PageViews; owner, 11 Nov 2026).
+        $views = \AfricaGates\Services\PageViews::forPage('event', $id,
+            ['event' => ['title' => (string) $event['title'], 'slug' => (string) $event['slug']]]);
         return $this->view->render($res, 'pages/events/detail.twig', [
+            'views' => $views,
             // The organiser's map link, checked again on the way OUT (CLAUDE.md: a stored value
             // survives the code that wrote it), else a map search for the address. The template
             // used to print the stored column straight into an href.

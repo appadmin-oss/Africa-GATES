@@ -128,6 +128,20 @@ final class AdsController
         $form = FormErrors::take('ad');
         $est = AdDelivery::estimate(array_keys(AdRules::PLACEMENTS), AdRules::TRIAL_DAYS);
         $old = (array) ($form['old'] ?? []);
+        // "Promote this event" (partials/views-badge.twig): the builder opens ready for that
+        // event — tickets as the goal, the event's own page as the link, its title as the
+        // headline. Only a published, live event, and only into an empty form: a failed
+        // submission's own values always win.
+        $q = $req->getQueryParams();
+        if ($old === [] && ($q['for'] ?? '') === 'event' && is_string($q['slug'] ?? null)) {
+            $ev = \AfricaGates\Services\EventsFront::liveOnly(\Illuminate\Database\Capsule\Manager::table('gates_site_events as e')
+                ->where('e.slug', (string) $q['slug'])->where('e.status', 'published'))->first(['e.title', 'e.slug']);
+            if ($ev) {
+                $old = ['objective' => 'sales', 'category' => 'events', 'cta' => 'get_tickets',
+                        'url' => '/events/' . (string) $ev->slug, 'headline' => mb_substr((string) $ev->title, 0, AdRules::HEADLINE_MAX),
+                        'placements' => ['events', 'event_page', 'discover']];
+            }
+        }
 
         return $this->view->render($res, 'pages/account/ads-new.twig', [
             'app_bar' => ['variant' => 'child', 'title' => 'New campaign', 'back' => '/account/ads', 'share' => false],

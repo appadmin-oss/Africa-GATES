@@ -1872,6 +1872,8 @@ return function(App $app) {
         $g->get('/advertise/library', \AfricaGates\Controllers\AdsController::class.':library');
         $g->post('/ads/seen',      \AfricaGates\Controllers\AdsController::class.':seen');
         $g->post('/ads/video',     \AfricaGates\Controllers\AdsController::class.':video');
+        // A page's engaged view (Services\PageViews): once it has been visible a few seconds.
+        $g->post('/views',         \AfricaGates\Controllers\PageViewsController::class.':engaged');
         $g->post('/ads/hide',      \AfricaGates\Controllers\AdsController::class.':hide');
         $g->post('/ads/report',    \AfricaGates\Controllers\AdsController::class.':report');
         $g->get('/ads/go/{token:[0-9]+\.[a-z_]+\.[0-9]{8}\.[a-f0-9]{12}\.[a-f0-9]{32}}', \AfricaGates\Controllers\AdsController::class.':go');

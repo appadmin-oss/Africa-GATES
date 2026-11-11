@@ -119,7 +119,10 @@ class CommunityController
         // A refused reply keeps its words: one render, then gone.
         $replyOld = (string) ($_SESSION['community_reply_old'] ?? '');
         unset($_SESSION['community_reply_old']);
+        // How many people have read the discussion (Services\PageViews).
+        $views = \AfricaGates\Services\PageViews::forPage('thread', $threadId);
         return $this->view->render($res, 'pages/community/thread.twig', [
+            'views' => $views,
             'page_title' => $data['thread']['title'] . ' — Africa GATES',
             'meta_description' => $meta,
             'og_title' => $data['thread']['title'] . ' — Africa GATES Community',

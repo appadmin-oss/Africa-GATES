@@ -229,6 +229,7 @@ class SettingsController
             'ad_placements'     => \AfricaGates\Services\Ads\AdRules::PLACEMENTS,
             'ad_beta'           => \AfricaGates\Services\Ads\AdRules::inBeta(),
             'visits_on'         => \AfricaGates\Services\VisitTracker::enabled(),
+            'views_min'         => \AfricaGates\Services\PageViews::showMin(), 'views_secs' => \AfricaGates\Services\PageViews::ENGAGED_SECONDS,
             'visits_days_value' => \AfricaGates\Services\VisitTracker::keepDays(),
             'visits_mode'       => \AfricaGates\Services\CookiePrefs::mode(),
             'ga_id'             => \AfricaGates\Services\GoogleAnalytics::measurementId(),
@@ -729,6 +730,13 @@ class SettingsController
                 } else {
                     $_SESSION['flash_error'] = 'Google Analytics not changed: a measurement ID looks like G-ABC123XYZ.';
                 }
+            }
+
+            // "Seen by" (Services\PageViews): a page's view count is shown from this many
+            // views. At least 1 — nought would put "0 views" on every new page.
+            if (array_key_exists('views_show_min', $b)) {
+                $min = (int) preg_replace('/[^0-9]/', '', (string) $b['views_show_min']);
+                $this->settings->set('views_show_min', (string) ($min > 0 ? min(1_000_000, $min) : \AfricaGates\Services\PageViews::SHOW_MIN), $adminId);
             }
 
             $mode = strtolower(trim((string) ($b['visits_consent_mode'] ?? '')));
