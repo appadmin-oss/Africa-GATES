@@ -29,7 +29,7 @@
 {% set app_bar = {variant: 'child', title: 'Thread'|trans, back: '/community'} %}
 {% set _next = ('/community/' ~ t.slug ~ '#reply')|url_encode %}
 
-{% block head_styles %}
+{% block head_styles %}{% if views %}<link rel="stylesheet" href="{{ asset('/assets/css/components/views.css') }}">{% endif %}
   <link rel="stylesheet" href="{{ asset('/assets/css/components/community.css') }}">
   {% if poll %}<link rel="stylesheet" href="{{ asset('/assets/css/components/poll.css') }}">{% endif %}
 {% endblock %}

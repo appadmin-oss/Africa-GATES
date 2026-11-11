@@ -50,7 +50,7 @@
 {% set _one = tiers|length == 1 and _first %}
 {% set _open_tiers = tiers|filter(t => t.state == 'open') %}
 
-{% block head_styles %}
+{% block head_styles %}{% if views %}<link rel="stylesheet" href="{{ asset('/assets/css/components/views.css') }}">{% endif %}
   <link rel="stylesheet" href="{{ asset('/assets/css/components/events.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/ad-slot.css') }}">
