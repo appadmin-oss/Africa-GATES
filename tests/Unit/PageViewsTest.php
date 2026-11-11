@@ -188,6 +188,37 @@ final class PageViewsTest extends TestCase
         $this->assertStringNotContainsString('views-badge', ChromeRender::source('templates/pages/profile.twig'));
     }
 
+    /**
+     * Owner, 11 Nov 2026: "the views UI/UX is not senior level". The count is a quiet line of
+     * metadata now, and its panel leads with the number: the exact figure, fourteen days as a
+     * sparkline, and this week against last — never a percentage off a week that had nothing.
+     */
+    public function test_the_panel_leads_with_the_number_its_trend_and_an_honest_change(): void
+    {
+        DB::table('gates_page_views')->insert(['page_key' => 'post:61', 'views' => 900, 'updated_at' => date('Y-m-d H:i:s')]);
+        foreach ([13 => 40, 9 => 50, 3 => 120, 0 => 80] as $ago => $n) {
+            DB::table('gates_page_view_days')->insert(['page_key' => 'post:61', 'day' => date('Y-m-d', time() - $ago * 86400), 'views' => $n]);
+        }
+        $series = PageViews::series('post', 61, 14);
+        $this->assertCount(14, $series);
+        $this->assertSame([40, 0, 0, 0, 50], array_slice($series, 0, 5), 'a day nobody stayed was joined over');
+        $this->assertSame(80, $series[13]);
+        $b = PageViews::badge('post', 61);
+        $this->assertSame(120, $b['spark']['peak']);
+        $this->assertStringStartsWith('0,', $b['spark']['line']);
+        $this->assertSame(122, $b['change'], '200 this week on 90 the week before is up 122%');
+        $this->assertNull(PageViews::spark([0, 0, 0, 5]), 'one day of views drew a line along the floor');
+
+        DB::table('gates_page_view_days')->where('page_key', 'post:61')->where('views', '<', 100)->where('day', '<', date('Y-m-d', time() - 7 * 86400))->delete();
+        $this->assertNull(PageViews::badge('post', 61)['change'], 'a percentage off a week with nothing in it');
+
+        $tpl = ChromeRender::source('templates/partials/views-badge.twig');
+        $this->assertStringContainsString('class="ag-views__go"', $tpl, 'the line does not say what pressing it does');
+        $this->assertStringContainsString('class="ag-views__spark"', $tpl);
+        $css = ChromeRender::code('public/assets/css/components/views.css');
+        $this->assertDoesNotMatchRegularExpression('~\.ag-views__s\{[^}]*border:~', $css, 'the count is a bordered button again');
+    }
+
     public function test_the_threshold_is_set_in_the_console(): void
     {
         $aid = (int) DB::table('gates_admins')->insertGetId(['name' => 'Kemi', 'email' => 'kemi@example.com', 'role' => 'superadmin', 'is_active' => 1, 'password_hash' => 'x']);

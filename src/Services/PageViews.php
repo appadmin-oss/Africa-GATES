@@ -210,10 +210,57 @@ final class PageViews
         // number on the chip is THIS page; the offer is to the site's readers.
         $reach = AdMarket::reach();
         $prices = array_values(array_filter(array_map(static fn ($c) => $c['price'], AdMarket::card())));
+        // This week against last, as a whole percentage — only when last week HAD views: "+∞%"
+        // or "+4,700%" off a page that did not exist a week ago is not a trend, it is a birthday.
+        $change = $s['prev'] >= 10 ? (int) round(($s['week'] - $s['prev']) * 100 / $s['prev']) : null;
         return ['total' => $s['total'], 'week' => $s['week'], 'trending' => $trending,
                 'staff_only' => $staffOnly, 'min' => self::showMin(),
+                'change' => $change, 'spark' => self::spark(self::series($kind, $id, 14)),
                 'short' => self::short($s['total']), 'full' => number_format($s['total']), 'week_full' => number_format($s['week']),
                 'daily' => $reach['daily'] ?? null, 'from' => $prices !== [] ? min($prices) : null, 'event' => $event];
+    }
+
+    /**
+     * Views per day for the last `$days` days, oldest first, a nought for a day with none —
+     * a gap is a day nobody stayed, and the line has to say so rather than join over it.
+     *
+     * @return list<int>
+     */
+    public static function series(string $kind, int $id, int $days = 14): array
+    {
+        $out = [];
+        for ($i = $days - 1; $i >= 0; $i--) $out[date('Y-m-d', time() - $i * 86400)] = 0;
+        try {
+            $rows = DB::table('gates_page_view_days')->where('page_key', $kind . ':' . $id)
+                ->where('day', '>=', array_key_first($out))->pluck('views', 'day');
+        } catch (\Throwable) {
+            return array_values($out);
+        }
+        foreach ($rows as $day => $n) if (isset($out[(string) $day])) $out[(string) $day] = (int) $n;
+        return array_values($out);
+    }
+
+    /**
+     * A sparkline for the panel: the line and the area under it, in a 140×40 box, drawn by the
+     * server so it costs no script. Null when fewer than two days carry a view — a flat line
+     * on the floor reads as "nobody", which is the opposite of why the panel is open.
+     *
+     * @param list<int> $series
+     * @return array{line:string, area:string, peak:int}|null
+     */
+    public static function spark(array $series): ?array
+    {
+        if (count(array_filter($series)) < 2) return null;
+        $max = max($series);
+        $n = count($series);
+        $pts = [];
+        foreach ($series as $i => $v) {
+            $x = round($i * 140 / max(1, $n - 1), 1);
+            $y = round(38 - ($v / $max) * 34, 1);
+            $pts[] = $x . ',' . $y;
+        }
+        $line = implode(' ', $pts);
+        return ['line' => $line, 'area' => 'M0,40 L' . str_replace(' ', ' L', $line) . ' L140,40 Z', 'peak' => $max];
     }
 
     /**

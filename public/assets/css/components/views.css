@@ -1,26 +1,60 @@
 /* ── "Seen by": a page's view count, and the way in to promoting on it ─────────────────
-   partials/views-badge.twig · Services\PageViews. A quiet chip (eye + count) that opens a
-   small panel under it. Neutral like the rest of the page's furniture: the number is the
-   message, not a colour. */
-.ag-views{ position:relative; display:inline-block }
-.ag-views__s{ list-style:none; display:inline-flex; align-items:center; gap:6px; min-height:44px; padding:0 12px; border:1px solid var(--ag-line-2);
-  border-radius:var(--ag-r-pill); background:var(--ag-surface); color:var(--ag-ink-2); font-size:var(--ag-fs-14); font-weight:600; cursor:pointer; user-select:none }
+   partials/views-badge.twig · Services\PageViews.
+
+   A view count is METADATA, set the way every feed sets it: a quiet line under the title —
+   an eye, the count, "Trending" when it is, and a small "Promote" in the house green that
+   says what pressing it does. No border, no fill: it must never read as a button competing
+   with the page's own action (owner, 11 Nov 2026: the outlined pill "is not senior level").
+   The whole line is the control, 44px tall, so the target is generous while the ink is light.
+
+   The panel leads with the NUMBER — the exact figure in the display face, fourteen days as a
+   sparkline, this week against last — then the offer, then how a view is counted. */
+.ag-views{ position:relative; display:inline-block; max-width:100% }
+.ag-views__s{
+  list-style:none; display:inline-flex; align-items:center; flex-wrap:wrap; gap:4px 8px; min-height:44px; margin-inline-start:-4px; padding:0 6px 0 4px;
+  border-radius:var(--ag-r-10); color:var(--ag-soft); font-size:var(--ag-fs-14); font-weight:500; cursor:pointer; user-select:none;
+}
 .ag-views__s::-webkit-details-marker{ display:none }
-.ag-views__s:hover{ border-color:var(--ag-ink); color:var(--ag-ink) }
 .ag-views__s:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
-.ag-views[open] > .ag-views__s{ border:2px solid var(--ag-ink); padding:0 11px; color:var(--ag-ink) }
-.ag-views__i{ flex:none }
-.ag-views__pop{ position:absolute; inset-inline-start:0; top:calc(100% + 8px); z-index:var(--ag-z-header); width:min(320px, calc(100vw - 32px));
-  display:flex; flex-direction:column; gap:10px; padding:16px; border:1px solid var(--ag-line); border-radius:var(--ag-r-16);
-  background:var(--ag-surface); box-shadow:var(--ag-sh-menu) }
-.ag-views__h, .ag-views__p{ margin:0; font-size:var(--ag-fs-14-5); line-height:1.45; color:var(--ag-ink-2) }
-.ag-views__h b{ color:var(--ag-ink) }
-.ag-views__a{ justify-content:center }
-.ag-views__t{ color:var(--ag-ink); font-weight:700 }
-.ag-views__rule{ margin:2px 0; border:0; border-top:1px solid var(--ag-line) }
-/* Below the threshold only staff see the chip (PageViews::staffOnly()): dashed, so it reads
-   as a preview of the public's count rather than as the count itself. */
-.ag-views--staff > .ag-views__s{ border-style:dashed }
-.ag-views__staff{ padding:10px 12px; border-radius:var(--ag-r-12); background:var(--ag-bar) }
+.ag-views__i{ flex:none; color:var(--ag-soft) }
+.ag-views__n{ color:var(--ag-ink-2); font-weight:600; font-variant-numeric:tabular-nums }
+.ag-views__t{ display:inline-flex; align-items:center; gap:4px; color:var(--ag-green-deep); font-weight:600 }
+.ag-views__go{ display:inline-flex; align-items:center; gap:3px; color:var(--ag-green-deep); font-weight:600 }
+.ag-views__sep{ color:var(--ag-mute) }
+.ag-views__go svg{ transition:transform var(--ag-dur-1) var(--ag-ease) }
+.ag-views[open] .ag-views__go svg{ transform:rotate(180deg) }
+@media (hover:hover){ .ag-views__s:hover .ag-views__go{ text-decoration:underline; text-underline-offset:3px } }
+
+.ag-views__pop{
+  position:absolute; inset-inline-start:0; top:calc(100% + 6px); z-index:var(--ag-z-header); width:min(340px, calc(100vw - 32px));
+  display:flex; flex-direction:column; border:1px solid var(--ag-line); border-radius:var(--ag-r-18);
+  background:var(--ag-surface); box-shadow:var(--ag-sh-menu); overflow:hidden;
+}
+.ag-views__pop :where(p){ margin:0 }
+.ag-views__stat{ padding:18px 18px 16px }
+.ag-views__big{ font-family:var(--ag-font-display); font-size:var(--ag-fs-32); font-weight:700; line-height:1.05; color:var(--ag-ink); font-variant-numeric:lining-nums tabular-nums }
+.ag-views__lbl{ margin-top:4px; font-size:var(--ag-fs-14); color:var(--ag-soft) }
+.ag-views__spark{ display:block; width:100%; height:44px; margin-top:14px; overflow:visible }
+.ag-views__area{ fill:color-mix(in srgb, var(--ag-green) 10%, transparent) }
+.ag-views__line{ stroke:var(--ag-green-deep); stroke-width:2; stroke-linejoin:round; stroke-linecap:round; vector-effect:non-scaling-stroke }
+.ag-views__axis{ display:flex; justify-content:space-between; margin-top:4px; font-size:var(--ag-fs-12); color:var(--ag-soft) }
+.ag-views__wk{ margin-top:12px; font-size:var(--ag-fs-14); line-height:1.45; color:var(--ag-ink-2) }
+.ag-views__wk b{ color:var(--ag-ink); font-variant-numeric:tabular-nums }
+.ag-views__chg{ font-weight:700 }
+.ag-views__chg.is-up{ color:var(--ag-green-deep) }
+.ag-views__chg.is-down{ color:var(--ag-ink-2) }
+.ag-views__staff{ margin:0 18px 14px; padding:10px 12px; border-radius:var(--ag-r-12); background:var(--ag-bar); font-size:var(--ag-fs-13-5); line-height:1.45; color:var(--ag-ink-2) }
 .ag-views__staff b{ color:var(--ag-ink) }
-.ag-views-row{ margin-top:10px }
+.ag-views__sell{ display:flex; flex-direction:column; gap:6px; padding:16px 18px; border-top:1px solid var(--ag-line-3); background:var(--ag-bar) }
+.ag-views__h{ font-size:var(--ag-fs-15); font-weight:700; color:var(--ag-ink) }
+.ag-views__p{ font-size:var(--ag-fs-14); line-height:1.5; color:var(--ag-ink-2) }
+.ag-views__acts{ display:flex; flex-direction:column; gap:8px; margin-top:8px }
+.ag-views__a.ag-btn{ height:44px; justify-content:center; font-size:var(--ag-fs-14-5) }
+.ag-views__how{ padding:12px 18px 14px; border-top:1px solid var(--ag-line-3); font-size:var(--ag-fs-12-5); line-height:1.45; color:var(--ag-soft) }
+
+/* Below the threshold only staff see it (PageViews::staffOnly()): the count in a dashed
+   underline, so it reads as a preview of the public's number rather than the number. */
+.ag-views--staff .ag-views__n{ text-decoration:underline dashed; text-underline-offset:4px }
+.ag-views-row{ margin-top:6px }
+@media (prefers-reduced-motion:reduce){ .ag-views__go svg{ transition:none } }
+html.ag-rm .ag-views__go svg{ transition:none }
