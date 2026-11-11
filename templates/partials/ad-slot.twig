@@ -45,7 +45,11 @@
 {%- set _rel = _own ? '' : 'sponsored' ~ (ad.external|default(not (_href starts with '/')) ? ' noopener noreferrer' : '') -%}
 <article class="ag-ad{% if wide|default(false) %} ag-ad--wide{% endif %}"{% if not _pv %} data-ad="{{ ad.token }}" data-csrf="{{ csrf_token|default('') }}"{% endif %} aria-label="{{ _own ? 'From Africa GATES'|trans : 'Sponsored: %a%'|trans({'%a%': ad.advertiser}) }}">
   <header class="ag-ad__head">
-    <span class="ag-ad__logo" aria-hidden="true" data-pv="logo">{% if ad.logo|default(null) %}<img src="{{ ad.logo }}"{% if ad.logo_srcset|default(null) %} srcset="{{ ad.logo_srcset }}" sizes="40px"{% endif %} alt="" width="40" height="40" loading="lazy">{% else %}{{ ad.initials|default('?') }}{% endif %}</span>
+    {#- With no logo, the site's own monogram (Support\AvatarMark): the advertiser's initials
+        on their tone, the way every organisation without a picture is drawn here — a grey
+        box with two letters read as a placeholder nobody had filled in. -#}
+    {%- set _mk = avatar_mark(ad.advertiser|default(''), null, 'business', 44) -%}
+    <span class="ag-ad__logo{% if not ad.logo|default(null) %} ag-ad__logo--{{ _mk.tone }}{% endif %}" aria-hidden="true" data-pv="logo">{% if ad.logo|default(null) %}<img src="{{ ad.logo }}"{% if ad.logo_srcset|default(null) %} srcset="{{ ad.logo_srcset }}" sizes="40px"{% endif %} alt="" width="40" height="40" loading="lazy">{% else %}{{ ad.initials|default('?') }}{% endif %}</span>
     <span class="ag-ad__who">
       <span class="ag-ad__by" data-pv="by">{{ ad.advertiser }}</span>
       <span class="ag-ad__tag">{{ _own ? 'From Africa GATES'|trans : 'Sponsored'|trans }}{% if ad.seen|default(null) %}<span class="ag-ad__seen" title="{{ '%n% views'|trans({'%n%': ad.seen.full}) }}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>{{ '%n% views'|trans({'%n%': ad.seen.short}) }}</span>{% endif %}</span>
@@ -103,11 +107,13 @@
   {% endif %}
   <a class="ag-ad__foot" href="{{ _href }}"{% if _rel %} rel="{{ _rel }}"{% endif %}>
     <span class="ag-ad__meta">
-      <span class="ag-ad__dom" data-pv="domain">{{ ad.domain|default('') }}</span>
+      {#- Where the tap goes, with its kind of place: a chat for WhatsApp (AdRules::displayDomain
+          names it so), a link for a website. -#}
+      <span class="ag-ad__dom"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ ad.domain|default('') == 'WhatsApp' ? 'M20 11.5a8 8 0 0 1-11.7 7.1L4 20l1.4-4.1A8 8 0 1 1 20 11.5z' : 'M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1' }}"/></svg><span data-pv="domain">{{ ad.domain|default('') }}</span></span>
       <span class="ag-ad__h" data-pv="headline">{{ ad.headline }}</span>
       {% if not _pic %}{{ _offer }}{% endif %}
     </span>
-    <span class="ag-btn ag-ad__cta" data-pv="cta">{{ ad.cta|trans }}</span>
+    <span class="ag-btn ag-ad__cta"><span data-pv="cta">{{ ad.cta|trans }}</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
   </a>
 </article>
 {% endif %}

@@ -107,6 +107,32 @@ final class AdsUxTest extends TestCase
         $this->assertStringContainsString('<span class="ag-ad__seen"', ChromeRender::html('/account/ads/' . $r['id'], $this->me($uid)));
     }
 
+    /**
+     * Owner, 11 Nov 2026: "the ads still feel so unprofessional". Three things read as cheap,
+     * and each is held here: a grey box with two letters where a logo goes, a black blob on a
+     * grey strip, and a homepage band with a hole between its paragraph and its link bar.
+     */
+    public function test_the_card_is_finished_like_the_rest_of_the_site(): void
+    {
+        $uid = $this->user();
+        $cid = AdCampaigns::createTrial($uid, ['objective' => 'traffic', 'advertiser' => 'Mama Put Kitchen', 'category' => 'general', 'placements' => ['discover'],
+            'headline' => 'Jollof by the tray', 'body' => 'Party trays delivered across Lagos.', 'cta' => 'shop_now',
+            'url' => 'https://mamaput.example.ng', 'standards' => '1'], '/uploads/ads/t.jpg')['id'];
+        $html = ChromeRender::html('/account/ads/' . $cid, $this->me($uid));
+        $tone = \AfricaGates\Support\AvatarMark::of('Mama Put Kitchen', null, 'business', 44)['tone'];
+        $this->assertMatchesRegularExpression('~class="ag-ad__logo ag-ad__logo--' . $tone . '"~', $html, 'no logo still draws a grey placeholder box');
+        $this->assertStringContainsString('<path d="M5 12h14M13 6l6 6-6 6"/></svg></span>', $html, 'the button does not point anywhere');
+
+        $css = ChromeRender::code('public/assets/css/components/ad-slot.css');
+        foreach (['green', 'gold', 'live', 'info', 'stone'] as $t) {
+            $this->assertStringContainsString(".ag-ad__logo--$t{ background:var(--ag-cover-$t-bg)", $css, "the $t monogram has no colour");
+        }
+        $this->assertMatchesRegularExpression('~\.ag-ad__h\{ font-family:var\(--ag-font-display\)~', $css, 'the headline is not set like a headline');
+        $this->assertMatchesRegularExpression('~\.ag-ad__foot\{[^}]*background:var\(--ag-surface\)~', $css, 'the link bar is a grey strip again');
+        $this->assertStringContainsString('grid-template-rows:1fr auto auto auto 1fr', $css, 'the band\'s words are not one centred group');
+        $this->assertStringContainsString('.ag-ad--wide .ag-ad__pic{ position:absolute; inset:0 }', $css, 'the image sets the band\'s height again');
+    }
+
     public function test_the_card_reflows_by_its_content_and_the_wide_band_by_its_shape(): void
     {
         $css = ChromeRender::code('public/assets/css/components/ad-slot.css');

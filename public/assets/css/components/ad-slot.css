@@ -6,13 +6,26 @@
    an ad is never louder than the page it is on, and is never mistaken for an award.
    500px at most, the width of a feed post, so an image is never a billboard on desktop. */
 .ag-ad-slot{ margin-block:16px }
-.ag-ad{ position:relative; max-width:500px; border:1px solid var(--ag-line); border-radius:var(--ag-r-16); background:var(--ag-surface); overflow:visible }
+/* FINISH (owner, 11 Nov 2026: "the ads still feel so unprofessional"). What read as cheap was
+   three things: a grey box with two letters where a logo goes, a heavy black blob on a grey
+   strip, and a homepage band with a hole in the middle. So: the site's own monogram, a white
+   link bar with the headline in the display face and a button that points somewhere, and a
+   band whose words fill their column top to bottom. The card lifts a little under a pointer,
+   the one thing every feed does to say "this whole thing is a link". */
+.ag-ad{ position:relative; max-width:500px; border:1px solid var(--ag-line); border-radius:var(--ag-r-18); background:var(--ag-surface); overflow:visible;
+  transition:box-shadow var(--ag-dur-2) var(--ag-ease), border-color var(--ag-dur-2) var(--ag-ease) }
 
-.ag-ad__head{ display:flex; align-items:center; gap:10px; padding:12px 6px 10px 14px; min-width:0 }
-.ag-ad__logo{ flex:none; display:grid; place-items:center; width:40px; height:40px; overflow:hidden; border:1px solid var(--ag-line); border-radius:var(--ag-r-10); background:var(--ag-bar); font-size:var(--ag-fs-14); font-weight:700; color:var(--ag-ink) }
+.ag-ad__head{ display:flex; align-items:center; gap:12px; padding:14px 6px 12px 16px; min-width:0 }
+.ag-ad__logo{ flex:none; display:grid; place-items:center; width:42px; height:42px; overflow:hidden; border:1px solid var(--ag-line); border-radius:var(--ag-r-12); background:var(--ag-surface); font-size:var(--ag-fs-15); font-weight:700; letter-spacing:-.02em; color:var(--ag-ink) }
+/* No logo: the monogram on the advertiser's tone, as partials/avatar.twig draws a business. */
+.ag-ad__logo--green{ background:var(--ag-cover-green-bg); border-color:var(--ag-cover-green-line); color:var(--ag-cover-green-ink) }
+.ag-ad__logo--gold{ background:var(--ag-cover-gold-bg); border-color:var(--ag-cover-gold-line); color:var(--ag-cover-gold-ink) }
+.ag-ad__logo--live{ background:var(--ag-cover-live-bg); border-color:var(--ag-cover-live-line); color:var(--ag-cover-live-ink) }
+.ag-ad__logo--info{ background:var(--ag-cover-info-bg); border-color:var(--ag-cover-info-line); color:var(--ag-cover-info-ink) }
+.ag-ad__logo--stone{ background:var(--ag-cover-stone-bg); border-color:var(--ag-cover-stone-line); color:var(--ag-cover-stone-ink) }
 .ag-ad__logo img{ display:block; width:100%; height:100%; object-fit:cover }
 .ag-ad__who{ display:flex; flex-direction:column; min-width:0; flex:1 }
-.ag-ad__by{ font-size:var(--ag-fs-15); font-weight:700; line-height:1.3; color:var(--ag-ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.ag-ad__by{ font-size:var(--ag-fs-15-5); font-weight:700; line-height:1.3; color:var(--ag-ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
 .ag-ad__tag{ font-size:var(--ag-fs-13); line-height:1.3; color:var(--ag-soft) }
 /* The views the ad carries (AdDelivery::seenLabel): beside the label, in the label's ink,
    with the eye the site's page counts use, so the two read as one kind of number. */
@@ -39,10 +52,10 @@
 .ag-ad__why b{ display:block; color:var(--ag-ink) }
 
 /* The advertiser's words, then the image, edge to edge. */
-.ag-ad__text{ margin:0; padding:0 14px 12px; font-size:var(--ag-fs-15); line-height:1.45; color:var(--ag-ink); overflow-wrap:anywhere;
+.ag-ad__text{ margin:0; padding:0 16px 14px; font-size:var(--ag-fs-15); line-height:1.5; color:var(--ag-ink-2); overflow-wrap:anywhere;
   display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden }
 /* The box follows the ad's shape (AdRules::SHAPES); square is the default and every older ad. */
-.ag-ad__media{ position:relative; aspect-ratio:1/1; overflow:hidden; background:var(--ag-ground); border-block:1px solid var(--ag-line-3) }
+.ag-ad__media{ position:relative; aspect-ratio:1/1; overflow:hidden; background:var(--ag-ground) }
 .ag-ad__media--portrait{ aspect-ratio:4/5 }
 .ag-ad__media--landscape{ aspect-ratio:16/9 }
 .ag-ad__pic{ display:block; width:100%; height:100% }
@@ -74,19 +87,26 @@
    and a long button ("Chat on WhatsApp") that would squeeze it to two words moves to its
    own line — measured from what is in it, not from the screen, so a short button stays
    beside the headline on the same phone. */
-.ag-ad__foot{ display:flex; flex-wrap:wrap; align-items:center; gap:10px 12px; padding:12px 14px; border-radius:0 0 var(--ag-r-16) var(--ag-r-16); background:var(--ag-bar); color:inherit; text-decoration:none }
+.ag-ad__foot{ display:flex; flex-wrap:wrap; align-items:center; gap:12px 14px; padding:14px 16px 16px; border-radius:0 0 var(--ag-r-18) var(--ag-r-18); background:var(--ag-surface); color:inherit; text-decoration:none }
+/* With no picture, a hairline is what separates the words from the link. */
+.ag-ad__text + .ag-ad__foot{ border-top:1px solid var(--ag-line-3) }
 .ag-ad__foot:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
-.ag-ad__meta{ display:flex; flex-direction:column; gap:2px; min-width:0; flex:1 1 170px }
-.ag-ad__dom{ font-size:var(--ag-fs-12-5); color:var(--ag-soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
-.ag-ad__h{ font-size:var(--ag-fs-15-5); font-weight:700; line-height:1.3; color:var(--ag-ink); overflow-wrap:anywhere;
+.ag-ad__meta{ display:flex; flex-direction:column; gap:3px; min-width:0; flex:1 1 170px }
+.ag-ad__dom{ display:flex; align-items:center; gap:5px; min-width:0; font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
+.ag-ad__dom > span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.ag-ad__dom svg{ flex:none }
+/* The headline in the display face, as every headline on this site is (REFERENCE §6.2): it is
+   what makes the card read as edited rather than as a form somebody filled in. */
+.ag-ad__h{ font-family:var(--ag-font-display); font-size:var(--ag-fs-18); font-weight:700; line-height:1.25; letter-spacing:-.005em; color:var(--ag-ink); overflow-wrap:anywhere;
   display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden }
 .ag-ad__offer{ font-size:var(--ag-fs-13-5); font-weight:600; color:var(--ag-ink-2) }
 .ag-ad__code{ font-family:var(--ag-font-mono); font-size:var(--ag-fs-13); font-weight:600; color:var(--ag-ink) }
 /* ONE obvious button, filled: ink, never the page's green, which is the page's own main
    action. Filled rather than outlined because a call to act that reads as a label is not one
    (TripleLift, Outbrain: an ad with a clear button is acted on markedly more). */
-.ag-ad__cta{ min-height:44px; padding-inline:18px; border:1px solid var(--ag-ink); border-radius:var(--ag-r-pill);
-  background:var(--ag-ink); color:var(--ag-surface); font-weight:700; white-space:nowrap; pointer-events:none; flex:none }
+.ag-ad__cta{ height:44px; min-height:44px; gap:8px; padding-inline:18px 16px; border:1px solid var(--ag-ink); border-radius:var(--ag-r-pill);
+  background:var(--ag-ink); color:var(--ag-surface); font-size:var(--ag-fs-14-5); font-weight:700; white-space:nowrap; pointer-events:none; flex:none }
+.ag-ad__cta svg{ flex:none; transition:transform var(--ag-dur-1) var(--ag-ease) }
 
 /* After "Hide" or "Report": the card folds to one line. */
 .ag-ad--done{ display:flex; align-items:center; gap:10px; padding:14px; font-size:var(--ag-fs-14-5); color:var(--ag-ink-2) }
@@ -94,8 +114,10 @@
 @media (hover:hover){
   .ag-ad__more:hover{ background:var(--ag-bar); color:var(--ag-ink) }
   .ag-ad__item:hover{ background:var(--ag-bar) }
-  .ag-ad__foot:hover{ background:var(--ag-ground) }
+  .ag-ad:hover{ border-color:var(--ag-line-2); box-shadow:var(--ag-sh-pop) }
+  .ag-ad__foot:hover .ag-ad__h{ text-decoration:underline; text-decoration-thickness:1.5px; text-underline-offset:3px }
   .ag-ad__foot:hover .ag-ad__cta{ background:var(--ag-ink-2); border-color:var(--ag-ink-2) }
+  .ag-ad__foot:hover .ag-ad__cta svg{ transform:translateX(2px) }
 }
 /* The picture leans in a little under a pointer: the one motion, and none if asked. */
 @media (hover:hover) and (prefers-reduced-motion:no-preference){
@@ -105,18 +127,28 @@
 
 /* ── The homepage band (wide: true): picture beside the words from 900px up, so the ad
    reads as one band of the page rather than a phone post floating in a desktop column.
-   Below 900px it is the ordinary card. */
+   Below 900px it is the ordinary card. The words are ONE group, centred against the
+   picture — who and "Sponsored", the advertiser's text, then the headline and the button —
+   so the room the picture makes falls evenly above and below them, never as a hole between
+   a paragraph at the top and a link bar at the bottom (owner, 11 Nov 2026). */
 .hm-ad{ margin-block:8px 24px }
 @media (min-width:900px){
   .ag-ad--wide{ max-width:none; display:grid; grid-template-columns:minmax(0,360px) minmax(0,1fr);
-    grid-template-rows:auto 1fr auto; grid-template-areas:"media head" "media text" "media foot"; overflow:hidden }
-  .ag-ad--wide .ag-ad__head{ grid-area:head; padding:18px 10px 8px 22px }
-  /* The words sit in the middle of their column, larger, rather than at its top over an
-     empty half: the picture sets the band's height and the copy is what it is selling. */
-  .ag-ad--wide .ag-ad__text{ grid-area:text; align-self:center; padding:0 22px 14px; font-size:var(--ag-fs-17); line-height:1.5; -webkit-line-clamp:6 }
-  .ag-ad--wide .ag-ad__media{ grid-area:media; border-block:0; border-inline-end:1px solid var(--ag-line-3); border-radius:var(--ag-r-16) 0 0 var(--ag-r-16) }
-  .ag-ad--wide .ag-ad__foot{ grid-area:foot; align-self:end; padding:16px 22px; border-radius:0 0 var(--ag-r-16) 0 }
-  .ag-ad--wide .ag-ad__h{ font-size:var(--ag-fs-17) }
+    grid-template-rows:1fr auto auto auto 1fr; grid-template-areas:"media ." "media head" "media text" "media foot" "media ."; overflow:hidden }
+  .ag-ad--wide .ag-ad__head{ grid-area:head; padding:24px 12px 4px 36px }
+  .ag-ad--wide .ag-ad__text{ grid-area:text; max-width:42rem; padding:8px 36px 0; font-size:var(--ag-fs-17); line-height:1.6; -webkit-line-clamp:4 }
+  /* The picture FILLS its side of the band, however tall the words make it: a 16:9 box in a
+     band the words had made taller left a strip of ground under the picture. Each shape
+     keeps a floor near its own proportion, and the image is cover-cropped to the rest. */
+  .ag-ad--wide .ag-ad__media{ grid-area:media; aspect-ratio:auto; height:100%; min-height:340px; border-radius:var(--ag-r-18) 0 0 var(--ag-r-18) }
+  .ag-ad--wide .ag-ad__media--portrait{ min-height:375px }
+  .ag-ad--wide .ag-ad__media--landscape{ min-height:320px }
+  /* Out of the flow, so the image's own 600px never sets the band's height: the words and
+     the floor above decide it, and the picture fills whatever that is. */
+  .ag-ad--wide .ag-ad__pic{ position:absolute; inset:0 }
+  .ag-ad--wide .ag-ad__foot{ grid-area:foot; gap:16px 24px; padding:20px 36px 28px; border-top:0; border-radius:0 0 var(--ag-r-18) 0 }
+  .ag-ad--wide .ag-ad__meta{ flex:0 1 auto }
+  .ag-ad--wide .ag-ad__h{ font-size:var(--ag-fs-26); -webkit-line-clamp:2 }
   /* The picture's column follows its SHAPE (AdRules::SHAPES): a wide one gets more than
      half the band, so a 16:9 picture is not a letterbox; an upright one a narrower column,
      so the band is not a tall box with the words lost beside it. */
