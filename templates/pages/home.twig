@@ -71,12 +71,18 @@
       {% endfor %}
       {% if hero_slides|length > 1 %}
         <div class="hm-dots" role="group" aria-label="{{ 'Recognitions'|trans }}">
+          {# WCAG 2.2.2: anything that moves on its own for more than five seconds needs a way to
+             stop it. Hover and focus already paused it, which helps nobody on a phone or anybody
+             reading the card with a screen reader that does not move focus. Hidden until the
+             script runs, because without it nothing rotates. #}
+          <button type="button" class="hm-dots__p" data-hm-pause hidden aria-label="{{ 'Pause slideshow'|trans }}" data-hm-play-label="{{ 'Play slideshow'|trans }}" data-hm-pause-label="{{ 'Pause slideshow'|trans }}"><svg class="hm-dots__ic hm-dots__ic--pause" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg><svg class="hm-dots__ic hm-dots__ic--play" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.4-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg></button>
           {% for sl in hero_slides %}
             <button type="button" class="hm-dots__b{{ loop.first ? ' is-on' }}" data-hm-dot="{{ loop.index0 }}" aria-label="{{ 'Show %name%'|trans({'%name%': sl.name}) }}"{{ loop.first ? ' aria-current="true"' }}><span aria-hidden="true"></span></button>
           {% endfor %}
         </div>
       {% endif %}
-      <div class="hm-rec-box" aria-live="polite">
+      {# Silent while it turns by itself — a live region that speaks every 5.5 seconds talks over whatever the reader is doing. home.js makes it polite when a person chooses a slide. #}
+      <div class="hm-rec-box" aria-live="off" data-hm-live>
         {% for sl in hero_slides %}
           <a class="hm-rec{{ loop.first ? ' is-on' }}" href="{{ sl.url }}" data-hm-card{% if not loop.first %} hidden{% endif %}>
             <span class="hm-rec__who">
@@ -101,7 +107,8 @@
         <span class="hm-ctr__n" data-hm-count="{{ honoured }}">{{ honoured|number_format }}</span>
         <span class="hm-ctr__l">{{ 'people honoured on Africa GATES'|trans }}</span>
       {% else %}
-        <span class="hm-ctr__h">{{ 'Every honour here is checked, then kept for good'|trans }}</span>
+        {#- A heading, as it looks: plain text, heading navigation stepped over it. -#}
+        <h2 class="hm-ctr__h">{{ 'Every honour here is checked, then kept for good'|trans }}</h2>
       {% endif %}
     </div>
     <div class="hm-ctr__side">
@@ -122,7 +129,7 @@
          960 file for a 145px tile: six of them, ~300KB more than the 480s it needed. #}
       {% for t in honour %}
         <li><a class="hm-hon" href="/nominate?who={{ t.key }}">
-          <img class="hm-hon__img" src="{{ asset(t.src) }}" srcset="{{ t.srcset }}" sizes="(min-width: 1200px) 160px, (min-width: 1024px) calc(33vw - 41px), (min-width: 600px) 180px, calc(46vw - 35px)" alt="{{ t.alt }}" loading="lazy" width="480" height="480">
+          <img class="hm-hon__img" src="{{ asset(t.src) }}" srcset="{{ t.srcset }}" sizes="(min-width: 1200px) 160px, (min-width: 1024px) calc(33vw - 41px), (min-width: 600px) 180px, calc(46vw - 35px)" alt="" loading="lazy" width="480" height="480">
           <span class="hm-hon__row"><span class="hm-hon__l">{{ t.label|trans }}</span><span class="hm-hon__go" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M5 10h10M11 6l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span>
         </a></li>
       {% endfor %}

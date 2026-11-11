@@ -236,7 +236,7 @@
      Fixed by the stylesheet so it is there on first paint: a bar placed from a
      measured property is missing for anybody whose script did not run, which this
      codebase shipped once on the nomination form. #}
-  <div class="ag-actionbar ch-bar" data-bottom-ui>
+  <div class="ag-actionbar ch-bar" data-bottom-ui role="region" aria-label="{{ 'Take part'|trans }}">
     <span class="ag-actionbar__sum">
       <b>{{ copy.prize_big }} {{ copy.prize_unit }}</b>
       <span>{{ copy.bar_sub }}</span>

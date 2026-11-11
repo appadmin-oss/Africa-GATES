@@ -41,7 +41,7 @@
   and no <h1> here, so the page has one. §7.2 lists Home among the large-title roots; the
   conflict is recorded for the owner (docs/handoff/PHASE-4.md, "Home", blocked).
 
-  Args (all optional but `title`): variant, title, sub, back, share (opt-in), search, avatar, brand,
+  Args (all optional but `title`): variant, title, sub, back, share (opt-in), search, avatar, brand, heading (false: no <h1>),
   eye (a wallet page's hide-balance icon, bound by wallet.js) and help (an href for a ? icon).
   The sub must ADD information and never repeat the title (skill §3).
 #}
@@ -56,7 +56,10 @@
 {% set _brand  = _root and (brand|default(false)) %}
 {% set _ini    = member_name ? (member_name|split(' ')|filter(w => w != '')|map(w => w|first)|join|upper|slice(0, 2)) : 'AG' %}
 
-<div class="ag-appbar ag-appbar--{{ _root ? 'root' : 'child' }}{{ _brand ? ' ag-appbar--brand' }}" data-ag-appbar>
+{#- A <header>, so the bar is the page's banner landmark: inside a plain <div> it was in no
+    landmark at all, and a screen reader moving by landmark could not find Back or Search
+    (accessibility audit, 11 Nov 2026). -#}
+<header class="ag-appbar ag-appbar--{{ _root ? 'root' : 'child' }}{{ _brand ? ' ag-appbar--brand' }}" data-ag-appbar>
   <div class="ag-appbar__row">
     {% if _brand %}
       <a class="ag-logo ag-appbar__logo" href="/" aria-label="{{ 'Africa GATES home'|trans }}">
@@ -109,8 +112,14 @@
     </div>
   </div>
 
+  {#- `heading: false` for a page that has its own <h1> on a phone too (Results, Pulse): the
+      large title is then drawn the same and is not a second <h1> on the page. -#}
   {% if _root and not _brand %}
+    {% if heading is defined and not heading %}
+    <div class="ag-appbar__large"><div><p class="ag-appbar__h1">{{ title }}</p></div></div>
+    {% else %}
     <div class="ag-appbar__large"><div><h1 class="ag-appbar__h1">{{ title }}</h1></div></div>
+    {% endif %}
   {% endif %}
-</div>
+</header>
 {% if _root and lang_ask() %}{% include 'partials/lang-prompt.twig' %}{% endif %}

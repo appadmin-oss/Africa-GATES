@@ -103,7 +103,7 @@
   font-size: var(--cn-fs-12-5); font-weight: 500; text-decoration: none; white-space: nowrap;
 }
 .rq-view:hover { background: var(--cn-panel); }
-.rq-view[aria-pressed="true"] { border-color: var(--cn-ink); background: var(--cn-ground); font-weight: 600; }
+.rq-view[aria-current="true"] { border-color: var(--cn-ink); background: var(--cn-ground); font-weight: 600; }
 .rq-view__num, .rq-chip__num { font: 400 var(--cn-fs-11-5)/1 var(--cn-mono); color: var(--cn-faint); }
 .rq-saved { display: contents; }
 .rq-saved__c { display: inline-flex; align-items: center; height: 30px; border: 1px dashed var(--cn-line-strong); border-radius: var(--cn-r-pill); background: var(--cn-surface); }

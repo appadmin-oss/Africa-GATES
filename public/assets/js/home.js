@@ -25,7 +25,9 @@
     var slides = hero.querySelectorAll('[data-hm-slide]');
     var cards = hero.querySelectorAll('[data-hm-card]');
     var dots = hero.querySelectorAll('[data-hm-dot]');
-    var i = 0, timer = null, hover = false;
+    var pause = hero.querySelector('[data-hm-pause]');
+    var live = hero.querySelector('[data-hm-live]');
+    var i = 0, timer = null, hover = false, held = false;
 
     // A slide's image is fetched just before it is shown (home.twig), and the next one with it,
     // so a crossfade never fades in an empty frame.
@@ -53,12 +55,25 @@
     var stop = function () { if (timer) { clearInterval(timer); timer = null; } };
     var start = function () {
       stop();
-      if (reduce || hover || document.hidden) return;
-      timer = pg.every(function () { show(i + 1); }, 5500);
+      if (reduce || hover || held || document.hidden) return;
+      timer = pg.every(function () { quiet(true); show(i + 1); }, 5500);
     };
+    // The card announces a slide somebody CHOSE, never one the timer turned to.
+    var quiet = function (q) { if (live) live.setAttribute('aria-live', q ? 'off' : 'polite'); };
 
     for (var d = 0; d < dots.length; d++) {
-      dots[d].addEventListener('click', function (e) { show(parseInt(e.currentTarget.getAttribute('data-hm-dot'), 10) || 0); start(); });
+      dots[d].addEventListener('click', function (e) { quiet(false); show(parseInt(e.currentTarget.getAttribute('data-hm-dot'), 10) || 0); start(); });
+    }
+    // WCAG 2.2.2 — a stop the person keeps. Pausing is held until they press it again; hover
+    // and focus only pause for as long as they last.
+    if (pause && !reduce) {
+      pause.hidden = false;
+      pause.addEventListener('click', function () {
+        held = !held;
+        pause.classList.toggle('is-paused', held);
+        pause.setAttribute('aria-label', pause.getAttribute(held ? 'data-hm-play-label' : 'data-hm-pause-label'));
+        if (held) stop(); else start();
+      });
     }
     hero.addEventListener('mouseenter', function () { hover = true; stop(); });
     hero.addEventListener('mouseleave', function () { hover = false; start(); });

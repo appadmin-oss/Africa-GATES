@@ -40,7 +40,7 @@
    marked current, no composer, no alerts list and no Saved heading. Resolved once, here,
    at template scope so every block below can read it. #}
 {% set view = pulse_tab|default('foryou') == 'foryou' ? 'for-you' : pulse_tab %}
-{% set app_bar = {variant: 'root', title: reels ? 'Videos'|trans : 'Pulse'|trans} %}
+{% set app_bar = {variant: 'root', title: reels ? 'Videos'|trans : 'Pulse'|trans, heading: false} %}
 {% set colour_tier = '2' %}
 {% set _signed = member is not null %}
 {% set _ini = _signed ? member.name|split(' ')|filter(w => w)|map(w => w|first)|join|upper|slice(0, 2) : '' %}

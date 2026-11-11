@@ -103,12 +103,26 @@
       if (bad) {
         e.preventDefault();
         say(bad);
-        if (other) { other.setAttribute('aria-invalid', 'true'); other.focus(); }
+        if (other) {
+          other.setAttribute('aria-invalid', 'true');
+          // The sentence belongs to the box it is about, beside the range it states.
+          if (err && err.id && (' ' + (other.getAttribute('aria-describedby') || '') + ' ').indexOf(' ' + err.id + ' ') < 0) {
+            other.setAttribute('aria-describedby', ((other.getAttribute('aria-describedby') || '') + ' ' + err.id).trim());
+          }
+          other.focus();
+        }
         return;
       }
+      if (other) other.removeAttribute('aria-invalid');
+      say('');
       // Busy, and stays busy: the next thing is the gateway's page. A second press would
-      // start a second checkout.
-      Array.prototype.forEach.call(gos, function (b) { b.setAttribute('aria-busy', 'true'); b.textContent = f.getAttribute('data-w-busy'); });
+      // start a second checkout. Decided AFTER every submit listener has run: the shared
+      // validator (data-ag-validate) may refuse the email, and a button reading "Opening the
+      // secure checkout…" over a form that is going nowhere is a page that has hung.
+      setTimeout(function () {
+        if (e.defaultPrevented) return;
+        Array.prototype.forEach.call(gos, function (b) { b.setAttribute('aria-busy', 'true'); b.textContent = f.getAttribute('data-w-busy'); });
+      }, 0);
     });
     // Back from the gateway restores this page from the cache, still busy. Undo that.
     pg.on(window, 'pageshow', function () { Array.prototype.forEach.call(gos, function (b) { b.removeAttribute('aria-busy'); }); paint(); });

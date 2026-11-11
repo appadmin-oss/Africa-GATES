@@ -78,3 +78,12 @@ html.ag-rm .ag-notice__k::before{ animation:none }
   .ag-notice__title::before{ content:none }
   .ag-notice__body{ padding-left:12px }
 }
+
+/* "You are offline" (shell.js): one line pinned to the top while the connection is gone,
+   gone when it is back. The live family, because it is about now; words carry it. */
+.ag-offline{
+  position:fixed; inset:0 0 auto; z-index:var(--ag-z-sheet); margin:0;
+  padding:calc(8px + env(safe-area-inset-top, 0px)) var(--ag-gutter) 8px;
+  background:var(--ag-live-wash); color:var(--ag-live-ink); border-bottom:1px solid var(--ag-live);
+  font-size:var(--ag-fs-14); font-weight:600; text-align:center;
+}

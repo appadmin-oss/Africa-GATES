@@ -80,7 +80,7 @@
 
   {% if _step == 'give' and _give %}
   {# ══ THE CHECKOUT ══════════════════════════════════════════════════════════ #}
-  <form class="gv-co" id="give" method="post" action="/giving" data-favicon-busy data-gv-form
+  <form class="gv-co" id="give" method="post" action="/giving" novalidate data-ag-validate data-favicon-busy data-gv-form
         data-min="{{ min_naira }}" data-max="{{ max_naira }}" data-fee-pct="{{ fee.schedule.pct }}" data-fee-flat="{{ fee.schedule.flat }}" data-fee-from="{{ fee.schedule.flat_from }}" data-fee-cap="{{ fee.schedule.cap }}" data-org-fee="{{ org_fee_bps }}"
         data-w-once="{{ 'Give %a%'|trans }}" data-w-monthly="{{ 'Give %a% every month'|trans }}" data-w-busy="{{ 'Opening the secure checkout…'|trans }}" data-w-short="{{ 'Give'|trans }}"
         data-e-min="{{ 'The smallest gift we can process is %m%.'|trans({'%m%': m.ngn(min_naira)}) }}"
@@ -212,7 +212,7 @@
       <div class="gv-recap__t"><dt>{{ 'Total today'|trans }}</dt><dd data-gv-total>{{ m.ngn(_pick + _fee0) }}</dd></div>
     </dl>
 
-    <p class="gv-err" data-gv-err role="alert" hidden></p>
+    <p class="gv-err" id="gvErr" data-gv-err role="alert" hidden></p>
     <div class="gv-co__go">
       <button type="submit" class="gv-btn gv-btn--go" data-gv-go>{{ (pick_monthly ? 'Give %a% every month' : 'Give %a%')|trans|replace({'%a%': m.ngn(_pick + _fee0)}) }}</button>
     </div>
@@ -461,13 +461,13 @@
 {# The DC's phone Give bar, on the campaign only (Gee clears it through --ag-bottom-ui). #}
 {% block bottom_bar %}
   {% if _step != 'give' and _give %}
-  <div class="gv-bar" data-bottom-ui>{% include 'pages/giving/_give-ctas.twig' %}</div>
+  <div class="gv-bar" data-bottom-ui role="region" aria-label="{{ 'Give'|trans }}">{% include 'pages/giving/_give-ctas.twig' %}</div>
   {% elseif _step == 'give' and _give %}
   {# The checkout's action bar on a phone (§8): the total and the one button, in the thumb
      zone, registered with data-bottom-ui so Gee's launcher clears it. `form="give"` — the
      bar is outside the form, and the button still submits it. From 600 the in-form button
      takes over. #}
-  <div class="gv-bar gv-bar--co" data-bottom-ui>
+  <div class="gv-bar gv-bar--co" data-bottom-ui role="region" aria-label="{{ 'Your gift'|trans }}">
     <span class="gv-bar__sum"><b data-gv-total>{{ m.ngn(_pick + _fee0) }}</b><span data-gv-freq-word data-once="{{ 'Total today'|trans }}" data-monthly="{{ 'Today, then every month'|trans }}">{{ pick_monthly ? 'Today, then every month'|trans : 'Total today'|trans }}</span></span>
     <button type="submit" form="give" class="gv-btn gv-btn--go" data-gv-go>{{ 'Give'|trans }}</button>
   </div>

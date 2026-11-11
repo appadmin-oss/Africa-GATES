@@ -238,7 +238,7 @@
       {# THE PHONE'S ACTION BAR (library.css .ag-actionbar): a long form's one action stays
          under the thumb, the tab bar is off (flow_page), and the summary says what is being
          sent. It is the same submit button, so validation and the agreement still apply. #}
-      <div class="ag-actionbar am-actbar" data-bottom-ui>
+      <div class="ag-actionbar am-actbar" data-bottom-ui role="region" aria-label="{{ 'Your ad'|trans }}">
         <span class="ag-actionbar__sum">
           <b data-bar-kind data-trial="{{ 'Free trial'|trans }}" data-paid="{{ 'Paid campaign'|trans }}">{{ (paid.open and old.kind|default(trial_left ? 'trial' : 'paid') == 'paid') or not trial_left ? 'Paid campaign'|trans : 'Free trial'|trans }}</b>
           <span>{{ 'A person checks it before it runs'|trans }}</span>

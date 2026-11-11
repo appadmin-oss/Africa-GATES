@@ -377,7 +377,7 @@
    button unmounts and remounts it, so "clears it when it unmounts" is seen to happen. #}
 {% block bottom_bar %}
   {% if mock_sticky|default(false) %}
-  <div class="duix__bar" data-bottom-ui data-duix-bar>
+  <div class="duix__bar" data-bottom-ui role="region" aria-label="{{ 'Example action bar'|trans }}" data-duix-bar>
     <span class="duix__bar-sum"><b>₦2,000</b><span>10 votes · Achieng Otieno</span></span>
     <button type="button" class="ag-btn ag-btn--primary duix__bar-go" data-duix-bar-off>Remove this bar</button>
   </div>

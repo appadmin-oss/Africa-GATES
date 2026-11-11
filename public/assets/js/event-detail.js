@@ -199,16 +199,43 @@
     if (e.target.closest('[data-ag-do="ed-submit"]')) submit();
   });
 
+  // A refusal names its FIELD, not just the card (WCAG 3.3.1): the sentence was drawn in one
+  // alert line under all three inputs, so a screen reader heard "Enter your email" and then
+  // had to find which box that was. The field is marked invalid, carries the sentence as its
+  // description, and takes focus — once, on the first one wrong.
+  function clearBad() {
+    ['[data-ed-name]', '[data-ed-email]', '[data-ed-phone]'].forEach(function (sel) {
+      var el = q(sel, form);
+      if (el) { el.removeAttribute('aria-invalid'); el.removeAttribute('aria-describedby'); }
+    });
+  }
+  function bad(sel, msg) {
+    var el = q(sel, form);
+    err.textContent = msg;
+    if (!el) return;
+    if (!err.id) err.id = 'edErr';
+    el.setAttribute('aria-invalid', 'true');
+    el.setAttribute('aria-describedby', err.id);
+    // Once they are fixing it, the red is no longer news.
+    el.addEventListener('input', function off() {
+      el.removeEventListener('input', off);
+      el.removeAttribute('aria-invalid');
+      if (err.textContent === msg) err.textContent = '';
+    });
+    el.focus();
+  }
+
   function submit() {
     if (state.busy) return;
     var name = q('[data-ed-name]', form).value.trim();
     var email = q('[data-ed-email]', form).value.trim();
     var phone = q('[data-ed-phone]', form).value.trim();
     err.textContent = '';
+    clearBad();
     if (hasTiers && !state.id) { err.textContent = T('tier'); return; }
-    if (!name) { err.textContent = T('name'); return; }
-    if (!/.+@.+\..+/.test(email)) { err.textContent = T('email'); return; }
-    if (phone.replace(/\D/g, '').length < 7) { err.textContent = T('phone'); return; }
+    if (!name) { bad('[data-ed-name]', T('name')); return; }
+    if (!/.+@.+\..+/.test(email)) { bad('[data-ed-email]', T('email')); return; }
+    if (phone.replace(/\D/g, '').length < 7) { bad('[data-ed-phone]', T('phone')); return; }
 
     state.busy = true;
     cta.setAttribute('aria-busy', 'true');

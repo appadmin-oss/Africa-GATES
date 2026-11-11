@@ -344,7 +344,7 @@
      and every toast clear it by measurement (shell.js), never by a typed offset. Only where
      there is something to get. #}
   {% if st in ['open', 'soon', 'waitlist'] %}
-  <div class="ed-bar" data-bottom-ui>
+  <div class="ed-bar" data-bottom-ui role="region" aria-label="{{ 'Tickets'|trans }}">
     <span class="ed-bar__t">
       {% if st == 'open' %}<span class="ed-bar__k">{{ 'From'|trans }}</span><b>{{ ev.from_text }}</b>
       {% elseif st == 'soon' %}<span class="ed-bar__k">{{ 'Tickets on sale'|trans }}</span><b>{{ ev.opens_text ?: 'soon'|trans }}</b>

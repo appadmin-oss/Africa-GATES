@@ -152,15 +152,15 @@
 
     <div class="ed-field">
       <label class="ed-label" for="edName">{{ 'Full name'|trans }}</label>
-      <input class="ed-input" id="edName" autocomplete="name" value="{{ member ? member.name : '' }}" data-ed-name>
+      <input class="ed-input" id="edName" autocomplete="name" value="{{ member ? member.name : '' }}" data-ed-name aria-required="true">
     </div>
     <div class="ed-field">
       <label class="ed-label" for="edEmail">{{ 'Email'|trans }}</label>
-      <input class="ed-input" id="edEmail" type="email" inputmode="email" autocomplete="email" value="{{ member ? member.email : '' }}" data-ed-email>
+      <input class="ed-input" id="edEmail" type="email" inputmode="email" autocomplete="email" value="{{ member ? member.email : '' }}" data-ed-email aria-required="true">
     </div>
     <div class="ed-field">
       <label class="ed-label" for="edPhone">{{ 'Phone'|trans }}</label>
-      <input class="ed-input" id="edPhone" type="tel" inputmode="tel" autocomplete="tel" value="{{ member ? member.phone : '' }}" data-ed-phone>
+      <input class="ed-input" id="edPhone" type="tel" inputmode="tel" autocomplete="tel" value="{{ member ? member.phone : '' }}" data-ed-phone aria-required="true">
     </div>
     <p class="ed-err" role="alert" data-ed-err></p>
     <button type="button" class="ed-cta ed-cta--tier" data-ag-do="ed-submit">{{ st == 'waitlist' ? 'Join the waiting list'|trans : (paid_tiers ? 'Reserve your place'|trans : 'Register — free'|trans) }}</button>

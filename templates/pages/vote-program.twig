@@ -243,7 +243,7 @@
 
 {% block bottom_bar %}
   {% if tab == 'vote' and _f.open %}
-  <div class="vp-bar" data-bottom-ui>
+  <div class="vp-bar" data-bottom-ui role="region" aria-label="{{ 'Your ballot'|trans }}">
     <span class="vp-bar__t">
       <span class="vp-bar__w" data-ballot-words data-of="{{ '%n% of %m% categories voted'|trans }}">{{ '%n% of %m% categories voted'|trans({'%n%': 0, '%m%': _f.categories}) }}</span>
       <span class="vp-bar__bar" aria-hidden="true"><span title="{{ 'Categories voted on this device'|trans }}" data-ballot-fill></span></span>

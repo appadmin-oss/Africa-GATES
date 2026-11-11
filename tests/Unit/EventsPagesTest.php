@@ -359,7 +359,7 @@ final class EventsPagesTest extends TestCase
         $this->assertMatchesRegularExpression('~\.ed-extras\{ order:3;~', $css);
         $this->assertMatchesRegularExpression('~grid-template-columns:minmax\(0, 1fr\) 380px~', $css, 'the 380px rail from 1024');
 
-        $this->assertMatchesRegularExpression('~<div class="ed-bar" data-bottom-ui>~', $html, 'the bar feeds --ag-bottom-ui so Gee clears it');
+        $this->assertMatchesRegularExpression('~<div class="ed-bar" data-bottom-ui[ >]~', $html, 'the bar feeds --ag-bottom-ui so Gee clears it');
         $this->assertStringContainsString('From', $html);
         $this->assertStringNotContainsString('class="ed-bar"', ChromeRender::html('/events/ev-past'), 'nothing to get, no bar');
         $this->assertStringNotContainsString('data-ag-appbar', ChromeRender::html('/events/ev-open'), 'the phone detail is full-bleed: no app bar');

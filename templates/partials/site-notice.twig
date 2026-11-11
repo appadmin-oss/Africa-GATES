@@ -52,7 +52,7 @@
           <input type="hidden" name="_token" value="{{ csrf_token|default('') }}">
           <input type="hidden" name="id" value="{{ n.id }}">
           <input type="hidden" name="back" value="{{ request_path|default('/') }}">
-          <button type="submit" class="ag-notice__b" aria-label="{{ 'Hide this notice'|trans }}" title="{{ 'Hide'|trans }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+          <button type="submit" class="ag-notice__b" aria-label="{{ _ann ? 'Hide the announcement'|trans : 'Hide the planned-work notice'|trans }}" title="{{ 'Hide'|trans }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
         </form>
       {% endif %}
     </section>

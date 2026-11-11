@@ -335,6 +335,13 @@
 .hm-dots__b{ width:28px; height:32px; padding:0; border:0; background:none; display:flex; align-items:center; justify-content:center; cursor:pointer }
 .hm-dots__b span{ display:block; width:7px; height:7px; border-radius:var(--ag-r-pill); background:color-mix(in srgb, var(--ag-surface) 60%, transparent); transition:width .2s ease }
 .hm-dots__b.is-on span{ width:18px; background:var(--ag-surface) }
+.hm-dots__p{ position:relative; width:32px; height:32px; padding:0; border:0; background:none; color:var(--ag-surface); display:flex; align-items:center; justify-content:center; cursor:pointer }
+/* 44px to a finger without widening the pill the design draws. */
+.hm-dots__p::after{ content:""; position:absolute; inset:-6px }
+.hm-dots__p[hidden]{ display:none }
+.hm-dots__ic--play,
+.hm-dots__p.is-paused .hm-dots__ic--pause{ display:none }
+.hm-dots__p.is-paused .hm-dots__ic--play{ display:block }
 
 /* 2 · who do you want to honour? */
 .hm-honour{
@@ -409,7 +416,7 @@
 .hm-ctr__fig{ display:flex; flex-direction:column; gap:10px }
 .hm-ctr__n{ font-weight:700; font-size:var(--ag-fs-72); line-height:.9; letter-spacing:-.05em; font-variant-numeric:tabular-nums; color:var(--ag-green-deep) }
 .hm-ctr__l{ font-size:var(--ag-fs-18); font-weight:600; line-height:1.3 }
-.hm-ctr__h{ font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-26); line-height:1.15; text-wrap:balance }
+.hm-ctr__h{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-26); line-height:1.15; text-wrap:balance }
 .hm-ctr__side{ display:flex; flex-direction:column; gap:14px; align-items:flex-start }
 .hm-ctr__p{ margin:0; max-width:40ch; font-size:var(--ag-fs-16); line-height:1.55; color:var(--ag-ink-2) }
 

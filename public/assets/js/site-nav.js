@@ -292,7 +292,12 @@
         else if (o.tab && keepTabs(o.tab)) { /* the bar stays where it was */ }
         // A tab or a filter on the same page keeps the reader where they were reading.
         else main.scrollTop = o.pop ? (o.y || 0) : (samePath && o.keep ? main.scrollTop : 0);
-        if (!o.pop && !main.contains(document.activeElement)) main.focus({ preventScroll: true });
+        // Focus the new page's heading — on a phone a root page's <h1> is in the app bar,
+        // before <main>, and focusing <main> started a screen reader below the title.
+        if (!o.pop && !main.contains(document.activeElement)) {
+          var h = window.AGShell && window.AGShell.pageHeading ? window.AGShell.pageHeading() : main;
+          (h || main).focus({ preventScroll: true });
+        }
         live.textContent = document.title;
         busy(false);
         return true;

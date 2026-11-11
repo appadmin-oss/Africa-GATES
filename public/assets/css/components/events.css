@@ -321,6 +321,8 @@ html.ag-rm [data-ev-glow]{ display:none }
 }
 textarea.ed-input{ padding:10px 12px; min-height:96px; line-height:1.5 }
 .ed-input:focus-visible{ outline:3px solid var(--ag-green); outline-offset:1px }
+/* The field a refusal is about — its border, beside the sentence, so colour is never the only sign. */
+.ed-input[aria-invalid="true"]{ border-color:var(--ag-error) }
 .ed-hint{ margin:0; font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
 .ed-disc{ display:flex; gap:6px }
 .ed-disc .ed-input{ flex:1; min-width:0 }
