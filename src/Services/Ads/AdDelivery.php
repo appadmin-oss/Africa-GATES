@@ -153,16 +153,18 @@ final class AdDelivery
      * advertiser's invoice are one number. The threshold and the way it is written are the
      * site's page counts' (Services\PageViews): one rule for "a number worth showing".
      *
-     * Staff see it below the threshold too, marked as theirs alone (PageViews::staffOnly()).
+     * AN AD SHOWS ITS COUNT FROM ITS FIRST VIEW (owner, 11 Nov 2026: "just ad"). It used to
+     * share the page counts' threshold, so on the live site — where that setting held 100 —
+     * a trial ad with 43 views carried no number at all, which is the one thing the owner had
+     * asked an ad to carry. The page threshold exists so a new STORY never reads "3 views";
+     * an ad's number is the advertiser's own result, and they asked to see it on the card.
      *
-     * @return array{short:string, full:string, staff_only:bool, min:int}|null
+     * @return array{short:string, full:string}|null
      */
     public static function seenLabel(int $views): ?array
     {
-        $staffOnly = \AfricaGates\Services\PageViews::staffOnly($views);
-        if ($views < \AfricaGates\Services\PageViews::showMin() && !$staffOnly) return null;
-        return ['short' => \AfricaGates\Services\PageViews::short($views), 'full' => number_format($views),
-                'staff_only' => $staffOnly, 'min' => \AfricaGates\Services\PageViews::showMin()];
+        if ($views < 1) return null;
+        return ['short' => \AfricaGates\Services\PageViews::short($views), 'full' => number_format($views)];
     }
 
     /**

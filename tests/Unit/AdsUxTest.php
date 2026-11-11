@@ -101,8 +101,7 @@ final class AdsUxTest extends TestCase
         DB::table('gates_ad_stats')->insert(['ad_id' => $ad, 'placement' => 'discover', 'day' => date('Y-m-d', time() - 86400), 'views' => 734, 'clicks' => 9]);
         $_SESSION = [];
         $seen = \AfricaGates\Services\Ads\AdDelivery::pick('discover', ['reader' => true])['seen'];
-        $this->assertSame(['short' => '734', 'full' => '734'], array_intersect_key($seen, ['short' => 1, 'full' => 1]), 'the card’s number is not the views the advertiser is billed on');
-        $this->assertFalse($seen['staff_only']);
+        $this->assertSame(['short' => '734', 'full' => '734'], $seen, 'the card’s number is not the views the advertiser is billed on');
         $this->assertSame($seen, AdCampaigns::detail($r['id'], $uid)['ads'][0]['seen'], 'the preview is not the card readers see');
         $this->assertSame($seen, AdCampaigns::library()['ads'][0]['seen']);
         $this->assertStringContainsString('<span class="ag-ad__seen"', ChromeRender::html('/account/ads/' . $r['id'], $this->me($uid)));

@@ -342,6 +342,8 @@ class ShopController
         }, $p['variants']);
 
         $view = $this->view->render($res, 'pages/shop/item.twig', [
+            // How many people have looked at it (Services\PageViews).
+            'views'            => \AfricaGates\Services\PageViews::forPage('product', (int) ($p['id'] ?? 0)),
             'page_title'       => $p['name'] . ' — Africa GATES Shop',
             'meta_description' => $meta,
             'gates_page'       => 'shop',

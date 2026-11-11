@@ -49,6 +49,7 @@
   <link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/cover.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/shop.css') }}">
+  {% if views %}<link rel="stylesheet" href="{{ asset('/assets/css/components/views.css') }}">{% endif %}
 {% endblock %}
 
 {# The phone draws no app bar on this page: the photo is full-bleed and carries its own
@@ -113,6 +114,7 @@
           {# The category is a way back into the shop, filtered to it — not a stray grey word. #}
           {% if p.subtitle %}<span class="sp-buy__maker">{{ p.subtitle }}</span>{% elseif _cat %}<a class="sp-buy__maker sp-buy__catlink" href="/shop?c%5B%5D={{ _cat|url_encode }}">{{ _cat }}</a>{% endif %}
           <h1 class="sp-buy__h">{{ p.name }}</h1>
+          {% if views %}<div class="ag-views-row">{% include 'partials/views-badge.twig' with {v: views, csrf_token: csrf_token} only %}</div>{% endif %}
           {% if p.subtitle and _cat %}<a class="sp-buy__cat sp-buy__catlink" href="/shop?c%5B%5D={{ _cat|url_encode }}">{{ 'More in %cat%'|trans({'%cat%': _cat}) }}</a>{% endif %}
           <span class="sp-buy__price"><b data-sp-price>{% if p.price_from %}<span class="sp-card__from">{{ 'From'|trans }} </span>{% endif %}{{ p.price_label }}</b><span class="sp-buy__gives">{{ 'Gives back'|trans }}</span></span>
           {% if fx.cur != 'NGN' %}<span class="sp-buy__ngn" data-sp-ngn-line>{{ 'Charged in Naira · %amount%'|trans({'%amount%': '₦' ~ p.display_price|number_format}) }}</span>{% endif %}
@@ -246,3 +248,5 @@
   {{ sb.drawer(_ctx) }}
   <script defer src="{{ asset('/assets/js/shop.js') }}" data-nav="rerun"></script>
 {% endblock %}
+
+{% block foot_scripts %}{% if views %}<script defer src="{{ asset('/assets/js/views.js') }}" data-nav="rerun"></script>{% endif %}{% endblock %}

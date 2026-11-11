@@ -36,7 +36,7 @@
 {% set _q = _ed ? '&edition=' ~ _ed : '' %}
 {% set _fam = {'gold-ink': 'gold', 'live': 'live', 'info': 'info', 'green': 'green', 'gold': 'gold'} %}
 
-{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/awards.css') }}">{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/awards.css') }}">{% if views %}<link rel="stylesheet" href="{{ asset('/assets/css/components/views.css') }}">{% endif %}{% endblock %}
 
 {% macro host_line(a) %}
   <span class="aw-d__host">
@@ -55,6 +55,7 @@
     <span class="aw-soon__badge"><span class="aw-badge__dot" style="--ag-dot:var(--ag-gold)"></span>{{ 'Coming soon'|trans }}{% if a.edition %} · {{ a.edition }}{% endif %}</span>
     {{ m.host_line(a) }}
     <h1 class="aw-d__h1">{{ a.title }}</h1>
+    {% if views %}<div class="ag-views-row">{% include 'partials/views-badge.twig' with {v: views, csrf_token: csrf_token} only %}</div>{% endif %}
     {% if a.subtitle or a.description %}<p class="aw-soon__p">{{ a.subtitle ?: a.description }}</p>{% endif %}
     {% if a.opens_at %}
       {% set _left = a.opens_in %}
@@ -127,6 +128,7 @@
     <div class="aw-d__intro">
       {{ m.host_line(a) }}
       <h1 class="aw-d__h1">{{ a.title }}</h1>
+      {% if views %}<div class="ag-views-row">{% include 'partials/views-badge.twig' with {v: views, csrf_token: csrf_token} only %}</div>{% endif %}
       {% if a.subtitle %}<p class="aw-d__sub">{{ a.subtitle }}</p>{% endif %}
     </div>
     <div class="aw-d__cover">
@@ -333,4 +335,4 @@
 {% endif %}
 {% endblock %}
 
-{% block foot_scripts %}<script defer src="{{ asset('/assets/js/awards.js') }}" data-nav="rerun"></script>{% endblock %}
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/awards.js') }}" data-nav="rerun"></script>{% if views %}<script defer src="{{ asset('/assets/js/views.js') }}" data-nav="rerun"></script>{% endif %}{% endblock %}

@@ -124,7 +124,8 @@ final class PageViewsTest extends TestCase
         foreach (glob(dirname(__DIR__, 2) . '/templates/**/*.twig') ?: [] as $f) {
             if (!str_contains((string) file_get_contents($f), "partials/views-badge.twig")) continue;
             $rel = substr($f, strlen(dirname(__DIR__, 2)) + 1);
-            $this->assertContains($rel, ['templates/pages/events/detail.twig', 'templates/pages/blog/post.twig', 'templates/pages/community/thread.twig'],
+            $this->assertContains($rel, ['templates/pages/events/detail.twig', 'templates/pages/blog/post.twig', 'templates/pages/community/thread.twig',
+                                         'templates/pages/shop/item.twig', 'templates/pages/challenges/show.twig', 'templates/pages/awards/programme.twig'],
                 "$rel shows a view count; a ballot, a nominee page or a result never may (D15)");
         }
     }
@@ -141,13 +142,17 @@ final class PageViewsTest extends TestCase
         $this->assertSame(10, PageViews::showMin(), 'the default keeps the feature hidden for the first hundred readers');
         DB::table('gates_page_views')->insert(['page_key' => 'post:88', 'views' => 4, 'updated_at' => date('Y-m-d H:i:s')]);
         $this->assertNull(PageViews::badge('post', 88), 'a visitor saw a count below the threshold');
-        $this->assertNull(\AfricaGates\Services\Ads\AdDelivery::seenLabel(4));
+        // An ad is not a page: its count shows from its first view, whatever the page
+        // threshold (owner: "just ad"). The live site held 100 and a 43-view trial showed none.
+        DB::table('gates_settings')->updateOrInsert(['key_name' => 'views_show_min'], ['value' => '100']);
+        $this->assertSame('43', \AfricaGates\Services\Ads\AdDelivery::seenLabel(43)['short'], 'an ad hid its views behind the page threshold');
+        $this->assertNull(\AfricaGates\Services\Ads\AdDelivery::seenLabel(0), 'a new ad read "0 views"');
+        DB::table('gates_settings')->where('key_name', 'views_show_min')->delete();
 
         $_SESSION['admin_id'] = 3;
         $b = PageViews::badge('post', 88);
         $this->assertNotNull($b, 'staff cannot see the feature they are checking');
         $this->assertTrue($b['staff_only']);
-        $this->assertTrue(\AfricaGates\Services\Ads\AdDelivery::seenLabel(4)['staff_only']);
         DB::table('gates_page_views')->where('page_key', 'post:88')->update(['views' => 40]);
         $this->assertFalse(PageViews::badge('post', 88)['staff_only'], 'a public count marked as staff-only');
         $_SESSION = [];
@@ -161,6 +166,26 @@ final class PageViewsTest extends TestCase
         $this->assertStringContainsString('class="ag-views ag-views--staff"', $html);
         $this->assertStringContainsString('Only staff see this yet.', $html);
         $this->assertStringContainsString('3 views', $html);
+    }
+
+    /** Owner, 11 Nov 2026: "not just ads" — the count is on shop items, challenges and award pages too. */
+    public function test_the_count_is_on_shop_items_challenges_and_award_pages(): void
+    {
+        foreach (['product', 'challenge', 'award'] as $k) {
+            $this->assertNotNull(PageViews::read(PageViews::token($k, 5)), "a $k page's views cannot be counted");
+        }
+        $src = static fn (string $f): string => (string) file_get_contents(dirname(__DIR__, 2) . '/' . $f);
+        $this->assertStringContainsString("PageViews::forPage('product'", $src('src/Controllers/ShopController.php'));
+        $this->assertStringContainsString("PageViews::forPage('challenge'", $src('src/Controllers/ChallengeController.php'));
+        $this->assertStringContainsString("PageViews::forPage('award'", $src('src/Controllers/AwardsController.php'));
+        foreach (['templates/pages/shop/item.twig', 'templates/pages/challenges/show.twig', 'templates/pages/awards/programme.twig'] as $t) {
+            $tpl = ChromeRender::source($t);
+            $this->assertStringContainsString("partials/views-badge.twig", $tpl, "$t draws no count");
+            $this->assertStringContainsString('/assets/js/views.js', $tpl, "$t never counts a view");
+            $this->assertStringContainsString('/assets/css/components/views.css', $tpl);
+        }
+        // And the award's count is the PROGRAMME's — a nominee's page never carries one (D15).
+        $this->assertStringNotContainsString('views-badge', ChromeRender::source('templates/pages/profile.twig'));
     }
 
     public function test_the_threshold_is_set_in_the_console(): void

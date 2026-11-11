@@ -68,7 +68,12 @@ final class PageViews
     public const TREND_MIN = 50;
 
     /** The kinds of page that may carry a count. Never a nominee, a ballot or a result. */
-    public const KINDS = ['event', 'post', 'thread'];
+    /**
+     * The pages that carry a count. Shop items, challenges and award pages joined events,
+     * stories and discussions on 11 Nov 2026 (owner: "not just ads") — the voice note asked for
+     * counts "across the site". Still never a nominee's page, a ballot or a result.
+     */
+    public const KINDS = ['event', 'post', 'thread', 'product', 'challenge', 'award'];
 
     public static function ready(): bool
     {
