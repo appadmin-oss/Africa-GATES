@@ -35,18 +35,86 @@ final class AdsController
         return (int) ($_SESSION['admin_id'] ?? 0);
     }
 
+    /**
+     * The list's filters, as Ads Manager's: what is running, what is waiting on a person,
+     * what staff posted and what advertisers booked themselves. Counted from the same rows
+     * the list draws, so a tab's number is the number of rows it shows.
+     */
+    public const SHOWS = [
+        'all'    => 'All',
+        'live'   => 'Running',
+        'review' => 'Waiting',
+        'staff'  => 'Posted by us',
+        'self'   => 'Self-serve',
+    ];
+
+    /** @param array<string,mixed> $c */
+    public static function inShow(array $c, string $show): bool
+    {
+        return match ($show) {
+            'live'   => in_array($c['delivery'], ['active', 'scheduled', 'paused'], true),
+            'review' => in_array($c['delivery'], ['in_review', 'unpaid'], true),
+            'staff'  => (bool) $c['staff'],
+            'self'   => !$c['staff'],
+            default  => true,
+        };
+    }
+
     public function index(Request $req, Response $res): Response
     {
         $old = (array) ($_SESSION['ad_staff_old'] ?? []);
         $errors = (array) ($_SESSION['ad_staff_errors'] ?? []);
         unset($_SESSION['ad_staff_old'], $_SESSION['ad_staff_errors']);
+        $show = (string) ($req->getQueryParams()['show'] ?? 'all');
+        if (!isset(self::SHOWS[$show])) $show = 'all';
+        $all = AdStaff::all();
+        $tabs = [];
+        foreach (self::SHOWS as $k => $label) {
+            $tabs[] = ['key' => $k, 'label' => $label, 'on' => $k === $show, 'href' => $k === 'all' ? '/admin/ads' : '/admin/ads?show=' . $k,
+                       'n' => count(array_filter($all, static fn ($c) => self::inShow($c, $k)))];
+        }
+        $rev = AdMarket::revenue();
         return $this->view->render($res, 'admin/ads/index.twig', [
             'admin_page' => 'ads', 'topbar_title' => 'Ads',
-            'campaigns' => AdStaff::all(),
+            'campaigns' => array_values(array_filter($all, static fn ($c) => self::inShow($c, $show))),
+            'tabs' => $tabs, 'show' => $show,
+            // The month's advertising money against its target (AdMarket::revenue), the
+            // figure the whole page exists to move.
+            'rev' => ['earned' => \AfricaGates\Services\Ads\AdRateCard::format($rev['earned_kobo']),
+                      'projected' => \AfricaGates\Services\Ads\AdRateCard::format($rev['projected_kobo']),
+                      'target' => $rev['target_kobo'] !== null ? \AfricaGates\Services\Ads\AdRateCard::format($rev['target_kobo']) : null,
+                      'gap' => $rev['gap_kobo'] ? \AfricaGates\Services\Ads\AdRateCard::format($rev['gap_kobo']) : null,
+                      'on_track' => $rev['on_track']],
             'placements' => AdRules::PLACEMENTS, 'ctas' => AdRules::CTAS,
-            'market' => array_column(AdMarket::card(), null, 'key'),
+            'market' => array_column(AdMarket::card(), null, 'key'), 'window' => AdMarket::WINDOW_DAYS,
             'ready' => AdStaff::ready(), 'old' => $old, 'errors' => $errors,
             'limits' => ['headline' => AdRules::HEADLINE_MAX, 'body' => AdRules::BODY_MAX, 'days' => AdStaff::MAX_DAYS],
+        ]);
+    }
+
+    /**
+     * GET /admin/ads/{id} — one campaign, any kind, as its advertiser sees it plus what
+     * staff need beside it: the money, who posted it, each version with its review and its
+     * strength, by place and by day, pacing and the advice the advertiser is being given —
+     * so the person answering "why is my ad not doing anything?" is reading the same page.
+     */
+    public function show(Request $req, Response $res, array $args): Response
+    {
+        $c = AdCampaigns::detail((int) ($args['id'] ?? 0), null);
+        if ($c === null) {
+            $_SESSION['flash_error'] = 'There is no such campaign.';
+            return $res->withHeader('Location', '/admin/ads')->withStatus(302);
+        }
+        unset($c['_set']);
+        $row = \Illuminate\Database\Capsule\Manager::table('gates_ad_campaigns')->where('id', $c['id'])->first();
+        $by = $row && ($row->posted_by ?? null) ? \Illuminate\Database\Capsule\Manager::table('gates_admins')->where('id', (int) $row->posted_by)->value('name') : null;
+        $owner = $row && (int) $row->user_id > 0 ? \Illuminate\Database\Capsule\Manager::table('gates_users')->where('id', (int) $row->user_id)->value('name') : null;
+        return $this->view->render($res, 'admin/ads/show.twig', [
+            'admin_page' => 'ads', 'topbar_title' => 'Ads',
+            'c' => $c, 'placements' => AdRules::PLACEMENTS,
+            'source_label' => $c['trial'] ? 'Free trial' : (AdRules::SOURCES[$c['source']] ?? $c['source']),
+            'staff' => in_array($c['source'], ['direct', 'house'], true),
+            'posted_by' => $by ? (string) $by : null, 'owner' => $owner ? (string) $owner : null,
         ]);
     }
 
@@ -78,7 +146,8 @@ final class AdsController
         $ok = $to !== '' && AdStaff::setStatus($id, $to);
         if ($ok) $this->audit?->record($this->adminId(), 'ads.' . $args['action'], 'ad_campaign', $id);
         $_SESSION[$ok ? 'flash_ok' : 'flash_error'] = $ok ? 'Done.' : 'That campaign cannot be changed from here.';
-        return $res->withHeader('Location', '/admin/ads')->withStatus(303);
+        $back = ((array) $req->getParsedBody())['back'] ?? '';
+        return $res->withHeader('Location', $back === 'show' ? '/admin/ads/' . $id : '/admin/ads')->withStatus(303);
     }
 
     /** @param array<string,string> $errors */

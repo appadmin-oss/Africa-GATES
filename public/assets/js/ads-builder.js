@@ -37,8 +37,12 @@
     if (logo && !logo.querySelector('img')) logo.textContent = initials(by);
     if ((s = slot('body'))) s.textContent = get('body') || initial.body;
     if ((s = slot('headline'))) s.textContent = get('headline') || initial.headline;
-    if ((s = slot('domain'))) s.textContent = get('domain') ? domain(get('domain')) : initial.domain;
     var cta = form.querySelector('[data-pv-in="cta"]');
+    var wa = cta && cta.value === 'whatsapp';
+    if ((s = slot('domain'))) s.textContent = wa ? 'WhatsApp' : (get('domain') ? domain(get('domain')) : initial.domain);
+    // With the WhatsApp button the link is a phone number (AdRules::whatsappUrl).
+    var link = form.querySelector('[data-pv-in="domain"]');
+    if (link) link.placeholder = link.getAttribute(wa ? 'data-ph-wa' : 'data-ph-web') || '';
     if ((s = slot('cta')) && cta) s.textContent = cta.options[cta.selectedIndex].text;
     if ((s = slot('offer'))) {
       var offer = get('offer'), code = get('code').toUpperCase();
@@ -87,15 +91,46 @@
     });
   }
 
+  // THE LIVE PANELS (AdsController::check): the ad's strength and what the budget should
+  // reach, rendered by the server from the same partials the page was drawn with, so this
+  // script carries no copy of either rule. Only the words and the numbers are sent — never a
+  // file, only whether one has been chosen — and only the newest answer is drawn, so a slow
+  // reply cannot overwrite a faster later one. The token is read when it is sent
+  // (csrf-fresh.js keeps the form's _token current).
+  var boxStrength = form.querySelector('[data-ad-strength]');
+  var boxForecast = form.querySelector('[data-ad-forecast]');
+  var chosen = { image: false, logo: false };
+  var timer = 0, seq = 0;
+  function check() {
+    if (!window.fetch || !(boxStrength || boxForecast)) return;
+    var fd = new FormData(form), body = new URLSearchParams();
+    fd.forEach(function (v, k) { if (typeof v === 'string' && !/^(image|logo)(_crop)?$/.test(k)) body.append(k, v); });
+    body.set('has_image', chosen.image ? '1' : '0');
+    body.set('has_logo', chosen.logo ? '1' : '0');
+    var tok = form.querySelector('input[name="_token"]');
+    var mine = ++seq;
+    fetch('/account/ads/check', {
+      method: 'POST', credentials: 'same-origin', body: body,
+      headers: { 'Accept': 'application/json', 'X-CSRF-Token': tok ? tok.value : '' }
+    }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+      if (!j || !j.ok || mine !== seq) return;
+      if (boxStrength && typeof j.strength === 'string') boxStrength.innerHTML = j.strength;
+      if (boxForecast && typeof j.forecast === 'string') boxForecast.innerHTML = j.forecast;
+    }).catch(function () { /* the panels keep what they last said; the form is unaffected */ });
+  }
+  function later() { clearTimeout(timer); timer = setTimeout(check, 450); }
+
   form.addEventListener('input', function (e) {
     var t = e.target;
     if (t.hasAttribute && t.hasAttribute('maxlength')) count(t);
     render();
+    later();
   });
   // An input with the image editor sends its own preview of the CUT (image-tool.js), which is
   // what will run; reading the raw file would preview a photo that is not the ad.
   form.addEventListener('ag:image', function (e) {
     var t = e.target, target = t && t.getAttribute && slot(t.getAttribute('data-pv-file'));
+    if (t && t.getAttribute) { chosen[t.getAttribute('data-pv-file')] = true; later(); }
     if (!target || !e.detail || !e.detail.url) return;
     var img = target.querySelector('img') || document.createElement('img');
     img.alt = ''; img.src = e.detail.url;
@@ -104,7 +139,11 @@
   form.addEventListener('change', function (e) {
     if (e.target.hasAttribute && e.target.hasAttribute('data-pv-file') && !e.target.hasAttribute('data-ag-image')) showFile(e.target);
     if (e.target.name === 'category') approvals();
+    if (e.target.hasAttribute && e.target.hasAttribute('data-pv-file')) {
+      chosen[e.target.getAttribute('data-pv-file')] = !!(e.target.files && e.target.files.length);
+    }
     render();
+    later();
   });
   approvals();
   form.querySelectorAll('[maxlength]').forEach(count);

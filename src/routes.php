@@ -3907,6 +3907,7 @@ return function(App $app) {
         // the `{id}` placeholder they would otherwise be matched by.
         $a->get('/ads',                     \AfricaGates\Controllers\AdsController::class.':index');
         $a->post('/ads',                    \AfricaGates\Controllers\AdsController::class.':store');
+        $a->post('/ads/check',              \AfricaGates\Controllers\AdsController::class.':check');
         $a->get('/ads/new',                 \AfricaGates\Controllers\AdsController::class.':create');
         $a->post('/ads/ad/{id:[0-9]+}',     \AfricaGates\Controllers\AdsController::class.':resubmit');
         $a->get('/ads/{id:[0-9]+}',         \AfricaGates\Controllers\AdsController::class.':show');
@@ -4565,6 +4566,7 @@ return function(App $app) {
         // Ads: every campaign, and posting one from the console (Services\Ads\AdStaff).
         $a->get('/ads',                          \AfricaGates\Admin\Controllers\AdsController::class.':index');
         $a->post('/ads',                         \AfricaGates\Admin\Controllers\AdsController::class.':store');
+        $a->get('/ads/{id:[0-9]+}',              \AfricaGates\Admin\Controllers\AdsController::class.':show');
         $a->post('/ads/{id:[0-9]+}/{action:pause|resume|end}', \AfricaGates\Admin\Controllers\AdsController::class.':status');
 
         // ── REFERRAL PAYOUTS ──────────────────────────────────────────────

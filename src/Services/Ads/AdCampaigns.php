@@ -314,11 +314,17 @@ final class AdCampaigns
         return array_map(static fn ($c) => self::summary($c), $rows);
     }
 
-    /** One campaign of the advertiser's, in full, or null. */
-    public static function detail(int $id, int $userId): ?array
+    /**
+     * One campaign in full, or null. The advertiser's own when a user is given; any
+     * campaign for the console (null), which is the same page of facts staff need to answer
+     * an advertiser's question about it.
+     */
+    public static function detail(int $id, ?int $userId): ?array
     {
         if (!self::ready()) return null;
-        $c = DB::table('gates_ad_campaigns')->where('id', $id)->where('user_id', $userId)->first();
+        $q = DB::table('gates_ad_campaigns')->where('id', $id);
+        if ($userId !== null) $q->where('user_id', $userId);
+        $c = $q->first();
         if (!$c) return null;
         $out = self::summary($c);
         $set = $out['_set'];
@@ -338,6 +344,9 @@ final class AdCampaigns
             'review' => (string) $a->review, 'reason' => (string) ($a->review_reason ?? ''),
             'arcon_ref' => (string) ($a->arcon_ref ?? ''), 'nafdac_ref' => (string) ($a->nafdac_ref ?? ''),
             'views' => $byAd[(int) $a->id]['views'] ?? 0, 'clicks' => $byAd[(int) $a->id]['clicks'] ?? 0,
+            // How it is put together, and what would make it better (AdStrength: words only,
+            // it moves nothing about delivery).
+            'strength' => AdStrength::score((array) $a, (string) $c->objective, (string) ($a->image_path ?? '') !== '', (string) ($c->logo_path ?? '') !== ''),
         ], $ads);
         // Which version is being favoured, by the same function the rotation asks.
         $approved = [];
@@ -359,6 +368,9 @@ final class AdCampaigns
                                 'ctr' => $n['views'] > 0 ? round(100 * $n['clicks'] / $n['views'], 1) : null];
         }
         $out['benchmark'] = $set ? self::benchmark((int) $set->id) : null;
+        $out['source'] = (string) ($c->source ?? 'self');
+        $out['pace'] = AdAdvice::pace($out);
+        $out['advice'] = AdAdvice::for($out);
         return $out;
     }
 

@@ -68,7 +68,14 @@ final class AdRules
         'sales'     => 'Sell tickets or products',
     ];
 
-    /** The buttons an ad may carry, as Meta offers them. */
+    /**
+     * The buttons an ad may carry, as Meta offers them.
+     *
+     * `whatsapp` is Meta's click-to-WhatsApp ad, added 11 Nov 2026: most small businesses
+     * here sell in a chat rather than on a website (WhatsApp's own Nigerian campaign is built
+     * on it), so for many advertisers a link to a site they do not have was the wrong
+     * button. Its link is a phone number, normalised to wa.me by whatsappUrl().
+     */
     public const CTAS = [
         'learn_more'  => 'Learn more',
         'shop_now'    => 'Shop now',
@@ -76,7 +83,15 @@ final class AdRules
         'book_now'    => 'Book now',
         'contact_us'  => 'Contact us',
         'sign_up'     => 'Sign up',
+        'whatsapp'    => 'Chat on WhatsApp',
     ];
+
+    /**
+     * What a chat opened from an ad starts with, typed in for the person (they can change it
+     * before sending). It tells the business where the customer came from, which is the one
+     * figure a chat cannot otherwise give them: a click is counted here, a sale happens there.
+     */
+    public const WHATSAPP_GREETING = 'Hello, I saw your ad on Africa GATES.';
 
     // The one standard format: a square image, a headline, a line of text, a button.
     public const HEADLINE_MAX = 40;
@@ -223,9 +238,14 @@ final class AdRules
         if ($bl < self::BODY_MIN || $bl > self::BODY_MAX) $e['body'] = sprintf('Text of %d to %d characters.', self::BODY_MIN, self::BODY_MAX);
         if (!isset(self::CTAS[$cta])) $e['cta'] = 'Choose a button.';
 
-        $safe = self::safeUrl($url);
-        if ($safe === null) $e['url'] = 'Use a full https:// address.';
-        elseif (self::pointsAtANominee($safe)) $e['url'] = 'An ad cannot link to a nominee, a ballot or a result.';
+        if ($cta === 'whatsapp') {
+            $safe = self::whatsappUrl($url);
+            if ($safe === null) $e['url'] = 'The WhatsApp number people will chat with, with its country code: +234 803 123 4567.';
+        } else {
+            $safe = self::safeUrl($url);
+            if ($safe === null) $e['url'] = 'Use a full https:// address.';
+        }
+        if ($safe !== null && self::pointsAtANominee($safe)) $e['url'] = 'An ad cannot link to a nominee, a ballot or a result.';
 
         if (mb_strlen($offer) > self::OFFER_MAX) $e['offer'] = sprintf('Keep the offer under %d characters.', self::OFFER_MAX);
         if ($offer !== '' && self::mentionsVoting($offer)) $e['offer'] = 'An offer must be open to everyone, not tied to voting.';
@@ -280,6 +300,7 @@ final class AdRules
      */
     public static function displayDomain(string $url): string
     {
+        if (self::isWhatsapp($url)) return 'WhatsApp';
         if (str_starts_with($url, '/')) return (string) (parse_url(\AfricaGates\Support\SiteUrl::base(), PHP_URL_HOST) ?? 'africagates');
         $host = strtolower((string) (parse_url($url, PHP_URL_HOST) ?? ''));
         return (string) preg_replace('/^www\./', '', $host);
@@ -295,6 +316,41 @@ final class AdRules
         $host = strtolower((string) ($p['host'] ?? ''));
         if ($host === '' || !preg_match('/^[a-z0-9.-]+\.[a-z]{2,}$/', $host) || isset($p['user']) || isset($p['pass'])) return null;
         return strlen($u) <= 400 ? $u : null;
+    }
+
+    /**
+     * A WhatsApp number, as people type it, made into the chat link Meta's click-to-WhatsApp
+     * ads open: https://wa.me/<country code and number>?text=<greeting>. Or null.
+     *
+     * Accepted: "+234 803 123 4567", "0803 123 4567" (a Nigerian number written the local
+     * way: the leading 0 becomes 234, because a wa.me link without its country code opens a
+     * chat with nobody), or a wa.me / api.whatsapp.com link already made. 10 to 15 digits,
+     * which is E.164's range. The greeting is added only when the link carries no text of its
+     * own, so an advertiser who wrote theirs keeps it.
+     */
+    public static function whatsappUrl(string $in): ?string
+    {
+        $in = trim($in);
+        $text = null;
+        if (preg_match('~^https://(?:wa\.me/|api\.whatsapp\.com/send/?\?(?:.*&)?phone=)\+?([0-9]+)~i', $in, $m) === 1) {
+            $digits = $m[1];
+            parse_str((string) (parse_url($in, PHP_URL_QUERY) ?? ''), $q);
+            if (is_string($q['text'] ?? null) && trim($q['text']) !== '') $text = mb_substr(trim($q['text']), 0, 200);
+        } elseif (preg_match('/^\+?[0-9 ().-]+$/', $in) === 1) {
+            $digits = (string) preg_replace('/\D/', '', $in);
+            if (!str_starts_with($in, '+') && preg_match('/^0[789][01][0-9]{8}$/', $digits) === 1) $digits = '234' . substr($digits, 1);
+        } else {
+            return null;
+        }
+        if (preg_match('/^[1-9][0-9]{9,14}$/', $digits) !== 1) return null;
+        $url = 'https://wa.me/' . $digits . '?text=' . rawurlencode($text ?? self::WHATSAPP_GREETING);
+        return strlen($url) <= 400 ? $url : null;
+    }
+
+    public static function isWhatsapp(string $url): bool
+    {
+        $host = strtolower((string) (parse_url($url, PHP_URL_HOST) ?? ''));
+        return in_array($host, ['wa.me', 'api.whatsapp.com'], true);
     }
 
     /** A ballot, a nominee page, a claim or a result: never an ad's destination (D15). */

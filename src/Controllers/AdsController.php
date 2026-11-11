@@ -58,7 +58,7 @@ final class AdsController
             // The FAQ's figures, read from the rules that apply them, never typed.
             'facts' => ['vat_pct' => \AfricaGates\Services\Ads\AdCheckout::vatBps() / 100,
                         'min_budget' => \AfricaGates\Services\Ads\AdCheckout::MIN_BUDGET_NAIRA,
-                        'max_days' => AdRules::MAX_DAYS, 'freq' => AdRules::FREQUENCY_CAP,
+                        'max_days' => AdRules::MAX_DAYS, 'freq' => AdRules::FREQUENCY_CAP, 'wa_greeting' => AdRules::WHATSAPP_GREETING,
                         'standards' => AdRules::STANDARDS],
             'goals' => \AfricaGates\Services\Ads\AdPlanner::GOALS,
             'plan_in' => ['goal' => (string) ($q['goal'] ?? 'visits'), 'n' => (int) ($q['n'] ?? 0) ?: '', 'days' => (int) ($q['days'] ?? 14) ?: 14],
@@ -126,6 +126,7 @@ final class AdsController
         if (!$user) return $this->toLogin($res, '/account/ads/new');
         $form = FormErrors::take('ad');
         $est = AdDelivery::estimate(array_keys(AdRules::PLACEMENTS), AdRules::TRIAL_DAYS);
+        $old = (array) ($form['old'] ?? []);
 
         return $this->view->render($res, 'pages/account/ads-new.twig', [
             'app_bar' => ['variant' => 'child', 'title' => 'New campaign', 'back' => '/account/ads', 'share' => false],
@@ -139,8 +140,74 @@ final class AdsController
             'paid' => ['open' => \AfricaGates\Services\Ads\AdCheckout::open($this->payments()),
                        'min' => \AfricaGates\Services\Ads\AdCheckout::MIN_BUDGET_NAIRA,
                        'vat_pct' => \AfricaGates\Services\Ads\AdCheckout::vatBps() / 100],
-            'errors' => $form['errors'] ?? [], 'old' => $form['old'] ?? [], 'summary' => $form['summary'] ?? '',
-        ]);
+            'errors' => $form['errors'] ?? [], 'old' => $old, 'summary' => $form['summary'] ?? '',
+        ] + self::checks($old, false, false));
+    }
+
+    /**
+     * POST /account/ads/check — the builder's live panels: the ad's strength as it is
+     * written, and what the budget should reach (AdStrength, AdPlanner::forecast). Rendered
+     * here from the same partials the page draws on load, so the script swaps in markup and
+     * carries no copy of any rule. Nothing is saved; the image is not sent, only whether one
+     * has been chosen.
+     */
+    public function check(Request $req, Response $res): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $this->json($res, ['ok' => false], 401);
+        if ($this->rateLimit && !$this->rateLimit->check('adchk:' . (int) $user->id, 'ads_check', 600, 3600)) {
+            return $this->json($res, ['ok' => false], 429);
+        }
+        $b = (array) $req->getParsedBody();
+        $v = self::checks($b, ($b['has_image'] ?? '') === '1', ($b['has_logo'] ?? '') === '1');
+        return $this->json($res, ['ok' => true,
+            'strength' => $this->view->fetch('partials/ad-strength.twig', ['strength' => $v['strength']]),
+            'forecast' => $this->view->fetch('partials/ad-forecast.twig', $v)]);
+    }
+
+    /**
+     * The two panels' figures for what is in the form.
+     *
+     * @param array<string,mixed> $in
+     * @return array{strength:?array, forecast:?array, fc:array<string,mixed>}
+     */
+    private static function checks(array $in, bool $hasImage, bool $hasLogo): array
+    {
+        $words = trim((string) ($in['headline'] ?? '') . (string) ($in['body'] ?? ''));
+        $obj = (string) ($in['objective'] ?? 'awareness');
+        $strength = $words === '' ? null : \AfricaGates\Services\Ads\AdStrength::score([
+            'headline' => (string) ($in['headline'] ?? ''), 'body' => (string) ($in['body'] ?? ''),
+            'offer' => (string) ($in['offer'] ?? ''), 'cta' => (string) ($in['cta'] ?? 'learn_more'),
+        ], isset(AdRules::OBJECTIVES[$obj]) ? $obj : 'awareness', $hasImage, $hasLogo);
+
+        $budget = (int) preg_replace('/[^0-9]/', '', (string) ($in['budget'] ?? ''));
+        $days = max(1, min(AdRules::MAX_DAYS, (int) ($in['days'] ?? 14) ?: 14));
+        $min = \AfricaGates\Services\Ads\AdCheckout::MIN_BUDGET_NAIRA;
+        $places = AdRules::cleanPlacements($in['placements'] ?? []);
+        $paid = (string) ($in['kind'] ?? '') === 'paid';
+        $forecast = $paid && $budget >= $min && $places !== []
+            ? \AfricaGates\Services\Ads\AdPlanner::forecast($budget, $days, $places, $obj) : null;
+        // The part of the budget the places cannot take is worth a sentence only when it is
+        // more than rounding: a twentieth of the budget, or ₦500.
+        $short = $forecast !== null && $forecast['unspent_kobo'] >= max(50_000, intdiv($budget * 100, 20));
+        return ['strength' => $strength, 'forecast' => $forecast,
+                'fc' => ['paid' => $paid, 'budget' => $budget, 'days' => $days, 'min' => $min, 'places' => count($places),
+                         'objective' => $obj, 'short' => $short,
+                         // An estimate is said in whole naira: kobo would claim a precision it has not got.
+                         'unspent_label' => $forecast ? AdRateCard::format($budget * 100 - self::naira($forecast['spend_kobo'])) : '',
+                         'spend_label' => $forecast ? AdRateCard::format(self::naira($forecast['spend_kobo'])) : '']];
+    }
+
+    private static function naira(int $kobo): int
+    {
+        return intdiv($kobo + 50, 100) * 100;
+    }
+
+    /** @param array<string,mixed> $body */
+    private function json(Response $res, array $body, int $status = 200): Response
+    {
+        $res->getBody()->write((string) json_encode($body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        return $res->withHeader('Content-Type', 'application/json')->withHeader('Cache-Control', 'no-store')->withStatus($status);
     }
 
     /** POST /account/ads — create the campaign and send its ad for review. */
@@ -389,7 +456,7 @@ final class AdsController
             'freq' => AdRules::FREQUENCY_CAP,
             'placements' => AdRules::PLACEMENTS, 'objectives' => AdRules::OBJECTIVES, 'ctas' => AdRules::CTAS,
             'categories' => AdRules::CATEGORIES, 'approvals' => AdRules::APPROVALS, 'beta' => AdRules::inBeta(),
-            'standards' => AdRules::STANDARDS,
+            'standards' => AdRules::STANDARDS, 'wa_greeting' => AdRules::WHATSAPP_GREETING,
             'versions' => AdRules::ADS_PER_SET, 'test_views' => AdCampaigns::TEST_VIEWS, 'lead_share' => AdCampaigns::LEAD_SHARE,
         ];
     }

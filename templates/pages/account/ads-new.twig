@@ -10,6 +10,12 @@
   type (ads-builder.js); with no script the form still posts and the server says the same.
 
   No location choice: there is none in the beta (owner, 28 Oct 2026).
+
+  Two live panels since 11 Nov 2026, from what the large platforms put beside a builder: the
+  ad's strength with what would raise it (Google's ad strength), and what the budget should
+  reach (LinkedIn's forecast, Meta's estimated results). Both are rendered by the server from
+  one partial each, drawn here on load and redrawn from POST /account/ads/check as the form
+  changes; with no script they show what the page was drawn with.
 #}
 {# Tier 2, transactional: it asks for something (a campaign, a fix, a review). #}
 {% set colour_tier = '2' %}
@@ -116,6 +122,7 @@
           <p class="am-note">{{ 'It starts when it is both paid for and approved, and runs this many days from then.'|trans }} <a class="am-link" href="/advertise#plan">{{ 'Plan a budget for a result'|trans }}</a></p>
           {% if errors.days %}<p class="am-err" role="alert">{{ errors.days|trans }}</p>{% endif %}
         </div>
+        <div class="am-fc" data-ad-forecast aria-live="polite">{% include 'partials/ad-forecast.twig' %}</div>
         {% else %}
         <input type="hidden" name="kind" value="trial">
         {% endif %}
@@ -144,7 +151,11 @@
         <div class="am-row2">
           <div class="am-field">
             <label class="ag-label" for="ad-url">{{ 'Link'|trans }}</label>
-            <input class="am-input" id="ad-url" name="url" type="url" inputmode="url" required placeholder="https://" value="{{ old.url|default('') }}" data-pv-in="domain"{% if errors.url %} aria-invalid="true" aria-describedby="ad-url-e"{% endif %}>
+            {# A web address, or a WhatsApp number with the Chat on WhatsApp button
+               (AdRules::whatsappUrl), so it is text rather than type="url": a phone number is
+               a valid answer here and the browser would refuse it. #}
+            <input class="am-input" id="ad-url" name="url" type="text" inputmode="url" autocomplete="url" spellcheck="false" required placeholder="https://" data-ph-web="https://" data-ph-wa="+234 803 123 4567" value="{{ old.url|default('') }}" data-pv-in="domain" aria-describedby="ad-url-h{% if errors.url %} ad-url-e{% endif %}"{% if errors.url %} aria-invalid="true"{% endif %}>
+            <p class="ag-hint" id="ad-url-h">{{ 'Your website (https://…). With the Chat on WhatsApp button, your WhatsApp number instead: the chat opens with “%g%” typed in, so you know where they came from.'|trans({'%g%': rules.wa_greeting}) }}</p>
             {% if errors.url %}<p class="am-err" id="ad-url-e" role="alert">{{ errors.url|trans }}</p>{% endif %}
           </div>
           <div class="am-field">
@@ -167,6 +178,9 @@
             {% if errors.offer_code %}<p class="am-err" id="ad-code-e" role="alert">{{ errors.offer_code|trans }}</p>{% endif %}
           </div>
         </div>
+        {# Beside the fields it scores, not under the sticky preview: a preview column taller
+           than a laptop's screen would hide it until the end of the form. #}
+        <div class="am-strbox" data-ad-strength aria-live="polite">{% include 'partials/ad-strength.twig' %}</div>
         <fieldset class="am-field am-approvals">
           <legend class="ag-label">{{ 'Approvals'|trans }}</legend>
           <p class="ag-hint">{{ rules.beta

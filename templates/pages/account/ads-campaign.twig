@@ -53,6 +53,21 @@
   <p class="am-note am-bench">{{ 'Average click rate on Africa GATES in the last 30 days: %r%%.'|trans({'%r%': c.benchmark}) }}{% if c.ctr is not null %} {{ c.ctr >= c.benchmark ? 'Yours is at or above it.'|trans : 'An offer or a clearer image usually helps.'|trans }}{% endif %}</p>
   {% endif %}
 
+  {# Pacing and what to try next (Services\Ads\AdAdvice, 11 Nov 2026): what Meta, Google and
+     LinkedIn put on a running campaign, read off this campaign's own measured rows and
+     withheld until there are enough of them to compare. Advice never says to spend more. #}
+  {% if c.pace %}
+  <p class="am-note am-pace">{{ 'Pacing:'|trans }} <b>{{ c.pace.label|trans }}</b> · {{ '%s%% of the budget spent in %e%% of its days.'|trans({'%s%': c.pace.spent_pct, '%e%': c.pace.elapsed_pct}) }}</p>
+  {% endif %}
+  {% if c.advice %}
+  <section class="am-box am-advice" aria-labelledby="am-adv-h">
+    <h2 class="am-h2" id="am-adv-h">{{ 'What to try next'|trans }}</h2>
+    <ul class="am-advice__l">
+      {% for a in c.advice %}<li>{{ a.text|trans }}{% if a.action == 'add' and c.can_add %} <a class="am-link" href="#ad-version">{{ 'Add a version'|trans }}</a>{% endif %}</li>{% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
   <section class="am-box" aria-labelledby="am-days-h">
     <div class="am-box__head">
       <h2 class="am-h2" id="am-days-h">{{ 'Last 14 days'|trans }}</h2>
@@ -92,6 +107,7 @@
     <div class="am-ad" id="ad-{{ a.id }}">
       <p class="am-ad__r"><span class="am-state am-state--{{ a.review == 'approved' ? 'active' : (a.review == 'rejected' ? 'not_approved' : 'in_review') }}">{{ _review[a.review]|default(a.review)|trans }}</span>{% if c.leader == a.id %} <span class="am-lead">{{ 'Leading'|trans }}</span>{% endif %} · {{ a.views|number_format }} {{ 'views'|trans }} · {{ a.clicks|number_format }} {{ 'clicks'|trans }}{% if a.ctr is not null %} · {{ '%r%% click rate'|trans({'%r%': a.ctr}) }}{% endif %}</p>
       {% include 'partials/ad-slot.twig' with {ad: a, preview: true} only %}
+      <p class="am-note am-ad__str">{{ 'Ad strength:'|trans }} <b>{{ a.strength.label|trans }}</b>{% if a.strength.tips %} · {{ a.strength.tips|first|trans }}{% endif %}</p>
       {% if a.review == 'rejected' %}<p class="am-err">{{ a.reason }}</p>{% endif %}
       {% if c.editable %}
       {% set _o = fixing == a.id ? old : a %}
@@ -117,7 +133,7 @@
         </div>
         <div class="am-field">
           <label class="ag-label" for="fx-u-{{ a.id }}">{{ 'Link'|trans }}</label>
-          <input class="am-input" id="fx-u-{{ a.id }}" name="url" type="url" inputmode="url" required value="{{ _o.url|default('') }}"{% if fixing == a.id and errors.url %} aria-invalid="true"{% endif %}>
+          <input class="am-input" id="fx-u-{{ a.id }}" name="url" type="text" inputmode="url" autocomplete="url" spellcheck="false" required value="{{ _o.url|default('') }}"{% if fixing == a.id and errors.url %} aria-invalid="true"{% endif %}>
           {% if fixing == a.id and errors.url %}<p class="am-err" role="alert">{{ errors.url|trans }}</p>{% endif %}
         </div>
         <div class="am-field">
@@ -186,7 +202,7 @@
       </div>
       <div class="am-field">
         <label class="ag-label" for="nv-u">{{ 'Link'|trans }}</label>
-        <input class="am-input" id="nv-u" name="url" type="url" inputmode="url" required value="{{ _n.url|default(_f.url|default('')) }}"{% if new_errors.url|default(false) %} aria-invalid="true"{% endif %}>
+        <input class="am-input" id="nv-u" name="url" type="text" inputmode="url" autocomplete="url" spellcheck="false" required value="{{ _n.url|default(_f.url|default('')) }}"{% if new_errors.url|default(false) %} aria-invalid="true"{% endif %}>
         {% if new_errors.url|default(false) %}<p class="am-err" role="alert">{{ new_errors.url|trans }}</p>{% endif %}
       </div>
       <div class="am-field">

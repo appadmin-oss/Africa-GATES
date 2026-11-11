@@ -9,10 +9,11 @@
 #}
 
 {% block head_styles %}
+<link rel="stylesheet" href="{{ asset('/assets/css/console/list.css') }}">
 <style nonce="{{ csp_nonce }}">
-  .ads-lede{ padding:18px 20px; margin-bottom:16px }
-  .ads-lede p{ margin:6px 0 0; font-size:var(--cn-fs-13-5); line-height:1.6; color:var(--cn-ink-2); max-width:80ch }
-  .ads-post{ padding:18px 20px; margin-bottom:16px }
+  .ads-lede{ padding:18px 20px }
+  .ads-lede p{ margin:0; font-size:var(--cn-fs-13-5); line-height:1.6; color:var(--cn-ink-2); max-width:80ch }
+  .ads-post{ padding:18px 20px }
   .ads-post h2, .ads-list h2{ margin:0 0 12px; font-size:var(--cn-fs-15); font-weight:600 }
   .ads-kind{ border:0; margin:0; padding:0; display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:10px }
   .ads-kind label{ display:flex; gap:10px; align-items:flex-start; padding:12px; border:1px solid var(--cn-line); border-radius:var(--cn-r-10); cursor:pointer }
@@ -24,17 +25,50 @@
   .ads-list{ padding:18px 20px }
   .ads-acts{ display:flex; gap:6px; flex-wrap:wrap }
   .ads-acts form{ margin:0 }
+  .ads-money{ display:flex; flex-wrap:wrap; gap:6px 18px; margin:10px 0 0; font-size:var(--cn-fs-13-5); color:var(--cn-ink-2) }
+  .ads-money b{ color:var(--cn-ink) }
+  .ads-places-t{ padding:18px 20px }
+  .ads-places-t h2{ margin:0 0 4px; font-size:var(--cn-fs-15); font-weight:600 }
+  .ads-list__bar{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px }
+  .ads-list__bar h2{ margin:0 }
 </style>
 {% endblock %}
 
 {% block content %}
-<section class="cn-card ads-lede" aria-labelledby="adsH">
-  <h1 class="cn-h1" id="adsH">Ads</h1>
+<section class="cn-card ads-lede" aria-label="About ads">
   <p>Everything running on the site, and ads posted by us. <b>Sold by us</b> is for a business that bought space
      by talking to us: it is labelled Sponsored with their name and its money is recorded under advertising when you
      post it. <b>Our own</b> promotes Africa GATES: it says “From Africa GATES” and only fills space no paying campaign
      wants. Ads from the Ads Manager are checked in <a href="/admin/moderation">Moderation</a>; prices are in
      <a href="/admin/settings">Settings, Ad prices</a>.</p>
+  {# The month's advertising money (AdMarket::revenue), and its target when one is set. #}
+  <p class="ads-money">
+    <span>This month: <b>{{ rev.earned }}</b> earned</span>
+    <span>On course for <b>{{ rev.projected }}</b></span>
+    {% if rev.target %}<span>Target <b>{{ rev.target }}</b>{% if rev.on_track %} · on track{% elseif rev.gap %} · {{ rev.gap }} short{% endif %}</span>{% endif %}
+  </p>
+</section>
+
+{# Each place as an advertiser is quoted it today, beside what it measured over the
+   market's window (AdMarket::card): the figures a sale by phone is made from. #}
+<section class="cn-card ads-places-t" aria-labelledby="adsPlH">
+  <h2 id="adsPlH">By place</h2>
+  <p class="ads-hint">Today’s price and the last {{ window }} days. A place is premium when people act on ads there more than the site average.</p>
+  <table class="cn-table">
+    <thead><tr><th scope="col">Place</th><th scope="col">Price per 1,000</th><th scope="col">Tier</th><th scope="col">Views a day</th><th scope="col">Click rate</th><th scope="col">Booked, next 7 days</th></tr></thead>
+    <tbody>
+    {% for p in market %}
+      <tr>
+        <td><span class="cn-table__main">{{ p.label }}</span>{% if p.paid_only %}<span class="ads-hint">Paid campaigns only</span>{% endif %}</td>
+        <td>{{ p.price ? '₦' ~ p.price|number_format : '—' }}</td>
+        <td>{{ p.tier_label }}</td>
+        <td>{{ p.daily is null ? '—' : p.daily|number_format }}</td>
+        <td>{{ p.ctr_pct is null ? '—' : p.ctr_pct ~ '%' }}</td>
+        <td>{{ p.sell is null ? '—' : (p.sell * 100)|round ~ '%' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
 </section>
 
 {% if ready %}
@@ -93,14 +127,19 @@
 {% endif %}
 
 <section class="cn-card ads-list" aria-labelledby="adsListH">
-  <h2 id="adsListH">Every campaign</h2>
+  <div class="ads-list__bar">
+    <h2 id="adsListH">Campaigns</h2>
+    <nav class="ls-tabs" aria-label="Which campaigns" data-tabs="ads">
+      {% for t in tabs %}<a class="ls-tab" href="{{ t.href }}"{% if t.on %} aria-current="page"{% endif %}>{{ t.label }}<span class="ls-tab__num">{{ t.n|number_format }}</span></a>{% endfor %}
+    </nav>
+  </div>
   {% if campaigns %}
   <table class="cn-table">
     <thead><tr><th scope="col">Campaign</th><th scope="col">Kind</th><th scope="col">State</th><th scope="col">Views</th><th scope="col">Clicks</th><th scope="col">Spent</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
     <tbody>
     {% for c in campaigns %}
       <tr>
-        <td><span class="cn-table__main">{{ c.name }}</span><span class="ads-hint">{{ c.advertiser }} · {% for p in c.placements %}{{ placements[p]|default(p) }}{% if not loop.last %}, {% endif %}{% endfor %}</span></td>
+        <td><a class="cn-table__main" href="/admin/ads/{{ c.id }}">{{ c.name }}</a><span class="ads-hint">{{ c.advertiser }} · {% for p in c.placements %}{{ placements[p]|default(p) }}{% if not loop.last %}, {% endif %}{% endfor %}</span></td>
         <td>{{ c.trial ? 'Free trial' : c.source_label }}</td>
         <td>{{ c.delivery_label }}</td>
         <td>{{ c.views|number_format }}</td>
@@ -123,7 +162,7 @@
     </tbody>
   </table>
   {% else %}
-    <p class="ads-hint">No campaigns yet.</p>
+    <p class="ads-hint">{{ show == 'all' ? 'No campaigns yet.' : 'None here.' }}</p>
   {% endif %}
 </section>
 {% endblock %}

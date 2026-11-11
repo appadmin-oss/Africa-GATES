@@ -157,6 +157,10 @@
         <p>{{ 'What a campaign does not spend goes back to the card or account you paid with, with its VAT, when it ends or you cancel it.'|trans }}</p></details>
       <details><summary>{{ 'How soon does it start?'|trans }}</summary>
         <p>{{ 'A person checks every ad first. It starts when it is both paid for and approved, and runs the days you bought from then, up to %d% days.'|trans({'%d%': facts.max_days}) }}</p></details>
+      <details><summary>{{ 'I sell on WhatsApp, not a website. Can I still advertise?'|trans }}</summary>
+        <p>{{ 'Yes. Choose the Chat on WhatsApp button and give your number: a tap opens a chat with you, with “%g%” typed in, so you know where the customer came from.'|trans({'%g%': facts.wa_greeting}) }}</p></details>
+      <details><summary>{{ 'How will I know if my ad is any good?'|trans }}</summary>
+        <p>{{ 'As you write it, the builder scores it and says what would make it stronger, and shows what your budget should reach before you pay. Once it runs, your campaign page shows its results by day and by place, whether it is spending on pace, and what to try next.'|trans }}</p></details>
       <details><summary>{{ 'Will the same people see it again and again?'|trans }}</summary>
         <p>{{ 'One person sees the same ad at most %n% times a day, so your budget reaches more people instead of the same few.'|trans({'%n%': facts.freq}) }}</p></details>
       <details><summary>{{ 'What can I not advertise?'|trans }}</summary>

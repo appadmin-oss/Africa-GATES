@@ -165,3 +165,23 @@
   .am-build{ grid-template-columns:minmax(0,1fr) 380px; align-items:start }
   .am-build__pv{ position:sticky; top:24px }
 }
+
+/* The builder's two live panels (11 Nov 2026): what the budget should reach, and the ad's
+   strength. Ink segments and a word, never a traffic light: the level is said, not coloured. */
+.am-fc{ display:flex; flex-direction:column; gap:6px; padding:12px 14px; border-radius:var(--ag-r-12); background:var(--ag-bar) }
+.am-fc:empty{ display:none }
+.am-fc__h{ margin:0; font-size:var(--ag-fs-15); font-weight:600; line-height:1.45; color:var(--ag-ink) }
+.am-fc__short{ color:var(--ag-ink-2) }
+.am-strbox{ padding:14px; border:1px solid var(--ag-line); border-radius:var(--ag-r-14); background:var(--ag-surface) }
+.am-str{ display:flex; flex-direction:column; gap:8px }
+.am-str__h{ margin:0; display:flex; justify-content:space-between; gap:8px; font-size:var(--ag-fs-14-5); color:var(--ag-ink-2) }
+.am-str__h b{ color:var(--ag-ink) }
+.am-str__bar{ display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:4px }
+.am-str__seg{ height:6px; border-radius:var(--ag-r-pill); background:var(--ag-line) }
+.am-str__seg--on{ background:var(--ag-ink) }
+.am-str__tips{ margin:0; padding-inline-start:18px; display:flex; flex-direction:column; gap:6px; font-size:var(--ag-fs-14); line-height:1.45; color:var(--ag-ink-2) }
+
+/* A running campaign: pacing and what to try next (AdAdvice). */
+.am-pace b{ color:var(--ag-ink) }
+.am-advice__l{ margin:0; padding-inline-start:18px; display:flex; flex-direction:column; gap:10px; font-size:var(--ag-fs-15); line-height:1.5; color:var(--ag-ink-2) }
+.am-ad__str b{ color:var(--ag-ink) }

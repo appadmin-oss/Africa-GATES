@@ -95,4 +95,71 @@ final class AdPlanner
                 'feasible' => $short === 0 && $rows !== [], 'short' => $short, 'days_needed' => $daysNeeded,
                 'assumed' => $assumed, 'unknown_supply' => $unknown];
     }
+
+    /**
+     * The other direction: from a budget to what it should buy. "₦20,000 over 14 days on
+     * Discover and the vote page" → about this many views and visits, and how much of it the
+     * places can actually take.
+     *
+     * LinkedIn's Campaign Manager shows forecasted results beside the budget as it is typed,
+     * and Meta shows "estimated daily results"; both exist because a budget is meaningless to
+     * somebody until it is a number of people. Same measurements and same fill order as
+     * plan() (cheapest per result first, at most SHARE_MAX of any place), so the builder and
+     * the planner on /advertise can never quote one campaign two ways.
+     *
+     * `unspent_kobo` is the part of the budget the chosen places cannot deliver in the days
+     * given. It is not lost (AdCheckout::settle returns what a campaign does not spend), but
+     * an advertiser should hear that BEFORE paying rather than as a refund afterwards —
+     * which is LinkedIn's budget recommendation turned into the honest version: we say how
+     * much the site can take, and never suggest spending more than it can.
+     *
+     * @param list<string> $placements
+     * @return array{views:int, visits:int, spend_kobo:int, unspent_kobo:int, daily_views:int,
+     *               assumed:bool, unknown_supply:bool, rows:list<array<string,mixed>>}|null null when nothing chosen has a price
+     */
+    public static function forecast(int $budgetNaira, int $days, array $placements, string $objective = 'traffic'): ?array
+    {
+        $days = max(1, min(AdRules::MAX_DAYS, $days));
+        $budget = max(0, $budgetNaira) * 100;
+        $byViews = $objective === 'awareness';
+        $opts = [];
+        $assumed = $unknown = false;
+        foreach (AdRules::cleanPlacements($placements) as $p) {
+            $price = AdMarket::price($p);
+            if ($price === null || $price <= 0) continue;
+            $m = AdMarket::measure($p);
+            if ($m['views'] < AdMarket::MIN_VIEWS) $assumed = true;
+            $ctr = AdMarket::smoothedCtr($p, $m);
+            $daily = AdMarket::supplyDaily($p, $m);
+            if ($daily === null) {
+                $unknown = true;
+                $room = null;
+            } else {
+                $free = max(0, $daily * $days - AdMarket::bookedViews($p, $days));
+                $room = (int) floor(min($free, $daily * $days * AdMarket::SHARE_MAX));
+            }
+            $perView = $price * 100 / 1000;
+            $opts[] = ['key' => $p, 'label' => AdRules::PLACEMENTS[$p], 'cpm' => $price, 'ctr' => $ctr, 'room' => $room,
+                       'per' => $byViews ? $perView : $perView / max(1e-6, $ctr)];
+        }
+        if ($opts === []) return null;
+        usort($opts, static fn ($a, $b) => $a['per'] <=> $b['per']);
+
+        $left = $budget;
+        $rows = [];
+        $views = $spend = 0;
+        $visits = 0.0;
+        foreach ($opts as $o) {
+            if ($left <= 0) break;
+            $afford = (int) floor($left * 1000 / ($o['cpm'] * 100));     // views the rest of the budget buys here
+            $v = $o['room'] === null ? $afford : min($afford, $o['room']);
+            if ($v <= 0) continue;
+            $k = min($left, AdRateCard::cost($v, $o['cpm'] * 100));
+            $rows[] = ['key' => $o['key'], 'label' => $o['label'], 'views' => $v, 'visits' => (int) floor($v * $o['ctr']), 'cost_kobo' => $k];
+            $views += $v; $visits += $v * $o['ctr']; $spend += $k; $left -= $k;
+        }
+        return ['views' => $views, 'visits' => (int) floor($visits), 'spend_kobo' => $spend,
+                'unspent_kobo' => max(0, $budget - $spend), 'daily_views' => (int) round($views / $days),
+                'assumed' => $assumed, 'unknown_supply' => $unknown, 'rows' => $rows];
+    }
 }
