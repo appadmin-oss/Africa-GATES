@@ -48,7 +48,7 @@ final class Pipeline
     public static function add(int $eventId, array $in, int $memberId): array
     {
         if (!self::ready()) return ['ok' => false, 'error' => 'The database needs its latest update first.'];
-        if (!TeamLoop::onTeam($memberId, $eventId)) return ['ok' => false, 'error' => 'Only somebody on this event’s team adds to its pipeline.'];
+        if (!self::mayWork($memberId, $eventId)) return ['ok' => false, 'error' => 'Adding prospects needs a lead, a role ticked for the pipeline, or a volunteer role at this event.'];
         $name = trim((string) ($in['name'] ?? ''));
         if ($name === '') return ['ok' => false, 'error' => 'Their name, at least.'];
         $email = self::email((string) ($in['email'] ?? ''));
@@ -96,6 +96,19 @@ final class Pipeline
             if ($email !== null) $w->orWhere('email', $email);
             if ($phone !== null) $w->orWhere('phone', $phone);
         })->first();
+    }
+
+    /**
+     * Who works the pipeline: a lead, a team role ticked "Work the pipeline" (a role does only
+     * what it is ticked for — EventTeamsTest sweeps every act), or a volunteer holding a role at
+     * the event, from their own workspace.
+     */
+    public static function mayWork(int $memberId, int $eventId): bool
+    {
+        if (Plan::may($memberId, $eventId, 'pipeline.work')) return true;
+        return \AfricaGates\Services\Grants::ready() && DB::table('gates_grants')->where('actor_kind', Plan::ACTOR)->where('actor_id', $memberId)
+            ->where('scope_kind', 'event')->where('scope_id', $eventId)->where('capability', 'like', 'vol.%')
+            ->whereNull('revoked_at')->where('expires_at', '>', date('Y-m-d H:i:s'))->exists();
     }
 
     /** Move a contact. The member working it, or a lead; never to "nominated" by hand. */

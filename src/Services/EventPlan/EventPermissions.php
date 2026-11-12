@@ -110,7 +110,7 @@ final class EventPermissions
      * finish their own work with its proof, suggest work for a lead to decide. Each writer
      * checks the row again — finishing is only ever your own work, or a lead's call.
      */
-    public const TEAM_ACTS = ['report_add', 'work_done', 'work_propose', 'work_change', 'contact_stage', 'contact_rate', 'contact_add'];
+    public const TEAM_ACTS = ['report_add', 'work_done', 'work_propose', 'work_change'];
     /** Acts only an OWNER has. */
     public const OWNER_ACTS = ['decide', 'member_end', 'role_archive',
                                // …and an owner signs it off or sends it back (never their own).
