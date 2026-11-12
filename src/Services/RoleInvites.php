@@ -242,7 +242,7 @@ final class RoleInvites
         $lead = $capability === 'event.lead';
         // Every role that opens the event's console (lead, owner, a team role) is opened there;
         // a night's volunteer role in the volunteer workspace.
-        $console = in_array($capability, ['event.lead', 'event.own', 'event.role', 'vol.event_role'], true);
+        $console = in_array($capability, ['event.lead', 'event.own', 'event.finance', 'event.role', 'vol.event_role'], true);
         $id = (int) $event->id;
         [$url, $label] = match ($state) {
             'given'   => $console ? [$base . '/lead/event/' . $id, 'Open the event'] : [$base . '/volunteer/event/' . $id, 'Open your volunteer workspace'],
@@ -253,7 +253,7 @@ final class RoleInvites
         $first = trim((string) strtok(trim($name), ' ')) ?: 'there';
         try {
             $r = Emails::send(OtpService::boot(), $email, 'role', [
-                'first_name' => $first, 'role' => $lead ? 'Lead' : ($roleName !== '' ? $roleName : ($capability === 'event.own' ? 'Event owner' : (Grants::CAPABILITIES[$capability] ?? 'Volunteer'))),
+                'first_name' => $first, 'role' => $lead ? 'Lead' : ($roleName !== '' ? $roleName : ($capability === 'event.own' ? 'Event owner' : ($capability === 'event.finance' ? 'Finance admin' : (Grants::CAPABILITIES[$capability] ?? 'Volunteer')))),
                 'place' => (string) $event->title, 'when' => !empty($event->event_date) ? date('j F Y', (int) strtotime((string) $event->event_date)) : '',
                 'until' => date('j F Y', (int) strtotime($expires)), 'inviter' => (string) ($by['name'] ?? ''),
                 'state' => $state, 'action_url' => $url, 'action_label' => $label,

@@ -162,7 +162,7 @@ final class LeadPages
             if (str_starts_with((string) $i->capability, 'vol.')) continue;   // a volunteer role opens in the volunteer workspace
             $confirm = $i->waiting === 'for them to confirm their email address';
             $needsConfirm = $needsConfirm || $confirm;
-            $role = match ((string) $i->capability) { 'event.lead' => 'Lead', 'event.own' => 'Owner', default => (string) $i->role };
+            $role = match ((string) $i->capability) { 'event.lead' => 'Lead', 'event.own' => 'Owner', 'event.finance' => 'Finance admin', default => (string) $i->role };
             $rows[] = ['t' => $role . ' · ' . $i->title, 'dot' => 'warn',
                        'sub' => ($confirm ? 'Switches on once you confirm your email address' : 'Switches on at your next sign-in') . ' · until ' . $i->until];
         }

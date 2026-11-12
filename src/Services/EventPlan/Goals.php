@@ -243,8 +243,11 @@ final class Goals
         $x = self::ready() ? DB::table('gates_event_gates')->where('id', $gateId)->first() : null;
         if (!$x || $x->status !== 'open') return ['ok' => false, 'error' => 'That gate has already been signed off.'];
         $eventId = (int) $x->event_id;
-        $may = $x->approver === 'owner' ? Teams::isOwner($memberId, $eventId) : Plan::may($memberId, $eventId, 'plan.edit');
-        if (!$may) return ['ok' => false, 'error' => $x->approver === 'owner' ? 'An owner of this event signs this gate off: it is about money.' : 'A lead of this event signs this gate off.'];
+        // A money gate is the finance admin's (or an owner's); any other a lead's.
+        $may = $x->approver === 'owner'
+            ? Teams::isOwner($memberId, $eventId) || \AfricaGates\Services\Grants::allows(Plan::ACTOR, $memberId, 'event.finance', 'event', $eventId)
+            : Plan::may($memberId, $eventId, 'plan.edit');
+        if (!$may) return ['ok' => false, 'error' => $x->approver === 'owner' ? 'The event’s finance admin or an owner signs this gate off: it is about money.' : 'A lead of this event signs this gate off.'];
         $gate = null;
         foreach (self::gates((int) $x->goal_id) as $y) if ((int) $y->id === $gateId) $gate = $y;
         if (!$gate) return ['ok' => false, 'error' => 'That gate is not there.'];

@@ -143,10 +143,11 @@ final class EventPermissions
      */
     public static function standing(int $userId, int $eventId): array
     {
-        $out = ['lead' => false, 'owner' => false, 'perms' => [], 'roles' => [], 'teamLeadOf' => [], 'ceiling' => 0, 'any' => false];
+        $out = ['lead' => false, 'owner' => false, 'finance' => false, 'perms' => [], 'roles' => [], 'teamLeadOf' => [], 'ceiling' => 0, 'any' => false];
         if ($userId <= 0 || $eventId <= 0 || !Grants::ready()) return $out;
         $out['lead'] = Grants::allows(Plan::ACTOR, $userId, 'event.lead', 'event', $eventId);
         $out['owner'] = Grants::allows(Plan::ACTOR, $userId, 'event.own', 'event', $eventId);
+        $out['finance'] = Grants::allows(Plan::ACTOR, $userId, 'event.finance', 'event', $eventId);
         if ($out['lead']) {
             $out['perms'] = array_keys(self::MENU);
             $out['ceiling'] = Plan::limitMinor();
@@ -160,7 +161,13 @@ final class EventPermissions
                 if ($p === 'money.approve') $out['ceiling'] = max($out['ceiling'], min((int) $r->spend_ceiling_minor, Plan::limitMinor()));
             }
         }
-        $out['any'] = $out['lead'] || $out['owner'] || $out['roles'] !== [];
+        // The finance admin: the money pages, approving spend up to the finance limit, the
+        // goals and the reports — and never money.plan, so who asks and who approves stay two.
+        if ($out['finance']) {
+            foreach (self::FINANCE_PERMS as $p) if (!in_array($p, $out['perms'], true)) $out['perms'][] = $p;
+            $out['ceiling'] = max($out['ceiling'], self::financeCeiling());
+        }
+        $out['any'] = $out['lead'] || $out['owner'] || $out['finance'] || $out['roles'] !== [];
         return $out;
     }
 
@@ -172,6 +179,19 @@ final class EventPermissions
     }
 
     /** The most one budget line may be approved for by this member here, in kobo (0 = none). */
+    /** What an event's finance admin may do (Grants 'event.finance'). */
+    public const FINANCE_PERMS = ['money.view', 'money.approve', 'goals.view', 'reports.view'];
+    /** The most one line a finance admin approves, in kobo; the setting `event_finance_limit_naira`, 0 or unset = no limit. */
+    public static function financeCeiling(): int
+    {
+        try {
+            $n = (int) \Illuminate\Database\Capsule\Manager::table('gates_settings')->where('key_name', 'event_finance_limit_naira')->value('value');
+        } catch (\Throwable) {
+            $n = 0;
+        }
+        return $n > 0 ? $n * 100 : PHP_INT_MAX;
+    }
+
     public static function ceiling(int $userId, int $eventId): int
     {
         return self::standing($userId, $eventId)['ceiling'];
@@ -188,6 +208,9 @@ final class EventPermissions
     public static function allowsAct(array $st, string $do): bool
     {
         if ($st['any'] && in_array($do, self::TEAM_ACTS, true)) return true;
+        // The finance admin decides the event's spend requests, signs its money gates and decides
+        // its money changes; each writer checks that the row is money and theirs.
+        if (($st['finance'] ?? false) && in_array($do, ['request_act', 'gate_sign', 'change_decide'], true)) return true;
         if ($st['lead'] && in_array($do, self::LEAD_ACTS, true)) return true;
         if ($st['owner'] && in_array($do, self::OWNER_ACTS, true)) return true;
         if ($st['teamLeadOf'] && in_array($do, self::TEAM_LEAD_ACTS, true)) return true;
@@ -338,7 +361,7 @@ final class EventPermissions
         $ids = [];
         foreach (Plan::leadEvents($userId) as $e) $ids[(int) $e->id] = true;
         foreach (Grants::forActor(Plan::ACTOR, $userId) as $g) {
-            if (!in_array($g->capability, ['event.own', 'event.role', 'vol.event_role'], true) || $g->scope_kind !== 'event' || !$g->scope_id) continue;
+            if (!in_array($g->capability, ['event.own', 'event.finance', 'event.role', 'vol.event_role'], true) || $g->scope_kind !== 'event' || !$g->scope_id) continue;
             $ids[(int) $g->scope_id] = true;
         }
         if ($ids === []) return [];
@@ -350,6 +373,7 @@ final class EventPermissions
     {
         if ($st['lead']) return 'Event lead';
         if ($st['owner']) return 'Event owner';
+        if ($st['finance'] && $st['roles'] === []) return 'Finance admin';
         $names = array_values(array_unique(array_map(static fn ($r) => (string) $r->name, $st['roles'])));
         return $names ? implode(', ', $names) : 'Team';
     }

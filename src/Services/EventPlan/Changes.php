@@ -110,7 +110,11 @@ final class Changes
         $eventId = (int) $c->event_id;
         if (!$admin) {
             if ($c->tier === 'large') {
-                if (!Teams::isOwner($memberId, $eventId)) return ['ok' => false, 'error' => 'An owner of this event decides this one.'];
+                // A change to money — a revenue goal's target, a money gate's date — may also be the finance admin's.
+                $money = ($c->subject_kind === 'goal' && DB::table('gates_event_goals')->where('id', (int) $c->subject_id)->value('metric') === 'revenue')
+                      || ($c->subject_kind === 'gate' && DB::table('gates_event_gates')->where('id', (int) $c->subject_id)->value('approver') === 'owner');
+                $finance = $money && \AfricaGates\Services\Grants::allows(Plan::ACTOR, $memberId, 'event.finance', 'event', $eventId);
+                if (!Teams::isOwner($memberId, $eventId) && !$finance) return ['ok' => false, 'error' => 'An owner of this event decides this one' . ($money ? ', or its finance admin.' : '.')];
                 if ((int) $c->proposed_by === $memberId) return ['ok' => false, 'error' => 'You asked for it, so another owner or the platform’s staff decides it.'];
             } elseif (!Plan::may($memberId, $eventId, 'plan.edit')) {
                 return ['ok' => false, 'error' => 'A lead of this event decides this one.'];

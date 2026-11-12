@@ -260,6 +260,16 @@ final class Requests
             }
             return ['kind' => 'role', 'id' => null, 'role' => 'admin', 'label' => 'the volunteer team'];
         }
+        // Money about an event goes to that event's finance admin when it has one (Grants
+        // 'event.finance'), never the person asking; otherwise the platform's finance team.
+        if ($route === 'finance' && $scopeKind === 'event' && $scopeId) {
+            foreach (Grants::holders('event.finance', 'event', $scopeId) as $g) {
+                if ($g->actor_kind === $fromKind && (int) $g->actor_id === $fromId) continue;
+                $name = self::memberName((string) $g->actor_kind, (int) $g->actor_id);
+                return ['kind' => (string) $g->actor_kind, 'id' => (int) $g->actor_id, 'role' => null,
+                        'label' => 'the event’s finance admin' . ($name !== '' ? ', ' . $name : '')];
+            }
+        }
         if ($route === 'finance') return ['kind' => 'role', 'id' => null, 'role' => 'finance', 'label' => 'finance'];
         return ['kind' => 'role', 'id' => null, 'role' => 'admin', 'label' => $route === 'staff' ? 'the volunteer team' : 'an administrator'];
     }

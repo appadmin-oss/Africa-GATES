@@ -1182,7 +1182,7 @@ class EventsController
         return $this->view->render($res, 'admin/events/leads.twig', [
             'admin_page' => 'events', 'topbar_title' => 'Leads and volunteers', 'event' => $event,
             'leads' => \AfricaGates\Services\EventPlan\Leads::of((int) $event->id), 'flash_ok' => $ok, 'flash_error' => $err,
-            'owners' => \AfricaGates\Services\EventPlan\Teams::owners((int) $event->id), 'team' => $this->teamView((int) $event->id),
+            'owners' => \AfricaGates\Services\EventPlan\Teams::owners((int) $event->id), 'finance' => \AfricaGates\Services\EventPlan\Leads::finance((int) $event->id), 'team' => $this->teamView((int) $event->id),
             'invites' => \AfricaGates\Services\RoleInvites::waiting((int) $event->id),
             'awards' => \AfricaGates\Services\EventInvites::programmesFor((int) $event->id),
             'may_staff' => $mayStaff, 'crew' => $this->crew((int) $event->id),
@@ -1352,6 +1352,26 @@ class EventsController
                     !empty($r['granted']) ? ['grant' => (int) ($r['id'] ?? 0)] : ['invite' => (int) ($r['id'] ?? 0)]);
             } else {
                 $_SESSION['flash_error'] = (string) $r['error'];
+            }
+        } elseif ($do === 'finance_give') {
+            // The event's finance admin: decides its spend requests, approves its lines, signs its money gates.
+            $r = \AfricaGates\Services\EventPlan\Leads::giveFinance($id, (string) ($b['email'] ?? ''), (string) ($b['until'] ?? ''), $adminId, (string) ($_SESSION['admin_name'] ?? ''));
+            if ($r['ok']) {
+                $mail = !empty($r['emailed']) ? ' We emailed them.' : ' The email could not be sent — tell them yourself; Settings › Mail says why.';
+                $_SESSION['flash_ok'] = (!empty($r['granted']) ? 'Done. They are this event’s finance admin now: its spend requests come to them.'
+                    : 'Invitation sent. It is waiting ' . \AfricaGates\Services\RoleInvites::reason((string) ($b['email'] ?? ''), 'event.finance') . ', then switches on by itself.') . $mail;
+                $this->audit->record($adminId, !empty($r['granted']) ? 'event.finance.give' : 'event.finance.invite', 'event', $id,
+                    !empty($r['granted']) ? ['grant' => (int) ($r['id'] ?? 0)] : ['invite' => (int) ($r['id'] ?? 0)]);
+            } else {
+                $_SESSION['flash_error'] = (string) $r['error'];
+            }
+        } elseif ($do === 'finance_end') {
+            $grant = (int) ($b['grant'] ?? 0);
+            if (\AfricaGates\Services\EventPlan\Leads::end($grant, $id, $adminId, 'event.finance')) {
+                $_SESSION['flash_ok'] = 'Ended. The event’s spend requests go to the platform’s finance team again.';
+                $this->audit->record($adminId, 'event.finance.end', 'event', $id, ['grant' => $grant]);
+            } else {
+                $_SESSION['flash_error'] = 'That access had already ended.';
             }
         } elseif ($do === 'owner_end') {
             $grant = (int) ($b['grant'] ?? 0);

@@ -70,6 +70,34 @@
   <p class="vl-help">Leave the date empty and it ends the day after the event. We email them either way.</p>
 </section>
 
+<section class="cn-card vl-sec" aria-labelledby="fh">
+  <h2 class="vl-h" id="fh">Finance admin</h2>
+  <p class="vl-help">Decides this event’s spend requests — anything over the lead’s limit comes to them instead of the platform’s finance team — approves its spend lines and signs off its money gates. They never plan spend themselves, so whoever asks for money is never the one who approves it.</p>
+  {% if finance is empty %}
+    {{ kit.empty('No finance admin yet', 'Until there is one, this event’s spend requests go to the platform’s finance team.', 'users') }}
+  {% else %}
+    <ul class="vl-list">
+      {% for f in finance %}
+        <li class="vl-li">
+          <span class="vl-li__t">{{ f.name }}</span>
+          <span class="vl-help">{{ f.email }} · until {{ f.until }}</span>
+          <form method="post" action="/admin/events/{{ event.id }}/leads" data-confirm="End {{ f.name }}’s finance access to this event now? Its spend requests go to the platform’s finance team again.">
+            <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="do" value="finance_end"><input type="hidden" name="grant" value="{{ f.id }}">
+            <button class="cn-btn" type="submit">End<span class="sr-only">, {{ f.name }}</span></button>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+  <form class="vl-form" method="post" action="/admin/events/{{ event.id }}/leads">
+    <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="do" value="finance_give">
+    <label for="fe">Their email<input id="fe" type="email" name="email" required autocomplete="off"></label>
+    <label for="fu">Access ends<input id="fu" type="date" name="until"></label>
+    <p class="vl-acts vl-wide"><button class="cn-btn cn-btn--primary" type="submit">Make them finance admin</button></p>
+  </form>
+  <p class="vl-help">Leave the date empty and it ends the day after the event. We email them either way.</p>
+</section>
+
 <section class="cn-card vl-sec" aria-labelledby="th">
   <h2 class="vl-h" id="th">Teams and roles{% if team.waiting %} · {{ team.waiting }} waiting{% endif %}</h2>
   {% if team.rows is empty %}

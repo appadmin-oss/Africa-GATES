@@ -90,10 +90,36 @@ final class Leads
         return RoleInvites::offer($email, 'event.own', $eventId, $until, ['kind' => 'admin', 'id' => $adminId > 0 ? $adminId : null, 'name' => $adminName]);
     }
 
-    /** End a lead's or an owner's access at this event — only one of those two, only here. */
+    /**
+     * Name the event's FINANCE ADMIN: who decides its spend requests, approves its spend lines
+     * and signs off its money gates. Staff's to give, by address, ending like every grant.
+     */
+    public static function giveFinance(int $eventId, string $email, string $until, int $adminId, string $adminName = ''): array
+    {
+        if (!Plan::event($eventId)) return ['ok' => false, 'error' => 'That event is not there.'];
+        if (!RoleInvites::ready()) return ['ok' => false, 'error' => 'The database needs its latest update first.'];
+        return RoleInvites::offer($email, 'event.finance', $eventId, $until, ['kind' => 'admin', 'id' => $adminId > 0 ? $adminId : null, 'name' => $adminName]);
+    }
+
+    /** @return list<object> the event's live finance admins, each with ->name, ->email, ->until */
+    public static function finance(int $eventId): array
+    {
+        $out = [];
+        foreach (Grants::holders('event.finance', 'event', $eventId) as $g) {
+            if ($g->actor_kind !== Plan::ACTOR) continue;
+            $u = DB::table('gates_users')->where('id', $g->actor_id)->first(['name', 'email']);
+            $g->name = (string) ($u->name ?? 'A member');
+            $g->email = (string) ($u->email ?? '');
+            $g->until = Workspace::day((string) $g->expires_at);
+            $out[] = $g;
+        }
+        return $out;
+    }
+
+    /** End a lead's, an owner's or a finance admin's access at this event — only those, only here. */
     public static function end(int $grantId, int $eventId, int $adminId, string $capability = 'event.lead'): bool
     {
-        if (!in_array($capability, ['event.lead', 'event.own'], true)) return false;
+        if (!in_array($capability, ['event.lead', 'event.own', 'event.finance'], true)) return false;
         $g = Grants::ready() ? DB::table('gates_grants')->where('id', $grantId)->where('capability', $capability)
             ->where('scope_kind', 'event')->where('scope_id', $eventId)->first() : null;
         return $g !== null && Grants::revoke($grantId, $adminId);

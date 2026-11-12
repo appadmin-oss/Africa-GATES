@@ -37,6 +37,10 @@ final class Grants
         // A role a lead defined and an owner approved; what it opens is the role's ticks
         // from EventPlan\EventPermissions::MENU, read live, never this word.
         'event.role'                => 'Event team role',
+        // An event's FINANCE ADMIN (owner, 12 Nov 2026): decides its spend requests, approves
+        // its spend lines and signs off its money gates. Never plans spend — the lead does —
+        // so the person who asks for money is never the one who approves it. Given by staff.
+        'event.finance'             => 'Finance admin for this event',
         'award.moderate'            => 'Moderate this award',
         'vol.nomination_check'      => 'Nomination check',
         'vol.voter_drive'           => 'Voter drive',

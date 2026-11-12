@@ -959,7 +959,22 @@ final class EventPages
     {
         $c = LeadPages::root($me, [$e], 'approvals', '', []);
         unset($c['acts']);
-        return ['title' => 'Money', 'acts' => [['label' => 'Ask to spend', 'href' => LeadPages::BASE . '/requests?new=spend&event=' . $e->id, 'primary' => true]], 'secs' => $c['secs']];
+        // Spend this member decides: the event's finance admin, when the lead's limit was not
+        // enough (Requests routes an event's money to them). Approve, decline with a reason, or ask.
+        $mine = [];
+        foreach (Plan::lines([(int) $e->id]) as $l) {
+            if ($l->status !== 'requested' || !$l->request_id) continue;
+            $r = Requests::find((int) $l->request_id);
+            if (!$r || !Requests::canDecide($r, Plan::ACTOR, $me['id']) || $r->status !== 'waiting') continue;
+            $mine[] = ['t' => (string) $l->title . ' · ' . Plan::naira((int) $l->estimate_minor), 'dot' => 'warn',
+                       'sub' => 'Asked by ' . ((string) ($r->from_name ?? '') ?: 'the lead') . ' · ' . Workspace::day((string) $r->created_at) . ' · over the lead’s limit of ' . Plan::naira(Plan::limitMinor()),
+                       'form' => ['id' => 'fin' . $r->id, 'do' => 'request_act', 'hidden' => ['request' => $r->id], 'submit' => 'Decide', 'fields' => [
+                           ['name' => 'action', 'label' => 'Decision', 'type' => 'select', 'options' => ['approve' => 'Approve', 'decline' => 'Decline', 'ask_info' => 'Ask for more']],
+                           ['name' => 'note', 'label' => 'Note (needed to decline or ask)', 'placeholder' => 'Note']]]];
+        }
+        if ($mine) array_unshift($c['secs'], ['k' => 'rows', 'h' => 'Waiting for your decision', 'box' => true, 'items' => $mine]);
+        $acts = Plan::may($me['id'], (int) $e->id, 'money.plan') ? [['label' => 'Ask to spend', 'href' => LeadPages::BASE . '/requests?new=spend&event=' . $e->id, 'primary' => true]] : [];
+        return ['title' => 'Money', 'acts' => $acts, 'secs' => $c['secs']];
     }
 
     private static function vendors(object $e): array
