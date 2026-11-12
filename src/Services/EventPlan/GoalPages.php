@@ -39,22 +39,24 @@ final class GoalPages
             $scope = Goals::scopes($id)[$g->scope_kind === 'event' ? 'event' : $g->scope_kind . ':' . $g->scope_id] ?? '';
             $secs[] = ['k' => 'stats', 'h' => (string) $g->title, 'items' => [
                 ['l' => Goals::METRICS[$g->metric][0], 'v' => Goals::fmt((string) $g->metric, $g->value), 's' => 'of ' . Goals::fmt((string) $g->metric, (int) $g->target) . ' · ' . $g->pct . '%'],
-                ['l' => 'The plan expects by now', 'v' => $g->expected > 0 ? Goals::fmt((string) $g->metric, $g->expected) : '—', 's' => $g->behind ? 'More than 20% behind' : ($g->expected > 0 ? 'On course' : 'Not yet started')],
+                ['l' => 'The plan expects by now', 'v' => $g->expected * 100 >= (int) $g->target ? Goals::fmt((string) $g->metric, $g->expected) : '—',
+                 's' => $g->behind ? 'More than 20% behind' : ($g->expected * 100 >= (int) $g->target ? ($g->value >= $g->expected ? 'Ahead of plan' : 'On course') : 'Not started yet')],
                 ['l' => 'Deadline', 'v' => Goals::day((string) $g->deadline), 's' => $scope],
             ]];
             if ($g->behind) $secs[] = ['k' => 'note', 'tone' => 'warn', 'text' => 'Behind plan. Find the cause before changing anything: a broken form, too few people on it, a thin pipeline or something it waits on.'];
             $rows = [];
             foreach (Goals::gates((int) $g->id) as $x) {
                 $chip = match ($x->state) { 'passed' => ['Passed', 'ok'], 'missed' => ['Missed', 'bad'], 'ready' => ['Reached — sign it off', 'ok'],
-                    'late' => ['Not reached', 'bad'], 'threat' => ['At risk', 'warn'], default => null };
+                    'late' => ['Due — not reached', 'bad'], 'threat' => ['At risk', 'warn'], default => ['Upcoming', 'mute'] };
                 $row = ['t' => (string) $x->title, 'chip' => $chip,
                         'sub' => 'Due ' . Goals::day((string) $x->due_at) . ' · ' . Goals::fmt((string) $g->metric, (int) $x->value) . ' of ' . Goals::fmt((string) $g->metric, (int) $x->target)
                                . ' · signed by ' . ($x->approver === 'owner' ? 'an owner' : 'a lead') . ($x->signed_note ? ' · “' . $x->signed_note . '”' : '')];
-                if ($x->status === 'open') {
-                    $row['form'] = ['id' => 'g' . $x->id, 'do' => 'gate_sign', 'hidden' => ['gate' => $x->id], 'submit' => 'Sign off', 'fields' => [
-                        ['name' => 'verdict', 'label' => 'Result', 'type' => 'select', 'options' => $x->met ? ['passed' => 'Passed', 'missed' => 'Missed'] : ['missed' => 'Missed', 'passed' => 'Passed']],
-                        ['name' => 'note', 'label' => 'Note', 'placeholder' => $x->met ? 'Note (optional)' : 'What happens next'],
-                    ]];
+                // Signed off once it is reached or its date has come — never weeks ahead, when the
+                // only honest answer would be a guess.
+                if ($x->status === 'open' && ($x->met || in_array($x->state, ['late'], true))) {
+                    $row['form'] = ['id' => 'g' . $x->id, 'do' => 'gate_sign', 'hidden' => ['gate' => $x->id], 'submit' => 'Sign off', 'fields' => $x->met
+                        ? [['name' => 'verdict', 'label' => 'Result', 'type' => 'select', 'options' => ['passed' => 'Passed']], ['name' => 'note', 'label' => 'Note', 'placeholder' => 'Note (optional)']]
+                        : [['name' => 'verdict', 'label' => 'Result', 'type' => 'select', 'options' => ['missed' => 'Missed']], ['name' => 'note', 'label' => 'What happens next', 'placeholder' => 'What happens next', 'required' => true]]];
                 }
                 $rows[] = $row;
             }
@@ -89,6 +91,18 @@ final class GoalPages
         }
         if (count($secs) === 1) $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => 'Nothing yet: the numbers arrive with the first goal.'];
         return ['title' => 'The numbers', 'secs' => $secs];
+    }
+
+    /** May this member decide this change? The same rule Changes::decide holds, for drawing only. */
+    private static function mayDecide(object $c, int $memberId): bool
+    {
+        $eventId = (int) $c->event_id;
+        if ($c->tier !== 'large') return Plan::may($memberId, $eventId, 'plan.edit');
+        if ((int) $c->proposed_by === $memberId) return false;
+        if (Teams::isOwner($memberId, $eventId)) return true;
+        $money = ($c->subject_kind === 'goal' && \Illuminate\Database\Capsule\Manager::table('gates_event_goals')->where('id', (int) $c->subject_id)->value('metric') === 'revenue')
+              || ($c->subject_kind === 'gate' && \Illuminate\Database\Capsule\Manager::table('gates_event_gates')->where('id', (int) $c->subject_id)->value('approver') === 'owner');
+        return $money && \AfricaGates\Services\Grants::allows(Plan::ACTOR, $memberId, 'event.finance', 'event', $eventId);
     }
 
     private static function shown(object $a): string
@@ -163,7 +177,7 @@ final class GoalPages
             : ['label' => 'Counts', 'fields' => [['name' => 'metric', 'label' => 'Counts', 'type' => 'select', 'value' => (string) $r['metric'], 'options' => array_map(static fn ($m) => $m[0], Goals::METRICS), 'id' => 'gs_m']]];
         $groups[] = ['label' => in_array('target', $r['ask'], true) ? 'How much, or how many?' : 'Target',
                      'help' => in_array('target', $r['ask'], true) ? 'Without a number nothing can be planned backwards from it.' : '',
-                     'fields' => [['name' => 'target', 'label' => 'Target', 'type' => 'text', 'required' => true, 'value' => $r['target'] ? (string) $r['target'] : '', 'placeholder' => '15M, 60, 500', 'id' => 'gs_t']]];
+                     'fields' => [['name' => 'target', 'label' => 'Target', 'type' => 'text', 'required' => true, 'value' => $r['target'] ? number_format((int) $r['target']) : '', 'placeholder' => '15M, 60, 500', 'id' => 'gs_t']]];
         $dates = Setup::dates($id);
         $groups[] = in_array('deadline', $r['ask'], true) && $dates
             ? ['label' => 'By when?', 'help' => 'The gates are dated back from it.',
@@ -198,15 +212,18 @@ final class GoalPages
         }
         if ($tab === 'changes') {
             $secs = [];
+            $rows = [];
             foreach (Changes::pending($id) as $c) {
-                $secs[] = ['k' => 'rows', 'items' => [['t' => (string) $c->summary, 'chip' => [Tiers::LABELS[$c->tier], $c->tier === 'large' ? 'warn' : 'mute'],
-                    'sub' => implode(' · ', array_filter([Tiers::APPROVER[$c->tier], 'asked by ' . (Plan::name(Plan::ACTOR, (int) $c->proposed_by) ?: 'a lead'),
-                        $c->reason ? '“' . $c->reason . '”' : '', $c->lapse_at ? 'applies itself ' . Goals::day((string) $c->lapse_at) . ' ' . date('H:i', (int) strtotime((string) $c->lapse_at)) : '']))]]];
-                $secs[] = ['k' => 'form', 'do' => 'change_decide', 'hidden' => ['change' => $c->id], 'submit' => 'Record it', 'groups' => [
-                    ['label' => 'Decision', 'fields' => [['name' => 'verdict', 'label' => 'Decision', 'type' => 'segmented', 'options' => ['approve' => 'Approve', 'reject' => $c->tier === 'small' ? 'Object' : 'Reject'], 'value' => 'approve'],
-                                                         ['name' => 'note', 'label' => 'Why (needed to reject)', 'type' => 'text', 'id' => 'cd_n' . $c->id]]]]];
+                $mayDecide = self::mayDecide($c, $me['id']);
+                $rows[] = ['t' => (string) $c->summary, 'chip' => [Tiers::LABELS[$c->tier] . ' change', $c->tier === 'large' ? 'warn' : 'mute'],
+                    'sub' => implode(' · ', array_filter(['asked by ' . (Plan::name(Plan::ACTOR, (int) $c->proposed_by) ?: 'a lead'),
+                        $c->reason ? '“' . $c->reason . '”' : '', $c->lapse_at ? 'applies itself ' . Goals::day((string) $c->lapse_at) . ' ' . date('H:i', (int) strtotime((string) $c->lapse_at)) : '',
+                        $mayDecide ? '' : 'waiting for ' . ($c->tier === 'large' ? 'an owner' . ((int) $c->proposed_by === $me['id'] ? ' — you asked for it' : '') : 'a lead')])),
+                    'form' => $mayDecide ? ['id' => 'cd' . $c->id, 'do' => 'change_decide', 'hidden' => ['change' => $c->id], 'submit' => 'Decide', 'fields' => [
+                        ['name' => 'verdict', 'label' => 'Decision', 'type' => 'select', 'options' => ['approve' => 'Approve', 'reject' => $c->tier === 'small' ? 'Object' : 'Reject']],
+                        ['name' => 'note', 'label' => 'Why (needed to reject)', 'placeholder' => 'Why (needed to reject)']]] : null];
             }
-            if (!$secs) $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => 'Nothing waiting.'];
+            $secs[] = $rows ? ['k' => 'rows', 'h' => 'Waiting for a decision', 'box' => true, 'items' => $rows] : ['k' => 'note', 'tone' => 'mute', 'text' => 'Nothing waiting.'];
             $done = Changes::decided($id);
             if ($done) $secs[] = ['k' => 'rows', 'h' => 'Decided', 'items' => array_map(static fn ($c) => ['t' => (string) $c->summary,
                 'chip' => [ucfirst((string) $c->status), $c->status === 'rejected' ? 'mute' : 'ok'], 'sub' => Tiers::LABELS[$c->tier] . ' · ' . Goals::day((string) $c->decided_at) . ($c->decided_note ? ' · “' . $c->decided_note . '”' : '')], $done)];
@@ -217,14 +234,15 @@ final class GoalPages
         foreach (Rules::forEvent($id) as $k => $r) {
             [$name, $level, $what, $why] = Rules::CATALOGUE[$k];
             $h = $health[(int) $r->id] ?? [];
+            $fired = ($h['active'] ?? 0) + ($h['shadow'] ?? 0);
             $rows[] = ['t' => $name, 'chip' => [$r->mode === 'active' ? 'On' : ($r->mode === 'paused' ? 'Paused' : 'Shadow'), $r->mode === 'active' ? 'ok' : 'mute'],
-                       'sub' => $what . ' ' . $why . ' · level ' . $level . ' · in 30 days: ' . ($h['active'] ?? 0) . ' live, ' . ($h['shadow'] ?? 0) . ' in shadow'
-                              . ($k === 'digest' ? ' · at ' . sprintf('%02d:00', (int) (json_decode((string) $r->params, true)['hour'] ?? Rules::DIGEST_HOUR)) : ''),
+                       'sub' => $what . ($k === 'digest' ? ' Sent at ' . sprintf('%02d:00', (int) (json_decode((string) $r->params, true)['hour'] ?? Rules::DIGEST_HOUR)) . '.' : '')
+                              . ($fired > 0 ? ' · ' . ($r->mode === 'shadow' ? 'would have acted ' : 'acted ') . $fired . ' ' . ($fired === 1 ? 'time' : 'times') . ' this month' : ''),
                        'form' => ['id' => 'r' . $r->id, 'do' => 'rule_mode', 'hidden' => ['event' => $id, 'rule' => $k], 'submit' => 'Set',
                                   'fields' => [['name' => 'mode', 'label' => 'Mode', 'type' => 'select', 'options' => Rules::MODES, 'value' => (string) $r->mode]]]];
         }
         return ['title' => 'Rules', 'secs' => [
-            ['k' => 'note', 'tone' => 'info', 'text' => 'A rule starts in shadow: it writes down what it would have done and does nothing. Read what it would have done, then switch it on. None of them can touch money, a deadline, a goal or anybody’s access.'],
+            ['k' => 'note', 'tone' => 'info', 'text' => 'Every rule starts in Shadow: it writes down what it would have done, under What they did, and does nothing. When that looks right, set it to On. None of them can touch money, a deadline, a goal or anybody’s access.'],
             ['k' => 'rows', 'items' => $rows],
             ['k' => 'form', 'h' => 'The digest’s hour', 'do' => 'digest_hour', 'hidden' => ['event' => $id], 'submit' => 'Save', 'groups' => [
                 ['label' => 'Daily, at', 'fields' => [['name' => 'hour', 'label' => 'Hour (0–23)', 'type' => 'number', 'min' => 0, 'max' => 23,

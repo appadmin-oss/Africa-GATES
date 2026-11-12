@@ -183,8 +183,10 @@ final class EventPages
         $owners = ['' => 'Nobody yet'];
         foreach (Plan::team($id) as $p) $owners[$p['key']] = $p['name'] !== '' ? $p['name'] : $p['role'];
         if ($page === 'today' && !$st['lead'] && !$st['owner']) {
-            $c = TeamPages::roleToday($e, $st);
-            array_splice($c['secs'], 1, 0, self::teamWork($id, $me['id']));   // their part, straight under the event
+            $c = TeamPages::roleToday($e, $st, (int) $me['id']);
+            // Their part, under the event (and under a finance admin's queue). A finance admin
+            // with no team role does no event work, so they are not offered its forms.
+            if ($st['roles'] !== [] || !($st['finance'] ?? false)) array_splice($c['secs'], ($st['finance'] ?? false) ? 2 : 1, 0, self::teamWork($id, $me['id']));
             return $c;
         }
         return match ($page) {

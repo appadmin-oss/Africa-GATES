@@ -47,7 +47,7 @@ final class EventPermissions
                                  'help' => 'Add and move work, give it to somebody on the team, add and close risks.',
                                  'views' => ['plan' => ['work', 'timeline', 'risks', 'decisions'], 'people' => ['team']],
                                  'acts' => ['work_add', 'work_status', 'work_owner', 'risk_add', 'risk_close', 'work_decide', 'work_return',
-                                            'goal_create', 'assume_set', 'gate_sign', 'change_decide', 'rule_mode', 'rule_clear', 'digest_hour', 'contact_assign', 'rules_run']],
+                                            'goal_create', 'goal_describe', 'goal_change', 'assume_set', 'gate_sign', 'change_decide', 'rule_mode', 'rule_clear', 'digest_hour', 'contact_assign', 'rules_run']],
         'goals.view'         => ['label' => 'See the goals', 'risk' => 'low',
                                  'help' => 'Goals and gates against plan, and the numbers they rest on, read only.',
                                  'views' => ['goals' => ['progress', 'numbers']], 'acts' => []],
@@ -225,6 +225,8 @@ final class EventPermissions
         if ($page === 'today') return true;
         if ($st['lead'] || $st['owner']) return true;
         if ($page === self::TEAM_PAGE) return false;
+        // The finance admin decides money changes, so Rules > Changes opens for them — that tab only.
+        if (($st['finance'] ?? false) && $page === 'rules') return in_array($tab, ['', 'changes'], true);
         foreach ($st['perms'] as $p) {
             $tabs = self::MENU[$p]['views'][$page] ?? null;
             if ($tabs !== null && ($tab === '' || in_array($tab, $tabs, true) || $tabs === [''])) return true;

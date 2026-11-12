@@ -40,7 +40,7 @@ final class Rules
         'small_lapse' => ['Apply small changes nobody objected to', 1, 'A small change waits ' . Tiers::LAPSE_HOURS . ' hours for a lead to object, then applies itself.', 'Only small changes may approve themselves.'],
         'digest'      => ['Send the leads a daily digest', 0, 'Once a day at the hour set here: at most three decisions and every goal against plan.', 'One batched message instead of many.'],
     ];
-    public const MODES = ['shadow' => 'Shadow: records what it would do', 'active' => 'On', 'paused' => 'Paused'];
+    public const MODES = ['shadow' => 'Shadow', 'active' => 'On', 'paused' => 'Paused'];
     /** Flags that reach a lead's Today. */
     public const FLAGS = ['silent', 'duplicate', 'gate_threat', 'behind'];
     public const PER_RUN = 20;
@@ -220,7 +220,8 @@ final class Rules
                 $goals = array_map(static fn ($g) => [(string) $g->title, $g->words], Goals::forEvent($eventId));
                 $sent = 0;
                 foreach (Leads::of($eventId) as $l) if ($l->email && $act && self::mail((string) $l->email, (string) $l->name, $eventId, 'digest', $items, $goals)) $sent++;
-                $out[] = [$subject, $act ? 'Sent the digest to ' . $sent . ' ' . ($sent === 1 ? 'lead' : 'leads') : 'send the digest to ' . count(Leads::of($eventId)) . ' leads',
+                $n = count(Leads::of($eventId));
+                $out[] = [$subject, $act ? 'Sent the digest to ' . $sent . ' ' . ($sent === 1 ? 'lead' : 'leads') : 'send the digest to ' . $n . ' ' . ($n === 1 ? 'lead' : 'leads'),
                           count($items) . ' to decide, ' . count($goals) . ' goals'];
                 break;
         }

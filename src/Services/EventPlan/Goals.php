@@ -56,7 +56,7 @@ final class Goals
      */
     public static function scopes(int $eventId): array
     {
-        $out = ['event' => 'Every award this event presents'];
+        $out = ['event' => 'All this event’s awards'];
         foreach (self::cycles($eventId) as $c) {
             $out['cycle:' . $c->id] = $c->programme . ' ' . $c->year;
             foreach (DB::table('gates_award_categories')->where('cycle_id', $c->id)->orderBy('sort_order')->orderBy('id')->get(['id', 'title']) as $cat) {

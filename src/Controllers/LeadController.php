@@ -163,6 +163,9 @@ final class LeadController
         $back = $this->safeBack((string) ($b['back'] ?? LeadPages::BASE));
         if (!Plan::ready()) return $this->back($res, $back, false, 'The database needs its latest update first.');
         $do = (string) ($b['do'] ?? '');
+        if ($do === 'goal_describe' && !Plan::may($me['id'], (int) ($b['event'] ?? 0), 'plan.edit')) {
+            return $this->back($res, $back, false, 'A lead of this event sets its goals.');
+        }
         if ($do === 'goal_describe') {
             $say = mb_substr(trim((string) ($b['say'] ?? '')), 0, 500);
             return $res->withHeader('Location', \AfricaGates\Services\EventPlan\EventPages::url((int) ($b['event'] ?? 0), 'goals', 'setup') . '&say=' . rawurlencode($say))->withStatus(303);

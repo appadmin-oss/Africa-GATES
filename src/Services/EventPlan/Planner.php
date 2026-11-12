@@ -169,11 +169,12 @@ final class Planner
             $steps[] = ['t' => 'Prospects to contact', 'v' => number_format($prospects),
                         'from' => number_format($nominees) . ' nominees at ' . round($conv * 100) . '% conversion, with ' . round(($buffer - 1) * 100) . '% extra for withdrawals'];
             $steps[] = ['t' => 'Each volunteer contacts', 'v' => number_format((int) ceil($prospects / max(1, $vols) / $weeks)) . ' a week',
-                        'from' => number_format($prospects) . ' prospects, ' . $vols . ' volunteers, ' . $weeks . ' ' . ($weeks === 1 ? 'week' : 'weeks') . ' to the deadline'];
+                        'from' => number_format($prospects) . ' prospects, ' . $vols . ' ' . ($vols === 1 ? 'volunteer' : 'volunteers') . ', ' . $weeks . ' ' . ($weeks === 1 ? 'week' : 'weeks') . ' to the deadline'];
         }
         if ($g->metric === 'contacted') {
             $vols = (int) self::num($as, 'volunteers', 10);
-            $steps[] = ['t' => 'Each volunteer contacts', 'v' => number_format((int) ceil($target / max(1, $vols) / $weeks)) . ' a week', 'from' => $vols . ' volunteers, ' . $weeks . ' weeks'];
+            $steps[] = ['t' => 'Each volunteer contacts', 'v' => number_format((int) ceil($target / max(1, $vols) / $weeks)) . ' a week',
+                        'from' => $vols . ' ' . ($vols === 1 ? 'volunteer' : 'volunteers') . ', ' . $weeks . ' ' . ($weeks === 1 ? 'week' : 'weeks')];
         }
         return $steps;
     }
@@ -221,7 +222,7 @@ final class Planner
         $prevAt = strtotime((string) $g->created_at);
         // Money only moves once voting opens: the first week starts seven days before its gate,
         // so a revenue goal set during nominations is not "behind" before anybody can pay.
-        if ($g->metric === 'revenue') $prevAt = max($prevAt, strtotime((string) $gates[0]->due_at) - 7 * 86400);
+        if ($g->metric === 'revenue') $prevAt = strtotime((string) $gates[0]->due_at) - 7 * 86400;
         $prevV = 0;
         foreach ($gates as $x) {
             $at = strtotime((string) $x->due_at);

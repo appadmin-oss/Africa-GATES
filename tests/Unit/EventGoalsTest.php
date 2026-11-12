@@ -185,5 +185,14 @@ final class EventGoalsTest extends TestCase
             $c = EventPages::page($me, $e, $p, $t, ['say' => '60 nominees by 15 December']);
             $this->assertNotEmpty($c['secs'], "$p/$t");
         }
+        // Every form a lead is offered survives the permission filter. The first build drew an
+        // EMPTY "Set a goal": its form's act was missing from the menu, so the filter dropped it.
+        $setup = json_encode(EventPages::page($me, $e, 'goals', 'setup', []));
+        $this->assertStringContainsString('goal_describe', (string) $setup, 'the sentence box is drawn');
+        $this->assertStringContainsString('goal_change', (string) json_encode(EventPages::page($me, $e, 'goals', 'progress', [])));
+        // A gate weeks away offers no sign-off; it says when it is due.
+        $progress = (string) json_encode(EventPages::page($me, $e, 'goals', 'progress', []));
+        $this->assertStringNotContainsString('gate_sign', $progress, 'nothing to sign before a gate is due or reached');
+        $this->assertStringContainsString('Upcoming', $progress);
     }
 }

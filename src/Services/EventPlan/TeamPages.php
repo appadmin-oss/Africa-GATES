@@ -192,7 +192,7 @@ final class TeamPages
      * ticks open in the order the role leads with — the portal tailored to the job — and the
      * facts of the event they may see. Nothing they cannot open is drawn.
      */
-    public static function roleToday(object $e, array $st): array
+    public static function roleToday(object $e, array $st, int $me = 0): array
     {
         $id = (int) $e->id;
         $perms = $st['perms'];
@@ -206,7 +206,7 @@ final class TeamPages
         if (in_array('money.approve', $perms, true)) $facts[] = ['You approve', $st['ceiling'] >= PHP_INT_MAX ? 'spend with no per-line limit' : 'up to ' . Plan::naira($st['ceiling']) . ' a line'];
         $roleNames = array_values(array_unique(array_map(static fn ($r) => (string) $r->name . ($r->team_role === 'lead' ? ' (team lead)' : ''), $st['roles'])));
         $secs = [['k' => 'hero', 'ini' => Workspace::initials((string) $e->title), 'tone' => 'ok', 'chips' => [[LeadPages::daysShort((string) $e->event_date), 'mute']],
-                  't' => (string) $e->title, 'sub' => 'Your role: ' . implode(', ', $roleNames ?: ['Event owner']), 'facts' => $facts, 'acts' => []]];
+                  't' => (string) $e->title, 'sub' => 'Your role: ' . implode(', ', $roleNames ?: [EventPermissions::label($st)]), 'facts' => $facts, 'acts' => []]];
         // The pages, in the order the role leads with; then any other page the ticks open.
         $order = [];
         foreach ($st['roles'] as $r) foreach (EventPermissions::leadWith(EventPermissions::ticks((string) $r->perms_json), (string) $r->lead_with) as $p) $order[$p] = true;
@@ -218,6 +218,24 @@ final class TeamPages
             $tabs = array_values(EventPermissions::tabsFor($st, $p, EventPages::TABS[$p] ?? []));
             $cards[] = ['t' => $label[$p], 'ini' => Workspace::initials($label[$p]), 'meta' => $tabs ? implode(' · ', $tabs) : '', 'sub' => EventPages::PURPOSE[$p] ?? '',
                         'href' => EventPages::url($id, $p, (string) (array_key_first(EventPermissions::tabsFor($st, $p, EventPages::TABS[$p] ?? [])) ?? ''))];
+        }
+        // The finance admin's queue, first: spend requests and money changes waiting for them.
+        if ($st['finance'] ?? false) {
+            $spend = 0;
+            foreach (Plan::lines([$id]) as $l) {
+                if ($l->status !== 'requested' || !$l->request_id) continue;
+                $r = \AfricaGates\Services\Requests::find((int) $l->request_id);
+                if ($r && $r->status === 'waiting' && $r->decider_kind === Plan::ACTOR && (int) $r->decider_id === $me) $spend++;
+            }
+            $changes = count(array_filter(Changes::pending($id), static fn ($c) => $c->tier === 'large' && (int) $c->proposed_by !== $me
+                && (($c->subject_kind === 'goal' && \Illuminate\Database\Capsule\Manager::table('gates_event_goals')->where('id', (int) $c->subject_id)->value('metric') === 'revenue')
+                    || ($c->subject_kind === 'gate' && \Illuminate\Database\Capsule\Manager::table('gates_event_gates')->where('id', (int) $c->subject_id)->value('approver') === 'owner'))));
+            $items = [];
+            if ($spend) $items[] = ['t' => $spend === 1 ? 'A spend request' : $spend . ' spend requests', 'sub' => 'Over the lead’s limit, waiting for your decision', 'dot' => 'warn', 'href' => EventPages::url($id, 'money', 'approvals')];
+            if ($changes) $items[] = ['t' => $changes === 1 ? 'A change to a money target' : $changes . ' changes to money targets', 'sub' => 'Waiting for your decision', 'dot' => 'warn', 'href' => EventPages::url($id, 'rules', 'changes')];
+            // Straight under the event, before anything else: it is why they opened the page.
+            array_splice($secs, 1, 0, [$items ? ['k' => 'rows', 'h' => 'Waiting for you', 'box' => true, 'items' => $items]
+                                               : ['k' => 'note', 'tone' => 'mute', 'text' => 'Nothing is waiting for your decision.']]);
         }
         if ($cards) $secs[] = ['k' => 'cards', 'h' => 'Where your role works', 'items' => $cards];
         if (in_array('plan.view', $perms, true) && ($next = array_slice(Plan::work([$id], true), 0, 4))) {
