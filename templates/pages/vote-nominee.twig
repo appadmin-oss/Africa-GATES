@@ -45,7 +45,7 @@
 {% set colour_alt = 'gold' %}
 {% set flow_page = true %}
 {% set n = nominee %}
-{% set first = n.name|split(' ')|first %}
+{% set first = first|default(n.name) %}
 {% set _won = award_kind == 'winner' %}
 {% set _placed = award_kind != '' %}
 {% set _free = not paid_free_disabled %}

@@ -548,6 +548,8 @@ class VoteController {
         $nomShortlisted = isset(\AfricaGates\Services\ShortlistService::shortlistedIn((int) $nom->cycle_id)[(int) $nom->id]);
 
         return $this->view->render($res, 'pages/vote-nominee.twig', [
+            // "Vote for Ada", never "Vote for Chief" or "Vote for Glow" (Name::addressAs).
+            'first'            => \AfricaGates\Support\Name::addressAs((string) $nom->name),
             'terms'            => \AfricaGates\Services\AwardTerms::current((int) $nom->programme_id),
             'paid_sentence'    => \AfricaGates\Services\PaidVoteCopy::sentence((int) $nom->programme_id, (int) $nom->cycle_id),
             'vote_confirmed'   => $voteConfirmed,

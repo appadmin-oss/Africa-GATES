@@ -390,6 +390,7 @@
         { n: sec.getAttribute('data-nominee'), name: sec.getAttribute('data-name'), url: sec.getAttribute('data-url'), cat: sec.getAttribute('data-category-title'), at: 0 });
     });
     if ($('[data-vmi]')) messages();
+    barAway();
     $$('[data-fl-share]').forEach(flierShare);
     // The share kit's "Copy message": the textarea is selectable as the fallback.
     $$('[data-kit-copy]').forEach(function (b) {
@@ -426,6 +427,19 @@
         })
         .then(function () { btn.setAttribute('aria-busy', 'false'); btn.disabled = false; });
     });
+  }
+  /* The bar's "Vote for …" is a way TO the ballot. While the ballot itself is on screen it is
+     a second copy of the button somebody is already looking at — over the code boxes on a
+     short phone, and over the footer below — so it steps aside and comes back once the
+     ballot scrolls away. The share button goes with it; the ballot carries its own. */
+  function barAway() {
+    var bar = $('.vn-bar'), card = document.getElementById('ballot');
+    if (!bar || !card || !window.IntersectionObserver || !$('[data-bar-go]', bar)) return;
+    var io = new IntersectionObserver(function (es) {
+      es.forEach(function (e) { bar.classList.toggle('vn-bar--away', e.isIntersecting); });
+    }, { threshold: 0.15 });
+    io.observe(card);
+    pg.leave(function () { io.disconnect(); });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();

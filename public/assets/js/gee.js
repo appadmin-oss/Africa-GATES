@@ -1122,7 +1122,9 @@
       for (var k = 0; k < under.length; k++) {
         var el = under[k];
         if (el === fab || fab.contains(el) || root.contains(el)) continue;
-        if (el.closest && el.closest(CONTROL)) return true;
+        // A ballot is one form read top to bottom; the tab parked over its text sat on the
+        // nominee's own words and the code boxes alike, so the whole card counts.
+        if (el.closest && el.closest(CONTROL + ', [data-ballot]')) return true;
       }
     }
     return false;

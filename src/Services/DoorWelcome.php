@@ -591,7 +591,7 @@ final class DoorWelcome
         'otunba', 'oba', 'olu', 'igwe', 'emir', 'eze', 'obi', 'hrm', 'hrh', 'rt',
     ];
 
-    private static function isTitle(string $word): bool
+    public static function isTitle(string $word): bool
     {
         return in_array(self::fold(rtrim($word, '.')), self::TITLES, true);
     }
