@@ -291,6 +291,14 @@ final class TeamLoop
         foreach (DB::table('gates_event_work')->where('event_id', $eventId)->where('status', 'proposed')->orderBy('id')->get()->all() as $w) {
             $out[] = ['kind' => 'proposed', 'work' => $w, 'why' => 'Suggested by ' . Plan::name(Plan::ACTOR, (int) $w->proposed_by), 'rank' => 3];
         }
+        // The rules' live flags (gate at risk, goal behind, a quiet member, a duplicate) and the
+        // changes waiting for a lead join the same ranked queue, so Today still shows three.
+        foreach (Rules::flags($eventId) as $f) $out[] = $f + ['href' => EventPages::url($eventId, 'rules', 'log')];
+        foreach (Changes::pending($eventId) as $c) {
+            $out[] = ['kind' => 'change', 'work' => (object) ['id' => 0, 'title' => (string) $c->summary, 'blocks_night' => 0],
+                      'why' => Tiers::LABELS[$c->tier] . ' change · ' . mb_strtolower(Tiers::APPROVER[$c->tier]) . ($c->reason ? ' · “' . $c->reason . '”' : ''),
+                      'rank' => $c->tier === 'large' ? 2 : 3, 'href' => EventPages::url($eventId, 'rules', 'changes')];
+        }
         usort($out, static fn ($a, $b) => [$a['rank'], (int) $a['work']->id] <=> [$b['rank'], (int) $b['work']->id]);
         return $out;
     }

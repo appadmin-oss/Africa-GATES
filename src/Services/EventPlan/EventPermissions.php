@@ -46,7 +46,14 @@ final class EventPermissions
         'plan.edit'          => ['label' => 'Run the plan', 'risk' => 'low',
                                  'help' => 'Add and move work, give it to somebody on the team, add and close risks.',
                                  'views' => ['plan' => ['work', 'timeline', 'risks', 'decisions'], 'people' => ['team']],
-                                 'acts' => ['work_add', 'work_status', 'work_owner', 'risk_add', 'risk_close', 'work_decide', 'work_return']],
+                                 'acts' => ['work_add', 'work_status', 'work_owner', 'risk_add', 'risk_close', 'work_decide', 'work_return',
+                                            'goal_create', 'assume_set', 'gate_sign', 'change_decide', 'rule_mode', 'rule_clear', 'digest_hour', 'contact_assign', 'rules_run']],
+        'goals.view'         => ['label' => 'See the goals', 'risk' => 'low',
+                                 'help' => 'Goals and gates against plan, and the numbers they rest on, read only.',
+                                 'views' => ['goals' => ['progress', 'numbers']], 'acts' => []],
+        'pipeline.work'      => ['label' => 'Work the pipeline', 'risk' => 'low',
+                                 'help' => 'See the prospects, add them, move your own through the stages and rate their reach privately.',
+                                 'views' => ['goals' => ['pipeline']], 'acts' => ['contact_add', 'contact_import', 'contact_stage', 'contact_rate']],
         'decisions.record'   => ['label' => 'Record decisions', 'risk' => 'medium',
                                  'help' => 'Write down what the team agreed, and reverse it with a reason.',
                                  'views' => ['plan' => ['decisions']], 'acts' => ['decision_add', 'decision_reverse']],
@@ -98,7 +105,7 @@ final class EventPermissions
      * finish their own work with its proof, suggest work for a lead to decide. Each writer
      * checks the row again — finishing is only ever your own work, or a lead's call.
      */
-    public const TEAM_ACTS = ['report_add', 'work_done', 'work_propose'];
+    public const TEAM_ACTS = ['report_add', 'work_done', 'work_propose', 'work_change', 'contact_stage', 'contact_rate', 'contact_add'];
     /** Acts only an OWNER has. */
     public const OWNER_ACTS = ['decide', 'member_end', 'role_archive'];
     /** What a team's own lead may do beyond their role's ticks: propose somebody for THEIR team (an owner still decides). */

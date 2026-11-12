@@ -10,6 +10,11 @@ use AfricaGates\Services\EventPlan\TeamPages;
 use AfricaGates\Services\EventPlan\Teams;
 use AfricaGates\Services\EventPlan\TeamSuggest;
 use AfricaGates\Services\EventPlan\TeamLoop;
+use AfricaGates\Services\EventPlan\Goals;
+use AfricaGates\Services\EventPlan\Planner;
+use AfricaGates\Services\EventPlan\Pipeline;
+use AfricaGates\Services\EventPlan\Rules;
+use AfricaGates\Services\EventPlan\Changes;
 use AfricaGates\Services\EventPlan\LeadPages;
 use AfricaGates\Services\EventPlan\Outreach;
 use AfricaGates\Services\EventPlan\Plan;
@@ -157,6 +162,10 @@ final class LeadController
         $back = $this->safeBack((string) ($b['back'] ?? LeadPages::BASE));
         if (!Plan::ready()) return $this->back($res, $back, false, 'The database needs its latest update first.');
         $do = (string) ($b['do'] ?? '');
+        if ($do === 'goal_describe') {
+            $say = mb_substr(trim((string) ($b['say'] ?? '')), 0, 500);
+            return $res->withHeader('Location', \AfricaGates\Services\EventPlan\EventPages::url((int) ($b['event'] ?? 0), 'goals', 'setup') . '&say=' . rawurlencode($say))->withStatus(303);
+        }
         $int = static fn (string $k): int => (int) ($b[$k] ?? 0);
         [$r, $msg, $type, $target] = match ($do) {
             'work_add' => [Plan::addWork($int('event'), $b, $me['id']), 'Added to the plan.', 'event', $int('event')],
@@ -208,6 +217,23 @@ final class LeadController
             'work_done' => [TeamLoop::complete($int('work'), $me['id'], (string) ($b['proof'] ?? '')), '', 'event_work', $int('work')],
             'work_return' => [TeamLoop::returnProof($int('work'), $me['id'], (string) ($b['why'] ?? '')), '', 'event_work', $int('work')],
             'work_propose' => [$this->propose($me, $b), '', 'event', $int('event')],
+            // Goals, the numbers, the pipeline, rules and changes (EventPlan\Goals, Planner, Pipeline, Rules, Changes).
+            'goal_create' => [Goals::create($int('event'), $this->goalInput($b), $me['id']), '', 'event', $int('event')],
+            'goal_change' => [$this->goalChange($me, $b), '', 'event', 0],
+            'assume_set' => [Planner::setAssumption($int('assumption'), (string) ($b['value'] ?? ''), $me['id']), '', 'event', 0],
+            'gate_sign' => [Goals::signGate($int('gate'), $me['id'], (string) ($b['verdict'] ?? ''), (string) ($b['note'] ?? '')), '', 'event', 0],
+            'contact_add' => [Pipeline::add($int('event'), $b, $me['id']), '', 'event', $int('event')],
+            'contact_import' => [Pipeline::import($int('event'), (string) ($b['list'] ?? ''), $me['id'], array_intersect_key($b, array_flip(['scope', 'owner']))), '', 'event', $int('event')],
+            'contact_stage' => [Pipeline::move($int('contact'), (string) ($b['stage'] ?? ''), $me['id']), '', 'event', 0],
+            'contact_rate' => [Pipeline::rate($int('contact'), $int('reach'), $me['id']), '', 'event', 0],
+            'contact_assign' => [Pipeline::assign($int('contact'), (string) ($b['owner'] ?? ''), $me['id']), '', 'event', 0],
+            'work_change' => [$this->workChange($me, $b), '', 'event', 0],
+            'change_decide' => [Changes::decide($int('change'), $me['id'], (string) ($b['verdict'] ?? ''), (string) ($b['note'] ?? '')), '', 'event', 0],
+            'rule_mode' => [Rules::setMode($int('event'), (string) ($b['rule'] ?? ''), (string) ($b['mode'] ?? ''), $me['id']), '', 'event', $int('event')],
+            'rule_clear' => [Rules::clear($int('log'), $me['id']), '', 'event', 0],
+            'digest_hour' => [Rules::setDigestHour($int('event'), $int('hour'), $me['id']), '', 'event', $int('event')],
+            'rules_run' => [Plan::may($me['id'], $int('event'), 'plan.edit') ? ['ok' => true, 'event' => $int('event'), 'msg' => 'Looked: ' . Rules::run($int('event')) . ' new entries.']
+                                                                             : ['ok' => false, 'error' => 'A lead runs the rules.'], '', 'event', $int('event')],
             'work_decide' => [TeamLoop::decide($int('work'), $me['id'], (string) ($b['verdict'] ?? ''), (string) ($b['note'] ?? ''), (string) ($b['proof'] ?? 'none')), '', 'event_work', $int('work')],
             default => [['ok' => false, 'error' => 'That isn’t something this page can do.'], '', '', 0],
         };
@@ -293,6 +319,39 @@ final class LeadController
         $kind = Teams::isOwner($me['id'], $event) || !Plan::isLead($me['id'], $event) ? Plan::ACTOR : 'lead';
         return Teams::decide((string) ($b['subject'] ?? ''), (int) ($b['id'] ?? 0), (string) ($b['verdict'] ?? ''), (string) ($b['reason'] ?? ''),
             ['kind' => $kind, 'id' => $me['id'], 'name' => $me['name']], $in);
+    }
+
+    /** The setup form's answers: a card's "something else" and "another date" win over its default. */
+    private function goalInput(array $b): array
+    {
+        if (!empty($b['metric_other'])) $b['metric'] = $b['metric_other'];
+        if (!empty($b['deadline_other'])) $b['deadline'] = $b['deadline_other'];
+        $b['assume'] = array_intersect_key((array) ($b['assume'] ?? []), Planner::KEYS);
+        return $b;
+    }
+
+    /** A goal's target and/or deadline: LARGE changes, each its own request for an owner. */
+    private function goalChange(array $me, array $b): array
+    {
+        $goal = (int) ($b['goal'] ?? 0);
+        $out = [];
+        if (trim((string) ($b['target'] ?? '')) !== '') $out[] = Changes::propose('target', $goal, (string) $b['target'], (string) ($b['reason'] ?? ''), $me['id']);
+        if (trim((string) ($b['deadline'] ?? '')) !== '') $out[] = Changes::propose('goal_deadline', $goal, (string) $b['deadline'], (string) ($b['reason'] ?? ''), $me['id']);
+        if (!$out) return ['ok' => false, 'error' => 'Give a new target, a new deadline, or both.'];
+        foreach ($out as $r) if (!$r['ok']) return $r;
+        return $out[0] + ['msg' => 'Asked. An owner decides; the goal stays as it is until they do.'];
+    }
+
+    /** Your own work: a new name is SMALL (applies itself unless a lead objects), a new date MEDIUM. */
+    private function workChange(array $me, array $b): array
+    {
+        $work = (int) ($b['work'] ?? 0);
+        $out = [];
+        if (trim((string) ($b['title'] ?? '')) !== '') $out[] = Changes::propose('reword', $work, (string) $b['title'], (string) ($b['reason'] ?? ''), $me['id']);
+        if (trim((string) ($b['due_at'] ?? '')) !== '') $out[] = Changes::propose('due_shift', $work, (string) $b['due_at'], (string) ($b['reason'] ?? ''), $me['id']);
+        if (!$out) return ['ok' => false, 'error' => 'A new name, a new date, or both.'];
+        foreach ($out as $r) if (!$r['ok']) return $r;
+        return end($out);
     }
 
     /** A lead's own work goes straight on the plan; anybody else on the team suggests it. */

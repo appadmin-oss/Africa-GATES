@@ -350,6 +350,10 @@ final class VolunteerController
                 (string) ($b['state'] ?? ''), (int) ($b['confidence'] ?? 2), (string) ($b['note'] ?? ''))),
             'work_done' => $this->loop(\AfricaGates\Services\EventPlan\TeamLoop::complete((int) ($b['work'] ?? 0), (int) $user->id, (string) ($b['proof'] ?? ''))),
             'work_propose' => $this->loop(\AfricaGates\Services\EventPlan\TeamLoop::propose((int) ($b['event'] ?? 0), (int) $user->id, $b)),
+            'contact_add' => $this->loop(\AfricaGates\Services\EventPlan\Pipeline::add((int) ($b['event'] ?? 0), $b, (int) $user->id)),
+            'contact_stage' => $this->loop(\AfricaGates\Services\EventPlan\Pipeline::move((int) ($b['contact'] ?? 0), (string) ($b['stage'] ?? ''), (int) $user->id)),
+            'contact_rate' => $this->loop(\AfricaGates\Services\EventPlan\Pipeline::rate((int) ($b['contact'] ?? 0), (int) ($b['reach'] ?? 0), (int) $user->id)),
+            'work_change' => $this->loop($this->workChange((int) $user->id, $b)),
             'resume' => Volunteers::resume($v) ? $ok('Welcome back.') : $no('You’re not on a break.'),
             'leave' => Volunteers::leave($v) ? $ok('You’ve stepped back. Your record stays yours.') : $no('That could not be done.'),
             default => $no('That isn’t something this page can do.'),
@@ -458,6 +462,18 @@ final class VolunteerController
     }
 
     /** @return array{0:?object,1:?object} the member and their volunteer row */
+    /** Their own work: a new name is small, a new date medium (EventPlan\Changes). */
+    private function workChange(int $uid, array $b): array
+    {
+        $C = \AfricaGates\Services\EventPlan\Changes::class;
+        $out = [];
+        if (trim((string) ($b['title'] ?? '')) !== '') $out[] = $C::propose('reword', (int) ($b['work'] ?? 0), (string) $b['title'], (string) ($b['reason'] ?? ''), $uid);
+        if (trim((string) ($b['due_at'] ?? '')) !== '') $out[] = $C::propose('due_shift', (int) ($b['work'] ?? 0), (string) $b['due_at'], (string) ($b['reason'] ?? ''), $uid);
+        if (!$out) return ['ok' => false, 'error' => 'A new name, a new date, or both.'];
+        foreach ($out as $r) if (!$r['ok']) return $r;
+        return end($out);
+    }
+
     /** A TeamLoop answer in this page's shape. */
     private function loop(array $r): array
     {

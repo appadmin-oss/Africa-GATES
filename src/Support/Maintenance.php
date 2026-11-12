@@ -238,6 +238,9 @@ final class Maintenance
             // reason — it holds while an incident is open — and every tick, because a pace is
             // only kept by being asked often. Two queries when nothing is due.
             $ran[] = ['mail-outbox',   $this->task('mail-outbox', fn() => $this->outbox())];
+            // The event teams' rules (EventPlan\Rules): every tick, because a reminder or a gate
+            // warning is only useful on the day. A rule in shadow only writes what it would do.
+            $ran[] = ['event-rules',   $this->task('event-rules', fn() => \AfricaGates\Services\EventPlan\Rules::runAll())];
             // The CACENTRE CRM's Audience: subscribers, opt-outs, bounces, enquiries and gifts,
             // pushed signed. AFTER the newsletter, so a confirmation or stop the newsletter
             // tick just wrote goes out on this one. A few queries when nothing is new, and
@@ -449,6 +452,7 @@ final class Maintenance
                 'newsletter' => $ran[] = ['newsletter', $this->task('newsletter', fn() => $this->newsletter()->tick())],
                 // Same reason: a campaign just started should not wait a tick for its next batch.
                 'mail-outbox' => $ran[] = ['mail-outbox', $this->task('mail-outbox', fn() => $this->outbox())],
+                'event-rules' => $ran[] = ['event-rules', $this->task('event-rules', fn() => \AfricaGates\Services\EventPlan\Rules::runAll())],
                 // Addressable by name because there is no SSH on this account: when a round
                 // opens sooner than the hourly sweep can fill it, `/__cron/run?task=judgemaps`
                 // is the only way anybody can ask for another batch.

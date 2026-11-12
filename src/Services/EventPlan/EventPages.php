@@ -32,10 +32,10 @@ final class EventPages
     /** The event scope's rail, verbatim from `nav-admin.json`. */
     public const NAV = [
         [null, ['today' => ['Today', 'home']]],
-        ['Plan', ['plan' => ['Plan', 'list'], 'award' => ['Award', 'trophy']]],
+        ['Plan', ['plan' => ['Plan', 'list'], 'goals' => ['Goals', 'flag'], 'award' => ['Award', 'trophy']]],
         ['Run the event', ['people' => ['People', 'users'], 'crm' => ['Relationships', 'msg'], 'money' => ['Money', 'card'], 'night' => ['The night', 'night']]],
         ['Learn', ['growth' => ['Growth', 'grow'], 'reports' => ['Reports', 'rep']]],
-        ['Admin', ['requests' => ['Requests', 'list'], 'roles' => ['Team & roles', 'users'], 'settings' => ['Event settings', 'gear']]],
+        ['Admin', ['requests' => ['Requests', 'list'], 'roles' => ['Team & roles', 'users'], 'rules' => ['Rules', 'shield'], 'settings' => ['Event settings', 'gear']]],
     ];
 
     public const TABS = [
@@ -48,6 +48,10 @@ final class EventPages
         'settings' => ['general' => 'General', 'members' => 'Members', 'limits' => 'Limits', 'devices' => 'Devices'],
         // Teams, roles and who is in them: a lead proposes, an owner decides (EventPlan\Teams).
         'roles' => TeamPages::TABS,
+        // Goals that count themselves, the numbers they rest on, the pipeline, and setting one by saying it.
+        'goals' => ['progress' => 'Goals & gates', 'numbers' => 'The numbers', 'pipeline' => 'Pipeline', 'setup' => 'Set a goal'],
+        // The automations (shadow first), what they did, and the changes waiting for their tier's approver.
+        'rules' => ['rules' => 'Rules', 'log' => 'What they did', 'changes' => 'Changes'],
     ];
 
     /** Purpose lines, verbatim from `nav-admin.json` where it gives one. */
@@ -64,6 +68,8 @@ final class EventPages
         'requests' => 'Requests about this event, from you and your team.',
         'settings' => 'Date, venue, members, limits and the devices used at the door.',
         'roles' => 'Create teams, define roles and assign people. High-risk permissions need owner approval.',
+        'goals' => 'What this event is for, counted from the awards, votes, payments and pipeline as they happen — and what each person must do to reach it.',
+        'rules' => 'What runs by itself, what it did or would have done, and the changes waiting for a decision. A new rule only watches until you switch it on.',
     ];
 
     /** Pages of the first lead build, and where each lives now (a retired address is not a dead one). */
@@ -173,6 +179,8 @@ final class EventPages
             'growth' => LeadPages::analytics([$e]),
             'reports' => match ($tab) { 'post' => self::post($e), 'audit' => self::audit($e), default => self::status($e) },
             'requests' => self::requests($me, $e),
+            'goals' => GoalPages::page($me, $e, $tab, $q),
+            'rules' => GoalPages::rules($me, $e, $tab),
             'settings' => match ($tab) {
                 'members' => self::members($e), 'limits' => self::limits($e), 'devices' => self::devices($e), default => self::general($e),
             },
@@ -244,7 +252,7 @@ final class EventPages
             if ($all) {
                 $secs[] = ['k' => 'rows', 'h' => 'Needs you', 'box' => true,
                     'items' => array_map(static fn ($d) => ['t' => (string) $d['work']->title, 'dot' => $d['kind'] === 'blocked' ? 'bad' : 'warn', 'sub' => $d['why'],
-                        'href' => self::url($id, 'plan')], array_slice($all, 0, TeamLoop::TOP)),
+                        'href' => $d['href'] ?? self::url($id, 'plan')], array_slice($all, 0, TeamLoop::TOP)),
                     'link' => count($all) > TeamLoop::TOP ? ['label' => (count($all) - TeamLoop::TOP) . ' more on the plan', 'href' => self::url($id, 'plan')] : null];
             }
         }
@@ -307,6 +315,32 @@ final class EventPages
                 : 'No work is given to you here yet. When a lead gives you some, it shows here with its date and what proves it done.'];
         }
         $secs[] = self::reportForm($eventId, $mine ?: Plan::work([$eventId], true));
+        // Their prospects (design plan, My day: "own tasks and prospects"), each moved in one tap.
+        if (Pipeline::ready()) {
+            $mineC = Pipeline::list($eventId, $memberId, '', true);
+            if ($mineC) {
+                $secs[] = ['k' => 'rows', 'h' => 'Your prospects', 'items' => array_map(static fn ($c) => ['t' => (string) $c->name,
+                    'sub' => (Pipeline::STAGES[$c->stage] ?? $c->stage) . ($c->reach ? ' · ' . Pipeline::REACH[(int) $c->reach] . ' (only you and the leads see this)' : ''),
+                    'chip' => $c->stage === 'nominated' ? ['Submitted', 'ok'] : null,
+                    'form' => $c->stage === 'nominated' ? null : ['id' => 'pc' . $c->id, 'do' => 'contact_stage', 'hidden' => ['contact' => $c->id], 'submit' => 'Move',
+                        'fields' => [['name' => 'stage', 'label' => 'Stage', 'type' => 'select', 'value' => (string) $c->stage, 'options' => array_intersect_key(Pipeline::STAGES, array_flip(Pipeline::MANUAL))]]]], $mineC)];
+                $secs[] = ['k' => 'form', 'h' => 'Rate a prospect’s reach', 'do' => 'contact_rate', 'submit' => 'Rate', 'groups' => [
+                    ['label' => 'Private', 'help' => 'How far their own network reaches, after your first conversation. Only you and the leads ever see it; never them.',
+                     'fields' => [['name' => 'contact', 'label' => 'Who', 'type' => 'select', 'options' => array_column(array_map(static fn ($c) => [$c->id, $c->name], $mineC), 1, 0), 'id' => 'pr_c' . $eventId],
+                                  ['name' => 'reach', 'label' => 'Reach', 'type' => 'segmented', 'options' => Pipeline::REACH, 'value' => '2']]]]];
+            }
+            $secs[] = ['k' => 'form', 'h' => 'Add a prospect', 'do' => 'contact_add', 'hidden' => ['event' => $eventId], 'submit' => 'Add', 'groups' => [
+                ['label' => 'Somebody to ask', 'help' => 'Their email or phone is how the pipeline knows when their nomination arrives — it moves by itself then.',
+                 'fields' => [['name' => 'name', 'label' => 'Name', 'type' => 'text', 'required' => true, 'id' => 'pa_n' . $eventId],
+                              ['name' => 'email', 'label' => 'Email', 'type' => 'email', 'id' => 'pa_e' . $eventId], ['name' => 'phone', 'label' => 'Phone', 'type' => 'tel', 'id' => 'pa_p' . $eventId]]]]];
+        }
+        if ($mine) {
+            $secs[] = ['k' => 'form', 'h' => 'Change your work', 'do' => 'work_change', 'submit' => 'Ask for it', 'groups' => [
+                ['label' => 'Which, and what', 'help' => 'A new name applies itself in ' . Tiers::LAPSE_HOURS . ' hours unless a lead objects. A new date is a lead’s decision.',
+                 'fields' => [['name' => 'work', 'label' => 'Work', 'type' => 'select', 'options' => array_column(array_map(static fn ($w) => [$w->id, $w->title], $mine), 1, 0), 'id' => 'wc_w' . $eventId],
+                              ['name' => 'title', 'label' => 'New name', 'type' => 'text', 'id' => 'wc_t' . $eventId], ['name' => 'due_at', 'label' => 'New date', 'type' => 'date', 'id' => 'wc_d' . $eventId],
+                              ['name' => 'reason', 'label' => 'Why', 'type' => 'text', 'id' => 'wc_r' . $eventId]]]]];
+        }
         $secs[] = ['k' => 'form', 'h' => 'Suggest work', 'do' => 'work_propose', 'hidden' => ['event' => $eventId], 'submit' => 'Suggest it', 'groups' => [
             ['label' => 'What and why', 'help' => 'A lead decides. Nothing changes on the plan until they do, and you see their answer here.',
              'fields' => [['name' => 'title', 'label' => 'What has to be done', 'type' => 'text', 'required' => true, 'id' => 'sug_t_' . $eventId],
