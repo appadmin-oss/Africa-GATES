@@ -434,7 +434,7 @@
      ballot scrolls away. The share button goes with it; the ballot carries its own. */
   function barAway() {
     var bar = $('.vn-bar'), card = document.getElementById('ballot');
-    if (!bar || !card || !window.IntersectionObserver || !$('[data-bar-go]', bar)) return;
+    if (!bar || !card || !window.IntersectionObserver || !$('.vn-bar__go[href="#ballot"], button.vn-bar__go', bar)) return;
     var io = new IntersectionObserver(function (es) {
       es.forEach(function (e) { bar.classList.toggle('vn-bar--away', e.isIntersecting); });
     }, { threshold: 0.15 });

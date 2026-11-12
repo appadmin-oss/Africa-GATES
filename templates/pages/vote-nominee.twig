@@ -86,7 +86,7 @@
         {{ ctx.phase.label|default('Voting closed')|trans }}
       {%- endif -%}
     </p>
-    <h2 class="vb__t" id="{{ ctx.pre }}vb-h">{{ ctx.open ? 'Back %first%'|trans({'%first%': first}) : 'Voting is closed'|trans }}</h2>
+    <h2 class="vb__t" id="{{ ctx.pre }}vb-h">{{ not ctx.open ? 'Voting is closed'|trans : (ctx.free and ctx.confirmed ? 'You backed %first%'|trans({'%first%': first}) : 'Back %first%'|trans({'%first%': first})) }}</h2>
   </div>
 
   <div class="vb__body">
@@ -105,6 +105,17 @@
     </p>
     <a class="ag-btn ag-btn--secondary ag-btn--pill ag-btn--block" href="/vote/{{ n.programme_slug }}">{{ 'Back to the award'|trans }}</a>
   {% else %}
+    {# The confirmed vote's celebration leads the ballot. It sits in the ballot's own card, so
+       it is drawn without a second card's border and tint (ballot.css, .vb-done). #}
+    {% if ctx.free and ctx.confirmed %}
+        <div class="vb-done" data-vb-done>
+          {% include 'partials/celebration.twig' with {kind: 'vote', size: 'inline', first: first,
+              sub: '%first% moved up the race. Share the link to win more support.'|trans({'%first%': first}),
+              context: {moment: 'vote_cast', confirmed: true, edition: n.programme_slug ~ '-' ~ n.year, subject: n.id ~ '-' ~ n.category_id},
+              primary: {label: 'Share %first%’s voting link'|trans({'%first%': first})},
+              secondary: {label: 'Vote in another category'|trans, href: '/vote/' ~ n.programme_slug}} only %}
+        </div>
+    {% endif %}
 
     {# "Bring your people" (VoteRecruit): once this browser has voted here, free or paid, its
        own link for this nominee and the count of people who came through it — first, because
@@ -209,13 +220,8 @@
     {# ── The free vote ── #}
     {% if ctx.free %}
       {% if ctx.confirmed %}
-        <div class="vb-done">
-          {% include 'partials/celebration.twig' with {kind: 'vote', size: 'inline', first: first,
-              sub: '%first% moved up the race. Share the link to win more support.'|trans({'%first%': first}),
-              context: {moment: 'vote_cast', confirmed: true, edition: n.programme_slug ~ '-' ~ n.year, subject: n.id ~ '-' ~ n.category_id},
-              primary: {label: 'Share %first%’s voting link'|trans({'%first%': first})},
-              secondary: {label: 'Vote in another category'|trans, href: '/vote/' ~ n.programme_slug}} only %}
-        </div>
+        {# Drawn at the top of the ballot (above): the moment comes first, not under the
+           paid and points options somebody has just finished with. #}
       {% else %}
       <form class="vb-free" data-free-form data-e-agree="{{ 'Tick the box to confirm you are voting once and accept the rules.'|trans }}"
             data-e-name="{{ 'Enter your full name (first and last).'|trans }}" data-e-phone="{{ 'Enter a valid phone number.'|trans }}"
@@ -496,6 +502,10 @@
     </button>
     {% if _placed %}
       <a class="vn-bar__go" href="{{ result_url }}">{{ 'See the result'|trans }}</a>
+    {% elseif voting_open and vote_confirmed and not paid_free_disabled %}
+      {# Voted: the next useful act is bringing people, so the bar shares rather than asking
+         for a vote the ballot has just thanked them for. #}
+      <button type="button" class="vn-bar__go" data-ag-share data-ag-copied="{{ 'Link copied'|trans }}">{{ 'Share %first%’s voting link'|trans({'%first%': first}) }}</button>
     {% elseif voting_open %}
       {# Says what the ballot is waiting for: on the code screen the next act is the code,
          and a bar still reading "Vote for …" looked like the vote had not started (vote.js). #}
