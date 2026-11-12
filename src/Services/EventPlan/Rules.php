@@ -237,7 +237,8 @@ final class Rules
             $q = DB::table('gates_nominations')->whereIn('category_id', $cats)->where('status', '!=', 'rejected')->whereNull('merged_into');
             $q->where(static function ($w) use ($c) {
                 if ($c->email) $w->orWhereRaw('LOWER(nominee_email) = ?', [$c->email]);
-                if ($c->phone) $w->orWhere('nominee_phone', 'like', '%' . $c->phone);
+                // Ends with the stored ten digits; escaped through Like (CLAUDE.md: the two drivers disagree on LIKE's escape).
+                if ($c->phone) $w->orWhereRaw(\AfricaGates\Support\Like::clause('nominee_phone'), ['%' . \AfricaGates\Support\Like::esc((string) $c->phone)]);
             });
             if (!$c->email && !$c->phone) continue;
             if ($nid = $q->value('id')) $out[] = [$c, (int) $nid];
