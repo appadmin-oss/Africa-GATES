@@ -320,6 +320,12 @@ class SchemaTest extends TestCase
                  'country_code' => 'NG', 'category_title' => $bad],
                 'https://afg.test', 'https://afg.test/p'
             ),
+            // Both shapes: a person and an organisation, every typed field hostile.
+            'profilePage' => \AfricaGates\Support\Schema::profilePage(
+                ['display_name' => $bad, 'bio' => $bad, 'category' => $bad, 'location_city' => $bad,
+                 'country_code' => 'NG', 'profile_type' => 'organisation', 'registered_at' => '2026-01-01 10:00:00'],
+                'https://afg.test', 'https://afg.test/registry/x', '/uploads/p.jpg'
+            ),
             'itemList' => \AfricaGates\Support\Schema::itemList(
                 $bad, [['name' => $bad, 'url' => '/x']], 'https://afg.test'
             ),

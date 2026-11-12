@@ -8,6 +8,7 @@ use AfricaGates\Support\NationsLive;
 use AfricaGates\Support\NomineeUrl;
 use AfricaGates\Support\ProgrammeHost;
 use AfricaGates\Support\SchemaHas;
+use AfricaGates\Support\SearchWords;
 use AfricaGates\Support\Translator;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
@@ -331,9 +332,91 @@ final class Discover
     /** Case-insensitive "does this text contain the query", for the small in-PHP sets. */
     private static function has(string $q, string ...$hay): bool
     {
-        if ($q === '') return true;
-        foreach ($hay as $h) if (mb_stripos($h, $q) !== false) return true;
-        return false;
+        return $q === '' || SearchWords::matches($q, ...$hay);
+    }
+
+    /**
+     * Every word (its singular stem) in at least one of these columns — AND of ORs, through
+     * Like's escaped clause. Accents are the collation's job inside SQL (utf8mb4_unicode_ci
+     * on production); SearchWords folds them everywhere PHP compares.
+     */
+    private static function matchWords(object $b, string $q, array $cols): void
+    {
+        foreach (SearchWords::stems($q) as $word) {
+            $like = Like::contains($word);
+            $b->where(function ($w) use ($like, $cols) {
+                foreach ($cols as $i => $c) $i === 0 ? $w->whereRaw(Like::clause($c), [$like]) : $w->orWhereRaw(Like::clause($c), [$like]);
+            });
+        }
+    }
+
+    /**
+     * Best match first (SearchWords::score), stable within each grade, so the tab's own order
+     * (most nominated, newest) still decides among equals.
+     *
+     * @param list<array<string,string>> $rows
+     * @return list<array<string,string>>
+     */
+    private static function ranked(array $rows, string $q): array
+    {
+        $i = 0;
+        $keyed = array_map(static function ($r) use (&$i, $q) { return [SearchWords::score((string) ($r['name'] ?? ''), $q), $i++, $r]; }, $rows);
+        usort($keyed, static fn ($a, $b) => [$b[0], $a[1]] <=> [$a[0], $b[1]]);
+        return array_map(static fn ($k) => $k[2], $keyed);
+    }
+
+    /**
+     * A correction for a search that found nothing, made only from words this site holds —
+     * the names of everyone standing in a live award and every approved profile, the award,
+     * category, host and event titles — and only when the corrected search finds something
+     * (the controller checks). Null when there is nothing to correct.
+     */
+    public function suggest(string $q): ?string
+    {
+        return SearchWords::correct($q, $this->vocabulary());
+    }
+
+    /**
+     * The site's own words, folded, with how many rows use each. Ten minutes in cache: it is
+     * read only when a search finds nothing, and a name added a minute ago being uncorrectable
+     * for a few minutes costs nothing.
+     *
+     * @return array<string,int>
+     */
+    private function vocabulary(): array
+    {
+        return $this->cached('discover:vocab', 600, static function (): array {
+            $texts = [];
+            try {
+                $texts = array_merge($texts, DemoSeeder::notSandbox(
+                    DB::table('gates_nominees as n')
+                        ->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+                        ->join('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
+                        ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
+                        ->where('p.is_active', 1)->whereIn('n.status', ['approved', 'winner', 'runner_up'])->whereNull('n.merged_into'),
+                    'cy.programme_id')->limit(20000)->pluck('n.name')->all());
+                $texts = array_merge($texts, DB::table('gates_award_programmes')->where('is_active', 1)->pluck('title')->all());
+                $texts = array_merge($texts, DB::table('gates_award_categories as c')
+                    ->join('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
+                    ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
+                    ->where('p.is_active', 1)->pluck('c.title')->all());
+                if (SchemaHas::table('gates_profiles')) {
+                    foreach (DB::table('gates_profiles')->where('status', 'approved')->whereNull('merged_into')->limit(20000)
+                                 ->get(['display_name', 'category', 'location_city']) as $r) {
+                        $texts[] = (string) $r->display_name; $texts[] = (string) $r->category; $texts[] = (string) $r->location_city;
+                    }
+                }
+                foreach (SearchLanding::upcomingEvents(null, 60) as $e) { $texts[] = (string) $e['title']; $texts[] = (string) $e['location']; }
+            } catch (\Throwable) {}
+            $vocab = [];
+            foreach ($texts as $t) {
+                foreach (SearchWords::words((string) $t) as $w) {
+                    $w = trim($w, ".,'’()-");
+                    if (mb_strlen($w) >= 3 && !preg_match('/\d/', $w)) $vocab[$w] = ($vocab[$w] ?? 0) + 1;
+                }
+            }
+            return $vocab;
+        });
     }
 
     /** "Open for nominations" — or, under the Status facet, "Voting now" / "Decided". */
@@ -427,6 +510,15 @@ final class Discover
      */
     private function people(array $s): array
     {
+        // ── A SEARCH IS NOT "THIS MONTH" ─────────────────────────────────────────────
+        //
+        // Browsing, the tab is "Most nominated this month" and the month is the point. A
+        // SEARCH kept the month too, so a nominee entered in October could not be found by
+        // name in November, and on the first of every month the tab emptied. With a query
+        // the people are everyone standing in a live award, whenever they were entered, and
+        // the registry's own profiles beside them — which no tab here searched at all, while
+        // the page's own footer promised "everyone standing in a category".
+        $searching = $s['q'] !== '';
         $since = Carbon::now()->startOfMonth()->toDateTimeString();
         try {
             $b = DemoSeeder::notSandbox(
@@ -436,25 +528,18 @@ final class Discover
                     ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
                     ->where('p.is_active', 1)
                     ->whereIn('n.status', ['approved', 'winner', 'runner_up'])
-                    ->whereNull('n.merged_into')
-                    ->where('n.nominated_at', '>=', $since),
+                    ->whereNull('n.merged_into'),
                 'cy.programme_id');
+            if (!$searching) $b->where('n.nominated_at', '>=', $since);
 
-            if ($s['q'] !== '') {
-                $like = Like::contains($s['q']);
-                $b->where(function ($w) use ($like) {
-                    $w->whereRaw(Like::clause('n.name'), [$like])
-                      ->orWhereRaw(Like::clause('n.organisation'), [$like])
-                      ->orWhereRaw(Like::clause('c.title'), [$like]);
-                });
-            }
+            if ($s['q'] !== '') self::matchWords($b, $s['q'], ['n.name', 'n.organisation', 'c.title']);
             if ($s['where'] !== '') $b->where('n.country_code', $s['where']);
             if (in_array('won', $s['trust'], true)) self::recognised($b);
             if (in_array('ev', $s['trust'], true)) self::reviewed($b);
 
             $rows = $b->orderByDesc('n.nominated_at')->orderByDesc('n.id')->limit(2000)
                 ->get(['n.id', 'n.name', 'n.profile_id', 'n.country_code', 'n.organisation',
-                       'n.photo_path', 'c.title as category'])->all();
+                       'n.photo_path', 'c.title as category', 'p.slug as programme_slug'])->all();
         } catch (\Throwable) {
             $rows = [];
         }
@@ -471,8 +556,10 @@ final class Discover
         uasort($people, static fn (array $a, array $b): int => [$b['n'], $a['order']] <=> [$a['n'], $b['order']]);
 
         $out = [];
+        $seen = [];
         foreach ($people as $p) {
             $r = $p['row'];
+            if ($r->profile_id) $seen[(int) $r->profile_id] = true;
             $place = trim((string) ($r->organisation ?? '')) !== '' ? (string) $r->organisation : (string) $r->category;
             $nation = (string) ($r->country_code ?? '') !== '' ? NationsLive::name((string) $r->country_code) : '';
             $out[] = [
@@ -484,11 +571,62 @@ final class Discover
                     $p['n'] === 1 ? Translator::t('nominated in 1 category')
                         : Translator::t('nominated in %n% categories', ['%n%' => (string) $p['n']]),
                 ], static fn (string $v): bool => $v !== '')),
-                'url'      => NomineeUrl::path((int) $r->id),
+                // From the row's own programme slug: path() is a query per person, 48 a page.
+                'url'      => NomineeUrl::of((string) ($r->programme_slug ?? ''), (int) $r->id, (string) $r->name),
             ];
         }
 
-        return ['items' => array_slice($out, 0, self::MAX_ROWS), 'total' => count($out)];
+        // The registry's people. Searching, they join the same list (a profile already
+        // standing as a nominee is listed once, as the nominee); browsing, they are their own
+        // short list under the month's, so the tab is never empty for want of a nomination.
+        // A trust filter is about awards, which a profile alone cannot satisfy — honest answer
+        // there is none of them.
+        $reg = $s['trust'] === [] ? self::registry($s, ['individual'], $seen) : [];
+        if ($searching) {
+            $out = self::ranked(array_merge($out, $reg), $s['q']);
+            return ['items' => array_slice($out, 0, self::MAX_ROWS), 'total' => count($out), 'searching' => true, 'registry' => []];
+        }
+        return ['items' => array_slice($out, 0, self::MAX_ROWS), 'total' => count($out) + count($reg),
+                'searching' => false, 'registry' => array_slice($reg, 0, self::MAX_ROWS)];
+    }
+
+    /**
+     * Approved registry profiles of these types, as Discover rows, matching the state's query
+     * and country. The same columns the search index reads (ActivityFeedService::profiles) and
+     * deliberately not email, phone or a handle: a search box is not a directory of contacts.
+     *
+     * @param list<string> $types profile_type values
+     * @param array<int,true> $skip profile ids already listed
+     * @return list<array<string,string>>
+     */
+    private static function registry(array $s, array $types, array $skip = []): array
+    {
+        try {
+            if (!SchemaHas::table('gates_profiles')) return [];
+            $b = DB::table('gates_profiles')->where('status', 'approved')->whereNull('merged_into')
+                ->whereIn('profile_type', $types);
+            if ($s['q'] !== '') self::matchWords($b, $s['q'], ['display_name', 'category', 'location_city']);
+            if ($s['where'] !== '') $b->where('country_code', $s['where']);
+            $rows = $b->orderByDesc('registered_at')->orderByDesc('id')->limit(400)
+                ->get(['id', 'slug', 'display_name', 'category', 'location_city', 'country_code', 'avatar_path'])->all();
+        } catch (\Throwable) {
+            return [];
+        }
+        $out = [];
+        foreach ($rows as $r) {
+            if (isset($skip[(int) $r->id]) || (string) ($r->slug ?? '') === '') continue;
+            $nation = (string) ($r->country_code ?? '') !== '' ? NationsLive::name((string) $r->country_code) : '';
+            $out[] = [
+                'name'     => (string) $r->display_name,
+                'initials' => self::initials((string) $r->display_name),
+                'initial'  => mb_substr((string) $r->display_name, 0, 1),
+                'photo'    => (string) ($r->avatar_path ?? ''),
+                'meta'     => implode(' · ', array_filter([(string) ($r->category ?? ''), trim((string) ($r->location_city ?? '')), $nation,
+                    Translator::t('Registered profile')], static fn (string $v): bool => $v !== '')),
+                'url'      => '/registry/' . rawurlencode((string) $r->slug),
+            ];
+        }
+        return $out;
     }
 
     /** Trust · "Recognised before": won, runner-up in an ANNOUNCED award, or on a published shortlist. */
@@ -584,7 +722,15 @@ final class Discover
             ];
         }
 
-        return ['items' => array_slice($out, 0, self::MAX_ROWS), 'total' => count($out)];
+        // Organisations in the registry. The tab was award hosts alone, so an organisation
+        // with a registered profile could not be found by name on the tab named for it.
+        $reg = self::registry($s, ['organisation', 'business']);
+        if ($s['q'] !== '') {
+            $out = self::ranked(array_merge($out, $reg), $s['q']);
+            return ['items' => array_slice($out, 0, self::MAX_ROWS), 'total' => count($out), 'searching' => true, 'registry' => []];
+        }
+        return ['items' => array_slice($out, 0, self::MAX_ROWS), 'total' => count($out) + count($reg),
+                'searching' => false, 'registry' => array_slice($reg, 0, self::MAX_ROWS)];
     }
 
     /** "Upcoming ceremonies": published events still to come, soonest first. */

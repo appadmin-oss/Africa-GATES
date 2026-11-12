@@ -762,6 +762,36 @@ HTML;
      * (Outlook, Gmail app, Apple Mail, Yahoo Mail).
      */
     /**
+     * The height attribute for a hero drawn 600 wide: from the IMAGE when it is one of
+     * ours, else the caller's figure, else 260.
+     *
+     * `height` is not a hint to Outlook desktop — it is the size the image is drawn at,
+     * `height:auto` notwithstanding. Every hero was given 260, which is right for the
+     * 1200×520 illustrations and wrong for the older 1344×768 ones (and for an event cover
+     * cut to its own shape): those were drawn squashed to a 2.3:1 band in the client a
+     * large share of Nigerian offices read mail in, while every webmail scaled them
+     * correctly — so nobody checking in a browser ever saw it. Measured from the file in
+     * `public/`, never typed per image: the next illustration added at another size is
+     * then right without anybody remembering this.
+     */
+    public static function heroHeight(string $hero, int $given = 0): int
+    {
+        static $memo = [];
+        $fallback = $given > 0 ? $given : 260;
+        $path = (string) (parse_url($hero, PHP_URL_PATH) ?? '');
+        // Our own files only: the shipped illustrations and an uploaded cover. Anything
+        // else is somebody else's server, and is not fetched to measure it.
+        if ($path === '' || !preg_match('~^/(assets|uploads)/~', $path) || str_contains($path, '..')) return $fallback;
+        if (!array_key_exists($path, $memo)) {
+            $root = realpath(dirname(__DIR__, 2) . '/public') ?: '';
+            $file = realpath($root . rawurldecode($path)) ?: '';
+            $size = ($root !== '' && $file !== '' && str_starts_with($file, $root . '/') && is_file($file)) ? @getimagesize($file) : false;
+            $memo[$path] = ($size && $size[0] > 0 && $size[1] > 0) ? (int) round(600 * $size[1] / $size[0]) : 0;
+        }
+        return $memo[$path] > 0 ? $memo[$path] : $fallback;
+    }
+
+    /**
      * The house shell every branded email arrives in.
      *
      * PUBLIC, and not for a test: the admin preview has to show what the RECIPIENT gets.
@@ -805,7 +835,7 @@ HTML;
         //    file is 192px, so it is sharp at 2x and better on a phone);
         //  · the hero keeps a HEIGHT even when the caller has none: Outlook desktop blocks
         //    remote images by default, and a blocked image with no height collapses the band
-        //    it is the only thing in — 260 is the shipped 600×260 crop;
+        //    it is the only thing in — and the height is the image's own (heroHeight());
         //  · the preheader falls back to the subject — without one, every message here
         //    previewed as the first words of the masthead;
         //  · the footer says who sent it and where they are (MailConfig::postal()). It used
@@ -817,7 +847,7 @@ HTML;
             'preheader'       => $preheader !== '' ? $preheader : $subject,
             'category'        => $category,
             'hero'            => $hero,
-            'hero_height'     => $heroHeight > 0 ? $heroHeight : 260,
+            'hero_height'     => self::heroHeight($hero, $heroHeight),
             'body'            => $body,
             'why'             => $why,
             'logo'            => Brand::markUrl($this->base()),

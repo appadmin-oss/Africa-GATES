@@ -97,30 +97,11 @@ return [
             'csrf_token'        => $_SESSION['csrf_token'] ?? '',
             'current_section'   => 'projects',
             'has_hero'          => false,
-            // ── THE FOURTH COPY OF THE SAME CLAIM ────────────────────────────
-            //
-            // "live in Nigeria, building toward 54" was typed here too, as the banner's
-            // default — behind the operator's own setting, which is why it survived the
-            // sweep that fixed the description, the JSON-LD, the footer and the guide.
-            //
-            // Chained with `??` so the count is only queried when there is nothing else to
-            // show: an operator who has written their own banner, or set ANNOUNCE_TEXT,
-            // costs this nothing. `Env::get()` returns null with no default, which is what
-            // makes the chain lazy rather than eager.
-            'announcement_text' => $settings['announce_text']
-                ?? Env::get('ANNOUNCE_TEXT')
-                ?? ('Nominations open — live in ' . \AfricaGates\Support\NationsLive::phrase()
-                    . ', building toward ' . (int) ($settings['nations_count'] ?? 54)),
-            // Was `/africa-gates/nominate`, which no route serves. It survives in
-            // production only because public/.htaccess still carries the pre-subdomain
-            // legacy rule `^africa-gates/(.+)$ → /$1`, so Apache 301s it. That makes
-            // the announcement bar — above the nav on every page, and this default
-            // applies until an admin sets announce_url — depend on a redirect kept for
-            // old bookmarks: a wasted round trip on every click today, and a hard 404
-            // the day that rule is retired or the app is served by anything but that
-            // Apache config. Point it at the route directly. Found by tools/qa/links.js.
-            'announcement_url'  => $settings['announce_url']  ?? '/nominate',
-            'announcement_cta'  => $settings['announce_cta']  ?? 'Nominate now →',
+            // The announcement banner is Services\SiteNotice now (partials/site-notice.twig).
+            // Three globals used to carry it — `announcement_text|url|cta` — read by no template
+            // since the old layout was destroyed, and defaulting to a claim nobody typed
+            // ("Nominations open — live in …"). The banner shows what an operator wrote, or
+            // nothing.
             // Real, admin-configurable bonus-vote ratio (so methodology copy never hardcodes it).
             'donation_votes_per_1000' => (int)($settings['donation_votes_per_1000'] ?? 5),
             // Admin-configurable display constants — so copy across the site never hardcodes
@@ -550,6 +531,8 @@ return [
         $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
             'cover_kind', [\AfricaGates\Support\CoverKind::class, 'resolve']
         ));
+        // The notices above every public page: planned work and the operator's announcement.
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction('site_notices', [\AfricaGates\Services\SiteNotice::class, 'forPage']));
         $twig->getEnvironment()->addFunction(new \Twig\TwigFunction('cover_variant', [\AfricaGates\Support\CoverVariant::class, 'forRecord']));
         // The member account's section titles and ledes (pages/account/_frame.twig): read
         // from the one list the rail is built from.
@@ -829,7 +812,7 @@ return [
     AuthService::class      => fn(ContainerInterface $c)=>new AuthService($c->get(AuditService::class)),
 
     // Public controllers
-    HomeController::class        => fn(ContainerInterface $c)=>new HomeController($c->get(Twig::class), $c->get(CacheService::class), $c->get(\AfricaGates\Services\HomepageImages::class)),
+    HomeController::class        => fn(ContainerInterface $c)=>new HomeController($c->get(Twig::class), $c->get(CacheService::class)),
     ApiController::class         => fn(ContainerInterface $c)=>new ApiController($c->get(CacheService::class), $c->get(ProfileService::class), $c->get(AwardService::class), $c->get(VoteService::class), $c->get(OtpService::class), $c->get(RateLimitService::class), $c->get(GoogleSheetsService::class), $c->get(CommunityService::class), $c->get(TurnstileService::class), $c->get(FraudService::class), $c->get(EventService::class), $c->get(MilestoneService::class), $c->get(LegacyService::class), $c->get(OpportunityService::class)),
     RegistryController::class    => fn(ContainerInterface $c)=>new RegistryController($c->get(Twig::class), $c->get(CacheService::class), $c->get(ProfileService::class), $c->get(RateLimitService::class), $c->get(GoogleSheetsService::class), $c->get(CommunityService::class), $c->get(OtpService::class)),
     AwardsController::class      => fn(ContainerInterface $c)=>new AwardsController($c->get(Twig::class), $c->get(CacheService::class), $c->get(OtpService::class), $c->get(RateLimitService::class)),

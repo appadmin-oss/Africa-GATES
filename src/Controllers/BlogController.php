@@ -100,7 +100,10 @@ class BlogController
             $poll = $this->community->getPoll('post', (int)$post->id, $fp);
         }
         $p = self::card((array) $post);
+        // How many people have read it (Services\PageViews), and the way in to promoting here.
+        $views = \AfricaGates\Services\PageViews::forPage('post', (int) $post->id);
         return $this->view->render($res, 'pages/blog/post.twig', [
+            'views' => $views,
             'page_title'       => $post->title . ' — Africa GATES',
             'meta_description' => (string)($post->excerpt ?? ''),
             'gates_page'       => 'blog',

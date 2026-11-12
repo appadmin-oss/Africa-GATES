@@ -327,7 +327,45 @@
     trackBottomUI();
   }
 
+  /* WHERE "SKIP TO CONTENT" AND A NEW PAGE PUT THE READER: the page's own heading.
+     On a phone a root page's <h1> is the app bar's large title, which sits before <main>;
+     sending focus to <main> started a screen reader just below the title of the page it had
+     opened (accessibility audit, 11 Nov 2026). The first VISIBLE <h1> is the target, made
+     focusable for the purpose; <main> when a page has none. site-nav.js and the skip link
+     (accessibility-focus.js, which also serves the console, where this file is absent) ask it. */
+  function pageHeading() {
+    var hs = document.querySelectorAll('h1');
+    for (var i = 0; i < hs.length; i++) {
+      var h = hs[i];
+      if (h.closest('[hidden],[aria-hidden="true"],[inert]') || !h.getClientRects().length) continue;
+      if (!h.hasAttribute('tabindex')) h.setAttribute('tabindex', '-1');
+      return h;
+    }
+    return document.querySelector('.ag-main');
+  }
+
+  /* "YOU'RE OFFLINE" (UX standard §13.4). The service worker answers a navigation with our
+     own page when the network has gone, but a page already open said nothing: a vote or a
+     form sent into a dead connection simply failed. One polite line at the top while it
+     lasts, gone when the connection is back. */
+  function offline() {
+    var bar = document.querySelector('[data-ag-offline]');
+    if (!bar) {
+      bar = document.createElement('p');
+      bar.className = 'ag-offline'; bar.setAttribute('data-ag-offline', ''); bar.setAttribute('role', 'status');
+      bar.hidden = true;
+      bar.textContent = document.documentElement.getAttribute('data-ag-offline-text') || 'You are offline. Anything you send will need sending again once you are back.';
+      document.body.appendChild(bar);
+    }
+    var paint = function () { bar.hidden = navigator.onLine !== false; };
+    window.addEventListener('online', paint);
+    window.addEventListener('offline', paint);
+    paint();
+  }
+  if (document.body) offline(); else document.addEventListener('DOMContentLoaded', offline);
+
   window.AGShell = {
+    pageHeading: pageHeading,
     watchScroll: watchScroll,
     collapsingSearch: collapsingSearch,
     trackBottomUI: trackBottomUI,
@@ -336,4 +374,13 @@
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
+
+  /* The service worker (public/sw.js): our own page when the network drops, and the
+     fingerprinted files kept on this device. Registered after load so it never competes
+     with the page for the first paint; only on https or localhost, where browsers allow it. */
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('/sw.js').catch(function () {});
+    });
+  }
 })();

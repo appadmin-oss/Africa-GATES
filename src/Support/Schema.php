@@ -148,6 +148,45 @@ final class Schema
     }
 
     /**
+     * A registry profile page: `ProfilePage` with the person or the organisation as its main
+     * entity — the type search engines read a profile by. An organisation's profile used to
+     * be described as a Person, and nationality was the bare country code.
+     *
+     * Everything typed by the profile's owner goes through text(), as everywhere here.
+     *
+     * @param array<string,mixed> $p a gates_profiles row
+     * @return array<string,mixed>
+     */
+    public static function profilePage(array $p, string $siteUrl, string $pageUrl, string $image = ''): array
+    {
+        $isOrg = in_array((string) ($p['profile_type'] ?? 'individual'), ['organisation', 'business'], true);
+        $who = ['@type' => $isOrg ? 'Organization' : 'Person', 'name' => self::text($p['display_name'] ?? ''), 'url' => $pageUrl];
+        $desc = self::text($p['bio'] ?? $p['tagline'] ?? '');
+        if ($desc !== '') $who['description'] = mb_substr($desc, 0, 500);
+        if ($image !== '') $who[$isOrg ? 'logo' : 'image'] = self::absolute($image, $siteUrl);
+        $cat = self::text($p['category'] ?? '');
+        if ($cat !== '') $who[$isOrg ? 'knowsAbout' : 'jobTitle'] = $cat;
+
+        $cc = strtoupper(trim((string) ($p['country_code'] ?? '')));
+        $country = $cc !== '' ? NationsLive::name($cc) : '';
+        $city = self::text($p['location_city'] ?? '');
+        if ($country !== '' || $city !== '') {
+            $addr = ['@type' => 'PostalAddress'];
+            if ($city !== '') $addr['addressLocality'] = $city;
+            if ($cc !== '') $addr['addressCountry'] = $cc;
+            $who[$isOrg ? 'address' : 'homeLocation'] = $isOrg ? $addr : ['@type' => 'Place', 'address' => $addr];
+        }
+        if (!$isOrg && $country !== '') $who['nationality'] = ['@type' => 'Country', 'name' => $country];
+
+        $out = ['@context' => 'https://schema.org', '@type' => 'ProfilePage', 'url' => $pageUrl, 'mainEntity' => $who];
+        foreach (['registered_at' => 'dateCreated', 'updated_at' => 'dateModified'] as $col => $key) {
+            $t = strtotime((string) ($p[$col] ?? ''));
+            if ($t) $out[$key] = date('c', $t);
+        }
+        return $out;
+    }
+
+    /**
      * A ranked list — the leaderboard.
      *
      * @param list<array{name?:string,url?:string}> $items already in rank order

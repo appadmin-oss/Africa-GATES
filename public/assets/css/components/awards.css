@@ -309,3 +309,34 @@
 .aw-prizes__r{ display:grid; grid-template-columns:7.5rem 1fr; gap:12px; padding:10px 0; border-bottom:1px solid var(--ag-line) }
 .aw-prizes__r dt{ font-weight:700 }
 .aw-prizes__r dd{ margin:0 }
+
+/* ── A phone (owner, 11 Nov 2026: "this page looks cramped on a mobile") ─────────────
+   Three things squeezed it. The four phases sat in four columns of ~80px, so "To be
+   announced" broke over two lines beside one-word neighbours; the page carried a second
+   "All awards" link directly under the app bar's own back arrow, which goes to the same
+   place; and the edition card's 20px inset on a 358px screen left its contents ~318px. So
+   on a phone the phases are a vertical stepper — a dot per phase on one connecting line,
+   the phase and its state on one row each — the duplicate back link goes, the card's inset
+   is the gutter's 16px, and the edition's one action is the full-width button a phone's
+   main action is everywhere else on this site. */
+@media (max-width:599px){
+  .aw-d{ gap:22px }
+  .aw-d .aw-back{ display:none }
+  .aw-ed{ padding:16px; gap:14px }
+  .aw-tl{ display:flex; flex-direction:column; gap:0 }
+  .aw-tl__i{ position:relative; display:grid; grid-template-columns:20px minmax(0,1fr) auto; align-items:center; column-gap:10px; min-height:40px }
+  /* The connecting line runs from each dot to the next one. */
+  .aw-tl__i:not(:last-child)::after{ content:""; position:absolute; inset-inline-start:9px; top:calc(50% + 7px); height:calc(100% - 14px); width:2px; background:var(--ag-line) }
+  .aw-tl__i--done:not(:last-child)::after{ background:var(--ag-green) }
+  .aw-tl__bar{ width:12px; height:12px; margin-inline-start:4px; border-radius:var(--ag-r-pill); background:var(--ag-surface); box-shadow:inset 0 0 0 2px var(--ag-line-2) }
+  .aw-tl__i--done .aw-tl__bar{ background:var(--ag-green); box-shadow:none }
+  .aw-tl__i--now .aw-tl__bar{ width:14px; height:14px; margin-inline-start:3px; background:var(--ag-live); box-shadow:0 0 0 4px color-mix(in srgb, var(--ag-live) 18%, transparent) }
+  .aw-tl__t{ font-size:var(--ag-fs-15) }
+  .aw-tl__d{ font-size:var(--ag-fs-14); text-align:end }
+  .aw-tl__i--now .aw-tl__d{ color:var(--ag-ink); font-weight:600 }
+  .aw-ed__cta{ align-self:stretch; height:52px; font-size:var(--ag-fs-15-5) }
+}
+
+/* A link that stands on its own is a control, so it gets a control's height (44px, the
+   site's floor) — at 18px "Become a sponsor" was a target a thumb could miss (WCAG 2.5.8). */
+.aw-sec__link{ display:inline-flex; align-items:center; min-height:44px }

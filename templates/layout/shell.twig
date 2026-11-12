@@ -67,6 +67,7 @@
       data-ag-easy-font="{{ asset('/assets/css/fonts-easy.css') }}"
       data-ag-listen-listen="{{ 'Listen to this page'|trans }}" data-ag-listen-pause="{{ 'Pause'|trans }}"
       data-ag-listen-resume="{{ 'Resume'|trans }}" data-ag-listen-stop="{{ 'Stop'|trans }}"
+      data-ag-offline-text="{{ 'You are offline. Anything you send will need sending again once you are back.'|trans }}"
       data-ag-keep="{{ _consent and _consent.remember ? '1' : '0' }}"
       {% if _member_sync %}data-ag-sync="{{ _member_sync }}"{% endif %}>
 <head>
@@ -76,6 +77,12 @@
   <title>{{ page_title|default('Africa GATES') }}</title>
   {% if meta_description is defined %}<meta name="description" content="{{ meta_description }}">{% endif %}
   {% if meta_robots is defined %}<meta name="robots" content="{{ meta_robots }}">{% endif %}
+  {# EVERY PUBLIC PAGE carries its canonical, share card and structured data (10 Nov 2026).
+     It was opt-in: 21 pages included this partial from their own head block and every other
+     page — a registry profile among them, whose controller built a Person record and a share
+     image that nothing printed — went out with a title and nothing else. A page that must
+     not have it says `seo_head: false`. #}
+  {% if seo_head is not defined or seo_head %}{% include 'partials/seo-head.twig' %}{% endif %}
   {# Only for a signed-in member: the token a11y.js sends with POST /account/display. #}
   {# …and on a page that posts by script with no session to speak of (the account-free
      support-ticket link, Phase 9): `csrf_meta`, so the token comes from this one tag. #}
@@ -110,6 +117,8 @@
      form-validate.js below, because a form saying `novalidate data-ag-validate` turns the
      browser's messages off on the promise that these replace them (FormErrorStateTest). #}
   <link rel="stylesheet" href="{{ asset('/assets/css/components/forms.css') }}">
+  {# Planned work and the operator's announcement (partials/site-notice.twig). #}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/notice.css') }}">
   {# Every image slot with no upload draws a default cover or avatar (DEFAULT-GRAPHICS §2). #}
   <link rel="stylesheet" href="{{ asset('/assets/css/components/cover.css') }}">
   {% if not hide_chrome|default(false) %}<link rel="stylesheet" href="{{ asset('/assets/css/components/footer.css') }}">{% endif %}
@@ -133,6 +142,12 @@
     {% block app_bar %}{% include 'partials/app-bar.twig' with _bar only %}{% endblock %}
 
     <main class="ag-main" id="main" tabindex="-1">
+      {# Planned work and the operator's announcement (Services\SiteNotice). Inside <main>
+         so site-nav swaps it with the page; above the flash, because a notice is about the
+         site and a flash is about what somebody just did. #}
+      {# Not on the error page: it states its own situation, and a banner's link would lead
+         somewhere that is failing or closed. #}
+      {% if gates_page|default('') != 'error' %}{% include 'partials/site-notice.twig' %}{% endif %}
       {% if not own_flash|default(false) %}{% include 'partials/flash.twig' %}{% endif %}
       {% block content %}{% endblock %}
       {# The site's only footer (Phase 4), inside the scroller so it is reached by scrolling
@@ -143,7 +158,9 @@
     {# The cookie notice, the preferences sheet and the "saved" line (§7.9). Inside the
        column on purpose: on a phone the notice is a flex child above the tab bar, so the
        scroller shrinks for it and it can cover nothing (see consent.css). #}
-    {% include 'partials/cookie-consent.twig' %}
+    {# `consent_off`: the offline page only, which is cached once and shown later — a notice
+       baked into it would ask a question nobody can answer while offline. #}
+    {% if not consent_off|default(false) %}{% include 'partials/cookie-consent.twig' %}{% endif %}
 
     {% block bottom_bar %}
       {% if not flow_page|default(false) %}{% include 'partials/tab-bar.twig' with { active: tab|default('') } only %}{% endif %}

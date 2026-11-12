@@ -546,4 +546,30 @@ final class EventsFront
         }
         return $out;
     }
+
+    /**
+     * The edition each award this event presents is on now: the newest cycle of every active
+     * programme linked to the event, cycle id => "Programme year". One answer for every reader
+     * that asks "whose night is this", so the event's nominees and its outreach cannot disagree.
+     *
+     * @return array<int,string>
+     */
+    public static function cyclesFor(int $eventId): array
+    {
+        if ($eventId < 1 || !SchemaHas::table('gates_event_programmes')) return [];
+        $out = [];
+        $seen = [];
+        try {
+            foreach (DB::table('gates_event_programmes as ep')->join('gates_award_programmes as p', 'p.id', '=', 'ep.programme_id')
+                         ->join('gates_award_cycles as c', 'c.programme_id', '=', 'p.id')
+                         ->where('ep.event_id', $eventId)->where('p.is_active', 1)
+                         ->orderByDesc('c.year')->orderByDesc('c.id')
+                         ->get(['c.id', 'c.year', 'p.id as pid', 'p.title']) as $c) {
+                if (isset($seen[(int) $c->pid])) continue;
+                $seen[(int) $c->pid] = true;
+                $out[(int) $c->id] = trim((string) $c->title . ' ' . (string) $c->year);
+            }
+        } catch (\Throwable) {}
+        return $out;
+    }
 }

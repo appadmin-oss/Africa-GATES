@@ -55,7 +55,8 @@
 {% block content %}
 <div class="dv" data-dv data-tab="{{ s.tab }}" data-min="{{ min_query }}"
      {% if d %}{% for k, n in d.counts %} data-count-{{ k }}="{{ n }}"{% endfor %}{% endif %}
-     data-one="{{ '1 result'|trans }}" data-many="{{ '%n% results'|trans }}">
+     data-one="{{ '1 result'|trans }}" data-many="{{ '%n% results'|trans }}"
+     data-fresh-one="{{ '1 new update — show it'|trans }}" data-fresh-many="{{ '%n% new updates — show them'|trans }}">
 
   <div class="dv__head"><h1 class="dv__h1">{{ 'Discover'|trans }}</h1></div>
 
@@ -102,6 +103,12 @@
   </div>
 
   <div class="dv__panel" id="dvPanel" role="tabpanel" aria-labelledby="dvTab-{{ s.tab }}" data-dv-panel>
+    {# A search that found nothing as typed, shown corrected (DiscoverController): said in
+       words, with the original one tap away — a correction the visitor cannot see or undo
+       is the search deciding what they meant. #}
+    <div data-dv-fix>{% if corrected|default(null) %}
+      <p class="dv-fix">{{ 'Showing results for'|trans }} <b>{{ corrected.to }}</b>. <a href="{{ corrected.original }}">{{ 'Search instead for “%q%”'|trans({'%q%': corrected.from}) }}</a></p>
+    {% endif %}</div>
     {% if not d %}
       <p class="ag-err" role="alert">{{ 'Too many searches — pause a moment, then try again.'|trans }}</p>
     {% else %}
@@ -165,7 +172,9 @@
           </section>
 
           <section class="dv-sec dv-only dv-only--people" aria-labelledby="dvH-people">
-            <h2 class="dv-sec__h" id="dvH-people">{{ 'Most nominated this month'|trans }}</h2>
+            {# Searching, this is everybody: nominees in a live award whenever they were entered,
+               and registered profiles. Browsing, the month's most nominated, then the registry. #}
+            <h2 class="dv-sec__h" id="dvH-people">{{ sec.people.searching|default(false) ? 'People'|trans : 'Most nominated this month'|trans }}</h2>
             {% if sec.people.items %}
               <div class="dv-rows dv-rows--two">
                 {% for p in sec.people.items %}
@@ -177,16 +186,28 @@
               </div>
             {% else %}
               <p class="dv-empty">
-                {%- if s.q or _applied -%}{{ 'Nobody nominated this month matches these filters.'|trans }} <a href="{{ _f.clear }}">{{ 'Clear filters'|trans }}</a>
+                {%- if s.q -%}{{ 'Nobody matches “%q%”.'|trans({'%q%': s.q}) }}{% if _applied %} <a href="{{ _f.clear }}">{{ 'Clear filters'|trans }}</a>{% endif %}
+                {%- elseif _applied -%}{{ 'Nobody nominated this month matches these filters.'|trans }} <a href="{{ _f.clear }}">{{ 'Clear filters'|trans }}</a>
                 {%- else -%}{{ 'Nobody has been nominated yet this month.'|trans }}{%- endif -%}
               </p>
+            {% endif %}
+            {% if sec.people.registry|default([]) %}
+              <h3 class="dv-sec__h dv-sec__h--sub">{{ 'Registered profiles'|trans }}</h3>
+              <div class="dv-rows dv-rows--two">
+                {% for p in sec.people.registry %}
+                  <a class="dv-item" href="{{ p.url }}">
+                    <span class="dv-av" aria-hidden="true">{{ p.initials }}{% if p.photo %}<img src="{{ p.photo|media_url }}" alt="" loading="lazy" width="44" height="44">{% endif %}</span>
+                    <span class="dv-item__b"><span class="dv-item__t dv-item__t--s">{{ p.name }}</span><span class="dv-item__m dv-item__m--s">{{ p.meta }}</span></span>
+                  </a>
+                {% endfor %}
+              </div>
             {% endif %}
           </section>
         </div>
 
         <div class="dv-col">
           <section class="dv-sec dv-only dv-only--orgs" aria-labelledby="dvH-orgs">
-            <h2 class="dv-sec__h" id="dvH-orgs">{{ 'Award hosts'|trans }}</h2>
+            <h2 class="dv-sec__h" id="dvH-orgs">{{ sec.orgs.searching|default(false) ? 'Organisations'|trans : 'Award hosts'|trans }}</h2>
             {% if sec.orgs.items %}
               <div class="dv-rows">
                 {% for h in sec.orgs.items %}
@@ -197,7 +218,18 @@
                 {% endfor %}
               </div>
             {% else %}
-              <p class="dv-empty">{{ 'No award host matches “%q%”.'|trans({'%q%': s.q}) }}</p>
+              <p class="dv-empty">{{ s.q ? 'No organisation matches “%q%”.'|trans({'%q%': s.q}) : 'No award is running yet.'|trans }}</p>
+            {% endif %}
+            {% if sec.orgs.registry|default([]) %}
+              <h3 class="dv-sec__h dv-sec__h--sub">{{ 'Registered organisations'|trans }}</h3>
+              <div class="dv-rows">
+                {% for h in sec.orgs.registry %}
+                  <a class="dv-item" href="{{ h.url }}">
+                    <span class="dv-host" aria-hidden="true">{{ h.initial }}</span>
+                    <span class="dv-item__b"><span class="dv-item__t dv-item__t--s">{{ h.name }}</span><span class="dv-item__m dv-item__m--s">{{ h.meta }}</span></span>
+                  </a>
+                {% endfor %}
+              </div>
             {% endif %}
           </section>
 
@@ -248,7 +280,9 @@
     <div class="dv-facets" id="dvFacets" role="dialog" aria-modal="true" aria-labelledby="dvFacetsT" data-dv-facets>
       <form class="dv-facets__form" method="get" action="/discover" data-dv-facetform>
         <input type="hidden" name="tab" value="{{ s.tab }}" data-dv-tabfield>
-        {% if s.q %}<input type="hidden" name="q" value="{{ s.q }}">{% endif %}
+        {# Always present: the search box updates the page as it is typed (discover.js), and
+           the filters must apply to what is in the box now, not what the page loaded with. #}
+        <input type="hidden" name="q" value="{{ s.q }}" data-dv-qmirror>
         {% if s.literal and s.q %}<input type="hidden" name="literal" value="1">{% endif %}
         {% if s.tab == 'live' and s.kind != 'all' %}<input type="hidden" name="kind" value="{{ s.kind }}">{% endif %}
         <div class="dv-facets__head">

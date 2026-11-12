@@ -63,39 +63,37 @@
   role, because switching starts that role's session — never a link a prefetch can follow.
   `current` is the kind this surface is; it is marked, not offered.
 #}
-{% macro acctSwitch(items, current) %}
-  {% import _self as M %}
-  {% set ic = {member: 'user', volunteer: 'users', lead: 'ticket', admin: 'shield', judge: 'trophy', org: 'flag'} %}
-  <ul class="sh7-prod__list">
-    {% for m in items %}
-      <li>
-        {% if m.kind == current %}
-          <span class="sh7-prod__i is-on" role="menuitem" aria-current="true"><span class="sh7-prod__ic" aria-hidden="true">{{ M.icon(ic[m.kind]) }}</span><span class="sh7-prod__t"><span class="sh7-prod__n">{{ m.label }}</span><span class="sh7-prod__s">{{ m.sub }}</span></span><span class="sh7-prod__tick" aria-hidden="true">✓</span></span>
-        {% elseif m.live %}
-          <form method="post" action="/account/switch">
-            <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="kind" value="{{ m.kind }}">
-            <button class="sh7-prod__i" type="submit" role="menuitem"><span class="sh7-prod__ic" aria-hidden="true">{{ M.icon(ic[m.kind]) }}</span><span class="sh7-prod__t"><span class="sh7-prod__n">{{ m.label }}</span><span class="sh7-prod__s">{{ m.sub }}</span></span></button>
-          </form>
-        {% endif %}
-      </li>
-    {% endfor %}
-  </ul>
-{% endmacro %}
-
 {% macro chip(c) %}{% if c %}<span class="sh7-chip sh7-chip--{{ c[1]|default('mute') }}">{{ c[0] }}</span>{% endif %}{% endmacro %}
 
 {% macro bar(pct, label) %}<span class="sh7-meter"><span class="sh7-meter__track"><span class="sh7-meter__fill" style="width:{{ min(100, max(0, pct)) }}%"></span></span>{% if label %}<span class="sh7-meter__label">{{ label }}</span>{% endif %}</span>{% endmacro %}
 
-{% macro field(f) %}
-  {# A page with several forms names each field's id (`f.id`), or two fields would share one. #}
+{% macro field(f, quiet = false) %}
+  {# A page with several forms names each field's id (`f.id`), or two fields would share one.
+     `quiet`: the field is alone in its form group, so the group's name above it is already its
+     visible label. Printing the field's own label as well read as a stutter on every form in
+     both portals ("How it went / How it went", "Subject / Subject") and, stacked on a phone,
+     doubled the height of every row. The label stays for a screen reader, which needs the
+     field named where it is. #}
   {% set id = f.id is defined ? f.id : 'f_' ~ f.name|replace({'[': '_', ']': ''}) %}
+  {% set lc = quiet ? ' sh7-sr' : '' %}
   {% if f.type == 'radio' %}
-    <fieldset class="sh7-field sh7-field--choice"><legend class="sh7-field__label">{{ f.label }}</legend>
+    <fieldset class="sh7-field sh7-field--choice sh7-field--radio"><legend class="sh7-field__label{{ lc }}">{{ f.label }}</legend>
       {% for k, l in f.options %}<label class="sh7-choice"><input type="radio" name="{{ f.name }}" value="{{ k }}"{{ (f.value|default('')) == k ? ' checked' }}{{ f.required|default(false) ? ' required' }}> {{ l }}</label>{% endfor %}
     </fieldset>
   {% elseif f.type == 'checks' %}
-    <fieldset class="sh7-field sh7-field--choice"><legend class="sh7-field__label">{{ f.label }}</legend>
-      {% for k, l in f.options %}<label class="sh7-choice sh7-choice--check"><input type="checkbox" name="{{ f.name }}[]" value="{{ k }}"{{ k in f.value|default([]) ? ' checked' }}> {{ l }}</label>{% else %}<p class="sh7-field__help">{{ f.empty|default('Nobody to choose yet.') }}</p>{% endfor %}
+    {# A long list of short words (the pages a console opens with) is a grid, not a column a
+       desktop reader scrolls past; an option written "Name — what it does (high risk)" is
+       drawn as the name, the description under it, and the risk as a chip that can be
+       scanned down the list — it was one run-on line per permission. #}
+    {% set _short = f.options|length >= 6 and f.options|filter(o => o|length > 24)|length == 0 %}
+    <fieldset class="sh7-field sh7-field--choice{{ _short ? ' sh7-field--grid' }}"><legend class="sh7-field__label{{ lc }}">{{ f.label }}</legend>
+      {% for k, l in f.options %}<label class="sh7-choice sh7-choice--check"><input type="checkbox" name="{{ f.name }}[]" value="{{ k }}"{{ k in f.value|default([]) ? ' checked' }}>
+        {%- set _p = l|split(' — ', 2) -%}
+        {%- if _p|length == 2 -%}
+          {%- set _risk = _p[1] matches '/\\((low|medium|high) risk\\)$/' ? (_p[1]|split('(')|last|split(' ')|first) : '' -%}
+          <span class="sh7-choice__t"><span class="sh7-choice__n">{{ _p[0] }}</span>{% if _risk %} <span class="sh7-chip sh7-chip--{{ {low: 'ok', medium: 'warn', high: 'bad'}[_risk] }}">{{ _risk|capitalize }} risk</span>{% endif %}<span class="sh7-choice__d">{{ _risk ? _p[1]|split(' (' ~ _risk ~ ' risk)')|first : _p[1] }}</span></span>
+        {%- else %} {{ l }}{% endif -%}
+      </label>{% else %}<p class="sh7-field__help">{{ f.empty|default('Nobody to choose yet.') }}</p>{% endfor %}
     </fieldset>
   {% elseif f.type == 'segmented' %}
     <fieldset class="sh7-field"><legend class="sh7-field__label sh7-sr">{{ f.label }}</legend>
@@ -106,13 +104,13 @@
   {% elseif f.type == 'switch' %}
     <label class="sh7-switch"><input type="checkbox" name="{{ f.name }}" value="1"{{ f.value|default('0') == '1' ? ' checked' }}><span class="sh7-switch__track" aria-hidden="true"></span><span>{{ f.label }}</span></label>
   {% elseif f.type == 'select' %}
-    <label class="sh7-field" for="{{ id }}"><span class="sh7-field__label">{{ f.label }}</span>
+    <label class="sh7-field" for="{{ id }}"><span class="sh7-field__label{{ lc }}">{{ f.label }}</span>
       <select class="sh7-input" id="{{ id }}" name="{{ f.name }}"{{ f.required|default(false) ? ' required' }}>{% for k, l in f.options %}<option value="{{ k }}"{{ (f.value|default('')) == k ? ' selected' }}>{{ l }}</option>{% endfor %}</select></label>
   {% elseif f.type == 'textarea' %}
-    <label class="sh7-field" for="{{ id }}"><span class="sh7-field__label">{{ f.label }}</span>
+    <label class="sh7-field" for="{{ id }}"><span class="sh7-field__label{{ lc }}">{{ f.label }}</span>
       <textarea class="sh7-input" id="{{ id }}" name="{{ f.name }}" rows="4"{{ f.required|default(false) ? ' required' }}{% if f.autocomplete is defined %} autocomplete="{{ f.autocomplete }}"{% endif %}>{{ f.value|default('') }}</textarea></label>
   {% else %}
-    <label class="sh7-field" for="{{ id }}"><span class="sh7-field__label">{{ f.label }}</span>
+    <label class="sh7-field" for="{{ id }}"><span class="sh7-field__label{{ lc }}">{{ f.label }}</span>
       <input class="sh7-input" id="{{ id }}" type="{{ f.type }}" name="{{ f.name }}" value="{{ f.value|default('') }}"
         {%- if f.placeholder is defined %} placeholder="{{ f.placeholder }}"{% endif %}
         {%- if f.min is defined %} min="{{ f.min }}"{% endif %}{% if f.max is defined %} max="{{ f.max }}"{% endif %}{% if f.step is defined %} step="{{ f.step }}"{% endif %}
@@ -124,8 +122,21 @@
 {% macro section(s, here, act) %}
 {% import _self as M %}
 {% set act = act ?: '/volunteer/act' %}
-<section class="sh7-sec sh7-sec--{{ s.k }}{{ s.box|default(false) ? ' is-boxed' }}"{% if s.anchor is defined %} id="{{ s.anchor }}" tabindex="-1"{% endif %}>
-  {% if s.h is defined and s.h and s.k != 'hero' %}<h2 class="sh7-sec__h">{{ s.h }}</h2>{% endif %}
+{# `fold`: secondary material behind a disclosure, named by its heading. A page shows the one
+   thing it is for and folds the rest — which is where most of a screen's quality comes from.
+   A link to the section's anchor opens it (the browser reveals a closed <details> holding the
+   target), and it needs no script. `open` starts it open when it was just used (an error). #}
+{% set _fold = s.fold|default(false) and s.h|default('') %}
+{% if _fold %}<details class="sh7-fold sh7-fold--{{ s.k }}"{% if s.anchor is defined %} id="{{ s.anchor }}"{% endif %}{{ s.open|default(false) ? ' open' }}><summary class="sh7-fold__s"><span class="sh7-fold__t">{{ s.h }}</span>{% if s.foldHint is defined and s.foldHint %}<span class="sh7-fold__hint">{{ s.foldHint }}</span>{% endif %}<span class="sh7-fold__mark" aria-hidden="true"></span></summary>{% endif %}
+<section class="sh7-sec sh7-sec--{{ s.k }}{{ s.box|default(false) ? ' is-boxed' }}{{ _fold ? ' is-folded' }}"{% if s.anchor is defined and not _fold %} id="{{ s.anchor }}" tabindex="-1"{% endif %}>
+  {# A chip EVERY row of a list carries ("Locked" ×4, "Ends on its own" ×3) says nothing about
+     any one row: it is said once, beside the heading, and the rows carry only what differs. #}
+  {% set _common = null %}
+  {% if s.k == 'rows' and s.items|length > 1 and s.h|default('') and not _fold %}
+    {% set _c0 = (s.items|first).chip|default(null) %}
+    {% if _c0 and s.items|filter(r => r.chip|default(null) != _c0)|length == 0 %}{% set _common = _c0 %}{% endif %}
+  {% endif %}
+  {% if s.h is defined and s.h and s.k != 'hero' and not _fold %}<h2 class="sh7-sec__h">{{ s.h }}{% if _common %} {{ M.chip(_common) }}{% endif %}</h2>{% endif %}
 
   {% if s.k == 'rows' %}
     <ul class="sh7-rows">
@@ -141,9 +152,13 @@
             {% if r.inline is defined and r.inline %}
               <form class="sh7-rowform" method="post" action="{{ act }}">
                 <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="back" value="{{ here }}">
-                <input type="hidden" name="do" value="{{ r.inline.do }}"><input type="hidden" name="hour" value="{{ r.inline.hour }}">
-                <label class="sh7-sr" for="p{{ r.inline.hour }}">{{ r.inline.label }}</label>
-                <input class="sh7-input" id="p{{ r.inline.hour }}" type="url" name="{{ r.inline.name }}" placeholder="{{ r.inline.placeholder }}" required>
+                {# `hidden` names what the form carries; a row without it is the proof-link form,
+                   which carries its hour (WorkspacePages). `type` defaults to that form's url. #}
+                {% set _ih = r.inline.hidden is defined ? r.inline.hidden : {hour: r.inline.hour} %}
+                {% set _iid = 'p' ~ (r.inline.id is defined ? r.inline.id : r.inline.hour) %}
+                <input type="hidden" name="do" value="{{ r.inline.do }}">{% for k, v in _ih %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+                <label class="sh7-sr" for="{{ _iid }}">{{ r.inline.label }}</label>
+                <input class="sh7-input" id="{{ _iid }}" type="{{ r.inline.type|default('url') }}" name="{{ r.inline.name }}" placeholder="{{ r.inline.placeholder }}"{% if r.inline.step is defined %} step="{{ r.inline.step }}" min="{{ r.inline.min|default(0) }}"{% endif %} required>
                 <button class="sh7-btn sh7-btn--sm" type="submit">{{ r.inline.submit }}</button>
               </form>
             {% endif %}
@@ -177,7 +192,7 @@
             {% endif %}
           </span>
           {% if r.meta is defined and r.meta %}<span class="sh7-row__time">{{ r.meta }}</span>{% endif %}
-          {{ M.chip(r.chip|default(null)) }}
+          {% if not _common %}{{ M.chip(r.chip|default(null)) }}{% endif %}
           {% if r.cta is defined and r.cta %}<span class="sh7-row__cta">{{ M.action(r.cta, here, true, act, r.t) }}</span>{% endif %}
           {% if r.href is defined and r.href and not (r.cta is defined and r.cta) %}<span class="sh7-row__chev" aria-hidden="true">{{ M.icon('chev') }}</span>{% endif %}
         </li>
@@ -210,13 +225,19 @@
       {% for x in s.items %}
         <li class="sh7-step sh7-step--{{ x.st ?: 'next' }}"{% if x.st == 'now' %} aria-current="step"{% endif %}>
           <span class="sh7-step__n" aria-hidden="true">{{ x.st == 'done' ? '✓' : loop.index }}</span>
-          <span class="sh7-step__words"><span class="sh7-step__t">{{ x.t }}</span><span class="sh7-step__sub">{{ x.sub }}</span></span>
+          <span class="sh7-step__words">{% if x.href is defined and x.href %}<a class="sh7-step__t sh7-step__link" href="{{ x.href }}">{{ x.t }}</a>{% else %}<span class="sh7-step__t">{{ x.t }}</span>{% endif %}<span class="sh7-step__sub">{{ x.sub }}</span></span>
         </li>
       {% endfor %}
     </ol>
 
   {% elseif s.k == 'note' %}
+    {# `ctas`: several one-tap answers beside one sentence ("Just called? No answer · Left a
+       message"). A div, because a posting action is a <form> and a <p> cannot hold one. #}
+    {% if s.ctas is defined and s.ctas %}
+    <div class="sh7-note sh7-note--acts sh7-note--{{ s.tone|default('mute') }}"><span class="sh7-note__t">{{ s.text }}</span><span class="sh7-note__acts">{% for c in s.ctas %}{{ M.action(c, here, false, act) }}{% endfor %}</span></div>
+    {% else %}
     <p class="sh7-note sh7-note--{{ s.tone|default('mute') }}{{ s.pre|default(false) ? ' sh7-note--pre' }}">{{ s.text }}{% if s.cta is defined %} {{ M.action(s.cta, here, true, act) }}{% endif %}</p>
+    {% endif %}
 
   {% elseif s.k == 'hero' %}
     <div class="sh7-hero">
@@ -297,7 +318,7 @@
       {% for g in s.groups %}
         <div class="sh7-form__block">
           <div class="sh7-form__label"><p class="sh7-form__name">{{ g.label }}</p>{% if g.help is defined and g.help %}<p class="sh7-form__help">{{ g.help }}</p>{% endif %}</div>
-          <div class="sh7-form__fields">{% for f in g.fields %}{{ M.field(f) }}{% endfor %}</div>
+          <div class="sh7-form__fields">{% for f in g.fields %}{{ M.field(f, g.label|default("")|trim != "" and (g.fields|length == 1 or f.label|default("")|lower == g.label|lower)) }}{% endfor %}</div>
         </div>
       {% endfor %}
       {% if s.route is defined and s.route %}<p class="sh7-form__route">{{ s.route }}</p>{% endif %}
@@ -305,7 +326,11 @@
     </form>
 
   {% elseif s.k == 'article' %}
-    <div class="sh7-article">{% for p in s.paras %}<p>{{ p }}</p>{% endfor %}</div>
+    {# `blocks`: headed parts of a written document (an event's report), line breaks kept as
+       written — escaped text, never HTML: a lead typed it. #}
+    <div class="sh7-article">{% for p in s.paras|default([]) %}<p>{{ p }}</p>{% endfor %}
+      {%- for b in s.blocks|default([]) %}<h3 class="sh7-article__h">{{ b.h }}</h3><p class="sh7-article__p">{{ b.text }}</p>{% endfor -%}
+    </div>
 
   {% elseif s.k == 'decide' %}
     <form class="sh7-form sh7-decide" method="post" action="{{ act }}">
@@ -317,4 +342,5 @@
     </form>
   {% endif %}
 </section>
+{% if _fold %}</details>{% endif %}
 {% endmacro %}

@@ -67,6 +67,9 @@
              border-radius:var(--ag-r-pill) 0 0 var(--ag-r-pill); box-shadow:var(--ag-sh-float) }
   [dir="rtl"] .gee__fab{ padding:0 7px 0 0; border-radius:0 var(--ag-r-pill) var(--ag-r-pill) 0 }
   .gee__fab .gee__g{ width:26px; height:26px; font-size:var(--ag-fs-15) }
+  /* While the cookie notice asks, the tab rode above it — mid-screen, over the page's own
+     cards. One question at a time: it comes back the moment the notice is answered. */
+  body:has(.ag-consent) .gee__fab{ display:none }
 }
 
 .gee__g{
@@ -118,23 +121,24 @@
 
 /* ══ 1 · Header ══════════════════════════════════════════════════════════════ */
 
+/* The simple panel (owner, 9 Nov 2026, "make Gee's interface this simple"): a name and two
+   icons over a hairline; the status line is for screen readers (gee.twig). */
 .gee__head{
   flex:none; display:flex; align-items:center; gap:10px;
-  padding-block:14px 12px; padding-inline:18px 12px;
-  border-bottom:1px solid transparent;
+  padding-block:10px; padding-inline:16px 8px;
+  border-bottom:1px solid var(--ag-ground);
 }
-.gee[data-mode="support"] .gee__head{ border-bottom-color:var(--ag-ground) }
 
 .gee__av{
   position:relative; flex:none;
-  width:34px; height:34px; border-radius:50%;
+  width:28px; height:28px; border-radius:50%;
   display:flex; align-items:center; justify-content:center;
   background:var(--ag-green-light); color:var(--ag-ink);
   font:700 var(--ag-fs-17)/1 var(--ag-font-display);
 }
 .gee__av-dot{
-  position:absolute; inset-inline-end:-1px; bottom:-1px;
-  width:15px; height:15px; border-radius:50%;
+  position:absolute; inset-inline-end:-2px; bottom:-2px;
+  width:11px; height:11px; border-radius:50%;
   background:var(--ag-green); border:2px solid var(--ag-surface);
 }
 .gee[data-mode="support"] .gee__av-dot{ background:var(--ag-gold) }
@@ -156,7 +160,7 @@
   cursor:pointer;
 }
 .gee__iconbtn:hover{ background:var(--ag-ground); color:var(--ag-ink) }
-.gee__iconbtn--close{ background:var(--ag-ground); color:var(--ag-ink) }
+.gee__iconbtn--close{ color:var(--ag-ink) }
 .gee__live{
   position:absolute; top:10px; inset-inline-end:10px;
   width:12px; height:12px; border-radius:50%;
@@ -180,42 +184,38 @@
 .gee__empty[hidden],
 .gee__thread:empty{ display:none }
 
-/* 3 · Greeting */
-.gee__hello{ display:flex; flex-direction:column; gap:6px; padding-block:8px 4px; padding-inline:2px }
-.gee__hello-t{ margin:0; font:700 var(--ag-fs-25)/1.15 var(--ag-font-display); color:var(--ag-ink) }
-.gee__hello-s{ margin:0; font-size:var(--ag-fs-14); line-height:1.5; color:var(--ag-soft) }
+/* 3 · Greeting — a message from Gee, not a hero: a small byline and two plain lines. */
+.gee__hello{ display:flex; flex-direction:column; gap:2px; padding-block:4px 0 }
+.gee__by{ margin-bottom:4px; font-size:var(--ag-fs-12-5); font-weight:600; color:var(--ag-soft) }
+.gee__hello-t,
+.gee__hello-s{ margin:0; font:400 var(--ag-fs-16)/1.5 var(--ag-font-ui); color:var(--ag-ink) }
 
-/* Guide: four starters */
-.gee__starters{ display:flex; flex-direction:column; gap:8px }
-.gee__starter{
-  display:flex; align-items:center; gap:12px;
-  min-height:52px; padding:0 14px;
-  border:1px solid var(--ag-line); border-radius:var(--ag-r-14);
+/* Quick replies: outlined chips on the right, where the reader's own answers appear, sized
+   to their words. One rule for the guide's starters and the desk's fixes. */
+.gee__starters,
+.gee__fixes{ display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; margin-top:8px }
+.gee__starter,
+.gee__fix{
+  display:inline-flex; align-items:center; min-height:40px; padding:6px 14px;
+  border:1px solid var(--ag-line); border-radius:var(--ag-r-12);
   background:var(--ag-surface); color:var(--ag-ink);
-  font-size:var(--ag-fs-14-5); font-weight:500; text-align:start;
+  font-family:inherit; font-size:var(--ag-fs-14-5); font-weight:500; line-height:1.3; text-align:start;
   cursor:pointer;
 }
-.gee__starter:hover{ background:var(--ag-bar) }
-.gee__starter-i{ flex:none; color:var(--ag-green) }
-.gee__starter-t{ flex:1 }
-.gee__starter-go{ flex:none; color:var(--ag-chevron) }
+.gee__starter:hover,
+.gee__fix:hover{ background:var(--ag-bar) }
+@media (pointer:coarse){ .gee__starter, .gee__fix{ min-height:44px } }
 
-/* 2/5 · The privacy note */
+/* 2/5 · The privacy note: a quiet line after the greeting, no box. */
 .gee__note{
-  display:flex; align-items:flex-start; gap:10px;
-  padding:10px 12px;
-  background:var(--ag-bar); border-radius:var(--ag-r-12);
-  font-size:var(--ag-fs-12); line-height:1.5; color:var(--ag-ink-2);
+  display:flex; align-items:center; gap:4px; margin-top:4px;
+  font-size:var(--ag-fs-12); line-height:1.5; color:var(--ag-soft);
 }
 .gee__note[hidden]{ display:none }
-.gee__note-i{ flex:none; margin-top:1px; color:var(--ag-ink-2) }
 .gee__note-t{ flex:1 }
 .gee__note-t a{ color:var(--ag-ink); text-decoration:underline }
-/* The DC's 28px ×, in a 44px box that overhangs the note's padding so the line box
-   does not grow. */
 .gee__note-x{
-  flex:none; width:44px; height:44px;
-  margin-block:-13px; margin-inline:0 -14px;
+  flex:none; width:44px; height:44px; margin-block:-10px; margin-inline-end:-12px;
   display:flex; align-items:center; justify-content:center;
   border:0; border-radius:50%; background:transparent; color:var(--ag-soft);
   font-size:var(--ag-fs-16); cursor:pointer;
@@ -288,26 +288,6 @@
 }
 .gee__refcard-n{ font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
 .gee__refcard-n a{ color:var(--ag-ink); text-decoration:underline }
-
-/* Support: quick fixes, 2 × 2 */
-.gee__fixes{ display:grid; grid-template-columns:1fr 1fr; gap:8px }
-.gee__fix{
-  display:flex; flex-direction:column; align-items:flex-start; gap:8px;
-  min-height:84px; padding:12px;
-  border:1px solid var(--ag-line); border-radius:var(--ag-r-16);
-  background:var(--ag-surface); color:var(--ag-ink);
-  text-align:start; cursor:pointer;
-}
-.gee__fix:hover{ background:var(--ag-bar) }
-.gee__fix-i{
-  width:32px; height:32px; border-radius:var(--ag-r-10);
-  display:flex; align-items:center; justify-content:center;
-}
-.gee__fix--check   .gee__fix-i{ background:var(--ag-gold-wash-2); color:var(--ag-gold-ink) }
-.gee__fix--receipt .gee__fix-i{ background:var(--ag-green-wash);  color:var(--ag-green-deep) }
-.gee__fix--code    .gee__fix-i{ background:var(--ag-info-wash);   color:var(--ag-info) }
-.gee__fix--wrong   .gee__fix-i{ background:var(--ag-live-wash);   color:var(--ag-live-ink) }
-.gee__fix-t{ font-size:var(--ag-fs-13-5); font-weight:600; line-height:1.3 }
 
 /* 4 · Bubbles. Logical corner radii, so the tail follows the reading direction. */
 .gee__msg{ display:flex; justify-content:flex-start; animation:geeIn .25s ease-out both }
@@ -541,9 +521,10 @@
 .gee__err[hidden]{ display:none }
 
 .gee__composer{
-  display:flex; align-items:center; gap:6px;
+  /* The buttons stay on the LAST line as the box grows, where the thumb already is. */
+  display:flex; align-items:flex-end; gap:6px;
   padding-block:1px; padding-inline:2px 1px;
-  border:1px solid var(--ag-line); border-radius:var(--ag-r-pill);
+  border:1px solid var(--ag-line); border-radius:22px;
   background:var(--ag-bar);
 }
 .gee__attach{
@@ -553,11 +534,18 @@
   cursor:pointer;
 }
 .gee__input{
-  flex:1; min-width:0; height:44px; padding:0; padding-inline-start:8px;
+  /* A textarea one line tall at rest (44px, the target floor), growing to five lines and
+     then scrolling (gee.js sets the height). 16px keeps iOS from zooming the page on focus. */
+  flex:1; min-width:0; min-height:44px; max-height:132px; height:44px;
+  padding-block:11px; padding-inline:8px 0; margin:0;
   border:0; outline:0; background:transparent; color:var(--ag-ink);
-  font-family:var(--ag-font-ui); font-size:var(--ag-fs-16);
+  font-family:var(--ag-font-ui); font-size:var(--ag-fs-16); line-height:1.375;
+  resize:none; overflow-y:hidden; box-sizing:border-box;
 }
-.gee__composer:focus-within{ outline:3px solid var(--ag-green); outline-offset:2px }
+/* Focus is drawn INSIDE the box. A 3px ring offset outside it ran into the screen's edges
+   once the sheet went edge to edge, and was clipped there. 2px of green, still a clear
+   change of state (WCAG 2.4.7), on the box's own edge. */
+.gee__composer:focus-within{ border-color:var(--ag-green); box-shadow:inset 0 0 0 1px var(--ag-green) }
 /* The DC's 36px ink disc, in a 44px hit box. */
 .gee__send{
   flex:none; width:44px; height:44px; padding:0;
@@ -570,6 +558,10 @@
   background:var(--ag-ink); color:var(--ag-surface);
 }
 .gee__send:disabled{ cursor:default }
+/* Nothing to send looks like it: the disc goes quiet until there are words. */
+.gee__send:disabled .gee__send-o{ background:var(--ag-line-2); color:var(--ag-surface) }
+.gee__count{ margin:6px 4px 0; font-size:var(--ag-fs-12); color:var(--ag-soft); text-align:end }
+.gee__count[hidden]{ display:none }
 
 .gee__fine{
   margin:8px 0 0; text-align:center;
@@ -583,22 +575,6 @@
 }
 
 
-/* ══ A phone: a full-height sheet, not a floating card ═══════════════════════
-   The card floated 56px under the top and 16px above the tab bar, with the page showing
-   round it — on a 390×844 phone that left a conversation window of about 280px once the
-   header and the composer were drawn, and every answer scrolled. On a phone Gee is a
-   sheet (§7.4): from just under the status bar to the bottom edge, over the tab bar, top
-   corners rounded, the composer clear of the home indicator. A scrim behind it says the
-   page is under it. `100%` of a fixed layer, never vh — the layer is the viewport. */
-@media (max-width:599.98px){
-  .gee__layer{ inset:0; padding-top:calc(env(safe-area-inset-top) + 8px) }
-  .gee__layer[data-open]{ background:var(--ag-scrim); pointer-events:auto }
-  .gee__panel{ height:100%; border-radius:var(--ag-r-24) var(--ag-r-24) 0 0; border-bottom:0 }
-  .gee__foot{ padding-bottom:calc(10px + env(safe-area-inset-bottom)) }
-  .gee__head{ padding-block:10px 8px }
-  .gee__hello-t{ font-size:var(--ag-fs-24) }
-}
-
 /* ══ Breakpoint ownership: from 600, the desktop panel ═══════════════════════ */
 
 @media (min-width:600px){
@@ -608,6 +584,82 @@
   .gee__panel{ width:400px; height:min(580px, 100%) }
 }
 
+
+/* ══ Chat / Help desk — the switch at the foot ════════════════════════════════
+   One outlined track, the current half filled. Each half keeps its own conversation. */
+.gee__seg{
+  display:grid; grid-template-columns:1fr 1fr; gap:4px; margin-top:10px; padding:4px;
+  border:1px solid var(--ag-line); border-radius:var(--ag-r-14); background:var(--ag-surface);
+}
+.gee__seg-b{
+  display:flex; align-items:center; justify-content:center; gap:8px; min-height:40px; padding:0 10px;
+  border:0; border-radius:var(--ag-r-10); background:transparent; color:var(--ag-ink-2);
+  font-family:inherit; font-size:var(--ag-fs-14-5); font-weight:600; cursor:pointer;
+}
+.gee__seg-b:hover{ color:var(--ag-ink) }
+.gee__seg-b[aria-pressed="true"]{ background:var(--ag-ground); color:var(--ag-ink) }
+.gee__seg-b:focus-visible{ outline:3px solid var(--ag-green); outline-offset:-3px }
+@media (pointer:coarse){ .gee__seg-b{ min-height:44px } }
+
+/* ══ A phone: the whole screen ════════════════════════════════════════════════
+   Gee on a phone is a conversation, and a conversation wants every pixel. It used to be a
+   floating card (a 280px window on a 390×844 phone), then a sheet 8px under the status bar
+   with the page dimmed above it; now it is the screen, edge to edge, with the notch, the
+   home indicator and a landscape phone's side insets kept clear by the safe areas.
+
+   THE SAME RULE FOR A PHONE ON ITS SIDE. 740×360 is wider than the 600 breakpoint, so a
+   landscape phone got the desktop card — 400×320 floating over the page with about forty
+   pixels left between the header and the composer. A short screen with a finger is a phone
+   whatever its width; `(max-height:499.98px) and (pointer:coarse)` says so. It comes AFTER
+   the 600 block so it wins there. gee.js reads the same query (SHEET_MQ) for the keyboard.
+
+   THE KEYBOARD. iOS Safari does not shrink the layout viewport for the on-screen keyboard,
+   so a `position:fixed; inset:0` panel kept its full height and the composer sat behind
+   the keys. gee.js writes the VISUAL viewport's height and offset into --gee-vv-h and
+   --gee-vv-top while the sheet is open, and the layer follows them: the composer stays on
+   the line above the keyboard. Without a script, or where the browser does shrink the
+   page (Android Chrome), the fallback is simply the whole layout viewport. */
+@media (max-width:599.98px), (max-height:499.98px) and (pointer:coarse){
+  .gee__layer{
+    inset:auto 0; top:var(--gee-vv-top, 0px); height:var(--gee-vv-h, 100%);
+    padding:0; align-items:stretch;
+  }
+  .gee__layer[data-open]{ background:var(--ag-surface); pointer-events:auto }
+  .gee__panel{ width:100%; height:100%; max-height:none; border:0; border-radius:0; box-shadow:none }
+  .gee__head{
+    padding-block:calc(env(safe-area-inset-top) + 8px) 8px;
+    padding-inline:calc(env(safe-area-inset-left) + 16px) calc(env(safe-area-inset-right) + 10px);
+    border-bottom-color:var(--ag-ground);
+  }
+  .gee__log{ padding-inline:calc(env(safe-area-inset-left) + 16px) calc(env(safe-area-inset-right) + 16px) }
+  .gee__foot{
+    padding-bottom:calc(10px + env(safe-area-inset-bottom));
+    padding-inline:calc(env(safe-area-inset-left) + 12px) calc(env(safe-area-inset-right) + 12px);
+  }
+  /* A wide sheet (a phone on its side, a large phone) keeps a reading measure rather than
+     stretching a starter or a reply across 900px. */
+  .gee__log > *, .gee__foot > *{ width:100%; max-width:720px; margin-inline:auto }
+  /* The page under a full-screen conversation must not scroll with a finger dragged past
+     the end of the log (iOS hands the gesture to the document otherwise). */
+  html:has(.gee__layer[data-open]){ overflow:hidden }
+}
+/* Short screens (a phone on its side): every line of chrome costs conversation, so the
+   header and the switch tighten and the small print goes. */
+@media (max-height:499.98px) and (pointer:coarse){
+  .gee__hello{ padding-block:0 }
+  /* 360px tall leaves no room for a line of small print as well: a person is still one
+     tap away, under Help desk, whose greeting offers one. */
+  .gee__fine{ display:none }
+  .gee__seg{ margin-top:6px; padding:2px }
+  .gee__seg-b{ min-height:40px }
+  .gee__head{ padding-block:4px }
+}
+/* Two columns only where there is width for them: a phone on its side. A portrait phone is
+   also "short" while its keyboard is up, and two columns there wrapped every starter. */
+
+/* Opened by touch, the sheet's first focus goes to the panel itself rather than drawing a
+   focus ring round the first header button nobody pointed at (gee.js). */
+.gee__panel:focus{ outline:0 }
 
 /* ══ Motion ══════════════════════════════════════════════════════════════════ */
 

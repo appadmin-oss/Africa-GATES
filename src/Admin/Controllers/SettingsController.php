@@ -57,6 +57,18 @@ class SettingsController
             'tz_abbr'        => \AfricaGates\Support\DisplayTime::abbr(),
             'smtp_configured'=> $this->mailer?->canSend() ?? false,
             'planned_work'   => \AfricaGates\Services\PlannedWork::stored(),
+            // What the public site is showing from the banner fields, said beside them: an
+            // operator who saved a link the page refuses to print learns it here, not never.
+            'announce_state' => (static function (array $v): array {
+                $text = trim((string) ($v['announce_text'] ?? ''));
+                $url  = trim((string) ($v['announce_url'] ?? ''));
+                $a    = \AfricaGates\Services\SiteNotice::announcement($v);
+                return [
+                    'showing'  => $a !== null,
+                    'ended'    => $text !== '' && $a === null,
+                    'bad_link' => $url !== '' && \AfricaGates\Services\SiteNotice::safeUrl($url) === null,
+                ];
+            })($this->settings->all()),
             'mail_config'    => (static function (): array {
                 $c = \AfricaGates\Services\Mail\MailConfig::load();
                 return $c->describe() + ['login_source' => match ($c->source('username')) {
@@ -229,6 +241,7 @@ class SettingsController
             'ad_placements'     => \AfricaGates\Services\Ads\AdRules::PLACEMENTS,
             'ad_beta'           => \AfricaGates\Services\Ads\AdRules::inBeta(),
             'visits_on'         => \AfricaGates\Services\VisitTracker::enabled(),
+            'views_min'         => \AfricaGates\Services\PageViews::showMin(), 'views_secs' => \AfricaGates\Services\PageViews::ENGAGED_SECONDS,
             'visits_days_value' => \AfricaGates\Services\VisitTracker::keepDays(),
             'visits_mode'       => \AfricaGates\Services\CookiePrefs::mode(),
             'ga_id'             => \AfricaGates\Services\GoogleAnalytics::measurementId(),
@@ -729,6 +742,13 @@ class SettingsController
                 } else {
                     $_SESSION['flash_error'] = 'Google Analytics not changed: a measurement ID looks like G-ABC123XYZ.';
                 }
+            }
+
+            // "Seen by" (Services\PageViews): a page's view count is shown from this many
+            // views. At least 1 — nought would put "0 views" on every new page.
+            if (array_key_exists('views_show_min', $b)) {
+                $min = (int) preg_replace('/[^0-9]/', '', (string) $b['views_show_min']);
+                $this->settings->set('views_show_min', (string) ($min > 0 ? min(1_000_000, $min) : \AfricaGates\Services\PageViews::SHOW_MIN), $adminId);
             }
 
             $mode = strtolower(trim((string) ($b['visits_consent_mode'] ?? '')));
@@ -1269,6 +1289,13 @@ class SettingsController
                     (string) $b[\AfricaGates\Services\GatewayFee::BEARER_KEY] === 'platform' ? 'platform' : 'organisation', $adminId);
             }
             \AfricaGates\Services\GatewayFee::forget();
+        }
+
+        // When the announcement stops — typed in the display zone, stored in UTC, the same
+        // pair as the planned-work window. Blank means until somebody clears the text.
+        if (array_key_exists('announce_until', $b)) {
+            $u = trim(str_replace('T', ' ', (string) $b['announce_until']));
+            $this->settings->set('announce_until', $u === '' ? '' : (\AfricaGates\Support\DisplayTime::toStored($u) ?? ''), $adminId);
         }
 
         // Planned work on /status (Phase 9) — normalised by its one reader's own writer.

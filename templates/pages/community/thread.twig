@@ -29,8 +29,7 @@
 {% set app_bar = {variant: 'child', title: 'Thread'|trans, back: '/community'} %}
 {% set _next = ('/community/' ~ t.slug ~ '#reply')|url_encode %}
 
-{% block head_styles %}
-  {% include 'partials/seo-head.twig' %}
+{% block head_styles %}{% if views %}<link rel="stylesheet" href="{{ asset('/assets/css/components/views.css') }}">{% endif %}
   <link rel="stylesheet" href="{{ asset('/assets/css/components/community.css') }}">
   {% if poll %}<link rel="stylesheet" href="{{ asset('/assets/css/components/poll.css') }}">{% endif %}
 {% endblock %}
@@ -41,6 +40,7 @@
     <article class="cm-op" aria-labelledby="cm-t">
       <p class="cm-crumb"><a href="/community">{{ 'Community'|trans }}</a></p>
       <h1 class="cm-h1" id="cm-t">{{ t.title }}</h1>
+      {% if views %}<div class="cm-views">{% include 'partials/views-badge.twig' with {v: views, csrf_token: csrf_token} only %}</div>{% endif %}
       {% if t.is_pinned or _locked %}
         <p class="cm-tags">
           {% if t.is_pinned %}<span class="cm-tag">{{ 'Pinned'|trans }}</span>{% endif %}
@@ -162,7 +162,7 @@
 {% endif %}
 {% endblock %}
 
-{% block foot_scripts %}
+{% block foot_scripts %}{% if views %}<script defer src="{{ asset('/assets/js/views.js') }}" data-nav="rerun"></script>{% endif %}
   {% if poll %}<script defer src="{{ asset('/assets/js/poll.js') }}" data-nav="rerun"></script>{% endif %}
   {% if member_logged_in %}<script defer src="{{ asset('/assets/js/community.js') }}" data-nav="rerun"></script>{% endif %}
 {% endblock %}

@@ -167,8 +167,11 @@ final class GeeTest extends TestCase
         // the panel fills it with rounded top corners and a scrim behind, and it covers the
         // tab bar ON PURPOSE: a modal sheet over the bars, which is what §7.4 draws a sheet as.
         // The formula above still positions the launcher and the desktop panel.
-        $this->assertMatchesRegularExpression('~@media \(max-width:599\.98px\)\{\s*\.gee__layer\{ inset:0; padding-top:calc\(env\(safe-area-inset-top\) \+ 8px\) \}~', $css);
-        $this->assertStringContainsString('.gee__foot{ padding-bottom:calc(10px + env(safe-area-inset-bottom)) }', $css,
+        // Since 9 Nov 2026 ("fix its adaptability and full screen display on mobiles") the sheet
+        // is the whole screen — no gap under the status bar, no scrim strip, no corners — and a
+        // landscape phone gets it too. GeeFullScreenTest holds that block in detail.
+        $this->assertMatchesRegularExpression('~@media \(max-width:599\.98px\), \(max-height:499\.98px\) and \(pointer:coarse\)\{\s*\.gee__layer\{~', $css);
+        $this->assertMatchesRegularExpression('~\.gee__foot\{\s*padding-bottom:calc\(10px \+ env\(safe-area-inset-bottom\)\)~', $css,
             'the composer clears the home indicator on the sheet');
     }
 
@@ -451,7 +454,12 @@ final class GeeTest extends TestCase
         $this->assertSame(1, substr_count($tools[1], 'setTimeout('));
         $this->assertMatchesRegularExpression("/setTimeout\(function \(\) \{ copy\.removeAttribute\('data-done'\); copy\.setAttribute\('aria-label', M\('copy'\)\); \}, 1600\)/", $tools[1],
             'the copy timer only puts the copy button back');
-        $this->assertSame(1, substr_count(str_replace([$wait[1], $tuck[1], $tools[1]], '', $js), 'setTimeout('), 'the only other timer is the focus hand-off on open');
+        // The focus hand-off on open is the only other timer: one path for a keyboard (the
+        // composer), the other for touch (the panel itself), never both.
+        $rest = str_replace([$wait[1], $tuck[1], $tools[1]], '', $js);
+        $this->assertSame(2, substr_count($rest, 'setTimeout('), 'the only other timers are the focus hand-off on open');
+        $this->assertMatchesRegularExpression('/setTimeout\(function \(\) \{ input\.focus\(\); \}, 0\);\s*(?:\/\*.*?\*\/\s*)?else setTimeout\(function \(\) \{ panel\.focus\(\{ preventScroll: true \}\); \}, 0\);/s', $rest,
+            'both timers are the focus hand-off, and they are alternatives');
     }
 
     // ══ THE DESK ═════════════════════════════════════════════════════════════

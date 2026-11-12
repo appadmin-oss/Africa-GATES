@@ -317,9 +317,68 @@
     });
   }
 
+  /* ── Search as you type, on every tab (10 Nov 2026) ──────────────────────────
+     The Live tab always searched as it was typed; every other tab waited for Enter and
+     reloaded the page. Now each keystroke (debounced) fetches the same URL the form would,
+     and swaps in only the result sections, the correction line and the timeline — never
+     the ad slot (the server sends none to a keystroke: an impression per letter is money)
+     and never the box itself, so focus and the caret stay where they are. The URL follows
+     (replaceState), so Back, a refresh and a shared link all show what is on screen. A
+     search that found nothing is reported as SETTLED after 1.5 s of no typing, and only
+     that counts as a miss on the analytics page. */
+  var pseq = 0, ptimer = null, settle = null;
+  function mirrorQ(q) {
+    Array.prototype.forEach.call(document.querySelectorAll('[data-dv-qmirror]'), function (f) { f.value = q; });
+  }
+  function searchPage(q, settled) {
+    var mine = ++pseq;
+    clearTimeout(settle);
+    var url = urlWith({ q: q || null, literal: null, page: 1 });
+    history.replaceState({ dvTab: tab() }, '', url);
+    mirrorQ(q);
+    if (panel) panel.setAttribute('aria-busy', 'true');
+    return fetch(url, { headers: { 'X-Requested-With': 'fetch', 'X-Discover-Live': settled ? 'settled' : '1' }, credentials: 'same-origin' })
+      .then(function (r) { if (!r.ok) throw new Error(String(r.status)); return r.text(); })
+      .then(function (html) {
+        if (mine !== pseq) return;               // a newer keystroke owns the page
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var nroot = doc.querySelector('[data-dv]');
+        if (nroot) {
+          Array.prototype.forEach.call(nroot.attributes, function (a) {
+            if (a.name.indexOf('data-count-') === 0) root.setAttribute(a.name, a.value);
+          });
+        }
+        var fix = root.querySelector('[data-dv-fix]'), nfix = doc.querySelector('[data-dv-fix]');
+        if (fix && nfix) fix.innerHTML = nfix.innerHTML;
+        Array.prototype.forEach.call(root.querySelectorAll('[data-dv-panel] section.dv-sec'), function (sec) {
+          var key = (sec.className.match(/dv-only--[a-z]+/) || [])[0];
+          var next = key && doc.querySelector('[data-dv-panel] section.dv-sec.' + key);
+          if (next) sec.replaceWith(document.importNode(next, true));
+        });
+        if (doc.querySelector('[data-dv-live]')) swapLive(html);
+        var count = root.querySelector('[data-dv-count]');
+        var n = parseInt(root.getAttribute('data-count-' + tab()), 10);
+        if (count && !isNaN(n)) count.textContent = plural(root, n);
+        if (panel) panel.removeAttribute('aria-busy');
+        if (!settled && q && n === 0) settle = setTimeout(function () { searchPage(q, true); }, 1500);
+      })
+      .catch(function () {
+        if (mine !== pseq) return;
+        if (panel) panel.removeAttribute('aria-busy');
+        var st = root.querySelector('[data-dv-status]');
+        if (st) st.textContent = st.getAttribute('data-offline');
+      });
+  }
+
   if (input) {
     input.addEventListener('input', function () {
-      if (!armed) return;
+      if (!armed) {
+        var pq = input.value.trim();
+        clearTimeout(ptimer);
+        if (pq.length && pq.length < MIN) return;
+        ptimer = setTimeout(function () { searchPage(pq, false); }, 250);
+        return;
+      }
       var q = input.value.trim();
       if (q === lastQuery) return;
       lastQuery = q;
@@ -333,6 +392,7 @@
       timer = setTimeout(function () {
         var url = urlWith({ q: q || null, literal: null, page: 1 });
         history.replaceState({ dvTab: 'live' }, '', url);
+        mirrorQ(q);
         loadLive(url);
       }, 220);
     });
@@ -375,6 +435,67 @@
       }, 120);
     });
   }
+
+  /* Enter on a tab other than Live: the results are already on screen, so it settles the
+     search in place instead of reloading the page. Live keeps its own Enter (above). */
+  if (form && input) {
+    form.addEventListener('submit', function (e) {
+      if (armed) return;
+      e.preventDefault();
+      clearTimeout(ptimer);
+      searchPage(input.value.trim(), true);
+    });
+  }
+
+  /* ── The timeline stays live ─────────────────────────────────────────────────
+     "Happening now" carried a pulsing dot and never changed until a reload. Every 30 s,
+     while the page is visible, on the first page and not mid-typing, the timeline is asked
+     again; new updates are OFFERED — "3 new updates" above the list — rather than pushed in,
+     so nothing moves under a reader's finger. And every relative time ("4 minutes ago")
+     keeps itself true. */
+  function rowKey(a) { var t = a.querySelector('time'); return a.getAttribute('href') + '|' + (t ? t.getAttribute('datetime') : ''); }
+  var waiting = null;
+  function checkNew() {
+    if (document.visibilityState !== 'visible' || params().get('page') || document.activeElement === input) return;
+    var sec = live(); if (!sec) return;
+    var have = {};
+    Array.prototype.forEach.call(sec.querySelectorAll('.dv-row'), function (a) { have[rowKey(a)] = true; });
+    var url = location.pathname + location.search;
+    fetch(url + (url.indexOf('?') < 0 ? '?' : '&') + 'fragment=live', { headers: { 'X-Requested-With': 'fetch' }, credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.text() : ''; })
+      .then(function (html) {
+        if (!html) return;
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var fresh = Array.prototype.filter.call(doc.querySelectorAll('.dv-row'), function (a) { return !have[rowKey(a)]; }).length;
+        var sec2 = live(); if (!sec2) return;
+        var btn = sec2.querySelector('[data-dv-fresh]');
+        if (!fresh) { if (btn) btn.remove(); return; }
+        waiting = html;
+        if (!btn) {
+          btn = document.createElement('button');
+          btn.type = 'button'; btn.className = 'dv-fresh'; btn.setAttribute('data-dv-fresh', '');
+          btn.addEventListener('click', function () { if (waiting) { swapLive(waiting); waiting = null; } });
+          var lst = sec2.querySelector('[data-dv-list]');
+          if (lst) lst.parentNode.insertBefore(btn, lst);
+        }
+        btn.textContent = plural(root, fresh, 'data-fresh-one', 'data-fresh-many');
+      })
+      .catch(function () {});
+  }
+  var rtf = window.Intl && Intl.RelativeTimeFormat ? new Intl.RelativeTimeFormat(document.documentElement.lang || 'en', { numeric: 'auto' }) : null;
+  function retime() {
+    if (!rtf) return;
+    var now = Date.now();
+    Array.prototype.forEach.call(root.querySelectorAll('time.dv-row__when[datetime]'), function (t) {
+      var at = Date.parse(t.getAttribute('datetime')); if (isNaN(at)) return;
+      var s = Math.round((at - now) / 1000), a = Math.abs(s);
+      if (a < 60) return;                       // the server's own "just now" stands
+      t.textContent = a < 3600 ? rtf.format(Math.round(s / 60), 'minute')
+        : a < 86400 ? rtf.format(Math.round(s / 3600), 'hour') : rtf.format(Math.round(s / 86400), 'day');
+    });
+  }
+  pg.every(checkNew, 30000);
+  pg.every(retime, 60000);
 
   /* ── Filters ────────────────────────────────────────────────────────────── */
   var sheet  = document.querySelector('[data-dv-facets]');

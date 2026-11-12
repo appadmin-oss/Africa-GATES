@@ -251,9 +251,6 @@ class PaymentService
                                                string $why, ?\Throwable $e): void
     {
         try {
-            $dir = dirname(__DIR__, 2) . '/var/logs';
-            if (!is_dir($dir)) @mkdir($dir, 0775, true);
-
             $entry = '[' . date('c') . '] CheckoutCouldNotStart: ' . $provider
                    . ' refused ' . $reference . ' — ' . mb_substr(trim($why), 0, 400);
             if ($e !== null) {
@@ -265,7 +262,7 @@ class PaymentService
                 $entry .= "\n(the gateway answered and refused — this is its own message, "
                         . 'not a crash on our side)';
             }
-            @file_put_contents($dir . '/error-detail.log', $entry . "\n\n", FILE_APPEND);
+            \AfricaGates\Support\PublicFault::append($entry . "\n\n");
         } catch (\Throwable) { /* a diagnostic must never be the thing that breaks */ }
     }
 

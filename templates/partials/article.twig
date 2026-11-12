@@ -227,7 +227,7 @@
     {%- elseif b.steps is defined %}
       <ol class="dp-steps">{% for li in b.steps %}<li><span class="dp-steps__n" aria-hidden="true">{{ loop.index }}</span><span>{{ li|raw }}</span></li>{% endfor %}</ol>
     {%- elseif b.note is defined %}
-      <aside class="dp-note">{% if b.note.title %}<h3>{{ b.note.title|raw }}</h3>{% endif %}{% for p in b.note.body %}<p>{{ p|raw }}</p>{% endfor %}</aside>
+      <div class="dp-note">{% if b.note.title %}<h3>{{ b.note.title|raw }}</h3>{% endif %}{% for p in b.note.body %}<p>{{ p|raw }}</p>{% endfor %}</div>
     {%- elseif b.table is defined %}
       <figure class="dp-fig">
         <figcaption class="dp-fig__cap">{{ b.table.caption }}</figcaption>

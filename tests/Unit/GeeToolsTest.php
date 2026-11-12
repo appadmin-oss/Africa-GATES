@@ -210,8 +210,9 @@ final class GeeToolsTest extends TestCase
     public function test_on_a_phone_gee_is_a_sheet_and_its_header_is_one_line(): void
     {
         $css = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/css/components/gee.css');
-        $this->assertMatchesRegularExpression('~@media \(max-width:599\.98px\)\{\s*\.gee__layer\{ inset:0;~', $css);
-        $this->assertMatchesRegularExpression('~\.gee__panel\{ height:100%; border-radius:var\(--ag-r-24\) var\(--ag-r-24\) 0 0~', $css);
+        // A full-screen sheet since 9 Nov 2026 (GeeFullScreenTest): edge to edge, no corners.
+        $this->assertMatchesRegularExpression('~@media \(max-width:599\.98px\), \(max-height:499\.98px\) and \(pointer:coarse\)\{\s*\.gee__layer\{~', $css);
+        $this->assertMatchesRegularExpression('~\.gee__panel\{ width:100%; height:100%;[^}]*border-radius:0~', $css);
         $this->assertMatchesRegularExpression('~\.gee__status\{[^}]*white-space:nowrap[^}]*text-overflow:ellipsis~', $css);
         $this->assertStringContainsString("layer.addEventListener('click', function (e) { if (e.target === layer) close(); });",
             (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/js/gee.js'), 'the scrim closes the sheet');

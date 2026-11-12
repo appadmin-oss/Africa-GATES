@@ -61,6 +61,12 @@ final class AdminPagesRenderTest extends TestCase
         // console is not here any more: a lead is a member account at /lead.)
         DB::table('gates_site_events')->insertGetId(['slug' => 'render-night', 'title' => 'Render night', 'status' => 'published',
                                                      'event_date' => date('Y-m-d 18:00:00', strtotime('+10 days')), 'created_at' => date('Y-m-d H:i:s')]);
+        // An ad campaign posted by staff, so /admin/ads/{id} renders one rather than raising the ceiling.
+        if (\AfricaGates\Services\Ads\AdStaff::ready()) {
+            \AfricaGates\Services\Ads\AdStaff::post($id, ['source' => 'house', 'placements' => ['discover'], 'days' => '7',
+                'headline' => 'Nominations are open', 'body' => 'Put forward somebody who deserves it.', 'cta' => 'learn_more',
+                'url' => '/nominate'], '/uploads/ads/render.jpg');
+        }
         // A same-named second nominee, so the duplicate tooling has something to show.
         $n = DB::table('gates_nominees')->orderBy('id')->first();
         if ($n) DB::table('gates_nominees')->insert(['category_id' => $n->category_id, 'name' => $n->name, 'status' => 'approved']);
@@ -109,6 +115,8 @@ final class AdminPagesRenderTest extends TestCase
         if ($segment === 'programmes') return DB::table('gates_award_programmes')->orderBy('id')->limit(3)->pluck('id')->all();
         // A site event's pages (the public calendar's table): /admin/events/{id}/… hangs off it.
         if ($segment === 'event' || $segment === 'events') return DB::table('gates_site_events')->orderBy('id')->limit(3)->pluck('id')->all();
+        // /admin/ads/{id} is a CAMPAIGN; gates_ads holds the ads inside one.
+        if ($segment === 'ads') return DB::table('gates_ad_campaigns')->orderBy('id')->limit(3)->pluck('id')->all();
         $base = str_replace('-', '_', $segment);
         foreach (['gates_' . $base, 'gates_' . rtrim($base, 's'), 'gates_' . $base . 's'] as $t) {
             try {

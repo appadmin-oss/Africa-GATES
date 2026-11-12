@@ -46,6 +46,9 @@
       <div style="font-size:14px;font-weight:700;color:var(--cn-ink);margin-top:2px">{{ a.headline }}</div>
       <div style="font-size:14px;line-height:1.6;color:var(--cn-ink);margin-top:2px">{{ a.body }}</div>
       {% if a.offer %}<div style="font-size:13px;color:var(--cn-ink);margin-top:2px">Offer: {{ a.offer }}{% if a.offer_code %} · {{ a.offer_code }}{% endif %}</div>{% endif %}
+      {# A video is judged by WATCHING it: nothing on this host can inspect one by machine
+         (Services\Ads\AdVideo), so the person approving is the whole of the check. #}
+      {% if a.video %}<p class="mod-vid">Video, {{ a.video_seconds }} seconds. Watch all of it, with sound, before approving.<br><video controls preload="metadata" playsinline width="240" height="240"{% if a.image %} poster="{{ a.image }}"{% endif %}><source src="{{ a.video }}" type="video/mp4"></video></p>{% endif %}
       <div style="font-size:12px;color:var(--cn-soft);margin:6px 0 4px">{{ a.cta }} → <span style="overflow-wrap:anywhere">{{ a.url }}</span> · {{ a.created_at }}</div>
       <div style="font-size:12px;color:var(--cn-soft);margin:0 0 4px">{{ a.category }} · ARCON: {{ a.arcon_ref ?: 'none given' }}{% if a.nafdac_ref %} · NAFDAC: {{ a.nafdac_ref }}{% endif %}{% if a.licence_ref %} · Licence: {{ a.licence_ref }}{% endif %}</div>
       {% if a.flags %}<div style="font-size:12px;font-weight:700;color:var(--cn-ink);margin:0 0 8px">Check: {{ a.flags|join(' · ') }}</div>{% endif %}
@@ -67,6 +70,7 @@
     <div style="min-width:0">
       <div style="font-size:12px;color:var(--cn-soft)">{{ a.advertiser }} · {{ a.reports }} report(s)</div>
       <div style="font-size:14px;font-weight:700;color:var(--cn-ink);margin-top:2px">{{ a.headline }}</div>
+      {% if a.video %}<p class="mod-vid">Video, {{ a.video_seconds }} seconds.<br><video controls preload="metadata" playsinline width="200" height="200"{% if a.image %} poster="{{ a.image }}"{% endif %}><source src="{{ a.video }}" type="video/mp4"></video></p>{% endif %}
       <div style="font-size:13px;color:var(--cn-ink);margin:2px 0 6px">{% for why, n in a.reasons %}{{ why }} ({{ n }}){% if not loop.last %} · {% endif %}{% endfor %}</div>
       <form method="post" action="/admin/moderation/ad/{{ a.id }}/remove" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn" type="submit" data-confirm="Take this ad down? It stops at once. The advertiser sees the reason you give and can fix it.">Take down</button></form>
     </div>

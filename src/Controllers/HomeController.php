@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Controllers;
 
-use AfricaGates\Services\{CacheService, GlobeBand, HomeFront, HomepageImages};
+use AfricaGates\Services\{CacheService, GlobeBand, HomeFront};
 use AfricaGates\Support\NationsLive;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -24,11 +24,7 @@ use Slim\Views\Twig;
  */
 final class HomeController
 {
-    public function __construct(
-        private readonly Twig $view,
-        private readonly CacheService $cache,
-        private readonly HomepageImages $images,
-    ) {}
+    public function __construct(private readonly Twig $view, private readonly CacheService $cache) {}
 
     public function index(Request $req, Response $res): Response
     {
@@ -36,13 +32,14 @@ final class HomeController
         // "Happening now" and "Who recognises" are gone with the V3 layout. What is still
         // read is real records — decided awards for the hero and the closing band, the open
         // challenge, the featured campaign — and each block follows LOW-DATA-RULES.md.
-        $front = $this->cache->remember('home:front:v7', 300, static fn (): array => [
+        $front = $this->cache->remember('home:front:v8', 300, static fn (): array => [
             'decided'   => HomeFront::decided(),
             'campaign'  => HomeFront::campaign(),
             'challenge' => HomeFront::featuredChallenge(),
             // V7's counter. Shown as a number only from 1,000 — below that the DC's own
             // fallback headline stands in, so a young platform never boasts a small figure.
             'honoured'  => \AfricaGates\Services\Recognitions::peopleCount(),
+            'frames'    => HomeFront::framesOnSale(),
         ], ['leaderboard', 'registry']);
 
         $band = $this->cache->remember('home:globe', 900, static fn (): array => [
@@ -50,7 +47,7 @@ final class HomeController
             'note'      => GlobeBand::note(),
         ], ['leaderboard', 'registry']);
 
-        return $this->view->render($res, 'pages/home.twig', $this->images->build($front['decided']) + [
+        return $this->view->render($res, 'pages/home.twig', [
             'page_title'       => 'Africa GATES — where Africa recognises its people',
             // Computed, never typed: "live in Nigeria" was written here while NationsLive
             // existed to answer it (the fault the footer, the JSON-LD and the guide had).
@@ -59,12 +56,35 @@ final class HomeController
                 . NationsLive::phrase() . '.',
             'gates_page'       => 'home',
             'tab'              => 'home',
+            // One ad, paid or our own (AdRules::PAID_ONLY): the homepage band (owner, 4 Nov
+            // 2026). Never a trial, never our "advertise here" notice, never a nominee's while
+            // their award is open (AdDelivery).
+            'ad'               => \AfricaGates\Services\Ads\AdDelivery::forRequest('home', $req),
+            'hero_slides'      => HomeFront::heroSlides($front['decided']),
+            'honour'           => HomeFront::honourTiles(),
             'challenge'        => $front['challenge'],
             'honoured'         => (int) ($front['honoured'] ?? 0),
+            'frames_on_sale'   => (bool) ($front['frames'] ?? false),
             'campaign'         => $front['campaign'],
+            // The closing band's three portraits: real winners with photos when there are
+            // three, otherwise the owner's honour photographs. Never a stock face.
+            'closing_pics'     => self::closingPics($front['decided']),
             'globe_countries'  => $band['countries'],
             'globe_note'       => $band['note'],
         ]);
     }
 
+    /** @return list<array{src:string,alt:string}> */
+    private static function closingPics(array $decided): array
+    {
+        $real = array_values(array_filter($decided, static fn ($d) => !empty($d['photo'])));
+        if (count($real) >= 3) {
+            return array_map(static fn ($d) => ['src' => (string) $d['photo'], 'alt' => (string) $d['name'], 'media' => true], array_slice($real, 0, 3));
+        }
+        $t = HomeFront::honourTiles();
+        return [['src' => $t[0]['src'], 'alt' => $t[0]['alt'], 'media' => false],
+                ['src' => $t[1]['src'], 'alt' => $t[1]['alt'], 'media' => false],
+                ['src' => $t[5]['src'], 'alt' => $t[5]['alt'], 'media' => false]];
+    }
 }
+

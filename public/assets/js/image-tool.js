@@ -168,6 +168,30 @@
 
     input.addEventListener('change', function () { if (!swapping) load(input.files && input.files[0]); });
 
+    // A page may change the shape after a photo is chosen (the ad builder's Square / Upright /
+    // Wide): it sets the input's data-aspect, data-min and data-out from the new profile and
+    // sends `ag:reshape`. The frame takes the new shape and the cut is made again from the
+    // ORIGINAL photo, not from the last cut, which is the old shape and may be too small.
+    input.addEventListener('ag:reshape', function () {
+      aspect = parseFloat(input.getAttribute('data-aspect') || '1') || 1;
+      min = parseInt(input.getAttribute('data-min') || '0', 10) || 0;
+      out = parseInt(input.getAttribute('data-out') || '1080', 10) || 1080;
+      stage.style.aspectRatio = String(aspect);
+      if (orig) { cx = cy = 0.5; zoom = 1; draw(); }
+    });
+    // Or it names the field that holds the shape (`data-shape-from="shape"`), whose chosen
+    // radio or option carries data-aspect/-min/-out, and follows it by itself.
+    var from = input.getAttribute('data-shape-from');
+    if (from && input.form) {
+      input.form.addEventListener('change', function (e) {
+        var f = e.target;
+        if (!f || f.name !== from) return;
+        var src = f.tagName === 'SELECT' ? f.options[f.selectedIndex] : f;
+        ['aspect', 'min', 'out'].forEach(function (k) { input.setAttribute('data-' + k, src.getAttribute('data-' + k) || ''); });
+        input.dispatchEvent(new CustomEvent('ag:reshape'));
+      });
+    }
+
     // ── moving it ──────────────────────────────────────────────────────────
     var pts = {}, last = null, pinch = null;
     function n(o) { return Object.keys(o).length; }

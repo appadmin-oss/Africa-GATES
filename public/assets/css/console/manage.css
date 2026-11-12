@@ -1,0 +1,43 @@
+/* Management screens (11 Nov 2026): the nominee list (status counts, bulk bar, tick column),
+   the nominee edit page, and the edition readiness checklist. Colour only from var(--cn-*),
+   type from the console's own ladder. */
+
+.nm-sum { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 0 0 12px; }
+.nm-sum p { margin: 0; font-size: var(--cn-fs-13); color: var(--cn-ink-3); }
+.nm-states { display: flex; flex-wrap: wrap; gap: 6px; }
+.nm-states a { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 2px 10px;
+  border: 1px solid var(--cn-line-card); border-radius: 999px; font-size: var(--cn-fs-12-5);
+  color: var(--cn-ink-2); text-decoration: none; }
+.nm-states a[aria-current="true"] { border-color: var(--cn-ink); color: var(--cn-ink); font-weight: 600; }
+.nm-states__n { font-variant-numeric: tabular-nums; color: var(--cn-ink-3); }
+.nm-sum .ad-btn { margin-left: auto; }
+
+.nm-bulk { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 12px; padding: 10px 14px;
+  background: var(--cn-panel); border: 1px solid var(--cn-line-card); border-radius: 10px; }
+.nm-bulk__n { font-size: var(--cn-fs-13); font-weight: 600; color: var(--cn-ink); }
+.nm-bulk__note { font-size: var(--cn-fs-12); color: var(--cn-ink-3); }
+.nm-pick { width: 36px; text-align: center; }
+.nm-pick input { width: 18px; height: 18px; }
+
+.nm-edit { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 960px) { .nm-edit { grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); align-items: start; } }
+.nm-edit__meta { margin: 0 0 12px; font-size: var(--cn-fs-13); color: var(--cn-ink-3); }
+.nm-edit__move { display: flex; gap: 8px; align-items: flex-start; font-size: var(--cn-fs-13); color: var(--cn-ink-2); }
+.nm-log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.nm-log li { font-size: var(--cn-fs-13); color: var(--cn-ink-2); border-bottom: 1px solid var(--cn-line-card); padding-bottom: 8px; }
+.nm-log__time { display: block; font-size: var(--cn-fs-12); color: var(--cn-ink-3); }
+
+.rd__list { list-style: none; margin: 0; padding: 4px 16px 14px; display: flex; flex-direction: column; gap: 8px; }
+.rd__i { display: flex; gap: 10px; align-items: flex-start; font-size: var(--cn-fs-13-5); color: var(--cn-ink); }
+.rd__mark { flex: none; width: 22px; height: 22px; border-radius: 999px; display: inline-flex; align-items: center;
+  justify-content: center; font-size: var(--cn-fs-12); font-weight: 700; border: 1px solid var(--cn-line-card); color: var(--cn-ink-3); }
+.rd__i--ok .rd__mark { background: var(--cn-green-wash); border-color: var(--cn-green-edge); color: var(--cn-green-ink); }
+.rd__i--todo .rd__mark { background: var(--cn-red-wash); border-color: var(--cn-red-edge); color: var(--cn-red-ink); }
+.rd__i--note .rd__mark { background: var(--cn-gold-wash); border-color: var(--cn-gold-edge); color: var(--cn-gold-ink); }
+.rd__d { color: var(--cn-ink-3); }
+
+/* The bulk bar's select was the browser default, 20px tall: under WCAG 2.5.8's 24px floor,
+   and it changed height when the console's own styles arrived, shifting the table below. */
+.nm-bulk select { min-height: 32px; padding: 4px 28px 4px 10px; border: 1px solid var(--cn-line-card); border-radius: 8px;
+  background-color: var(--cn-surface); color: var(--cn-ink); font: inherit; font-size: var(--cn-fs-13); }
+.nm-pick input { width: 20px; height: 20px; margin: 2px; }

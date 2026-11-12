@@ -1,0 +1,134 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  /admin/ads/{id} — ONE CAMPAIGN, for staff (AdCampaigns::detail with no owner, 11 Nov 2026).
+
+  What its advertiser sees on /account/ads/{id}, plus what staff need beside it: who booked or
+  posted it, its money, and each version's review. Pacing and "what to try next" are the same
+  AdAdvice the advertiser reads, so the person answering "why is my ad not doing anything?"
+  is looking at the same answer. Reached from the list on /admin/ads.
+#}
+
+{% set _review = {pending: 'In review', approved: 'Approved', rejected: 'Not approved'} %}
+{% block topbar_eyebrow %}<small><a href="/admin/ads">Ads</a></small>{% endblock %}
+{% block topbar_title %}{{ c.name }}{% endblock %}
+{% block topbar_sub %}{{ c.delivery_label }}{% if c.delivery_note %} · {{ c.delivery_note }}{% endif %} · {{ source_label }} · {{ c.advertiser }}{% endblock %}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .adc-card{ padding:18px 20px }
+  .adc-card h2{ margin:0 0 10px; font-size:var(--cn-fs-15); font-weight:600 }
+  .adc-sub{ margin:6px 0 0; font-size:var(--cn-fs-13-5); line-height:1.6; color:var(--cn-ink-2) }
+  .adc-hint{ display:block; font-size:var(--cn-fs-12-5); color:var(--cn-soft); line-height:1.45 }
+  .adc-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:16px }
+  .adc-advice{ margin:0; padding-inline-start:18px; display:flex; flex-direction:column; gap:8px; font-size:var(--cn-fs-13-5); line-height:1.55; color:var(--cn-ink-2) }
+  .adc-acts{ display:flex; flex-wrap:wrap; gap:8px; margin-top:12px }
+  .adc-acts form{ margin:0 }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="cn-card adc-card" aria-label="About this campaign">
+  <p class="adc-sub">{{ c.objective_label }} · {% for p in c.placements %}{{ placements[p]|default(p) }}{% if not loop.last %}, {% endif %}{% endfor %}</p>
+  {% if staff and c.delivery not in ['completed', 'cancelled'] %}
+  <div class="adc-acts">
+    {% if c.status == 'paused' %}
+      <form method="post" action="/admin/ads/{{ c.id }}/resume"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="back" value="show"><button class="cn-btn" type="submit">Resume</button></form>
+    {% else %}
+      <form method="post" action="/admin/ads/{{ c.id }}/pause"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="back" value="show"><button class="cn-btn" type="submit">Pause</button></form>
+    {% endif %}
+    <form method="post" action="/admin/ads/{{ c.id }}/end" data-confirm="End this campaign? It stops showing at once."><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="back" value="show"><button class="cn-btn cn-btn--danger" type="submit">End</button></form>
+  </div>
+  {% elseif not staff %}
+  <p class="adc-hint">An advertiser’s own campaign: they pause and cancel it, and its ads are checked in <a href="/admin/moderation">Moderation</a>.</p>
+  {% endif %}
+  {# A make-good (AdStaff::extendTrial): a free trial that under-delivered for a reason that
+     was ours gets more days, at no cost. Asks for the reason, which goes on the audit row. #}
+  {% if c.trial and c.starts_at and c.delivery != 'cancelled' %}
+  <form class="adc-acts" method="post" action="/admin/ads/{{ c.id }}/extend" data-confirm="Give this free trial 7 more days, at no cost? Say why: it is kept with the change.">
+    <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="days" value="7">
+    <button class="cn-btn" type="submit">Extend 7 days</button>
+    <span class="adc-hint">For a trial that under-delivered for a reason that was not the advertiser’s. It runs until the new end or its {{ c.view_cap|default(0)|number_format }} views.</span>
+  </form>
+  {% endif %}
+</section>
+
+<div class="adc-grid">
+  <section class="cn-card adc-card" aria-labelledby="adcResH">
+    <h2 id="adcResH">Results</h2>
+    <dl class="cn-facts">
+      <div><dt>Views</dt><dd>{{ c.views|number_format }}{% if c.view_cap %} of {{ c.view_cap|number_format }}{% endif %}</dd></div>
+      <div><dt>Clicks</dt><dd>{{ c.clicks|number_format }}</dd></div>
+      {% if c.ads|filter(x => x.video)|length %}<div><dt>Video</dt><dd>{{ c.plays|number_format }} plays · {{ c.completes|number_format }} watched through</dd></div>{% endif %}
+      <div><dt>Click rate</dt><dd>{{ c.ctr is null ? '—' : c.ctr ~ '%' }}{% if c.benchmark is not null %} <span class="adc-hint">site average {{ c.benchmark }}%</span>{% endif %}</dd></div>
+      <div><dt>Cost per 1,000 views</dt><dd>{{ c.cpm_kobo is null ? '—' : '₦' ~ (c.cpm_kobo / 100)|number_format }}</dd></div>
+      <div><dt>Cost per click</dt><dd>{{ c.cpc_kobo is null ? '—' : '₦' ~ (c.cpc_kobo / 100)|number_format }}</dd></div>
+      {% if c.pace %}<div><dt>Pacing</dt><dd>{{ c.pace.label }} · {{ c.pace.spent_pct }}% spent, {{ c.pace.elapsed_pct }}% of its days</dd></div>{% endif %}
+      <div><dt>Runs</dt><dd>{{ c.starts_at ? c.starts_at|date('j M Y') : 'Not started' }}{% if c.ends_at %} to {{ c.ends_at|date('j M Y') }}{% endif %}</dd></div>
+    </dl>
+  </section>
+
+  <section class="cn-card adc-card" aria-labelledby="adcMoneyH">
+    <h2 id="adcMoneyH">Money and who</h2>
+    <dl class="cn-facts">
+      <div><dt>Spent</dt><dd>{% if c.trial %}Free trial, no charge{% elseif c.source == 'house' %}Our own, no charge{% else %}{{ c.spent_label }}{% if c.budget_label %} of {{ c.budget_label }}{% endif %}{% endif %}</dd></div>
+      {% if c.payment %}
+      <div><dt>Paid</dt><dd>{{ c.payment.paid ? c.payment.paid_label ~ ', VAT ' ~ c.payment.vat_label : 'Not paid' }}</dd></div>
+      {% if c.payment.ref %}<div><dt>Reference</dt><dd><span class="cn-code">{{ c.payment.ref }}</span></dd></div>{% endif %}
+      {% if c.payment.refunded %}<div><dt>Returned</dt><dd>{{ c.payment.refunded_label }}{% if c.payment.note %} · {{ c.payment.note }}{% endif %}</dd></div>{% endif %}
+      {% endif %}
+      {% if owner %}<div><dt>Booked by</dt><dd>{{ owner }}</dd></div>{% endif %}
+      {% if posted_by %}<div><dt>Posted by</dt><dd>{{ posted_by }}</dd></div>{% endif %}
+    </dl>
+    {% if c.source == 'direct' and c.payment and not c.payment.refunded and c.delivery in ['completed', 'cancelled'] and c.budget_kobo > c.spent_kobo %}
+    <p class="adc-hint">Sold by us and paid outside the site: what it did not spend is returned by a person, not by the gateway.</p>
+    {% endif %}
+  </section>
+</div>
+
+{% if c.advice %}
+<section class="cn-card adc-card" aria-labelledby="adcAdvH">
+  <h2 id="adcAdvH">What the advertiser is told to try next</h2>
+  <ul class="adc-advice">{% for a in c.advice %}<li>{{ a.text }}</li>{% endfor %}</ul>
+</section>
+{% endif %}
+
+<section class="cn-card adc-card" aria-labelledby="adcVerH">
+  <h2 id="adcVerH">{{ c.ads|length > 1 ? 'Versions' : 'The ad' }}</h2>
+  <table class="cn-table">
+    <thead><tr><th scope="col">Headline</th><th scope="col">Review</th><th scope="col">Views</th><th scope="col">Clicks</th><th scope="col">Click rate</th><th scope="col">Strength</th></tr></thead>
+    <tbody>
+    {% for a in c.ads %}
+      <tr>
+        <td><span class="cn-table__main">{{ a.headline }}</span><span class="adc-hint">{{ shapes[a.shape][0]|default(a.shape) }}{% if a.video %} · video, {{ a.video_seconds }} s, {{ a.plays|number_format }} plays, {{ a.completes|number_format }} watched{% endif %} · {{ a.cta }} · {{ a.domain }}{% if c.leader == a.id %} · leading{% endif %}</span></td>
+        <td>{{ _review[a.review]|default(a.review) }}{% if a.review == 'rejected' and a.reason %}<span class="adc-hint">{{ a.reason }}</span>{% endif %}</td>
+        <td>{{ a.views|number_format }}</td>
+        <td>{{ a.clicks|number_format }}</td>
+        <td>{{ a.ctr is null ? '—' : a.ctr ~ '%' }}</td>
+        <td>{{ a.strength.label }}{% if a.strength.tips %}<span class="adc-hint">{{ a.strength.tips|first }}</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<div class="adc-grid">
+  <section class="cn-card adc-card" aria-labelledby="adcPlH">
+    <h2 id="adcPlH">By place</h2>
+    {% if c.places %}
+    <table class="cn-table">
+      <thead><tr><th scope="col">Place</th><th scope="col">Views</th><th scope="col">Clicks</th><th scope="col">Click rate</th></tr></thead>
+      <tbody>{% for p in c.places %}<tr><td>{{ placements[p.key]|default(p.key) }}</td><td>{{ p.views|number_format }}</td><td>{{ p.clicks|number_format }}</td><td>{{ p.ctr is null ? '—' : p.ctr ~ '%' }}</td></tr>{% endfor %}</tbody>
+    </table>
+    {% else %}<p class="adc-hint">Not shown anywhere yet.</p>{% endif %}
+  </section>
+
+  <section class="cn-card adc-card" aria-labelledby="adcDaysH">
+    <h2 id="adcDaysH">Last 14 days</h2>
+    <table class="cn-table">
+      <thead><tr><th scope="col">Day</th><th scope="col">Views</th><th scope="col">Clicks</th></tr></thead>
+      <tbody>{% for d in c.days|reverse %}<tr><td>{{ d.day|date('D j M') }}</td><td>{{ d.views|number_format }}</td><td>{{ d.clicks|number_format }}</td></tr>{% endfor %}</tbody>
+    </table>
+  </section>
+</div>
+{% endblock %}

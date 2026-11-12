@@ -54,6 +54,13 @@ final class AdsController
         }
         return $this->view->render($res, 'pages/advertise.twig', [
             'market' => \AfricaGates\Services\Ads\AdMarket::card(), 'plan' => $plan,
+            'reach' => \AfricaGates\Services\Ads\AdMarket::reach(),
+            // The FAQ's figures, read from the rules that apply them, never typed.
+            'facts' => ['vat_pct' => \AfricaGates\Services\Ads\AdCheckout::vatBps() / 100,
+                        'min_budget' => \AfricaGates\Services\Ads\AdCheckout::MIN_BUDGET_NAIRA,
+                        'max_days' => AdRules::MAX_DAYS, 'freq' => AdRules::FREQUENCY_CAP, 'wa_greeting' => AdRules::WHATSAPP_GREETING,
+                        'video_max' => \AfricaGates\Services\Ads\AdVideo::MAX_SECONDS,
+                        'standards' => AdRules::STANDARDS],
             'goals' => \AfricaGates\Services\Ads\AdPlanner::GOALS,
             'plan_in' => ['goal' => (string) ($q['goal'] ?? 'visits'), 'n' => (int) ($q['n'] ?? 0) ?: '', 'days' => (int) ($q['days'] ?? 14) ?: 14],
             'max_days' => AdRules::MAX_DAYS,
@@ -120,10 +127,27 @@ final class AdsController
         if (!$user) return $this->toLogin($res, '/account/ads/new');
         $form = FormErrors::take('ad');
         $est = AdDelivery::estimate(array_keys(AdRules::PLACEMENTS), AdRules::TRIAL_DAYS);
+        $old = (array) ($form['old'] ?? []);
+        // "Promote this event" (partials/views-badge.twig): the builder opens ready for that
+        // event — tickets as the goal, the event's own page as the link, its title as the
+        // headline. Only a published, live event, and only into an empty form: a failed
+        // submission's own values always win.
+        $q = $req->getQueryParams();
+        if ($old === [] && ($q['for'] ?? '') === 'event' && is_string($q['slug'] ?? null)) {
+            $ev = \AfricaGates\Services\EventsFront::liveOnly(\Illuminate\Database\Capsule\Manager::table('gates_site_events as e')
+                ->where('e.slug', (string) $q['slug'])->where('e.status', 'published'))->first(['e.title', 'e.slug']);
+            if ($ev) {
+                $old = ['objective' => 'sales', 'category' => 'events', 'cta' => 'get_tickets',
+                        'url' => '/events/' . (string) $ev->slug, 'headline' => mb_substr((string) $ev->title, 0, AdRules::HEADLINE_MAX),
+                        'placements' => ['events', 'event_page', 'discover']];
+            }
+        }
 
         return $this->view->render($res, 'pages/account/ads-new.twig', [
             'app_bar' => ['variant' => 'child', 'title' => 'New campaign', 'back' => '/account/ads', 'share' => false],
             'page_title' => 'New campaign — Africa GATES', 'gates_page' => 'account',
+            // A flow: its own back button and its own bottom bar, no tab bar (layout/shell.twig).
+            'flow_page' => true,
             'trial_left' => !AdCampaigns::trialUsed((int) $user->id),
             'nominee_open' => AdRules::inOpenAward((int) $user->id),
             'rules' => self::rules(), 'estimate' => $est,
@@ -133,8 +157,74 @@ final class AdsController
             'paid' => ['open' => \AfricaGates\Services\Ads\AdCheckout::open($this->payments()),
                        'min' => \AfricaGates\Services\Ads\AdCheckout::MIN_BUDGET_NAIRA,
                        'vat_pct' => \AfricaGates\Services\Ads\AdCheckout::vatBps() / 100],
-            'errors' => $form['errors'] ?? [], 'old' => $form['old'] ?? [], 'summary' => $form['summary'] ?? '',
-        ]);
+            'errors' => $form['errors'] ?? [], 'old' => $old, 'summary' => $form['summary'] ?? '',
+        ] + self::checks($old, false, false));
+    }
+
+    /**
+     * POST /account/ads/check — the builder's live panels: the ad's strength as it is
+     * written, and what the budget should reach (AdStrength, AdPlanner::forecast). Rendered
+     * here from the same partials the page draws on load, so the script swaps in markup and
+     * carries no copy of any rule. Nothing is saved; the image is not sent, only whether one
+     * has been chosen.
+     */
+    public function check(Request $req, Response $res): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $this->json($res, ['ok' => false], 401);
+        if ($this->rateLimit && !$this->rateLimit->check('adchk:' . (int) $user->id, 'ads_check', 600, 3600)) {
+            return $this->json($res, ['ok' => false], 429);
+        }
+        $b = (array) $req->getParsedBody();
+        $v = self::checks($b, ($b['has_image'] ?? '') === '1', ($b['has_logo'] ?? '') === '1');
+        return $this->json($res, ['ok' => true,
+            'strength' => $this->view->fetch('partials/ad-strength.twig', ['strength' => $v['strength']]),
+            'forecast' => $this->view->fetch('partials/ad-forecast.twig', $v)]);
+    }
+
+    /**
+     * The two panels' figures for what is in the form.
+     *
+     * @param array<string,mixed> $in
+     * @return array{strength:?array, forecast:?array, fc:array<string,mixed>}
+     */
+    private static function checks(array $in, bool $hasImage, bool $hasLogo): array
+    {
+        $words = trim((string) ($in['headline'] ?? '') . (string) ($in['body'] ?? ''));
+        $obj = (string) ($in['objective'] ?? 'awareness');
+        $strength = $words === '' ? null : \AfricaGates\Services\Ads\AdStrength::score([
+            'headline' => (string) ($in['headline'] ?? ''), 'body' => (string) ($in['body'] ?? ''),
+            'offer' => (string) ($in['offer'] ?? ''), 'cta' => (string) ($in['cta'] ?? 'learn_more'),
+        ], isset(AdRules::OBJECTIVES[$obj]) ? $obj : 'awareness', $hasImage, $hasLogo);
+
+        $budget = (int) preg_replace('/[^0-9]/', '', (string) ($in['budget'] ?? ''));
+        $days = max(1, min(AdRules::MAX_DAYS, (int) ($in['days'] ?? 14) ?: 14));
+        $min = \AfricaGates\Services\Ads\AdCheckout::MIN_BUDGET_NAIRA;
+        $places = AdRules::cleanPlacements($in['placements'] ?? []);
+        $paid = (string) ($in['kind'] ?? '') === 'paid';
+        $forecast = $paid && $budget >= $min && $places !== []
+            ? \AfricaGates\Services\Ads\AdPlanner::forecast($budget, $days, $places, $obj) : null;
+        // The part of the budget the places cannot take is worth a sentence only when it is
+        // more than rounding: a twentieth of the budget, or ₦500.
+        $short = $forecast !== null && $forecast['unspent_kobo'] >= max(50_000, intdiv($budget * 100, 20));
+        return ['strength' => $strength, 'forecast' => $forecast,
+                'fc' => ['paid' => $paid, 'budget' => $budget, 'days' => $days, 'min' => $min, 'places' => count($places),
+                         'objective' => $obj, 'short' => $short,
+                         // An estimate is said in whole naira: kobo would claim a precision it has not got.
+                         'unspent_label' => $forecast ? AdRateCard::format($budget * 100 - self::naira($forecast['spend_kobo'])) : '',
+                         'spend_label' => $forecast ? AdRateCard::format(self::naira($forecast['spend_kobo'])) : '']];
+    }
+
+    private static function naira(int $kobo): int
+    {
+        return intdiv($kobo + 50, 100) * 100;
+    }
+
+    /** @param array<string,mixed> $body */
+    private function json(Response $res, array $body, int $status = 200): Response
+    {
+        $res->getBody()->write((string) json_encode($body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        return $res->withHeader('Content-Type', 'application/json')->withHeader('Cache-Control', 'no-store')->withStatus($status);
     }
 
     /** POST /account/ads — create the campaign and send its ad for review. */
@@ -155,6 +245,10 @@ final class AdsController
             return $this->back($res);
         }
 
+        if (($err = \AfricaGates\Services\Ads\AdVideo::take($req->getUploadedFiles(), $b)) !== null) {
+            $f->add('video', $err)->flash();
+            return $this->back($res);
+        }
         $image = $this->image($req, $f);
         $logo  = $this->image($req, $f, 'logo');
         if ($paid) {
@@ -235,6 +329,9 @@ final class AdsController
             'c' => $c, 'rules' => self::rules(),
             'errors' => $form['errors'] ?? [], 'old' => $form['old'] ?? [], 'fixing' => (int) ($form['old']['ad_id'] ?? 0),
             'new_errors' => $new['errors'] ?? [], 'new_old' => $new['old'] ?? [], 'new_summary' => $new['summary'] ?? '',
+            // "Add a version" from the advice opens the form it points at (a <details> does
+            // not open for a fragment by itself).
+            'adding' => isset($req->getQueryParams()['add']),
         ]);
     }
 
@@ -286,6 +383,10 @@ final class AdsController
         $id = (int) ($args['id'] ?? 0);
         $b = (array) $req->getParsedBody();
         $f = FormErrors::for('ad_new')->keep($b);
+        if (($err = \AfricaGates\Services\Ads\AdVideo::take($req->getUploadedFiles(), $b)) !== null) {
+            $f->add('video', $err)->flash();
+            return $res->withHeader('Location', '/account/ads/' . $id . '#ad-version')->withStatus(303);
+        }
         $image = $this->image($req, $f);
         $r = AdCampaigns::addAd($id, (int) $user->id, $b, $image);
         if (!$r['ok']) {
@@ -309,6 +410,10 @@ final class AdsController
 
         $b = (array) $req->getParsedBody();
         $f = FormErrors::for('ad_fix')->keep($b + ['ad_id' => $adId]);
+        if (($err = \AfricaGates\Services\Ads\AdVideo::take($req->getUploadedFiles(), $b, true)) !== null) {
+            $f->add('video', $err)->flash();
+            return $res->withHeader('Location', '/account/ads/' . $campaignId . '#ad-' . $adId)->withStatus(303);
+        }
         $image = $this->image($req, $f);
         $r = AdCampaigns::resubmitAd($adId, (int) $user->id, $b, $image);
         if (!$r['ok']) {
@@ -326,6 +431,15 @@ final class AdsController
         $b = (array) $req->getParsedBody();
         $token = (string) ($b['t'] ?? '');
         $counted = $token !== '' && AdDelivery::seen($token);
+        return $res->withStatus($counted ? 204 : 202);
+    }
+
+    /** POST /ads/video — a drawn ad's video started, or was watched through (AdDelivery::watched). */
+    public function video(Request $req, Response $res): Response
+    {
+        $b = (array) $req->getParsedBody();
+        $token = (string) ($b['t'] ?? '');
+        $counted = $token !== '' && AdDelivery::watched($token, (string) ($b['k'] ?? ''));
         return $res->withStatus($counted ? 204 : 202);
     }
 
@@ -383,7 +497,12 @@ final class AdsController
             'freq' => AdRules::FREQUENCY_CAP,
             'placements' => AdRules::PLACEMENTS, 'objectives' => AdRules::OBJECTIVES, 'ctas' => AdRules::CTAS,
             'categories' => AdRules::CATEGORIES, 'approvals' => AdRules::APPROVALS, 'beta' => AdRules::inBeta(),
-            'standards' => AdRules::STANDARDS,
+            'standards' => AdRules::STANDARDS, 'wa_greeting' => AdRules::WHATSAPP_GREETING,
+            // Each shape with the editor's frame for it, read from its image profile.
+            'shapes' => array_map(static fn ($s) => ['label' => $s[0], 'profile' => $s[1]] + \AfricaGates\Support\ImageProfiles::get($s[1]), AdRules::SHAPES),
+            // Video ads (AdVideo): the limits the form states are the limits store() enforces.
+            'video' => ['on' => \AfricaGates\Services\Ads\AdVideo::ready(), 'min' => \AfricaGates\Services\Ads\AdVideo::MIN_SECONDS,
+                        'max' => \AfricaGates\Services\Ads\AdVideo::MAX_SECONDS, 'mb' => \AfricaGates\Services\Ads\AdVideo::limitMb()],
             'versions' => AdRules::ADS_PER_SET, 'test_views' => AdCampaigns::TEST_VIEWS, 'lead_share' => AdCampaigns::LEAD_SHARE,
         ];
     }
@@ -392,19 +511,21 @@ final class AdsController
      * An uploaded image (`image`, or the `logo`), made into its profile's shape and stored
      * (UploadService::uploadProcessed()), or null with the reason added to the form.
      *
-     * The editor (image-tool.js) sends either the chosen square itself or the original with
+     * The editor (image-tool.js) sends either the chosen cut itself or the original with
      * the cut in `<field>_crop`; with no script the server cuts the centre. A cut too small
      * for the profile is refused in the editor's own words — the pixels it has and the
      * pixels it needs — rather than "use a larger image" about a photo that may be 4000px.
      */
     private function image(Request $req, FormErrors $f, string $field = 'image'): ?string
     {
-        $min = \AfricaGates\Support\ImageProfiles::get($field === 'logo' ? 'ad_logo' : 'ad')['min'];
+        // The image is cut to the SHAPE chosen on the same form (AdRules::SHAPES).
+        $profile = $field === 'logo' ? 'ad_logo' : AdRules::imageProfile(((array) $req->getParsedBody())['shape'] ?? null);
+        $min = \AfricaGates\Support\ImageProfiles::get($profile)['min'];
         $file = $req->getUploadedFiles()[$field] ?? null;
         if (!$file || $file->getError() === UPLOAD_ERR_NO_FILE) return null;
         $crop = (string) (((array) $req->getParsedBody())[$field . '_crop'] ?? '');
         try {
-            $r = ($this->uploads ?? new UploadService())->uploadProcessed($file, 'ads', $field === 'logo' ? 'ad_logo' : 'ad', $crop, null, 'ad', null);
+            $r = ($this->uploads ?? new UploadService())->uploadProcessed($file, 'ads', $profile, $crop, null, 'ad', null);
             return (string) ($r['path'] ?? $r['url'] ?? '') ?: null;
         } catch (\Throwable $e) {
             $m = $e->getMessage();

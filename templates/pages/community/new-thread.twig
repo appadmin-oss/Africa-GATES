@@ -31,7 +31,7 @@
 
     {% if flash_error %}<p class="cm-say cm-say--error" role="alert">{{ flash_error }}</p>{% endif %}
 
-    <form class="cm-form" method="post" action="/community/new" aria-labelledby="cm-new-h">
+    <form class="cm-form" method="post" action="/community/new" aria-labelledby="cm-new-h" novalidate data-ag-validate>
       <h2 class="ag-sr" id="cm-new-h">{{ 'New thread details'|trans }}</h2>
       <input type="hidden" name="_token" value="{{ csrf_token }}">
 

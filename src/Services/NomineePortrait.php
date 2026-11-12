@@ -20,6 +20,37 @@ final class NomineePortrait
         return $q;
     }
 
+    /**
+     * Every photograph a visitor may see of this nominee, the portrait first. ONE list, read by
+     * the public page.
+     *
+     * A nominee may hold up to six photographs of their own (NomineeDetails::MAX_PHOTOS) and
+     * staff can attach more from the console, and this class's own docblock spoke of "the
+     * public portrait and gallery" — but nothing public ever read past `photo_path`, so every
+     * nominee showed exactly one, whatever they had uploaded. The rules are the ones the
+     * portrait already obeys: the nominee's own LIVE photographs (a removed one is gone at
+     * once), then staff uploads through {@see uploads()}, which excludes anything the nominee
+     * removed. The nominator's photograph appears only as the portrait, where it already does.
+     *
+     * @return list<string> paths, deduplicated, at most $max
+     */
+    public static function gallery(int $id, string $portrait = '', int $max = 8): array
+    {
+        $out = [];
+        $add = static function (string $p) use (&$out): void { $p = trim($p); if ($p !== '' && !in_array($p, $out, true)) $out[] = $p; };
+        $add($portrait);
+        try {
+            if (SchemaHas::table('gates_nominee_files')) {
+                foreach (DB::table('gates_nominee_files')->where('nominee_id', $id)->where('kind', 'photo')
+                             ->whereNull('removed_at')->whereNotNull('path')->orderByDesc('id')->pluck('path') as $p) $add((string) $p);
+            }
+            if (SchemaHas::table('gates_uploads')) {
+                foreach (self::uploads($id)->orderBy('id')->pluck('path') as $p) $add((string) $p);
+            }
+        } catch (\Throwable) {}
+        return array_slice($out, 0, max(1, $max));
+    }
+
     /** Reconcile through the shared nominee photo policy under the nominee row lock. */
     public static function reconcile(int $id): void
     {

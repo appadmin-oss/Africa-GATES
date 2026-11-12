@@ -83,6 +83,36 @@ final class PublicFault
     private const MAX = 180;
 
     /**
+     * Where the log is, when not `var/logs/error-detail.log`. The test harness points it at a
+     * throwaway file: the console now ALERTS on this log, so a suite writing deliberate faults
+     * into the real one would raise an alert in whichever test happened to run next — and
+     * would leave it raised on a developer's own console afterwards.
+     */
+    private static ?string $logOverride = null;
+
+    public static function useLog(?string $file): void
+    {
+        self::$logOverride = $file;
+    }
+
+    /** The one place every writer and reader of the log asks for its path. */
+    public static function logFile(): string
+    {
+        return self::$logOverride ?? dirname(__DIR__, 2) . '/var/logs/error-detail.log';
+    }
+
+    /** Append an entry, best-effort: a diagnostic must never be the thing that breaks. */
+    public static function append(string $entry): void
+    {
+        try {
+            $file = self::logFile();
+            $dir  = dirname($file);
+            if (!is_dir($dir)) @mkdir($dir, 0775, true);
+            @file_put_contents($file, $entry, FILE_APPEND);
+        } catch (\Throwable) {}
+    }
+
+    /**
      * A new reference — eight characters, grouped for reading aloud.
      *
      * Random rather than derived from the fault: two people hitting the same bug must get
@@ -121,18 +151,13 @@ final class PublicFault
     {
         $ref = self::reference();
 
-        try {
-            $dir = dirname(__DIR__, 2) . '/var/logs';
-            if (!is_dir($dir)) @mkdir($dir, 0775, true);
-            // The reference FIRST on the line, so grepping for what somebody quoted finds
-            // it without knowing the date, the class or the route.
-            @file_put_contents($dir . '/error-detail.log',
-                '[' . date('c') . '] [ref ' . $ref . ']'
-                . ($where !== '' ? ' [' . $where . ']' : '') . ' '
-                . get_class($e) . ': ' . $e->getMessage()
-                . ' in ' . $e->getFile() . ':' . $e->getLine() . "\n"
-                . $e->getTraceAsString() . "\n\n", FILE_APPEND);
-        } catch (\Throwable) {}
+        // The reference FIRST on the line, so grepping for what somebody quoted finds it
+        // without knowing the date, the class or the route.
+        self::append('[' . date('c') . '] [ref ' . $ref . ']'
+            . ($where !== '' ? ' [' . $where . ']' : '') . ' '
+            . get_class($e) . ': ' . $e->getMessage()
+            . ' in ' . $e->getFile() . ':' . $e->getLine() . "\n"
+            . $e->getTraceAsString() . "\n\n");
 
         return $ref;
     }
@@ -362,10 +387,56 @@ final class PublicFault
         return 'on ' . $t->format('j M \a\t H:i') . ' (Lagos time)';
     }
 
+    /**
+     * What the log recorded in the last `$hours`, newest first — for the console's alert and
+     * its errors page (ConsoleAlerts `faults`, /admin/errors) and the ops snapshot. One parser:
+     * three readers each with their own regex is how one of them comes to count a line the
+     * others skip.
+     *
+     * Every entry counts, not only those with a reference: "a buyer was sent back instead of
+     * to the payment page" has no exception and no reference, and it is still somebody the
+     * site failed.
+     *
+     * @return array{total:int, last_hour:int, by_where:array<string,int>, money:int,
+     *               entries:list<array{at:string, ref:?string, where:string, what:string}>}
+     */
+    public static function recent(int $hours = 24, int $limit = 100, ?\DateTimeImmutable $now = null, ?string $file = null): array
+    {
+        $now ??= new \DateTimeImmutable('now');
+        $since = $now->getTimestamp() - $hours * 3600;
+        $hour  = $now->getTimestamp() - 3600;
+        $out = ['total' => 0, 'last_hour' => 0, 'by_where' => [], 'money' => 0, 'entries' => []];
+        if (!preg_match_all('/^\[(\d{4}-[^\]]+)\](?: \[ref ([A-Z0-9-]+)\])?(?: \[([^\]]*)\])? ([^\n]{0,240})/m', self::tail($file), $all, PREG_SET_ORDER)) {
+            return $out;
+        }
+        foreach ($all as $m) {
+            $t = strtotime($m[1]);
+            if ($t === false || $t < $since || $t > $now->getTimestamp() + 60) continue;
+            $where = (string) ($m[3] ?? '');
+            $out['total']++;
+            if ($t >= $hour) $out['last_hour']++;
+            $key = $where !== '' ? $where : '(no page)';
+            $out['by_where'][$key] = ($out['by_where'][$key] ?? 0) + 1;
+            if ($where !== '' && preg_match('/^[A-Z]+\s+(\S+)/', $where, $w) && self::aboutMoney($w[1])) $out['money']++;
+            $out['entries'][] = ['at' => $m[1], 'ref' => ($m[2] ?? '') !== '' ? $m[2] : null,
+                                 'where' => $where, 'what' => self::scrub(trim($m[4]))];
+        }
+        arsort($out['by_where']);
+        $out['entries'] = array_slice(array_reverse($out['entries']), 0, $limit);
+        return $out;
+    }
+
+    /** A log line for a list: the class and message, without the file path it ends in. */
+    private static function scrub(string $what): string
+    {
+        $what = (string) preg_replace('~ in /\S+:\d+$~', '', $what);
+        return mb_substr($what, 0, 180);
+    }
+
     /** The last 4 MB of the log, or ''. */
     private static function tail(?string $file): string
     {
-        $file ??= dirname(__DIR__, 2) . '/var/logs/error-detail.log';
+        $file ??= self::logFile();
         if (!is_file($file)) return '';
         $size = (int) @filesize($file);
         $h = @fopen($file, 'rb');

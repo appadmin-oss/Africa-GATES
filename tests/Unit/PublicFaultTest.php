@@ -161,7 +161,7 @@ final class PublicFaultTest extends TestCase
      */
     public function test_the_reference_is_written_where_it_can_be_found(): void
     {
-        $log = dirname(__DIR__, 2) . '/var/logs/error-detail.log';
+        $log = PublicFault::logFile();
         $before = is_file($log) ? (int) filesize($log) : 0;
 
         $ref = PublicFault::record(

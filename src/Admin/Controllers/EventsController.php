@@ -1771,9 +1771,29 @@ class EventsController
             ->withHeader('X-Robots-Tag', 'noindex, nofollow');
     }
 
+    /** POST /admin/events/{id}/duplicate — the same event as a new draft (Admin\Services\EventCopy). */
+    public function duplicate(Request $req, Response $res, array $args): Response
+    {
+        $id = (int)$args['id'];
+        $r = \AfricaGates\Admin\Services\EventCopy::copy($id);
+        if (!$r['ok']) {
+            $_SESSION['flash_error'] = $r['message'];
+            return $res->withHeader('Location', '/admin/events')->withStatus(302);
+        }
+        $this->audit->record((int)($_SESSION['admin_id'] ?? 0), 'event.duplicate', 'site_event', (int)$r['id'], ['from' => $id]);
+        $_SESSION['flash_ok'] = $r['message'];
+        // Straight into the copy, because the next thing anybody does is change its dates.
+        return $res->withHeader('Location', '/admin/events/' . (int)$r['id'])->withStatus(302);
+    }
+
     public function delete(Request $req, Response $res, array $args): Response
     {
         $id = (int)$args['id'];
+        if (($why = \AfricaGates\Admin\Services\EventCopy::inUse($id)) !== null) {
+            $_SESSION['flash_error'] = 'This event cannot be deleted: ' . $why
+                . '. Their tickets and payments are records of what they bought. Set it back to draft to take it off the site instead.';
+            return $res->withHeader('Location', '/admin/events')->withStatus(302);
+        }
         DB::table('gates_site_events')->where('id', $id)->delete();
         $this->audit->record((int)$_SESSION['admin_id'], 'event.delete', 'site_event', $id);
         $this->cache->forget('events:upcoming');

@@ -78,6 +78,9 @@ final class AssetBundle
         // It was linked by the shell without being added here, so the bundle and the shell
         // disagreed about the cascade — ShellLayoutTest had been red on it since.
         'assets/css/components/forms.css',
+        // Site notices (Services\SiteNotice): planned work and the operator's announcement,
+        // at the top of every page. In the base payload because every page may draw one.
+        'assets/css/components/notice.css',
         // The default graphics (DEFAULT-GRAPHICS §2, handoff 5 Oct 2026): every image slot
         // with no upload draws a cover or avatar, on any page. After the base, as the spec says.
         'assets/css/components/cover.css',

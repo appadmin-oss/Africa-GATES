@@ -109,6 +109,8 @@
 }
 .ei-spotph__track::-webkit-scrollbar{ display:none }
 .ei-spotph__track > li{ flex:none; width:86%; scroll-snap-align:start }
+/* 86% is the peek that says "there are more"; with one event there are not, and the card sat short of the edge for no reason. */
+.ei-spotph__track > li:only-child{ width:100% }
 .ei-spotph__card{ display:flex; flex-direction:column; border-radius:var(--ag-r-22); overflow:hidden; background:var(--ei-wash); color:var(--ag-ink); text-decoration:none }
 .ei-spotph__vis{ position:relative; display:block; aspect-ratio:4 / 3 }
 .ei-spotph__vis .ag-photo{ position:absolute; inset:0; width:100%; height:100% }
@@ -228,6 +230,8 @@
 .ei-res__head{ display:flex; align-items:baseline; justify-content:space-between; gap:12px }
 .ei-grid{ list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:22px 12px }
 .ei-grid > li{ min-width:0 }
+/* One event is not half a page: a lone card takes the row rather than leaving an empty column beside it. */
+@media (max-width:599px){ .ei-grid > li:only-child{ grid-column:1 / -1 } }
 .ei-empty{
   display:flex; flex-direction:column; align-items:center; gap:12px; padding:48px 20px; text-align:center;
   background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-24);

@@ -63,6 +63,11 @@ abstract class TestCase extends BaseTestCase
 
         // Static per-process caches must never leak between tests.
         \AfricaGates\Services\SpamService::resetThresholdCache();
+        // The error log is a throwaway file per process, emptied per test. The console alerts
+        // on it (ConsoleAlerts `faults`), so a test that records a deliberate fault must not
+        // raise an alert in the next one — nor on the developer's own console afterwards.
+        \AfricaGates\Support\PublicFault::useLog(sys_get_temp_dir() . '/ag-test-error-' . getmypid() . '.log');
+        @unlink(\AfricaGates\Support\PublicFault::logFile());
         // What we learned about the SCHEMA is the sharpest of these, because the schema is
         // rebuilt per test and the memo was not: one test that touched a table before a
         // migration added a column taught OptionalColumn that the column does not exist, and

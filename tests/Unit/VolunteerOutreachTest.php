@@ -284,7 +284,9 @@ final class VolunteerOutreachTest extends TestCase
         $this->assertStringContainsString('Hello Halima', $draft);
         $this->assertStringContainsString('a photo, a short bio, evidence of their work and to accept the terms', $draft, 'the draft names what the profile needs');
         $this->assertStringContainsString('/account/nomination', $draft);
-        $this->assertStringContainsString('Log it', $html, 'one-tap outcomes after a call');
+        // One-tap outcomes after a call: each is its own posting button with the outcome it logs.
+        $this->assertMatchesRegularExpression('~name="outcome" value="no_answer">\s*<button[^>]*>No answer</button>~', $html, 'one-tap outcomes after a call');
+        $this->assertMatchesRegularExpression('~name="outcome" value="left_message">\s*<button[^>]*>Left a message</button>~', $html);
     }
 
     /**
@@ -353,5 +355,81 @@ final class VolunteerOutreachTest extends TestCase
         $this->assertSame(5, substr_count(trim($body), "\n") + 1, 'a header and four contacts; the other award is not in "all awards" here either');
         $this->assertStringContainsString("'=HYPERLINK", $body);
         unset($_SESSION['admin_id']);
+    }
+
+    /** An event for this award, and a volunteer helping at it with these roles. */
+    private function eventVolunteer(array $caps): array
+    {
+        $prog = (int) DB::table('gates_award_cycles')->where('id', $this->cycle)->value('programme_id');
+        $ev = (int) DB::table('gates_site_events')->insertGetId(['title' => 'Teachers Prize night', 'slug' => 'tp-' . bin2hex(random_bytes(3)),
+            'event_date' => date('Y-m-d H:i:s', strtotime('+10 days')), 'status' => 'published']);
+        DB::table('gates_event_programmes')->insert(['event_id' => $ev, 'programme_id' => $prog]);
+        $v = $this->volunteer([]);
+        foreach ($caps as $c) $this->assertTrue(Grants::grant('member', (int) $v->user_id, $c, 'event', $ev, date('Y-m-d', strtotime('+20 days')), 1)['ok']);
+        Outreach::reset();
+        return [$ev, Volunteers::of((int) $v->user_id)];
+    }
+
+    /**
+     * Everybody helping at an award's event sees who is being honoured — the Academy's event
+     * lesson says so — and nothing about how to reach them.
+     */
+    public function test_an_event_volunteer_sees_the_events_nominees_without_their_details(): void
+    {
+        $this->nominee('Halima Bello');
+        DB::table('gates_nominees')->insert(['category_id' => $this->cat, 'name' => 'Not Yet', 'status' => 'pending', 'nominated_at' => date('Y-m-d H:i:s')]);
+        [$ev] = $this->eventVolunteer(['vol.usher']);
+        $req = (new ServerRequestFactory())->createServerRequest('GET', '/volunteer');
+        $res = $this->ctrl()->place($req, new Response(), ['kind' => 'event', 'id' => (string) $ev, 'page' => 'nominees']);
+        $this->assertSame(200, $res->getStatusCode());
+        $html = (string) $res->getBody();
+        $this->assertStringContainsString('Halima Bello', $html);
+        $this->assertStringContainsString('Teacher of the Year', $html);
+        $this->assertStringNotContainsString('Not Yet', $html, 'only approved nominees');
+        $this->assertStringNotContainsString('8031112233', $html, 'an usher is not given a nominee\'s number');
+        $this->assertStringNotContainsString('halima@school.ng', $html);
+    }
+
+    /** Nominee outreach given at the EVENT is outreach on the award that night presents. */
+    public function test_outreach_given_at_an_event_reaches_that_events_award(): void
+    {
+        $n = $this->nominee('Halima Bello');
+        [, $v] = $this->eventVolunteer([Outreach::CAPABILITY]);
+        $this->assertArrayHasKey($this->cycle, Outreach::awards($v), 'the role at the event gave nothing');
+        $this->assertNotNull(Workspace::place($v, 'cycle', $this->cycle));
+        $this->assertStringContainsString('Halima Bello', $this->page('all', ['n' => $n]));
+    }
+
+    /**
+     * A field alone in its form group is named once on screen — by the group — and still
+     * named for a screen reader. Both used to print, so every form in the portal stuttered
+     * ("How it went / How it went") and every stacked row on a phone was twice as tall.
+     */
+    public function test_a_lone_fields_label_is_spoken_but_not_printed_twice(): void
+    {
+        $n = $this->nominee('Halima Bello');
+        $v = $this->volunteer([Outreach::CAPABILITY]);
+        Outreach::agree($v, $this->cycle);
+        $html = $this->page('all', ['n' => $n]);
+        $this->assertMatchesRegularExpression('~<p class="sh7-form__name">How it went</p>~', $html);
+        $this->assertMatchesRegularExpression('~<legend class="sh7-field__label sh7-sr">How it went</legend>~', $html, 'printed twice');
+        $this->assertDoesNotMatchRegularExpression('~<legend class="sh7-field__label">How it went</legend>~', $html);
+    }
+
+    /**
+     * The nominee page shows the one thing it is for. It stacked nine equally loud sections
+     * (3,400px on a phone); the numbers now live in the hero beside the buttons that use them,
+     * and the email form is folded until asked for — reachable by the hero's own link.
+     */
+    public function test_the_nominee_page_puts_the_email_form_behind_its_link(): void
+    {
+        $n = $this->nominee('Halima Bello');
+        $v = $this->volunteer([Outreach::CAPABILITY]);
+        Outreach::agree($v, $this->cycle);
+        $html = $this->page('all', ['n' => $n]);
+        $this->assertMatchesRegularExpression('~<details class="sh7-fold sh7-fold--form" id="write">~', $html, 'the email form is not folded');
+        $this->assertStringContainsString('href="#write"', $html, 'nothing opens it');
+        $this->assertStringNotContainsString('How to reach them', $html, 'the numbers are listed a second time');
+        $this->assertMatchesRegularExpression('~<dt>Phone</dt><dd>\+?2348031112233~', $html);
     }
 }

@@ -1,0 +1,95 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  ERRORS VISITORS SAW — /admin/errors (Admin\Controllers\ErrorsController).
+
+  Every 500 the site shows a visitor carries a reference ("Quote it and we can find exactly
+  what failed"), and this is where it is found: the list for the window, the pages that fail
+  most, and a box for the reference somebody quoted. A reference opens the full entry —
+  message, where in the code, the first frames — which is staff-only (PublicFault::entry).
+  Reached from the `faults` alert and from Alerts.
+#}
+
+{% block topbar_eyebrow %}<small><a href="/admin/alerts">Alerts</a></small>{% endblock %}
+{% block topbar_title %}Errors visitors saw{% endblock %}
+{% block topbar_sub %}{{ windows[hours] }} · {{ recent.total|number_format }} in all{% endblock %}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .ex-card{ padding:18px 20px }
+  .ex-card h2{ margin:0 0 10px; font-size:var(--cn-fs-15); font-weight:600 }
+  .ex-hint{ display:block; font-size:var(--cn-fs-12-5); color:var(--cn-soft); line-height:1.45 }
+  .ex-find{ display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end }
+  .ex-find label{ display:flex; flex-direction:column; gap:4px; font-size:var(--cn-fs-13); font-weight:600 }
+  .ex-find input{ min-height:36px; padding:0 10px; border:1px solid var(--cn-line); bordex-radius:8px; font:inherit; width:12rem }
+  .ex-tabs{ display:flex; gap:8px; flex-wrap:wrap; margin:0 0 12px }
+  .ex-code{ margin:8px 0 0; padding:10px 12px; background:var(--cn-ground); bordex-radius:8px; font-family:var(--cn-mono); font-size:var(--cn-fs-12-5); line-height:1.5; white-space:pre-wrap; overflow-wrap:anywhere }
+  .ex-what{ overflow-wrap:anywhere }
+  .ex-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:16px }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ex-grid">
+  <section class="cn-card ex-card" aria-labelledby="erFindH">
+    <h2 id="erFindH">Find a reference</h2>
+    <form class="ex-find" method="get" action="/admin/errors">
+      <label>Reference <input type="text" name="ref" value="{{ asked }}" placeholder="ABCD-2345" autocomplete="off" spellcheck="false"></label>
+      <input type="hidden" name="hours" value="{{ hours }}">
+      <button class="cn-btn" type="submit">Find</button>
+    </form>
+    <span class="ex-hint">The eight characters a visitor was shown on the error page, or quoted to Gee or in a ticket. References never contain 0, 1, O, I, L or U.</span>
+    {% if asked %}
+      {% if entry %}
+        <dl class="cn-facts">
+          <div><dt>When</dt><dd>{{ entry.at|when('D j M Y, H:i') }}</dd></div>
+          <div><dt>Page</dt><dd>{{ entry.where ?: '—' }}</dd></div>
+          <div><dt>Same page, last day</dt><dd>{{ others == 0 ? 'Nobody else' : others ~ ' other' ~ (others == 1 ? '' : 's') }}</dd></div>
+        </dl>
+        <p class="ex-what"><strong>{{ entry.detail }}</strong></p>
+        {% if entry.trace %}<pre class="ex-code">{{ entry.trace|join("\n") }}</pre>{% endif %}
+      {% else %}
+        <p class="ex-hint"><strong>{{ asked }}</strong> is not in the log. Check it was copied exactly; an entry older than the log’s last 4 MB is no longer kept.</p>
+      {% endif %}
+    {% endif %}
+  </section>
+
+  <section class="cn-card ex-card" aria-labelledby="erTopH">
+    <h2 id="erTopH">Where it fails most</h2>
+    {% if recent.by_where %}
+      <table class="cn-table">
+        <thead><tr><th scope="col">Page</th><th scope="col">Errors</th></tr></thead>
+        <tbody>{% for w, n in recent.by_where|slice(0, 8, true) %}<tr><td class="ex-what">{{ w }}</td><td>{{ n|number_format }}</td></tr>{% endfor %}</tbody>
+      </table>
+      {% if recent.money %}<span class="ex-hint">{{ recent.money }} while somebody was paying, voting, giving or buying a ticket.</span>{% endif %}
+    {% else %}
+      <p class="ex-hint">Nothing failed in this window.</p>
+    {% endif %}
+  </section>
+</div>
+
+<section class="cn-card ex-card" aria-labelledby="erListH">
+  <h2 id="erListH">Every error, newest first</h2>
+  <nav class="ex-tabs" aria-label="Window">
+    {% for h, label in windows %}<a class="cn-btn{{ h == hours ? ' cn-btn--primary' : '' }}" href="/admin/errors?hours={{ h }}"{% if h == hours %} aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}
+  </nav>
+  {% if recent.entries %}
+    <table class="cn-table">
+      <thead><tr><th scope="col">When</th><th scope="col">Reference</th><th scope="col">Page</th><th scope="col">What failed</th></tr></thead>
+      <tbody>
+      {% for e in recent.entries %}
+        <tr>
+          <td>{{ e.at|when('j M, H:i') }}</td>
+          <td>{% if e.ref %}<a href="/admin/errors?{{ {ref: e.ref, hours: hours}|url_encode }}"><span class="cn-code">{{ e.ref }}</span></a>{% else %}—{% endif %}</td>
+          <td class="ex-what">{{ e.where ?: '—' }}</td>
+          <td class="ex-what">{{ e.what }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% if recent.total > recent.entries|length %}<span class="ex-hint">The newest {{ recent.entries|length }} of {{ recent.total|number_format }}.</span>{% endif %}
+  {% else %}
+    <p class="ex-hint">No errors in this window. Each one a visitor meets is listed here, with the reference they were shown.</p>
+  {% endif %}
+</section>
+{% endblock %}

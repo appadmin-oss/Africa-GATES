@@ -23,6 +23,8 @@
 {% block topbar_title %}Alerts{% endblock %}
 {% block topbar_actions %}
   <a class="cn-pillbtn" href="/status" target="_blank" rel="noopener">Status page</a>
+  {# Held to superadmin by the guard (unmapped), so drawn only for a role it lets through. #}
+  {% if can_errors %}<a class="cn-pillbtn" href="/admin/errors">Errors visitors saw</a>{% endif %}
   <a class="al2-btn al2-btn--primary" href="{{ m.url('/admin/alerts', q, {}) }}">Run all checks</a>
 {% endblock %}
 
@@ -75,12 +77,12 @@
     </nav>
     <span class="al2-bar__sep" aria-hidden="true"></span>
     {% for c in sev_chips %}
-      <a class="al2-chip" href="{{ m.url('/admin/alerts', q, {severity: severity == c.v ? null : c.v, alert: null}) }}" aria-pressed="{{ severity == c.v ? 'true' : 'false' }}">
+      <a class="al2-chip" href="{{ m.url('/admin/alerts', q, {severity: severity == c.v ? null : c.v, alert: null}) }}" {% if severity == c.v %}aria-current="true"{% endif %}>
         <span class="al2-sev-dot al2-sev-dot--{{ c.v }}" aria-hidden="true"></span>{{ c.l }}<span class="al2-chip__num">{{ c.n }}</span>
       </a>
     {% endfor %}
     {% if prod_n or prod_only %}
-      <a class="al2-chip" href="{{ m.url('/admin/alerts', q, {impact: prod_only ? null : 'production', alert: null}) }}" aria-pressed="{{ prod_only ? 'true' : 'false' }}">
+      <a class="al2-chip" href="{{ m.url('/admin/alerts', q, {impact: prod_only ? null : 'production', alert: null}) }}" {% if prod_only %}aria-current="true"{% endif %}>
         <span class="al2-sev-dot al2-sev-dot--high" aria-hidden="true"></span>Affects production<span class="al2-chip__num">{{ prod_n }}</span>
       </a>
     {% endif %}

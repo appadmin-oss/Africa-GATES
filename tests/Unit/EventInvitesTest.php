@@ -1368,4 +1368,37 @@ final class EventInvitesTest extends TestCase
         return (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/honour.twig');
     }
 
+
+    /**
+     * The body carries its own unsubscribe link as well as the shell's, and it was the
+     * INVITEE'S: an operator checking their letter who pressed "unsubscribe" in it opted
+     * a nominee out of every mail we send them. A test copy carries only the operator's.
+     */
+    public function test_a_test_copy_carries_only_the_operators_unsubscribe_link(): void
+    {
+        $inv = EventInvites::mint($this->eventId, InviteAudience::NOMINEE,
+            ['name' => 'Ada Obi', 'email' => 'ada@example.com', 'nominee_id' => 0, 'judge_id' => 0]);
+        $event = DB::table('gates_site_events')->where('id', $this->eventId)->first();
+        $mailer = new class(['host' => 'localhost', 'port' => 25, 'username' => 'u', 'password' => 'p',
+                             'from_address' => 'no@example.com', 'from_name' => 'X'])
+            extends \AfricaGates\Services\OtpService {
+            public string $html = '';
+            public string $text = '';
+            public function smtpConfigured(): bool { return true; }
+            public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '',
+                                        string $category = '', string $hero = '', string $unsubscribeUrl = '',
+                                        array $attachments = [], string $preheader = '', int $heroHeight = 0, string $why = ''): array
+            {
+                $this->html = $htmlBody . $unsubscribeUrl;
+                $this->text = $plainBody;
+                return ['success' => true];
+            }
+        };
+        \AfricaGates\Services\InviteMailer::sendTest($inv, $event, 'ops@example.test', $mailer);
+
+        $theirs = \AfricaGates\Services\EmailOptOut::encode('ada@example.com');
+        $mine   = \AfricaGates\Services\EmailOptOut::encode('ops@example.test');
+        $this->assertStringNotContainsString($theirs, $mailer->html . $mailer->text, 'the test copy can unsubscribe the invitee');
+        $this->assertStringContainsString($mine, $mailer->html);
+    }
 }

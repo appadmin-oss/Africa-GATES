@@ -10,6 +10,12 @@
   type (ads-builder.js); with no script the form still posts and the server says the same.
 
   No location choice: there is none in the beta (owner, 28 Oct 2026).
+
+  Two live panels since 11 Nov 2026, from what the large platforms put beside a builder: the
+  ad's strength with what would raise it (Google's ad strength), and what the budget should
+  reach (LinkedIn's forecast, Meta's estimated results). Both are rendered by the server from
+  one partial each, drawn here on load and redrawn from POST /account/ads/check as the form
+  changes; with no script they show what the page was drawn with.
 #}
 {# Tier 2, transactional: it asks for something (a campaign, a fix, a review). #}
 {% set colour_tier = '2' %}
@@ -20,7 +26,7 @@
   offer: old.offer|default(''), offer_code: old.offer_code|default(''), cta: rules.ctas[old.cta|default('learn_more')]|default('Learn more'), url: '#', external: false
 } %}
 
-{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/ads.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/ad-slot.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/image-tool.css') }}">{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/library.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/ads.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/ad-slot.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/image-tool.css') }}">{% endblock %}
 
 {% block content %}
 {# The image editor (image-tool.js): the person chooses the square, and it is made small on
@@ -82,7 +88,7 @@
         {% set _picked = old.placements|default(rules.placements|keys) %}
         <div class="am-checks">
           {% for k, label in rules.placements %}
-          <label class="am-check"><input type="checkbox" name="placements[]" value="{{ k }}"{% if k in _picked %} checked{% endif %}> <span><b>{{ label|trans }}</b><span class="am-check__s">{{ market[k].where|default('')|trans }}{% if market[k] is defined %} · {{ market[k].tier_label|trans }}{% if market[k].price %} · {{ '₦%p% per 1,000 views today'|trans({'%p%': market[k].price|number_format}) }}{% endif %}{% endif %}</span></span></label>
+          <label class="am-check"><input type="checkbox" name="placements[]" value="{{ k }}"{% if k in _picked %} checked{% endif %}> <span><b>{{ label|trans }}</b><span class="am-check__s">{{ market[k].where|default('')|trans }}{% if market[k] is defined %} · {{ market[k].tier_label|trans }}{% if market[k].price %} · {{ '₦%p% per 1,000 views today'|trans({'%p%': market[k].price|number_format}) }}{% endif %}{% if market[k].paid_only %} · {{ 'Paid campaigns only'|trans }}{% endif %}{% endif %}</span></span></label>
           {% endfor %}
         </div>
         {% if errors.placements %}<p class="am-err" role="alert">{{ errors.placements|trans }}</p>{% endif %}
@@ -116,6 +122,7 @@
           <p class="am-note">{{ 'It starts when it is both paid for and approved, and runs this many days from then.'|trans }} <a class="am-link" href="/advertise#plan">{{ 'Plan a budget for a result'|trans }}</a></p>
           {% if errors.days %}<p class="am-err" role="alert">{{ errors.days|trans }}</p>{% endif %}
         </div>
+        <div class="am-fc" data-ad-forecast aria-live="polite">{% include 'partials/ad-forecast.twig' %}</div>
         {% else %}
         <input type="hidden" name="kind" value="trial">
         {% endif %}
@@ -123,12 +130,34 @@
 
       <fieldset class="am-step">
         <legend><span class="am-step__k">{{ '3 of 3'|trans }}</span>{{ 'Your ad'|trans }}</legend>
+        {# The ad's SHAPE (AdRules::SHAPES, owner 11 Nov 2026: "should not allow just square
+           posts anymore"). Each choice carries its image profile's frame, so the editor, the
+           server's cut and the card's box are one shape; ads-builder.js moves the editor and
+           the preview when it changes. #}
+        {% set _shape = old.shape|default('square') %}
+        <fieldset class="am-chips" data-ad-shapes>
+          <legend class="ag-label">{{ 'Shape'|trans }}</legend>
+          {% for k, sh in rules.shapes %}
+          <label class="ag-chip am-chip"><input type="radio" name="shape" value="{{ k }}" data-aspect="{{ sh.aspect }}" data-min="{{ sh.min }}" data-out="{{ sh.out }}"{% if _shape == k %} checked{% endif %}> {{ sh.label|trans }}</label>
+          {% endfor %}
+        </fieldset>
+        <p class="ag-hint">{{ 'Upright fills more of a phone screen. Wide suits a video made for YouTube or a TV.'|trans }}</p>
         <div class="am-field">
           <label class="ag-label" for="ad-img">{{ 'Image'|trans }}</label>
-          <input class="am-input am-input--file" id="ad-img" name="image" type="file" accept="image/jpeg,image/png,image/webp" required data-pv-file="image" aria-describedby="ad-img-h{% if errors.image %} ad-img-e{% endif %}"{% if errors.image %} aria-invalid="true"{% endif %} {{ imgtool.attrs('ad') }}>
-          <p class="ag-hint" id="ad-img-h">{{ 'Any photo: once you pick it, you choose the square that shows. At least %n%px on each side. Little or no text on the image works best.'|trans({'%n%': rules.image}) }}</p>
+          <input class="am-input am-input--file" id="ad-img" name="image" type="file" accept="image/jpeg,image/png,image/webp" required data-pv-file="image" aria-describedby="ad-img-h{% if errors.image %} ad-img-e{% endif %}"{% if errors.image %} aria-invalid="true"{% endif %} {{ imgtool.attrs(rules.shapes[_shape].profile) }} data-shape-from="shape">
+          <p class="ag-hint" id="ad-img-h">{{ 'Any photo: once you pick it, you choose the part that shows, in the shape above. At least %n%px on its shorter side. Little or no text on the image works best.'|trans({'%n%': rules.shapes[_shape].min}) }}</p>
           {% if errors.image %}<p class="am-err" id="ad-img-e" role="alert">{{ errors.image|trans }}</p>{% endif %}
         </div>
+        {% if rules.video.on %}
+        {# A short video over the image (Services\Ads\AdVideo): optional, and the image stays
+           its poster and the whole ad wherever the video does not play. #}
+        <div class="am-field">
+          <label class="ag-label" for="ad-vid">{{ 'Video'|trans }} <span class="am-opt">{{ '(optional)'|trans }}</span></label>
+          <input class="am-input am-input--file" id="ad-vid" name="video" type="file" accept="video/mp4" data-pv-video aria-describedby="ad-vid-h{% if errors.video %} ad-vid-e{% endif %}"{% if errors.video %} aria-invalid="true"{% endif %}>
+          <p class="ag-hint" id="ad-vid-h">{{ 'An MP4 of %min% to %max% seconds, up to %mb%MB. It plays by itself, without sound, as people scroll past, in the shape above: make it in that shape, and make it work silently. Your image shows until it plays.'|trans({'%min%': rules.video.min, '%max%': rules.video.max, '%mb%': rules.video.mb}) }}</p>
+          {% if errors.video %}<p class="am-err" id="ad-vid-e" role="alert">{{ errors.video|trans }}</p>{% endif %}
+        </div>
+        {% endif %}
         <div class="am-field">
           <label class="ag-label" for="ad-b">{{ 'Text'|trans }} <span class="am-count" data-count-for="ad-b"></span></label>
           <textarea class="am-input am-input--area" id="ad-b" name="body" rows="3" required minlength="{{ rules.body_min }}" maxlength="{{ rules.body }}" data-pv-in="body" aria-describedby="ad-b-h{% if errors.body %} ad-b-e{% endif %}"{% if errors.body %} aria-invalid="true"{% endif %}>{{ old.body|default('') }}</textarea>
@@ -144,7 +173,11 @@
         <div class="am-row2">
           <div class="am-field">
             <label class="ag-label" for="ad-url">{{ 'Link'|trans }}</label>
-            <input class="am-input" id="ad-url" name="url" type="url" inputmode="url" required placeholder="https://" value="{{ old.url|default('') }}" data-pv-in="domain"{% if errors.url %} aria-invalid="true" aria-describedby="ad-url-e"{% endif %}>
+            {# A web address, or a WhatsApp number with the Chat on WhatsApp button
+               (AdRules::whatsappUrl), so it is text rather than type="url": a phone number is
+               a valid answer here and the browser would refuse it. #}
+            <input class="am-input" id="ad-url" name="url" type="text" inputmode="url" autocomplete="url" spellcheck="false" required placeholder="https://" data-ph-web="https://" data-ph-wa="+234 803 123 4567" value="{{ old.url|default('') }}" data-pv-in="domain" aria-describedby="ad-url-h{% if errors.url %} ad-url-e{% endif %}"{% if errors.url %} aria-invalid="true"{% endif %}>
+            <p class="ag-hint" id="ad-url-h">{{ 'Your website (https://…). With the Chat on WhatsApp button, your WhatsApp number instead: the chat opens with “%g%” typed in, so you know where they came from.'|trans({'%g%': rules.wa_greeting}) }}</p>
             {% if errors.url %}<p class="am-err" id="ad-url-e" role="alert">{{ errors.url|trans }}</p>{% endif %}
           </div>
           <div class="am-field">
@@ -167,6 +200,9 @@
             {% if errors.offer_code %}<p class="am-err" id="ad-code-e" role="alert">{{ errors.offer_code|trans }}</p>{% endif %}
           </div>
         </div>
+        {# Beside the fields it scores, not under the sticky preview: a preview column taller
+           than a laptop's screen would hide it until the end of the form. #}
+        <div class="am-strbox" data-ad-strength aria-live="polite">{% include 'partials/ad-strength.twig' %}</div>
         <fieldset class="am-field am-approvals">
           <legend class="ag-label">{{ 'Approvals'|trans }}</legend>
           <p class="ag-hint">{{ rules.beta
@@ -183,19 +219,34 @@
         </fieldset>
       </fieldset>
 
+      {# The live preview, right after the fields it shows: on a phone that is under "Your ad"
+         rather than below the button, where nobody writing an ad would scroll to it; from
+         1024px the grid lifts it into a sticky column beside the steps (ads.css). #}
+      <aside class="am-build__pv" id="ad-preview" aria-label="{{ 'Preview'|trans }}">
+        <p class="am-pv__h">{{ 'Preview'|trans }}</p>
+        {% set _pvs = _pv|merge({shape: _shape}) %}
+        <div data-ad-preview>{% include 'partials/ad-slot.twig' with {ad: _pvs, preview: true, media_box: true} only %}</div>
+        <p class="am-note">{{ 'How your ad looks on the page. The real one is labelled the same way.'|trans }}</p>
+      </aside>
+
       <div class="am-submit">
         <label class="am-check am-check--agree"><input type="checkbox" name="standards" value="1" required{% if old.standards|default(false) %} checked{% endif %}{% if errors.standards %} aria-invalid="true" aria-describedby="ad-std-e"{% endif %}> <span>{{ 'My ad follows the'|trans }} <a class="am-link" href="/legal/advertising" target="_blank" rel="noopener">{{ 'Advertising Policy'|trans }}</a>{{ ', and its claims are true.'|trans }}</span></label>
         {% if errors.standards %}<p class="am-err" id="ad-std-e" role="alert">{{ errors.standards|trans }}</p>{% endif %}
         <p class="am-note">{{ 'A person checks every ad before it runs. Ads are labelled Sponsored.'|trans }}</p>
+        <button type="submit" class="ag-btn ag-btn--primary ag-btn--pill am-submit__btn">{{ paid.open ? 'Continue'|trans : 'Send for review'|trans }}</button>
+      </div>
+      {# THE PHONE'S ACTION BAR (library.css .ag-actionbar): a long form's one action stays
+         under the thumb, the tab bar is off (flow_page), and the summary says what is being
+         sent. It is the same submit button, so validation and the agreement still apply. #}
+      <div class="ag-actionbar am-actbar" data-bottom-ui role="region" aria-label="{{ 'Your ad'|trans }}">
+        <span class="ag-actionbar__sum">
+          <b data-bar-kind data-trial="{{ 'Free trial'|trans }}" data-paid="{{ 'Paid campaign'|trans }}">{{ (paid.open and old.kind|default(trial_left ? 'trial' : 'paid') == 'paid') or not trial_left ? 'Paid campaign'|trans : 'Free trial'|trans }}</b>
+          <span>{{ 'A person checks it before it runs'|trans }}</span>
+        </span>
         <button type="submit" class="ag-btn ag-btn--primary ag-btn--pill">{{ paid.open ? 'Continue'|trans : 'Send for review'|trans }}</button>
       </div>
     </div>
 
-    <aside class="am-build__pv" aria-label="{{ 'Preview'|trans }}">
-      <p class="am-pv__h">{{ 'Preview'|trans }}</p>
-      <div data-ad-preview>{% include 'partials/ad-slot.twig' with {ad: _pv, preview: true, media_box: true} only %}</div>
-      <p class="am-note">{{ 'How your ad looks on the page. The real one is labelled the same way.'|trans }}</p>
-    </aside>
   </form>
   {% endif %}
 </div>

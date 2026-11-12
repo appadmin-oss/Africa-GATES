@@ -109,7 +109,7 @@
   {% if views %}
     <div class="rq-views" role="group" aria-label="Quick views">
       {% for v in views %}
-        <a class="rq-view" href="{{ v.href }}" aria-pressed="{{ v.on ? 'true' : 'false' }}">{% if v.tone %}<span class="rq-dot rq-dot--{{ v.tone }}" aria-hidden="true"></span>{% endif %}{{ v.label }}<span class="rq-view__num">{{ v.n }}</span></a>
+        <a class="rq-view" href="{{ v.href }}" {% if v.on %}aria-current="true"{% endif %}>{% if v.tone %}<span class="rq-dot rq-dot--{{ v.tone }}" aria-hidden="true"></span>{% endif %}{{ v.label }}<span class="rq-view__num">{{ v.n }}</span></a>
       {% endfor %}
       <span class="rq-saved" data-rq-saved hidden></span>
     </div>

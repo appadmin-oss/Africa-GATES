@@ -225,6 +225,10 @@ $app->add(new \AfricaGates\Middleware\ReferralCaptureMiddleware());
 // at. Records nothing for bots, admin pages, or anybody sending DNT / Sec-GPC, and
 // swallows its own errors — a tracker that can 500 the home page is worse than none.
 $app->add(new \AfricaGates\Middleware\VisitTrackingMiddleware());
+// Planned work an operator chose to close the site for: the 503 page with Retry-After for
+// visitors, while staff, sign-in, payment callbacks and the webcron carry on. Inside the
+// language middleware (added after it, so it runs first) so the page is in their language.
+$app->add(new \AfricaGates\Middleware\MaintenanceGateMiddleware());
 // Which language this request renders in, and the one place `?lang=` becomes a
 // stored preference. Middleware because a shared link carries `?lang=` on whatever
 // page it points at, so it has to work on all of them — see the class for why every

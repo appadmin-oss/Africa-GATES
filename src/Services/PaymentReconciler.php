@@ -150,6 +150,42 @@ final class PaymentReconciler
         return $mine->lt($mailers) ? $mine : $mailers;
     }
 
+    /**
+     * Least recently ASKED first, so the sweep takes turns.
+     *
+     * It read newest-first with a limit of twenty-five, and an abandoned checkout stays
+     * pending for three days. On a busy night the newest twenty-five were asked every hour
+     * and every row behind them never was — including payments Paystack had already marked
+     * failed, which it sends no webhook for, so asking is the only way a row learns it. The
+     * console showed "Payments 101" pending while Paystack's own dashboard said failed.
+     *
+     * Never-asked rows first, then the longest ago, the newest id breaking ties (so a
+     * payment made in the last hour still comes before last week's when neither has been
+     * asked). Where the column is not migrated yet, the old newest-first order stands.
+     */
+    private static function inTurn(\Illuminate\Database\Query\Builder $q, string $table): \Illuminate\Database\Query\Builder
+    {
+        if (OptionalColumn::on($table, 'swept_at')) {
+            $q->orderByRaw('CASE WHEN swept_at IS NULL THEN 0 ELSE 1 END')->orderBy('swept_at');
+        }
+        return $q->orderByDesc('id');
+    }
+
+    /**
+     * Stamp the row as asked, whether or not the gateway answered: a reference the gateway
+     * does not recognise would otherwise sit at the head of the queue for ever, blocking the
+     * rows behind it, which is the fault this exists to remove. A row that could not be
+     * reached simply comes round again on its turn. Only when applying — a read-only check
+     * from the admin screen changes nothing.
+     */
+    private static function asked(string $table, string $col, string $ref, bool $apply): void
+    {
+        if (!$apply || $ref === '' || !OptionalColumn::on($table, 'swept_at')) return;
+        try {
+            DB::table($table)->where($col, $ref)->update(['swept_at' => Carbon::now()->toDateTimeString()]);
+        } catch (\Throwable) {}
+    }
+
     public function __construct(
         private readonly PaymentService $payments = new PaymentService(),
         private readonly ?\AfricaGates\Services\OtpService $mailer = null,
@@ -222,8 +258,8 @@ final class PaymentReconciler
         try {
             // Newest first, for the same reason as donations(): the abandoned
             // basket from last month must never push today's paid order off the page.
-            $rows = DB::table('gates_orders')->where('status', 'pending')
-                ->where('created_at', '<', $cutoff)->orderByDesc('id')->limit($limit)->get();
+            $rows = self::inTurn(DB::table('gates_orders')->where('status', 'pending')
+                ->where('created_at', '<', $cutoff), 'gates_orders')->limit($limit)->get();
         } catch (\Throwable) {
             return [];
         }
@@ -246,6 +282,7 @@ final class PaymentReconciler
             }
 
             $v = $this->payments->verify($provider, (string) $o->reference);
+            self::asked('gates_orders', 'reference', (string) $o->reference, $apply);
             if (!$v['ok']) {
                 $row['note'] = 'gateway did not answer: ' . (string) ($v['message'] ?? 'unknown');
                 $out[] = $row;
@@ -358,10 +395,9 @@ final class PaymentReconciler
         $out = [];
         try {
             if (!DB::schema()->hasTable('gates_event_registrations')) return [];
-            $rows = DB::table('gates_event_registrations')->where('status', 'pending')
+            $rows = self::inTurn(DB::table('gates_event_registrations')->where('status', 'pending')
                 ->where('amount_naira', '>', 0)
-                ->where('created_at', '<', $cutoff)
-                ->orderByDesc('id')->limit($limit)->get();
+                ->where('created_at', '<', $cutoff), 'gates_event_registrations')->limit($limit)->get();
         } catch (\Throwable) {
             return [];
         }
@@ -384,6 +420,7 @@ final class PaymentReconciler
                 : $enabled;
 
             $answered = false;
+            self::asked('gates_event_registrations', 'reference', (string) $g->reference, $apply);
             foreach ($ask as $provider) {
                 $v = $this->payments->verify($provider, (string) $g->reference);
                 if (!($v['ok'] ?? false)) continue;
@@ -608,8 +645,8 @@ final class PaymentReconciler
         // old ascending order meant the abandoned carts were reconciled first and,
         // once there were more of them than the limit, they were reconciled ONLY.
         try {
-            $rows = DB::table('gates_donations')->where('status', 'pending')
-                ->where('created_at', '<', $cutoff)->orderByDesc('id')->limit($limit)->get();
+            $rows = self::inTurn(DB::table('gates_donations')->where('status', 'pending')
+                ->where('created_at', '<', $cutoff), 'gates_donations')->limit($limit)->get();
         } catch (\Throwable) {
             return [];
         }
@@ -633,9 +670,18 @@ final class PaymentReconciler
             // taken before the column existed — is every gateway asked in turn.
             // That loop is what made a 200-row sweep 400 HTTPS calls long.
             $ask = $this->providersFor($d, $providers);
+            self::asked('gates_donations', 'payment_ref', (string) $d->payment_ref, $apply);
 
+            $failedBy = null;
             foreach ($ask as $provider) {
                 $v = $this->payments->verify($provider, (string) $d->payment_ref);
+                if ($v['ok'] && ($v['status'] ?? '') === 'failed') {
+                    // A conclusive answer: declined, or reversed. Kept rather than acted on
+                    // at once, so another gateway recognising this reference as PAID (an
+                    // order from before the provider was recorded) still wins below.
+                    $failedBy ??= $provider;
+                    continue;
+                }
                 if (!$v['ok'] || ($v['status'] ?? '') !== 'success') {
                     continue;   // not this gateway, or not paid yet — try the next
                 }
@@ -675,6 +721,23 @@ final class PaymentReconciler
                     }
                 }
                 break;   // a provider recognised this reference — done with this row
+            }
+
+            // ── THE GATEWAY SAID FAILED, AND THIS USED TO IGNORE IT ──────────────
+            //
+            // Orders and tickets have always been marked failed on this answer; paid
+            // votes were not — `failed` fell through with "not paid yet" and the row sat
+            // pending until the three-day ceiling wrote it off as ABANDONED. So the
+            // console counted Paystack's declined cards as pending payments for days,
+            // and the eventual write-off recorded our guess (`expired_at`) where the
+            // gateway had given a verdict. Now it is the verdict: failed, no expiry
+            // stamp, which is how triage tells the two apart.
+            if ($row['action'] === 'unverifiable' && $failedBy !== null) {
+                $row['action']  = 'failed';
+                $row['gateway'] = 'failed';
+                $row['note']    = 'gateway reports the payment failed';
+                $stale = false;
+                if ($apply) self::gatewayFailed((string) $d->payment_ref);
             }
 
             // Asked, and still nobody says it was paid, and it is older than the
@@ -879,6 +942,27 @@ final class PaymentReconciler
             $out[] = $row;
         }
         return $out;
+    }
+
+    /**
+     * Record the gateway's own verdict that a paid-vote payment failed. ONE write, used by
+     * the hourly sweep and by the Payments screen's "ask the gateway" button, so the two can
+     * never disagree about what a declined card leaves behind.
+     *
+     * Guarded on `pending`: a confirmed row is never demoted, and two callers racing for the
+     * same row resolve to one write. No `expired_at` — that stamp means WE gave up, and
+     * triage reads its absence as the gateway's verdict.
+     */
+    public static function gatewayFailed(string $ref): bool
+    {
+        if ($ref === '') return false;
+        try {
+            return DB::table('gates_donations')->where('payment_ref', $ref)
+                ->where('status', 'pending')->update(['status' => 'failed']) > 0;
+        } catch (\Throwable $e) {
+            error_log('[reconcile] could not mark ' . $ref . ' failed: ' . $e->getMessage());
+            return false;
+        }
     }
 
     private function expire(object $d): void

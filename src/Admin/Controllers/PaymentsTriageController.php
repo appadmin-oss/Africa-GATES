@@ -92,7 +92,20 @@ final class PaymentsTriageController
         }
 
         $r = $t->askGateway($stuck);
+        // What the gateway says failed is recorded as failed, here and now, through the
+        // same write as the hourly sweep. It is the one answer safe to act on without a
+        // person: nothing is credited and nothing is taken, the row stops being counted as
+        // money in flight, and the buyer's "you didn't finish" email still goes.
+        $marked = 0;
+        foreach ($r['failed'] as $o) {
+            if (\AfricaGates\Services\PaymentReconciler::gatewayFailed((string) $o->payment_ref)) $marked++;
+        }
+        if ($marked > 0) {
+            $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'payments.gateway_failed', 'donation', null,
+                ['marked' => $marked, 'days' => $days]);
+        }
         $_SESSION['triage_verified'] = [
+            'failed'  => $marked,
             'at'      => date('Y-m-d H:i:s'),
             'days'    => $days,
             'clean'   => $r['clean'],

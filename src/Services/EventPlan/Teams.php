@@ -482,7 +482,9 @@ final class Teams
     {
         try {
             $first = trim((string) strtok(trim($name), ' ')) ?: 'there';
-            return !empty(Emails::send(OtpService::boot(), $to, 'event-team', ['first_name' => $first] + $vars)['ok']);
+            // `success`, which is what sendBranded returns. This read `ok` — a key the mailer never
+            // sets — so every proposal told its lead "the email could not be sent" while it had been.
+            return !empty(Emails::send(OtpService::boot(), $to, 'event-team', ['first_name' => $first] + $vars)['success']);
         } catch (\Throwable) {
             return false;
         }

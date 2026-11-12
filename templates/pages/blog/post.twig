@@ -25,8 +25,7 @@
 {% set colour_tier = '1' %}
 {% set app_bar = {variant: 'child', title: 'Blog'|trans, back: '/blog'} %}
 
-{% block head_styles %}
-{% include 'partials/seo-head.twig' %}
+{% block head_styles %}{% if views %}<link rel="stylesheet" href="{{ asset('/assets/css/components/views.css') }}">{% endif %}
 <link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}">
 <link rel="stylesheet" href="{{ asset('/assets/css/components/blog.css') }}">
 {% if poll %}<link rel="stylesheet" href="{{ asset('/assets/css/components/poll.css') }}">{% endif %}
@@ -40,6 +39,7 @@
     {% if post.tag %}<span class="bl-tag">{{ post.tag }}</span>{% endif %}
     <h1 class="bp__h1">{{ post.title }}</h1>
     {% if post.excerpt %}<p class="bp__dek">{{ post.excerpt }}</p>{% endif %}
+    {% if views %}<div class="bp__views">{% include 'partials/views-badge.twig' with {v: views, csrf_token: csrf_token} only %}</div>{% endif %}
     <div class="bp__by">
       <span class="bl-by">
         {% include 'partials/photo.twig' with {kind: 'person', src: '', name: post.author|default('Africa GATES'), size: 56, class: 'bl-by__av bl-by__av--lg'} only %}
@@ -113,7 +113,7 @@
 {% endif %}
 {% endblock %}
 
-{% block foot_scripts %}
+{% block foot_scripts %}{% if views %}<script defer src="{{ asset('/assets/js/views.js') }}" data-nav="rerun"></script>{% endif %}
 <script defer src="{{ asset('/assets/js/blog.js') }}" data-nav="rerun"></script>
 {% if poll %}<script defer src="{{ asset('/assets/js/poll.js') }}" data-nav="rerun"></script>{% endif %}
 {% endblock %}

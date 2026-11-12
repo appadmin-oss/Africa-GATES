@@ -26,7 +26,7 @@
 {% set _f = front.filter %}
 {% set _filters = [{k: 'all', l: 'All'}, {k: 'voting', l: 'Voting now'}, {k: 'soon', l: 'Coming up'}] %}
 
-{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/vote.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/ad-slot.css') }}">{% include 'partials/seo-head.twig' %}{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/vote.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/ad-slot.css') }}">{% endblock %}
 
 {% block content %}
 <div class="vh" data-vote-hub data-open-categories="{{ front.open_categories }}">
@@ -46,7 +46,9 @@
        appeared only after a first vote was missing from every first visit. This device's
        count replaces the zero (vote.js). #}
     <div class="vh-mine" data-ballot-line>
-      <span class="vh-mine__t" data-ballot-words data-of="{{ 'You’ve voted in %n% of %m% open categories'|trans }}">{{ 'You’ve voted in %n% of %m% open categories'|trans({'%n%': 0, '%m%': front.open_categories}) }}</span>
+      {# The count of open categories is the server's, so the singular is chosen here: "0 of 1 open categories" read as a typo. #}
+      {% set _of = front.open_categories == 1 ? 'You’ve voted in %n% of %m% open category' : 'You’ve voted in %n% of %m% open categories' %}
+      <span class="vh-mine__t" data-ballot-words data-of="{{ _of|trans }}">{{ _of|trans({'%n%': 0, '%m%': front.open_categories}) }}</span>
       <span class="vh-mine__bar" aria-hidden="true"><span title="{{ 'Categories voted on this device'|trans }}" data-ballot-fill></span></span>
     </div>
     {% endif %}

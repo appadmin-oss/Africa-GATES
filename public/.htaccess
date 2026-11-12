@@ -227,6 +227,17 @@ Options -MultiViews
   ExpiresByType text/html "access plus 0 seconds"
 </IfModule>
 
+# The service worker is the one script that must NOT be kept for a year: a fix to it has to
+# reach a phone on its next visit. Browsers recheck it at least daily anyway; this says so.
+<Files "sw.js">
+  <IfModule mod_expires.c>
+    ExpiresActive Off
+  </IfModule>
+  <IfModule mod_headers.c>
+    Header set Cache-Control "no-cache"
+  </IfModule>
+</Files>
+
 # Block sensitive files
 #
 # `Order`/`Deny` are mod_access_compat — a COMPATIBILITY shim that Apache 2.4 does

@@ -269,13 +269,25 @@
   </div>
   <div class="st-none" x-show="(f || q.trim()) && shown() === 0" x-cloak>Nothing matches. Remove the filter or clear the search.</div>
   <input type="hidden" name="_token" value="{{ csrf_token }}">
-  <div class="ad-card" data-sec="site" data-keys="public site announcement banner text link label site title contact email" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Public site<small>Surfaces on every page</small></div></div><div class="ad-card__body">
+  <div class="ad-card" data-sec="site" data-keys="public site announcement banner text link label ends until site title contact email" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Public site<small>Surfaces on every page</small></div></div><div class="ad-card__body">
     <div class="ad-form">
-      <div><label for="f-announce_text">Announcement banner text</label><input type="text" name="announce_text" id="f-announce_text" value="{{ values.announce_text|default('') }}"></div>
+      {#- The banner (Services\SiteNotice) shows exactly what is typed here, at the top of every
+          public page but a ballot or a checkout, and nothing when this is empty. -#}
+      <div><label for="f-announce_text">Announcement banner text</label><input type="text" name="announce_text" id="f-announce_text" maxlength="200" value="{{ values.announce_text|default('') }}" placeholder="Voting for the 2026 awards closes on Friday at 23:59"></div>
       <div class="row">
-        <div><label for="f-announce_url">Announcement link URL</label><input type="text" name="announce_url" id="f-announce_url" value="{{ values.announce_url|default('') }}"></div>
-        <div><label for="f-announce_cta">Link label</label><input type="text" name="announce_cta" id="f-announce_cta" value="{{ values.announce_cta|default('') }}"></div>
+        <div><label for="f-announce_url">Announcement link</label><input type="text" name="announce_url" id="f-announce_url" value="{{ values.announce_url|default('') }}" placeholder="/vote" aria-describedby="f-announce_url-h"></div>
+        <div><label for="f-announce_cta">Link label</label><input type="text" name="announce_cta" id="f-announce_cta" maxlength="40" value="{{ values.announce_cta|default('') }}" placeholder="Find out more"></div>
       </div>
+      <div class="row">
+        <div><label for="f-announce_until">Stop showing it at <small>optional</small></label><input type="datetime-local" step="60" name="announce_until" id="f-announce_until" value="{{ values.announce_until|default('') ? values.announce_until|when_input : '' }}"></div>
+        <div></div>
+      </div>
+      <p id="f-announce_url-h" style="margin:6px 0 0;font-size:12px;line-height:1.55;color:var(--cn-soft)">
+        {%- if announce_state.bad_link %}<strong style="color:var(--cn-ink)">The link is not shown:</strong> use a path on this site, like <code>/vote</code>, or an address starting <code>https://</code>. {% endif -%}
+        {%- if announce_state.showing %}Showing now at the top of every public page. Visitors can hide it; changing the text shows it to them again.
+        {%- elseif announce_state.ended %}Not showing: its end time has passed. Clear the end time, or the text, to tidy up.
+        {%- else %}Nothing is showing. Type a sentence to put it at the top of every public page.{% endif -%}
+      </p>
       <div class="row">
         <div><label for="f-site_title">Site title</label><input type="text" name="site_title" id="f-site_title" value="{{ values.site_title|default('Africa GATES') }}"></div>
         <div><label for="f-contact_email">Contact email</label><input type="email" name="contact_email" id="f-contact_email" value="{{ values.contact_email|default('africa-gates@afrovanguard.org.ng') }}"></div>
@@ -1060,6 +1072,12 @@
           "Essential" or leave the notice unanswered.
         </small>
       </div>
+      {# "Seen by" (Services\PageViews): events, stories and discussions show how many people
+         have read them, with a way in to advertising. Counted by the same rules as arrivals. #}
+      <div style="margin-top:14px"><label for="f-views_show_min">Show view counts from <small>views (events, stories, discussions and ads)</small></label>
+        <input type="number" name="views_show_min" id="f-views_show_min" min="1" step="1" inputmode="numeric" value="{{ views_min }}">
+        <small>Below this the count is gathered but not shown, so a new page never reads "3 views". A view is a person who stayed on the page for {{ views_secs }} seconds, counted once a day; bots, staff and people who refused Analytics are never counted. Staff see the count at any number, marked "only staff see this", so you can check it is working.</small>
+      </div>
       {# Google Analytics 4, beside our own counting (Services\GoogleAnalytics). #}
       <div style="margin-top:14px"><label for="f-ga_measurement_id">Google Analytics <small>measurement ID — leave blank to keep it off</small></label>
         <input type="text" name="ga_measurement_id" id="f-ga_measurement_id" value="{{ ga_id|default('') }}"
@@ -1696,8 +1714,8 @@
   </div></div>
   {#- Planned work on /status (Phase 9). Read back through PlannedWork::stored(), the one
       reader of these four keys — the page, /status.json and this form ask the same thing. -#}
-  {% set _pw = planned_work|default({title: '', from: '', to: '', note: ''}) %}
-  <div class="ad-card" data-sec="site" data-keys="planned work maintenance status page downtime banner" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Planned work<small>Announced on <a href="/status">the status page</a> from a week before it starts until it ends, then never again.</small></div></div><div class="ad-card__body">
+  {% set _pw = planned_work|default({title: '', from: '', to: '', note: '', close: ''}) %}
+  <div class="ad-card" id="planned-work" data-sec="site" data-keys="planned work maintenance mode close site status page downtime banner 503" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Planned work<small>Announced before it starts, until it ends, then never again — and the site can be closed while it runs.</small></div></div><div class="ad-card__body">
     <input type="hidden" name="planned_work_settings" value="1">
     <div class="ad-form">
       <div class="row">
@@ -1709,7 +1727,10 @@
         <div><label for="f-status_planned_to">Ends</label><input type="datetime-local" step="1" name="status_planned_to" id="f-status_planned_to" value="{{ _pw.to ? _pw.to|when_input : '' }}"></div>
       </div>
       <div><label for="f-status_planned_note">What people will notice</label><textarea name="status_planned_note" id="f-status_planned_note" maxlength="400" rows="2">{{ _pw.note }}</textarea></div>
-      <p style="margin:6px 0 0;font-size:12px;color:var(--cn-soft)">Clear "What is affected" to withdraw a notice. A window whose end is before its start is not shown.</p>
+      {#- The door (Services\MaintenanceGate). A checkbox posts nothing when unticked, which
+          PlannedWork::fromPost() reads as "no" because the section always posts. -#}
+      <label style="display:flex;gap:10px;align-items:flex-start;margin-top:10px;font-size:13px;line-height:1.5"><input type="checkbox" name="status_planned_close" value="1" style="margin-top:3px"{% if _pw.close|default('') == '1' %} checked{% endif %}><span><strong>Close the public site while it runs.</strong> Visitors see a planned-work page saying when it ends, with the right signal for search engines. You and other staff still see the site, and sign-in, payment confirmations, the schedule and the status page keep working.</span></label>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--cn-soft)">Shown on <a href="/status">the status page</a> from a week before, and at the top of every public page from three days before until it ends. People who follow status updates are emailed once when you save it. Clear "What is affected" to withdraw a notice. A window whose end is before its start is not shown.</p>
     </div>
   </div></div>
   <div class="ad-card" data-sec="site" data-keys="fund allocation where donations go destinations giving page scholarships mentorship grants" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Where donations go<small>The destinations printed on <a href="/giving">the giving page</a>, under &ldquo;Where donations go&rdquo;.</small></div></div><div class="ad-card__body">

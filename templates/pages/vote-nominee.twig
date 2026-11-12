@@ -58,7 +58,6 @@
   <link rel="stylesheet" href="{{ asset('/assets/css/components/vote.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/ballot.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/vote-pages.css') }}">
-  {% include 'partials/seo-head.twig' %}
 {% endblock %}
 
 {# ── THE BALLOT (VoteBallot.dc.html) ─────────────────────────────────────────── #}
@@ -71,7 +70,18 @@
   <div class="vb__head{{ ctx.open ? '' : ' vb__head--closed' }}">
     <p class="vb__k"><span class="vb__dot" aria-hidden="true"></span>
       {%- if ctx.open -%}
-        {{ 'Voting open'|trans }}{% if ctx.phase.closes_at %} · <time datetime="{{ ctx.phase.closes_at|date('c') }}">{{ 'closes %d%'|trans({'%d%': ctx.phase.closes_at|when_zoned('j M, H:i')}) }}</time>{% endif %}
+        {{ 'Voting open'|trans }}{% if ctx.phase.closes_at %} · <time datetime="{{ ctx.phase.closes_at|date('c') }}">{{ 'closes %d%'|trans({'%d%': ctx.phase.closes_at|when_zoned('j M, H:i')}) }}</time>
+          {#- In the last three days, how long is LEFT, ticking (awards.js, the award page's own
+              counter: seconds from the server, never the phone's clock, which is often wrong on
+              a cheap Android after a flat battery). A date asks the reader to do arithmetic at
+              the one moment the answer should push them to act. -#}
+          {% set _left = (ctx.phase.closes_at|date('U')) - ('now'|date('U')) %}
+          {%- if _left > 0 and _left < 259200 %} · <span class="vb__left" role="timer" dir="ltr" data-tick data-tick-left="{{ _left }}"
+              aria-label="{{ 'Voting closes in %d% days %h% hours %m% minutes'|trans({'%d%': _left // 86400, '%h%': (_left % 86400) // 3600, '%m%': (_left % 3600) // 60}) }}">
+              {%- if _left >= 86400 %}<b data-tick-d>{{ '%02d'|format(_left // 86400) }}</b>d {% endif -%}
+              <b data-tick-h>{{ '%02d'|format((_left % 86400) // 3600) }}</b>h <b data-tick-m>{{ '%02d'|format((_left % 3600) // 60) }}</b>m {{ 'left'|trans }}</span>
+          {%- endif %}
+        {%- endif %}
       {%- else -%}
         {{ ctx.phase.label|default('Voting closed')|trans }}
       {%- endif -%}
@@ -214,7 +224,12 @@
             data-e-confirm-net="{{ 'We couldn’t confirm the response. Your vote may already be counted. Try again to check.'|trans }}"
             data-e-ts="{{ 'The security check is still loading. Try again in a moment.'|trans }}">
         <div data-step="form">
-          <p class="vb__p">{{ 'One vote per category, confirmed by a code we email you.'|trans }}</p>
+          {# THE FORM IN THE ORDER IT IS USED (10 Nov 2026). Email comes before phone because
+             the code goes there — it is the field the whole vote turns on — and each field
+             says why it is asked: a phone number requested with no reason is the field people
+             abandon a form at, and the server requires it (stored with the vote for
+             accountability, ApiController). #}
+          <p class="vb__p">{{ 'One free vote per category. We email you a code to confirm it.'|trans }}</p>
           <div class="vb-field">
             <label class="vb-label" for="{{ ctx.pre }}vbName">{{ 'Full name'|trans }}</label>
             <input class="vb-input" id="{{ ctx.pre }}vbName" name="name" type="text" required autocomplete="name" placeholder="{{ 'Your full name'|trans }}" aria-describedby="{{ ctx.pre }}vbNameHint" value="{{ ctx.member ? ctx.member.name : '' }}">
@@ -223,12 +238,14 @@
             <p class="vb-hint" id="{{ ctx.pre }}vbNameHint">{{ 'First and last name. Never shown unless you ask.'|trans }}</p>
           </div>
           <div class="vb-field">
-            <label class="vb-label" for="{{ ctx.pre }}vbPhone">{{ 'Phone number'|trans }}</label>
-            <input class="vb-input" id="{{ ctx.pre }}vbPhone" name="phone" type="tel" required autocomplete="tel" inputmode="tel" placeholder="{{ 'e.g. +234 801 234 5678'|trans }}" value="{{ ctx.member ? ctx.member.phone|default('') : '' }}">
+            <label class="vb-label" for="{{ ctx.pre }}vbEmail">{{ 'Email'|trans }}</label>
+            <input class="vb-input" id="{{ ctx.pre }}vbEmail" name="email" type="email" required autocomplete="email" inputmode="email" placeholder="you@email.com" aria-describedby="{{ ctx.pre }}vbEmailHint" value="{{ ctx.member ? ctx.member.email : '' }}">
+            <p class="vb-hint" id="{{ ctx.pre }}vbEmailHint">{{ 'Your 6-digit code is sent here.'|trans }}</p>
           </div>
           <div class="vb-field">
-            <label class="vb-label" for="{{ ctx.pre }}vbEmail">{{ 'Email'|trans }}</label>
-            <input class="vb-input" id="{{ ctx.pre }}vbEmail" name="email" type="email" required autocomplete="email" inputmode="email" placeholder="you@email.com" value="{{ ctx.member ? ctx.member.email : '' }}">
+            <label class="vb-label" for="{{ ctx.pre }}vbPhone">{{ 'Phone number'|trans }}</label>
+            <input class="vb-input" id="{{ ctx.pre }}vbPhone" name="phone" type="tel" required autocomplete="tel" inputmode="tel" placeholder="{{ 'e.g. +234 801 234 5678'|trans }}" aria-describedby="{{ ctx.pre }}vbPhoneHint" value="{{ ctx.member ? ctx.member.phone|default('') : '' }}">
+            <p class="vb-hint" id="{{ ctx.pre }}vbPhoneHint">{{ 'Kept with your vote so each one can be checked. Never shown or shared.'|trans }}</p>
           </div>
           <details class="vb-msg">
             <summary class="vb-msg__s">{{ '+ Add a message for %first% (optional)'|trans({'%first%': first}) }}</summary>
@@ -278,6 +295,8 @@
    ts: _ts, ts_key: turnstile_site_key, url: '/vote/' ~ n.programme_slug ~ '/' ~ n.id} %}
 
 {% block content %}
+{# "Recently viewed" (search.js): this page's name for the search palette, on this device. #}
+<span hidden data-ag-viewed data-t="{{ n.name }}" data-m="{{ n.category }}"></span>
 {# ── THE LAYOUT (2 Nov 2026) ─────────────────────────────────────────────────
    One column on a phone and a tablet, in the order a visitor decides in: who this is, where
    they stand, why they are nominated, then the ballot — the bottom bar's "Vote for …" reaches
@@ -288,7 +307,32 @@
   <div class="vn__main">
     <div class="vn-top">
     {% set _portrait = n.photo_path|default('') ?: profile.avatar_path|default('') %}
-    {% if _portrait %}
+    {% set _photos = photos|default([]) %}
+    {% if _photos|length > 1 %}
+    {# EVERY PHOTOGRAPH, NOT JUST THE FIRST (10 Nov 2026). A nominee holds up to six of their
+       own and staff may add more; the page drew `photo_path` alone, so only one was ever
+       visible. One swipeable set in the portrait's own slot — scroll-snap, so it works with
+       no script — with a count and a dot per photograph (nominee-photos.js moves to a dot
+       and keeps them current). The portrait is first, as before. #}
+    <div class="vn-photo vn-photo--many" data-vn-photos>
+      <ul class="vn-photo__track" data-vn-track aria-label="{{ 'Photographs of %n%'|trans({'%n%': n.name}) }}" tabindex="0">
+        {% for ph in _photos %}
+        <li class="vn-photo__slide" id="vn-ph-{{ loop.index }}">
+          {% include 'partials/photo.twig' with {kind: 'person', src: ph, name: n.name, id: n.profile_id|default(n.id), size: 160,
+               alt: loop.first ? 'Portrait of %n%'|trans({'%n%': n.name}) : 'Photograph %i% of %c% of %n%'|trans({'%i%': loop.index, '%c%': _photos|length, '%n%': n.name}),
+               eager: loop.first} only %}
+        </li>
+        {% endfor %}
+      </ul>
+      <span class="vn-photo__n" aria-hidden="true"><span data-vn-at>1</span> / {{ _photos|length }}</span>
+      <div class="vn-photo__dots">
+        {% for ph in _photos %}
+        <a class="vn-photo__dot" href="#vn-ph-{{ loop.index }}" data-vn-dot="{{ loop.index0 }}"{% if loop.first %} aria-current="true"{% endif %}
+           aria-label="{{ 'Photograph %i% of %c%'|trans({'%i%': loop.index, '%c%': _photos|length}) }}"></a>
+        {% endfor %}
+      </div>
+    </div>
+    {% elseif _portrait %}
     <div class="vn-photo">
       {% include 'partials/photo.twig' with {kind: 'person', src: _portrait, name: n.name, id: n.profile_id|default(n.id), size: 160, alt: 'Portrait of %n%'|trans({'%n%': n.name}), eager: true} only %}
     </div>
@@ -446,7 +490,7 @@
 {% endblock %}
 
 {% block bottom_bar %}
-  <div class="vn-bar" data-bottom-ui>
+  <div class="vn-bar" data-bottom-ui role="region" aria-label="{{ 'Your vote'|trans }}">
     <button type="button" class="vn-bar__share" data-ag-share data-ag-copied="{{ 'Link copied'|trans }}" aria-label="{{ 'Share voting link'|trans }}">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 8 5-5 5 5"/><path d="M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg>
     </button>
@@ -455,7 +499,20 @@
     {% elseif voting_open %}
       {# Says what the ballot is waiting for: on the code screen the next act is the code,
          and a bar still reading "Vote for …" looked like the vote had not started (vote.js). #}
-      <a class="vn-bar__go" href="#ballot" data-bar-go data-otp="{{ 'Enter your code'|trans }}">{{ 'Vote for %first%'|trans({'%first%': first}) }}</a>
+      {# The last three days' countdown rides in the bar too, under the label, so it stays in
+         view however far down the page somebody has read. `data-bar-go` is on the LABEL: vote.js
+         replaces that element's text on the code step, and the clock must survive it. Set in
+         this block and read only here. #}
+      {% set _bleft = phase.closes_at|default(null) ? (phase.closes_at|date('U')) - ('now'|date('U')) : 0 %}
+      <a class="vn-bar__go{{ _bleft > 0 and _bleft < 259200 ? ' vn-bar__go--clock' }}" href="#ballot">
+        <span data-bar-go data-otp="{{ 'Enter your code'|trans }}">{{ 'Vote for %first%'|trans({'%first%': first}) }}</span>
+        {%- if _bleft > 0 and _bleft < 259200 %}
+        <span class="vn-bar__left" role="timer" dir="ltr" data-tick data-tick-left="{{ _bleft }}"
+              aria-label="{{ 'Voting closes in %d% days %h% hours %m% minutes'|trans({'%d%': _bleft // 86400, '%h%': (_bleft % 86400) // 3600, '%m%': (_bleft % 3600) // 60}) }}">
+          {%- if _bleft >= 86400 %}<b data-tick-d>{{ '%02d'|format(_bleft // 86400) }}</b>d {% endif -%}
+          <b data-tick-h>{{ '%02d'|format((_bleft % 86400) // 3600) }}</b>h <b data-tick-m>{{ '%02d'|format((_bleft % 3600) // 60) }}</b>m {{ 'left'|trans }}</span>
+        {%- endif %}
+      </a>
     {% else %}
       <a class="vn-bar__go vn-bar__go--line" href="/vote/{{ n.programme_slug }}">{{ 'Back to the award'|trans }}</a>
     {% endif %}
@@ -465,4 +522,6 @@
 {% block foot_scripts %}
   {% if _ts %}<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer data-nav="once"></script>{% endif %}
   <script defer src="{{ asset('/assets/js/vote.js') }}" data-nav="rerun"></script>
+  <script defer src="{{ asset('/assets/js/awards.js') }}" data-nav="rerun"></script>
+  {% if photos|default([])|length > 1 %}<script defer src="{{ asset('/assets/js/nominee-photos.js') }}" data-nav="rerun"></script>{% endif %}
 {% endblock %}

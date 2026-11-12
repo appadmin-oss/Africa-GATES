@@ -103,6 +103,13 @@ final class AdminNavTest extends TestCase
         // /admin/lead left the console on 29 Oct 2026: a lead is a member account at /lead.
         // Deciding requests (§2.6) is held with the money: only superadmin and admin decide.
         '/admin/requests'           => 'finance',
+        // New 4 Nov 2026: ads posted from the console. With the money (superadmin + admin),
+        // as the owner asked that admins can post: a direct sale records income.
+        '/admin/ads'                => 'finance',
+        // New 11 Nov 2026: errors visitors saw, under Alerts. Left UNMAPPED — superadmin only —
+        // because each entry carries file paths and stack frames; who else reads those is the
+        // owner's call.
+        '/admin/errors'             => null,
     ];
 
     private const ROLES = ['superadmin', 'admin', 'editor', 'moderator', 'viewer'];
@@ -173,7 +180,7 @@ final class AdminNavTest extends TestCase
             'Awards'       => ['Programmes', 'Nominations', 'Shortlists', 'Judges', 'Result release'],
             'Engage'       => ['Events', 'Challenges', 'Giving', 'Forms'],
             'People & audience' => ['Members', 'Contacts', 'Broadcasts'],
-            'Money'        => ['Payments', 'Refunds', 'Payouts', 'Finance', 'Shop orders'],
+            'Money'        => ['Payments', 'Refunds', 'Payouts', 'Finance', 'Shop orders', 'Ads'],
             'Content'      => ['Posts', 'Media', 'Moderation'],
             'Insights'     => ['Analytics'],
             'Organisation' => ['Team', 'Alerts', 'Handbook', 'Audit log', 'Integrations', 'Settings'],

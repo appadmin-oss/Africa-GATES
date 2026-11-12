@@ -73,7 +73,9 @@ final class AdDelivery
                 ->where(static fn ($q) => $q->where('c.trial', 1)->orWhereNotNull('c.paid_at'))
                 ->whereNotNull('s.starts_at')->where('s.starts_at', '<=', $now)
                 ->where(static fn ($q) => $q->whereNull('s.ends_at')->orWhere('s.ends_at', '>=', $now))
-                ->select('s.*', 'c.user_id', 'c.advertiser', 'c.logo_path', 'c.trial', 'c.id as campaign_id')->limit(200)->get()->all();
+                ->select('s.*', 'c.user_id', 'c.advertiser', 'c.logo_path', 'c.trial', 'c.id as campaign_id',
+                         ...(\AfricaGates\Support\SchemaHas::column('gates_ad_campaigns', 'source') ? ['c.source'] : []))
+                ->limit(200)->get()->all();
         } catch (\Throwable) {
             return null;
         }
@@ -83,8 +85,13 @@ final class AdDelivery
         foreach ($sets as $s) {
             if (!in_array($placement, explode(',', (string) $s->placements), true)) continue;
             if (in_array((int) $s->campaign_id, $hidden, true)) continue;
-            if ($placement === 'vote_hub' && AdRules::inOpenAward((int) $s->user_id)) continue;
-            $room = self::roomToday($s, $day);
+            $source = (string) ($s->source ?? 'self');
+            // The homepage takes paying campaigns and our own; never a free trial.
+            if (in_array($placement, AdRules::PAID_ONLY, true) && (int) $s->trial === 1) continue;
+            // Rule 3, and the homepage with it: a nominee's ads stay off the vote page AND the
+            // homepage while their award is taking votes — the homepage asks people to vote.
+            if (in_array($placement, ['vote_hub', 'home'], true) && $source === 'self' && AdRules::inOpenAward((int) $s->user_id)) continue;
+            $room = $source === 'house' ? 0.5 : self::roomToday($s, $day);
             if ($room === null) continue;
             $ad = self::rotate((int) $s->id, $day);
             if ($ad === null || self::seenToday((int) $ad->id, $day) >= AdRules::FREQUENCY_CAP) continue;
@@ -94,12 +101,14 @@ final class AdDelivery
             // campaigns of the same kind the one furthest behind today's share goes first,
             // which is what lets a paid budget finish on time: an undelivered budget is
             // refunded, so every view it misses is revenue that goes back.
-            $paid = (int) $s->trial !== 1;
+            // Paid (self-serve or sold by us) first, then trials, then our own, which only
+            // ever fills space nobody has bought.
+            $rank = $source === 'house' ? 0 : ((int) $s->trial === 1 ? 1 : 2);
             $better = $best === null
-                || ($paid && !$best['paid'])
-                || ($paid === $best['paid'] && ($room < $best['room'] || ($room === $best['room'] && random_int(0, 1) === 1)));
+                || $rank > $best['rank']
+                || ($rank === $best['rank'] && ($room < $best['room'] || ($room === $best['room'] && random_int(0, 1) === 1)));
             if ($better) {
-                $best = ['room' => $room, 'set' => $s, 'ad' => $ad, 'paid' => $paid];
+                $best = ['room' => $room, 'set' => $s, 'ad' => $ad, 'rank' => $rank, 'own' => $source === 'house'];
             }
         }
         if ($best === null) return null;
@@ -116,13 +125,69 @@ final class AdDelivery
             'logo_srcset' => \AfricaGates\Support\ImageProfiles::srcset($set->logo_path ? (string) $set->logo_path : null),
             'headline' => (string) $ad->headline, 'body' => (string) $ad->body,
             'cta' => AdRules::CTAS[(string) $ad->cta] ?? 'Learn more',
-            'image' => Media::url($ad->image_path ? (string) $ad->image_path : null, 'ad'),
+            'image' => Media::url($ad->image_path ? (string) $ad->image_path : null, AdRules::imageProfile($ad->shape ?? null)),
             'image_srcset' => \AfricaGates\Support\ImageProfiles::srcset($ad->image_path ? (string) $ad->image_path : null),
+            // A short video over that image, which stays its poster (AdVideo).
+            'shape' => AdRules::shape($ad->shape ?? null), 'video' => AdVideo::url($ad->video_path ?? null), 'video_seconds' => (int) ($ad->video_seconds ?? 0),
+            'video_watch' => AdVideo::WATCHED_SECONDS,
             'offer' => $ad->offer ? (string) $ad->offer : null, 'offer_code' => $ad->offer_code ? (string) $ad->offer_code : null,
             'domain' => AdRules::displayDomain((string) $ad->url),
             'href' => '/ads/go/' . $token, 'token' => $token, 'external' => !str_starts_with((string) $ad->url, '/'),
             'reasons' => AdRules::REPORT_REASONS,
+            // Our own, posted by staff: counted like any ad, labelled "From Africa GATES".
+            'own' => (bool) $best['own'],
+            // How many people the ad has reached, on the ad itself (owner, 11 Nov 2026: "the
+            // ads itself you carry view amount"). See seenLabel().
+            'seen' => self::seenLabel(self::viewsBySet([(int) $set->id])[(int) $set->id] ?? 0),
         ];
+    }
+
+    // ── the count an ad carries ──────────────────────────────────────────────
+
+    /**
+     * The views an ad shows on its own card ("2.3k views"), or null below the threshold.
+     *
+     * The figure is the campaign's counted VIEWS — an ad at least half on screen for a
+     * second, once per drawing, never a crawler (seen()) — which is exactly what an
+     * advertiser is billed on, so the number a reader sees and the number on the
+     * advertiser's invoice are one number. The threshold and the way it is written are the
+     * site's page counts' (Services\PageViews): one rule for "a number worth showing".
+     *
+     * AN AD SHOWS ITS COUNT FROM ITS FIRST VIEW (owner, 11 Nov 2026: "just ad"). It used to
+     * share the page counts' threshold, so on the live site — where that setting held 100 —
+     * a trial ad with 43 views carried no number at all, which is the one thing the owner had
+     * asked an ad to carry. The page threshold exists so a new STORY never reads "3 views";
+     * an ad's number is the advertiser's own result, and they asked to see it on the card.
+     *
+     * @return array{short:string, full:string}|null
+     */
+    public static function seenLabel(int $views): ?array
+    {
+        if ($views < 1) return null;
+        return ['short' => \AfricaGates\Services\PageViews::short($views), 'full' => number_format($views)];
+    }
+
+    /**
+     * All-time counted views per ad set, in one query.
+     *
+     * @param list<int> $setIds
+     * @return array<int,int>
+     */
+    public static function viewsBySet(array $setIds): array
+    {
+        $setIds = array_values(array_unique(array_filter($setIds)));
+        if ($setIds === [] || !SchemaHas::table('gates_ad_stats')) return [];
+        try {
+            $out = [];
+            foreach (DB::table('gates_ad_stats as st')->join('gates_ads as a', 'a.id', '=', 'st.ad_id')
+                         ->whereIn('a.ad_set_id', $setIds)->groupBy('a.ad_set_id')
+                         ->selectRaw('a.ad_set_id as sid, SUM(st.views) as v')->get() as $r) {
+                $out[(int) $r->sid] = (int) $r->v;
+            }
+            return $out;
+        } catch (\Throwable) {
+            return [];
+        }
     }
 
     // ── the reader's own say: hide, report ───────────────────────────────────
@@ -193,7 +258,25 @@ final class AdDelivery
     {
         try {
             $reader = \AfricaGates\Services\VisitTracker::isReader($req);
-            return self::pick($placement, ['reader' => $reader]) ?? ($reader ? self::house() : null);
+            // A page site-nav.js fetched AHEAD is, usually, the page that is then shown: it
+            // prefetches on a 70ms hover and on the touch that starts every tap on a phone,
+            // and swaps that copy in. isReader() refuses a prefetch (nobody is looking at it
+            // yet), so every page reached by tapping inside the site was drawn with no ad at
+            // all — only the first page of a visit could carry one. A live trial ran seven
+            // days for 43 views. So the prefetch is drawn for, and drawn UNCOUNTED: pick()
+            // already sees it as ahead (Support\Speculative) and spends no slot and no
+            // frequency cap on it; the view is counted by ads.js when the ad is actually on
+            // screen, and the slot by the HEAD site-nav sends when it shows the page.
+            if (!$reader && $req->getHeaderLine('X-Site-Nav') === '1' && \AfricaGates\Support\Speculative::is($req)
+                && \AfricaGates\Services\VisitTracker::isPerson($req)) {
+                $reader = true;
+            }
+            // Our "advertise here" notice fills an empty slot everywhere but the homepage,
+            // which stays clean unless somebody has bought it or staff chose to post there.
+            // The "advertise here" notice is shown once a day per visitor (house()), so a
+            // prefetch that may never be shown does not spend it.
+            return self::pick($placement, ['reader' => $reader])
+                ?? ($reader && !\AfricaGates\Support\Speculative::is($req) && !in_array($placement, AdRules::PAID_ONLY, true) ? self::house() : null);
         } catch (\Throwable) {
             return null; // an ad must never be the reason a page does not draw
         }
@@ -341,6 +424,22 @@ final class AdDelivery
         if ($url === null || AdRules::pointsAtANominee($url)) return '/';
         if ($reader && self::once($token, 'c')) self::bump($t['a'], $t['p'], $t['d'], 'clicks');
         return $url;
+    }
+
+    /**
+     * A drawn ad's video started (`play`), or was watched to the end or for
+     * AdVideo::WATCHED_SECONDS (`done`, Meta's ThruPlay). Each counted once per drawing, by
+     * the same single-use token and the same ledger as a view, so a looping clip or a
+     * replayed beacon is still one play. Only for an ad that has a video.
+     */
+    public static function watched(string $token, string $kind): bool
+    {
+        $col = ['play' => 'plays', 'done' => 'completes'][$kind] ?? null;
+        $t = self::read($token);
+        if ($col === null || $t === null || !SchemaHas::column('gates_ad_stats', $col)) return false;
+        $has = DB::table('gates_ads')->where('id', $t['a'])->value('video_path');
+        if (AdVideo::url($has === null ? null : (string) $has) === null) return false;
+        return self::once($token, $kind === 'play' ? 'vp' : 'vf') && self::bump($t['a'], $t['p'], $t['d'], $col);
     }
 
     private static function once(string $token, string $kind): bool

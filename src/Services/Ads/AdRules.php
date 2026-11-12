@@ -41,11 +41,25 @@ final class AdRules
      * are priced on what each actually delivers (AdMarket).
      */
     public const PLACEMENTS = [
+        'home'       => 'Homepage',
         'vote_hub'   => 'Vote page',
         'discover'   => 'Discover',
         'events'     => 'Events list',
         'event_page' => 'Event pages',
     ];
+
+    /**
+     * Places only a PAYING campaign (or our own, posted by staff) may take — never a free
+     * trial. The homepage is the first impression for nominees' families and sponsors, so it
+     * carries ads somebody has paid for and a person has approved (owner, 4 Nov 2026).
+     */
+    public const PAID_ONLY = ['home'];
+
+    /**
+     * Who made a campaign. `self` is the advertiser through the Ads Manager; `direct` is sold
+     * by staff and paid outside the site; `house` is our own (AdStaff).
+     */
+    public const SOURCES = ['self' => 'Self-serve', 'direct' => 'Sold by us', 'house' => 'Our own'];
 
     /** Meta's three simplest objectives. The objective decides which result the manager leads with. */
     public const OBJECTIVES = [
@@ -54,7 +68,14 @@ final class AdRules
         'sales'     => 'Sell tickets or products',
     ];
 
-    /** The buttons an ad may carry, as Meta offers them. */
+    /**
+     * The buttons an ad may carry, as Meta offers them.
+     *
+     * `whatsapp` is Meta's click-to-WhatsApp ad, added 11 Nov 2026: most small businesses
+     * here sell in a chat rather than on a website (WhatsApp's own Nigerian campaign is built
+     * on it), so for many advertisers a link to a site they do not have was the wrong
+     * button. Its link is a phone number, normalised to wa.me by whatsappUrl().
+     */
     public const CTAS = [
         'learn_more'  => 'Learn more',
         'shop_now'    => 'Shop now',
@@ -62,9 +83,42 @@ final class AdRules
         'book_now'    => 'Book now',
         'contact_us'  => 'Contact us',
         'sign_up'     => 'Sign up',
+        'whatsapp'    => 'Chat on WhatsApp',
     ];
 
-    // The one standard format: a square image, a headline, a line of text, a button.
+    /**
+     * What a chat opened from an ad starts with, typed in for the person (they can change it
+     * before sending). It tells the business where the customer came from, which is the one
+     * figure a chat cannot otherwise give them: a click is counted here, a sale happens there.
+     */
+    public const WHATSAPP_GREETING = 'Hello, I saw your ad on Africa GATES.';
+
+    /**
+     * The shapes an ad may take, Meta's feed set (owner, 11 Nov 2026: "the ads should not
+     * allow just square posts anymore"): key => [what the advertiser is told, the image
+     * profile that cuts it (Support\ImageProfiles, also its Media preset)]. The image, the
+     * editor's frame, the server's cut, the card's box and a video's frame all follow it.
+     * Square stays the default, so every ad made before shapes existed keeps its look.
+     */
+    public const SHAPES = [
+        'square'    => ['Square, 1:1', 'ad'],
+        'portrait'  => ['Upright, 4:5', 'ad_portrait'],
+        'landscape' => ['Wide, 16:9', 'ad_landscape'],
+    ];
+
+    /** A shape, from anything: unknown or missing is square. */
+    public static function shape(mixed $s): string
+    {
+        return is_string($s) && isset(self::SHAPES[$s]) ? $s : 'square';
+    }
+
+    /** The image profile (and Media preset) for a shape. */
+    public static function imageProfile(mixed $shape): string
+    {
+        return self::SHAPES[self::shape($shape)][1];
+    }
+
+    // The one standard format: an image, a headline, a line of text, a button.
     public const HEADLINE_MAX = 40;
     public const BODY_MIN     = 10;
     public const BODY_MAX     = 125;
@@ -209,9 +263,14 @@ final class AdRules
         if ($bl < self::BODY_MIN || $bl > self::BODY_MAX) $e['body'] = sprintf('Text of %d to %d characters.', self::BODY_MIN, self::BODY_MAX);
         if (!isset(self::CTAS[$cta])) $e['cta'] = 'Choose a button.';
 
-        $safe = self::safeUrl($url);
-        if ($safe === null) $e['url'] = 'Use a full https:// address.';
-        elseif (self::pointsAtANominee($safe)) $e['url'] = 'An ad cannot link to a nominee, a ballot or a result.';
+        if ($cta === 'whatsapp') {
+            $safe = self::whatsappUrl($url);
+            if ($safe === null) $e['url'] = 'The WhatsApp number people will chat with, with its country code: +234 803 123 4567.';
+        } else {
+            $safe = self::safeUrl($url);
+            if ($safe === null) $e['url'] = 'Use a full https:// address.';
+        }
+        if ($safe !== null && self::pointsAtANominee($safe)) $e['url'] = 'An ad cannot link to a nominee, a ballot or a result.';
 
         if (mb_strlen($offer) > self::OFFER_MAX) $e['offer'] = sprintf('Keep the offer under %d characters.', self::OFFER_MAX);
         if ($offer !== '' && self::mentionsVoting($offer)) $e['offer'] = 'An offer must be open to everyone, not tied to voting.';
@@ -220,12 +279,23 @@ final class AdRules
         if ($arcon !== '' && preg_match('{^[A-Z0-9/ .-]{3,40}$}', $arcon) !== 1) $e['arcon_ref'] = 'Letters, numbers and / or - only.';
         if ($nafdac !== '' && preg_match('{^[A-Z0-9/ .-]{3,40}$}', $nafdac) !== 1) $e['nafdac_ref'] = 'Letters, numbers and / or - only.';
 
-        return ['row' => [
+        $row = [
             'headline' => $headline, 'body' => $body, 'cta' => $cta, 'url' => (string) $safe,
             'offer' => $offer !== '' ? $offer : null, 'offer_code' => $code !== '' ? $code : null,
             'arcon_ref' => $arcon !== '' ? $arcon : null,
             'nafdac_ref' => $nafdac !== '' ? $nafdac : null,
-        ], 'errors' => $e];
+        ];
+        if (SchemaHas::column('gates_ads', 'shape')) $row['shape'] = self::shape($in['shape'] ?? null);
+        // The video (AdVideo), only when the CONTROLLER put one here after storing it: the
+        // key's absence means "leave the video as it is" (an edit with no new file), null
+        // means "take it off". Never a path a form posted — the controllers drop `_video*`
+        // from the body before anything else — and re-checked by AdVideo::url regardless.
+        if (array_key_exists('_video', $in) && AdVideo::ready()) {
+            $vp = AdVideo::url(is_string($in['_video']) ? $in['_video'] : null);
+            $row['video_path'] = $vp;
+            $row['video_seconds'] = $vp === null ? null : max(1, min(AdVideo::MAX_SECONDS, (int) ($in['_video_seconds'] ?? 0)));
+        }
+        return ['row' => $row, 'errors' => $e];
     }
 
     /**
@@ -266,6 +336,7 @@ final class AdRules
      */
     public static function displayDomain(string $url): string
     {
+        if (self::isWhatsapp($url)) return 'WhatsApp';
         if (str_starts_with($url, '/')) return (string) (parse_url(\AfricaGates\Support\SiteUrl::base(), PHP_URL_HOST) ?? 'africagates');
         $host = strtolower((string) (parse_url($url, PHP_URL_HOST) ?? ''));
         return (string) preg_replace('/^www\./', '', $host);
@@ -281,6 +352,41 @@ final class AdRules
         $host = strtolower((string) ($p['host'] ?? ''));
         if ($host === '' || !preg_match('/^[a-z0-9.-]+\.[a-z]{2,}$/', $host) || isset($p['user']) || isset($p['pass'])) return null;
         return strlen($u) <= 400 ? $u : null;
+    }
+
+    /**
+     * A WhatsApp number, as people type it, made into the chat link Meta's click-to-WhatsApp
+     * ads open: https://wa.me/<country code and number>?text=<greeting>. Or null.
+     *
+     * Accepted: "+234 803 123 4567", "0803 123 4567" (a Nigerian number written the local
+     * way: the leading 0 becomes 234, because a wa.me link without its country code opens a
+     * chat with nobody), or a wa.me / api.whatsapp.com link already made. 10 to 15 digits,
+     * which is E.164's range. The greeting is added only when the link carries no text of its
+     * own, so an advertiser who wrote theirs keeps it.
+     */
+    public static function whatsappUrl(string $in): ?string
+    {
+        $in = trim($in);
+        $text = null;
+        if (preg_match('~^https://(?:wa\.me/|api\.whatsapp\.com/send/?\?(?:.*&)?phone=)\+?([0-9]+)~i', $in, $m) === 1) {
+            $digits = $m[1];
+            parse_str((string) (parse_url($in, PHP_URL_QUERY) ?? ''), $q);
+            if (is_string($q['text'] ?? null) && trim($q['text']) !== '') $text = mb_substr(trim($q['text']), 0, 200);
+        } elseif (preg_match('/^\+?[0-9 ().-]+$/', $in) === 1) {
+            $digits = (string) preg_replace('/\D/', '', $in);
+            if (!str_starts_with($in, '+') && preg_match('/^0[789][01][0-9]{8}$/', $digits) === 1) $digits = '234' . substr($digits, 1);
+        } else {
+            return null;
+        }
+        if (preg_match('/^[1-9][0-9]{9,14}$/', $digits) !== 1) return null;
+        $url = 'https://wa.me/' . $digits . '?text=' . rawurlencode($text ?? self::WHATSAPP_GREETING);
+        return strlen($url) <= 400 ? $url : null;
+    }
+
+    public static function isWhatsapp(string $url): bool
+    {
+        $host = strtolower((string) (parse_url($url, PHP_URL_HOST) ?? ''));
+        return in_array($host, ['wa.me', 'api.whatsapp.com'], true);
     }
 
     /** A ballot, a nominee page, a claim or a result: never an ad's destination (D15). */

@@ -37,8 +37,10 @@ final class AdReview
             'cta' => AdRules::CTAS[(string) $r->cta] ?? '',
             // The reviewer judges the IMAGE — shock, nudity, somebody else's logo — so the queue
             // carries the full stored file as well as the card's size, and the screen links it.
-            'image' => \AfricaGates\Support\Media::url($r->image_path ? (string) $r->image_path : null, 'ad'),
+            'image' => \AfricaGates\Support\Media::url($r->image_path ? (string) $r->image_path : null, AdRules::imageProfile($r->shape ?? null)),
             'image_full' => $r->image_path ? (string) $r->image_path : null,
+            // And WATCHES the video: nothing here can inspect one by machine (AdVideo).
+            'shape' => AdRules::shape($r->shape ?? null), 'video' => AdVideo::url($r->video_path ?? null), 'video_seconds' => (int) ($r->video_seconds ?? 0),
             'offer' => $r->offer ? (string) $r->offer : null, 'offer_code' => $r->offer_code ? (string) $r->offer_code : null,
             'arcon_ref' => $r->arcon_ref ? (string) $r->arcon_ref : null,
             'nafdac_ref' => $r->nafdac_ref ? (string) $r->nafdac_ref : null,
@@ -120,8 +122,9 @@ final class AdReview
         $out = array_map(static fn ($a) => [
             'id' => (int) $a->id, 'advertiser' => (string) $a->advertiser, 'headline' => (string) $a->headline,
             'body' => (string) $a->body, 'url' => (string) $a->url,
-            'image' => \AfricaGates\Support\Media::url($a->image_path ? (string) $a->image_path : null, 'ad'),
+            'image' => \AfricaGates\Support\Media::url($a->image_path ? (string) $a->image_path : null, AdRules::imageProfile($a->shape ?? null)),
             'image_full' => $a->image_path ? (string) $a->image_path : null,
+            'shape' => AdRules::shape($a->shape ?? null), 'video' => AdVideo::url($a->video_path ?? null), 'video_seconds' => (int) ($a->video_seconds ?? 0),
             'reports' => $by[(int) $a->id]['n'], 'reasons' => $by[(int) $a->id]['reasons'],
         ], $ads);
         usort($out, static fn ($x, $y) => $y['reports'] <=> $x['reports']);

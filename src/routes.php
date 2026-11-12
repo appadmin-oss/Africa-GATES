@@ -1495,7 +1495,7 @@ return function(App $app) {
         if (!$setupGuard($req)) return $res->withStatus(404);
 
         $e    = fn ($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
-        $file = dirname(__DIR__) . '/var/logs/error-detail.log';
+        $file = \AfricaGates\Support\PublicFault::logFile();
         $want = max(1, min(50, (int) ($req->getQueryParams()['n'] ?? 10)));
 
         $h = '<!doctype html><meta charset="utf-8"><title>Recent errors — Africa GATES</title>'
@@ -1871,6 +1871,19 @@ return function(App $app) {
         $g->get('/advertise',      \AfricaGates\Controllers\AdsController::class.':advertise');
         $g->get('/advertise/library', \AfricaGates\Controllers\AdsController::class.':library');
         $g->post('/ads/seen',      \AfricaGates\Controllers\AdsController::class.':seen');
+        $g->post('/ads/video',     \AfricaGates\Controllers\AdsController::class.':video');
+        // A page's engaged view (Services\PageViews): once it has been visible a few seconds.
+        $g->post('/views',         \AfricaGates\Controllers\PageViewsController::class.':engaged');
+        // "Hide" on a site notice (Services\SiteNotice): kept in the visitor's session, keyed
+        // by the notice's content, and back to the same page. A plain form, so it works with
+        // no script. Only a path on this site is gone back to.
+        $g->post('/notice/hide', function ($req, $res) {
+            $b = (array) ($req->getParsedBody() ?? []);
+            \AfricaGates\Services\SiteNotice::hide((string) ($b['id'] ?? ''));
+            $back = \AfricaGates\Services\SiteNotice::safeUrl((string) ($b['back'] ?? ''));
+            if ($back === null || !str_starts_with($back, '/')) $back = '/';
+            return $res->withHeader('Location', $back)->withStatus(303);
+        });
         $g->post('/ads/hide',      \AfricaGates\Controllers\AdsController::class.':hide');
         $g->post('/ads/report',    \AfricaGates\Controllers\AdsController::class.':report');
         $g->get('/ads/go/{token:[0-9]+\.[a-z_]+\.[0-9]{8}\.[a-f0-9]{12}\.[a-f0-9]{32}}', \AfricaGates\Controllers\AdsController::class.':go');
@@ -2951,6 +2964,9 @@ return function(App $app) {
                 'community_pct'    => (int) round($w['community'] * 100),
                 'judge_pct'        => (int) round($w['judge'] * 100),
                 'paid_cap_pct'     => (int) ($eff['max_paid_weight_pct'] ?? 50),
+                // The cap's floor, from the constant that enforces it: "up to 50% of other
+                // support" alone is false for a nominee with none, who may still hold ten.
+                'bonus_floor'      => \AfricaGates\Services\BonusVoteService::MIN_BONUS_CAP,
                 // What a contribution does to the community half, from the one resolver the
                 // ballot and the award page use — never a typed claim (AUDIT 2026-10-05 #10).
                 'paid_sentence'    => \AfricaGates\Services\PaidVoteCopy::sentence(),
@@ -3111,6 +3127,21 @@ return function(App $app) {
                 'kind' => $kind, 'size' => $size, 'layout' => $layout,
                 'kinds' => $kinds, 'award' => $award,
                 'flow_page' => true,
+            ]);
+        });
+
+        // ── /offline — what the service worker shows when a page cannot be reached ──
+        // (public/sw.js, 10 Nov 2026). Fetched ONCE by the worker as a signed-out visitor and
+        // kept, so it carries nobody's details: no header, no tab bar, no notice, no Gee.
+        // Not a page anybody navigates to, so it is noindex and in no nav.
+        $g->get('/offline', function ($req, $res) use ($tv) {
+            return $tv($req)->render($res->withHeader('Cache-Control', 'no-store'), 'pages/offline.twig', [
+                'page_title'  => 'You’re offline — Africa GATES',
+                'meta_robots' => 'noindex, nofollow',
+                'seo_head'    => false,
+                'hide_chrome' => true,
+                'flow_page'   => true,
+                'consent_off' => true,
             ]);
         });
 
@@ -3889,6 +3920,7 @@ return function(App $app) {
         // the `{id}` placeholder they would otherwise be matched by.
         $a->get('/ads',                     \AfricaGates\Controllers\AdsController::class.':index');
         $a->post('/ads',                    \AfricaGates\Controllers\AdsController::class.':store');
+        $a->post('/ads/check',              \AfricaGates\Controllers\AdsController::class.':check');
         $a->get('/ads/new',                 \AfricaGates\Controllers\AdsController::class.':create');
         $a->post('/ads/ad/{id:[0-9]+}',     \AfricaGates\Controllers\AdsController::class.':resubmit');
         $a->get('/ads/{id:[0-9]+}',         \AfricaGates\Controllers\AdsController::class.':show');
@@ -4391,6 +4423,11 @@ return function(App $app) {
         $a->post('/shop/shipping',     AdminShopController::class.':saveShipping');
 
         $a->get('/nominees',        AdminNomineesController::class.':index');
+        $a->get('/nominees/export.csv', AdminNomineesController::class.':export');
+        $a->post('/nominees/bulk',  AdminNomineesController::class.':bulk');
+        // Before `/nominees/{id}/{action}`, which would otherwise take POST …/edit and 404.
+        $a->get('/nominees/{id:[0-9]+}/edit',  AdminNomineesController::class.':edit');
+        $a->post('/nominees/{id:[0-9]+}/edit', AdminNomineesController::class.':update');
         $a->get('/nominees/duplicate-scan', AdminNomineesController::class.':duplicateScan');
         // Duplicates and net counts: people, not entries — nominees across the whole
         // edition, voters by inbox. A sub-page of Nominees, linked from it.
@@ -4428,6 +4465,7 @@ return function(App $app) {
         $a->get('/events/{id:[0-9]+}',           AdminEventsController::class.':form');
         $a->post('/events/{id:[0-9]+}',          AdminEventsController::class.':save');
         $a->post('/events/{id:[0-9]+}/delete',   AdminEventsController::class.':delete');
+        $a->post('/events/{id:[0-9]+}/duplicate', AdminEventsController::class.':duplicate');
         // Tickets, attendees and the door. Its own screen because an organiser reading a
         // door list on the morning of an event is doing a different job from one editing a
         // description, and check-in is the only thing they want on that page.
@@ -4538,6 +4576,12 @@ return function(App $app) {
         // Its own section in Permissions::MATRIX (superadmin + admin), deliberately
         // narrower than /admin/data; the controller re-checks rather than trusting the nav.
         $a->get('/finance',                      AdminFinanceController::class.':index');
+        // Ads: every campaign, and posting one from the console (Services\Ads\AdStaff).
+        $a->get('/ads',                          \AfricaGates\Admin\Controllers\AdsController::class.':index');
+        $a->post('/ads',                         \AfricaGates\Admin\Controllers\AdsController::class.':store');
+        $a->get('/ads/{id:[0-9]+}',              \AfricaGates\Admin\Controllers\AdsController::class.':show');
+        $a->post('/ads/{id:[0-9]+}/extend',      \AfricaGates\Admin\Controllers\AdsController::class.':extend');
+        $a->post('/ads/{id:[0-9]+}/{action:pause|resume|end}', \AfricaGates\Admin\Controllers\AdsController::class.':status');
 
         // ── REFERRAL PAYOUTS ──────────────────────────────────────────────
         //
@@ -4876,6 +4920,9 @@ return function(App $app) {
         $a->get('/requests',  \AfricaGates\Admin\Controllers\RequestsController::class.':index');
         $a->post('/requests', \AfricaGates\Admin\Controllers\RequestsController::class.':act');
         $a->get('/alerts', \AfricaGates\Admin\Controllers\AlertsController::class.':index');
+        // Errors visitors saw (the `faults` alert's page). Unmapped in Permissions, so the guard
+        // holds it to superadmin: an entry carries file paths and stack frames.
+        $a->get('/errors', \AfricaGates\Admin\Controllers\ErrorsController::class.':index');
         // "Assign to me" — the alert's owner and its timeline (AdminConsole v2).
         $a->post('/alerts/{key:[a-z_]+}/assign', \AfricaGates\Admin\Controllers\AlertsController::class.':assign');
 

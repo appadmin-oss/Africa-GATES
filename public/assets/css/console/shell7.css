@@ -65,7 +65,10 @@
 .sh7-tab { display: flex; align-items: center; gap: 6px; color: var(--cn-ink-3) !important; font-size: var(--cn-fs-13-5); border-bottom: 2px solid transparent; white-space: nowrap; }
 .sh7-tab.is-on { color: var(--cn-ink) !important; border-bottom-color: var(--cn-ink); font-weight: 500; }
 
-.sh7-main { flex: 1; overflow-y: auto; }
+/* position:relative makes the scroller the containing block for anything absolute inside it —
+   a screen-reader-only label or title otherwise sits against the DOCUMENT, past the bottom of
+   a 100dvh shell, and the whole page gains a second scroll that drags the header away. */
+.sh7-main { flex: 1; overflow-y: auto; position: relative; }
 .sh7-page { max-width: 1120px; margin: 0 auto; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 32px; }
 .sh7-page.has-side { max-width: 1452px; }
 .sh7-cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 32px; }
@@ -263,6 +266,14 @@ textarea.sh7-input { height: auto; padding: 10px 12px; line-height: 1.5; }
 /* The browser's 13px box is under the 24px target floor; the label carries the rest, the box is drawn big enough to see. */
 .sh7-choice input { flex: none; width: 20px; height: 20px; margin: 0; accent-color: var(--cn-green); }
 .sh7-field--choice { gap: 8px; }
+/* Short options, many of them: a grid on any width that fits two (sections.twig decides). */
+.sh7-field--grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); column-gap: 16px; }
+.sh7-field--grid > legend { grid-column: 1 / -1; }
+/* "Name — what it does (risk)": the name, the risk as a chip, the description under them. */
+.sh7-choice__t { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; min-width: 0; }
+.sh7-choice__n { font-weight: 600; }
+.sh7-choice__d { flex-basis: 100%; color: var(--cn-ink-3); font-size: var(--cn-fs-13); }
+.sh7-choice:has(.sh7-choice__t) { padding: 6px 0; }
 .sh7-seg { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; border-radius: var(--cn-r-10); background: var(--cn-ground); }
 .sh7-seg__opt input { position: absolute; opacity: 0; }
 .sh7-seg__opt span { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: var(--cn-r-8); cursor: pointer; font-size: var(--cn-fs-13-5); color: var(--cn-ink-2); }
@@ -417,6 +428,14 @@ textarea.sh7-input { height: auto; padding: 10px 12px; line-height: 1.5; }
 .sh7-bellpanel__none { margin: 8px; font-size: var(--cn-fs-13); color: var(--cn-ink-3); }
 .sh7-switch > summary { list-style: none; cursor: pointer; border-radius: var(--cn-r-10); }
 .sh7-switch > summary::-webkit-details-marker { display: none; }
+/* `.sh7-switch` names two things: the on/off control above (inline-flex, sized to its
+   label) and this place switcher. Inheriting the control's inline-flex, the switcher sized
+   itself to the event's full name and ran out of the 240px rail, pushing the ⇅ mark into
+   the page beside it. The switcher is a block the width of the rail, and its name truncates. */
+details.sh7-switch { display: block; min-width: 0; }
+.sh7-switch > summary.sh7-ident { min-width: 0; }
+.sh7-switch > summary .sh7-ident__words { flex: 1; }
+.sh7-switch__mark { flex: none; margin-inline-start: auto; color: var(--cn-ink-3); }
 .sh7-switch > summary:hover { background: var(--cn-hover); }
 .sh7-switch__mark { margin-left: auto; color: var(--cn-faint); }
 .sh7-switch__list { list-style: none; margin: 0 0 8px; padding: 6px; border: 1px solid var(--cn-line); border-radius: var(--cn-r-12); background: var(--cn-surface); }
@@ -475,31 +494,7 @@ textarea.sh7-input { height: auto; padding: 10px 12px; line-height: 1.5; }
   .sh7-item[aria-current], .sh7-tab[aria-current] { outline: 2px solid Highlight; outline-offset: -2px; }
 }
 
-/* ── The product switcher (after ElevenLabs): the rail's top names the part of the account
-   you are in and opens the others — icon, name, one line, a tick on the current one. ──── */
-.sh7-prod { position: relative; }
-.sh7-prod > summary { list-style: none; cursor: pointer; border-radius: var(--cn-r-10); }
-.sh7-prod > summary::-webkit-details-marker { display: none; }
-.sh7-prod > summary:hover, .sh7-prod[open] > summary { background: var(--cn-hover); }
-.sh7-prod__chev { margin-left: auto; color: var(--cn-faint); display: inline-flex; transform: rotate(90deg); }
-.sh7-prod__menu { position: absolute; left: 0; top: calc(100% + 4px); width: 300px; padding: 6px; z-index: 30;
-  background: var(--cn-surface); border: 1px solid var(--cn-line); border-radius: var(--cn-r-12); box-shadow: var(--cn-sh-menu); }
-.sh7-prod__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-.sh7-prod__list form { margin: 0; }
-.sh7-prod__i { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px; border: 0; border-radius: var(--cn-r-8);
-  background: none; font: inherit; color: var(--cn-ink); text-align: left; cursor: pointer; }
-.sh7-prod__i:hover, .sh7-prod__i:focus-visible { background: var(--cn-hover); }
-.sh7-prod__i.is-on { cursor: default; }
-.sh7-prod__ic { flex: none; width: 32px; height: 32px; border-radius: var(--cn-r-8); display: grid; place-items: center; background: var(--cn-hover); }
-.sh7-prod__i.is-on .sh7-prod__ic { background: var(--cn-green); color: var(--cn-surface); }
-.sh7-prod__t { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
-.sh7-prod__n { font-size: var(--cn-fs-13-5); font-weight: 600; }
-.sh7-prod__s { font-size: var(--cn-fs-12); color: var(--cn-ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sh7-prod__tick { flex: none; color: var(--cn-green); font-weight: 700; }
-.sh7-sheet .sh7-prod__list { margin-top: 4px; }
-@container shell (min-width: 600px) and (max-width: 1023px) {
-  .sh7-prod__chev { display: none; }
-}
+/* The role switch moved to the foot of the rail, in its own sheet: role-switch.css. */
 
 /* ── a finger, not a cursor (owner, 31 Oct 2026: "improve the responsiveness of the entire
    volunteer"). On a touch screen every control the shell draws reaches 44px — buttons were 36,
@@ -528,4 +523,153 @@ textarea.sh7-input { height: auto; padding: 10px 12px; line-height: 1.5; }
 @container shell (max-width: 599px) {
   .sh7-form__submit { display: flex; flex-wrap: wrap; gap: 8px; }
   .sh7-form__submit > .sh7-btn { flex: 1 1 auto; height: auto; min-height: 44px; white-space: normal; padding-block: 12px; }
+}
+
+
+/* ══ Design pass, 6 Nov 2026 — the volunteer and event-lead portals ═══════════════════════
+   The owner's verdict on these screens was that they looked unfinished, and the full-length
+   captures agreed: every form was a flat run of fields on the page with a hairline between
+   rows, a 2005 settings-page layout (a 240px label column beside the fields) on desktop, bare
+   radio circles in a column, and nothing grouping a page into the few things it is for.
+   This block changes presentation only: no markup a test or a script depends on. */
+
+/* A form is one card: the thing on the page you fill in, visibly distinct from what you read. */
+.sh7-sec--form { border: 1px solid var(--cn-card-edge); border-radius: var(--cn-r-18); padding: 20px 24px 24px; gap: 2px; background: var(--cn-surface); }
+.sh7-sec--form > .sh7-sec__h { font-size: var(--cn-fs-17); font-weight: 600; margin-bottom: 4px; }
+
+/* Fields stacked under their group's name, at a reading width: the eye goes down one line
+   rather than zig-zagging between a label column and a field column. */
+.sh7-form__block { grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 16px 0 6px; border-bottom: 0; max-width: 680px; }
+.sh7-form__block + .sh7-form__block { border-top: 1px solid var(--cn-line-row); }
+.sh7-form__name { font-weight: 600; font-size: var(--cn-fs-14); }
+.sh7-form__label:empty { display: none; }
+.sh7-form__submit { margin-top: 20px; }
+.sh7-form__submit .sh7-btn--primary { min-width: 160px; height: 44px; }
+
+/* A short set of answers is a row of tiles you tap, not a column of circles: the whole
+   option is the target, and the one chosen is plainly the one chosen. */
+.sh7-field--radio { flex-direction: row; flex-wrap: wrap; gap: 8px; }
+.sh7-field--radio > legend { flex-basis: 100%; margin-bottom: 2px; }
+.sh7-field--radio .sh7-choice { align-items: center; min-height: 44px; padding: 0 14px 0 12px; border: 1px solid var(--cn-line); border-radius: var(--cn-r-12); background: var(--cn-surface); }
+.sh7-field--radio .sh7-choice:hover { border-color: var(--cn-ink-3); }
+.sh7-field--radio .sh7-choice:has(input:checked) { border-color: var(--cn-green); background: var(--cn-ok-wash); font-weight: 600; }
+.sh7-field--radio .sh7-choice:has(input:focus-visible) { outline: 2px solid var(--cn-green); outline-offset: 2px; }
+
+/* Ticks with a description read as a list of separate decisions, one per row. */
+.sh7-field--choice:not(.sh7-field--grid):not(.sh7-field--radio) .sh7-choice:has(.sh7-choice__t) { padding: 10px 0; border-bottom: 1px solid var(--cn-line-row); }
+
+/* Inputs a size a thumb and an eye both find. */
+.sh7-input { height: 44px; border-radius: var(--cn-r-12); }
+textarea.sh7-input { height: auto; min-height: 104px; padding-block: 10px; }
+
+@media (max-width: 720px) {
+  .sh7-sec--form { padding: 16px 16px 18px; border-radius: var(--cn-r-14); }
+  .sh7-form__submit .sh7-btn--primary { width: 100%; }
+  .sh7-field--radio .sh7-choice { flex: 1 1 calc(50% - 4px); }
+}
+
+/* ── Every section is a card (6 Nov 2026, second pass) ────────────────────────────────────
+   One sheet of white with hairlines between everything is what made these pages read as a
+   draft: a list, a form and a warning all had the same weight. Now each thing on a page is
+   a card of one radius, the page ground shows between them, and a note is a slim banner. */
+.sh7-sec--rows, .sh7-sec--table, .sh7-sec--agenda, .sh7-sec--article {
+  border: 1px solid var(--cn-card-edge); border-radius: var(--cn-r-18); padding: 16px 20px 6px; background: var(--cn-surface); }
+.sh7-sec--rows > .sh7-sec__h, .sh7-sec--table > .sh7-sec__h,
+.sh7-sec--agenda > .sh7-sec__h, .sh7-sec--article > .sh7-sec__h { font-size: var(--cn-fs-15); font-weight: 600; margin-bottom: 2px; }
+.sh7-sec--rows .sh7-row:last-child { border-bottom: 0; }
+.sh7-hero { border-radius: var(--cn-r-18); }
+
+/* Folded: a card whose heading is the control. */
+.sh7-fold { border: 1px solid var(--cn-card-edge); border-radius: var(--cn-r-18); background: var(--cn-surface); }
+.sh7-fold__s { display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 0 20px; cursor: pointer; list-style: none; border-radius: var(--cn-r-18); }
+.sh7-fold__s::-webkit-details-marker { display: none; }
+.sh7-fold__s:focus-visible { outline: 2px solid var(--cn-green); outline-offset: 2px; }
+.sh7-fold__t { font-weight: 600; font-size: var(--cn-fs-15); }
+.sh7-fold__hint { color: var(--cn-ink-3); font-size: var(--cn-fs-13); }
+.sh7-fold__mark { margin-inline-start: auto; width: 8px; height: 8px; border-right: 2px solid var(--cn-ink-3); border-bottom: 2px solid var(--cn-ink-3); transform: rotate(45deg); transition: transform var(--cn-dur-toggle); }
+.sh7-fold[open] > .sh7-fold__s .sh7-fold__mark { transform: rotate(-135deg); }
+.sh7-fold > .sh7-sec { border: 0; background: none; padding: 0 20px 20px; }
+@media (prefers-reduced-motion: reduce) { .sh7-fold__mark { transition: none; } }
+
+/* A sentence with its answers beside it: "Just called? [No answer] [Left a message]". */
+.sh7-note--acts { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+.sh7-note__acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.sh7-note__acts .sh7-btn { height: 40px; background: var(--cn-surface); }
+
+/* The hero's facts as a tidy two-column sheet, values able to wrap. */
+.sh7-hero .sh7-facts dd { overflow-wrap: anywhere; }
+
+@media (max-width: 720px) {
+  .sh7-sec--rows, .sh7-sec--table, .sh7-sec--agenda, .sh7-sec--article { padding: 14px 16px 4px; border-radius: var(--cn-r-14); }
+  .sh7-fold, .sh7-fold__s { border-radius: var(--cn-r-14); }
+  .sh7-fold__s { padding: 0 16px; }
+  .sh7-fold > .sh7-sec { padding: 0 16px 16px; }
+  .sh7-note__acts { width: 100%; }
+  .sh7-note__acts .sh7-btn { flex: 1; height: 44px; }
+}
+
+/* Answer tiles sit in a grid: two to a row on a phone, as many as fit on a desk. */
+.sh7-field--radio { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.sh7-field--radio > legend { grid-column: 1 / -1; }
+.sh7-field--radio .sh7-choice { padding-block: 8px; }
+@media (max-width: 720px) {
+  .sh7-field--radio .sh7-choice { flex: none; }
+  /* The main action across the card; the alternatives side by side under it. */
+  .sh7-hero__acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .sh7-hero__acts > :first-child { grid-column: 1 / -1; }
+  .sh7-hero__acts > :only-child { grid-column: 1 / -1; }
+}
+@media (max-width: 720px) {
+  .sh7-note__acts .sh7-inline { flex: 1; display: flex; }
+  .sh7-note__acts .sh7-inline .sh7-btn { width: 100%; }
+}
+/* Facts in pairs: four across left a phone number, an address and two sentences each a
+   ribbon a word wide, beside a side panel. */
+.sh7-hero .sh7-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+/* ── Home pages (6 Nov 2026, third pass) ─────────────────────────────────────────────────── */
+/* One event or one place is the subject of the page, not a 260px tile in an empty row. */
+.sh7-cards > .sh7-card:only-child { grid-column: 1 / -1; }
+/* A step that is where you start is the whole tile, not a word inside it. */
+.sh7-step:has(.sh7-step__link) { position: relative; }
+.sh7-step__link { color: inherit; text-decoration: none; }
+.sh7-step__link::after { content: ''; position: absolute; inset: 0; border-radius: inherit; }
+.sh7-step:has(.sh7-step__link):hover { border-color: var(--cn-green); }
+.sh7-step:has(.sh7-step__link:focus-visible) { outline: 2px solid var(--cn-green); outline-offset: 2px; }
+.sh7-step__link:focus-visible { outline: none; }
+/* Page header: the title and its one or two actions on a line, the purpose under it. */
+.sh7-head__acts .sh7-btn { height: 40px; }
+
+/* A written document's parts (an event's report): a heading each, the text as it was typed. */
+.sh7-article__h { margin: 18px 0 4px; font-size: var(--cn-fs-14); font-weight: 600; }
+.sh7-article__h:first-child { margin-top: 0; }
+.sh7-article__p { margin: 0; white-space: pre-line; line-height: 1.6; }
+
+/* ── Phone, less said twice (9 Nov 2026) ──────────────────────────────────────────────────
+   On a phone every page said its own name three times: the app bar ("Plan"), the event above
+   the heading, and a 28px "Plan" — a third of the first screen before anything to do. The app
+   bar is the title there; the heading stays for a screen reader, and the line under it says
+   what the page is for, smaller. */
+@container shell (max-width: 599px) {
+  .sh7-head__kicker { display: none; }
+  /* Anchored to its own header: absolute with no positioned ancestor it was placed against
+     the document, which then grew and scrolled the whole app behind the shell. */
+  .sh7-head { position: relative; }
+  .sh7-head__title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+  .sh7-head__purpose { margin-top: 0; font-size: var(--cn-fs-13-5); }
+  .sh7-head__acts { width: 100%; }
+  .sh7-head__acts > * { flex: 1 1 auto; }
+  .sh7-head__acts .sh7-btn { width: 100%; height: 44px; }
+  /* The bottom padding clears the fixed 64px tab bar: 32px alone left a page's last button
+     half under it, and the scroller cannot scroll further than its content. */
+  .sh7-page { gap: 16px; padding: 16px 16px calc(64px + 32px + env(safe-area-inset-bottom)); }
+  /* A note's one button goes under its sentence, the width of the note, not mid-line. */
+  .sh7-note > .sh7-btn, .sh7-note > .sh7-inline { display: flex; width: 100%; margin-top: 10px; }
+  .sh7-note > .sh7-inline .sh7-btn, .sh7-note > .sh7-btn { width: 100%; height: 44px; justify-content: center; }
+  /* Tab rows scroll sideways: show that they do, with a fade at the edge. */
+  .sh7-tabs { mask-image: linear-gradient(to right, var(--cn-ink) calc(100% - 28px), transparent); overflow-x: auto; scrollbar-width: none; }
+  .sh7-tabs::-webkit-scrollbar { display: none; }
+}
+@container shell (max-width: 599px) {
+  textarea.sh7-input { min-height: 88px; }
 }

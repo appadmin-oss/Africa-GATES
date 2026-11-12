@@ -153,6 +153,14 @@ final class CoverKindTest extends TestCase
             $this->assertSame('product-' . $k, CoverKind::resolve('product', $cat)['glyph'], $cat);
         }
         $this->assertSame('', CoverKind::productKind('Misc'));
+        // By WORD: a stem hidden inside another word decided the cover — "art" in
+        // "party", "top" in "laptop", "print" in "footprint", "cap" in "capsule".
+        foreach (['Party supplies', 'Laptop sleeves', 'Footprint decals', 'Coffee capsules', 'Smartwatch straps'] as $cat) {
+            $this->assertSame('', CoverKind::productKind($cat), $cat);
+        }
+        foreach (['Accessories' => 'keepsake', 'Jewellery' => 'keepsake', 'Sportswear' => 'apparel', 'Wall art' => 'art'] as $cat => $k) {
+            $this->assertSame($k, CoverKind::productKind($cat), $cat);
+        }
         $this->assertSame(['stone', 'weave', 'product'], array_values(array_intersect_key(CoverKind::resolve('product', 'Misc'),
             ['tone' => 1, 'pattern' => 1, 'glyph' => 1])), 'an unknown category keeps the shop cover');
 

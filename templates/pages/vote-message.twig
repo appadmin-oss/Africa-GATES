@@ -18,7 +18,7 @@
 {% set meta_robots = robots %}
 {% set app_bar = {variant: 'child', title: 'A message of support'|trans, back: ballot_url ?: '/vote'} %}
 
-{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/vote-pages.css') }}">{% include 'partials/seo-head.twig' %}{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/vote-pages.css') }}">{% endblock %}
 
 {% block content %}
 <div class="vs">

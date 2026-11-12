@@ -256,4 +256,46 @@ final class MemberWalletTest extends TestCase
 
         $this->assertSame([], (new AlertService())->forMember(8, 'bola@example.com'), 'nobody else is told');
     }
+
+    /**
+     * A page changes hands. The new holder's statement must still reconcile — money the
+     * previous holder took out and spent DID leave this page's balance — but as bare
+     * lines: their bank, account, name and vote references are not the new holder's to
+     * read. And the previous holder keeps the record of their own spending.
+     */
+    public function test_a_new_holder_sees_the_movements_but_never_the_previous_holders_details(): void
+    {
+        $this->returnAvailable();
+        $now = Carbon::now()->toDateTimeString();
+        DB::table('gates_return_withdrawals')->insert([
+            'nominee_id' => 1, 'user_id' => 7, 'amount_kobo' => 20000, 'fee_kobo' => 0, 'status' => 'paid',
+            'bank_name' => 'GTBank', 'account_name' => 'Ada Obi', 'account_number' => '0123456789',
+            'requested_at' => $now, 'paid_at' => $now, 'payment_ref' => 'TRF-ADA-1',
+        ]);
+        DB::table('gates_wallet_votes')->insert([
+            'reference' => 'WV-ADA-1', 'user_id' => 7, 'source_nominee_id' => 1, 'nominee_id' => 1,
+            'votes' => 3, 'amount_kobo' => 30000, 'created_at' => $now,
+        ]);
+
+        // The claim moves to Bola.
+        DB::table('gates_nominee_claims')->where('nominee_id', 1)->update(['status' => 'revoked', 'active_nominee_id' => null]);
+        DB::table('gates_nominee_claims')->insert([
+            'nominee_id' => 1, 'user_id' => 8, 'status' => 'active', 'active_nominee_id' => 1,
+            'claimed_at' => $now, 'activated_at' => $now,
+        ]);
+
+        $bola = W::transactions(8);
+        $flat = json_encode($bola, JSON_UNESCAPED_UNICODE);
+        foreach (['0123456789', 'GTBank', 'Ada Obi', 'TRF-ADA-1', 'WV-ADA-1'] as $secret) {
+            $this->assertStringNotContainsString($secret, $flat, 'the new holder can read ' . $secret);
+        }
+        $titles = array_column($bola, 'title');
+        $this->assertContains('Paid out before you held this page', $titles, 'the balance moved and the statement says nothing');
+        $this->assertContains('Spent on votes before you held this page', $titles);
+
+        $ada = W::transactions(7);
+        $mine = array_values(array_filter($ada, static fn ($t) => $t['title'] === 'Spent on votes'));
+        $this->assertCount(1, $mine, 'the previous holder lost the record of their own spend');
+        $this->assertSame('WV-ADA-1', $mine[0]['ref']);
+    }
 }

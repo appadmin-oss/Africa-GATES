@@ -2,7 +2,7 @@
 {% block topbar_title %}{{ programme.title }} · Cycle{% endblock %}
 {% block topbar_actions %}<a class="ad-btn" href="/admin/programmes">← Back</a>{% endblock %}
 
-{% block head_styles %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/console/manage.css') }}">
 <style nonce="{{ csp_nonce }}">
   .ed-list{ display:grid; gap:8px }
   .ed{ display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; min-height:44px;
@@ -37,6 +37,21 @@
 {% endblock %}
 
 {% block content %}
+{% if readiness %}
+{% set todo = readiness|filter(i => i.state == 'todo')|length %}
+<section class="ad-card rd" aria-labelledby="rd-h" style="margin-bottom:14px">
+  <div class="ad-card__head"><div class="ad-card__title" id="rd-h">{{ todo ? todo ~ ' thing' ~ (todo == 1 ? '' : 's') ~ ' to do before this edition is ready' : 'This edition is ready' }}<small>Worked out from the edition itself — it updates as you fix things</small></div></div>
+  <ul class="rd__list">
+    {% for i in readiness %}
+    <li class="rd__i rd__i--{{ i.state }}">
+      <span class="rd__mark" aria-hidden="true">{{ i.state == 'ok' ? '✓' : (i.state == 'todo' ? '!' : 'i') }}</span>
+      <span><strong>{{ i.title }}</strong><span class="sr-only"> — {{ i.state == 'ok' ? 'done' : (i.state == 'todo' ? 'to do' : 'worth a look') }}</span>{% if i.detail %} <span class="rd__d">{{ i.detail }}</span>{% endif %}
+      {% if i.href and i.state != 'ok' %} <a href="{{ i.href }}">Fix this<span class="sr-only">: {{ i.title }}</span></a>{% endif %}</span>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
 <div class="ad-grid-2">
   <div>
     <form method="post" action="/admin/programmes/{{ programme.id }}/cycle" class="ad-form">
@@ -390,12 +405,13 @@
     </div>
     {% endif %}
     <div class="ad-card">
-      <div class="ad-card__head"><div class="ad-card__title">Categories<small>For the current cycle</small></div></div>
+      <div class="ad-card__head"><div class="ad-card__title">Categories<small>In the edition on this screen</small></div></div>
       <div class="ad-card__body">
         {% if categories|length == 0 %}<p style="color:var(--cn-soft);font-size:13px">No categories yet.</p>{% endif %}
         {% for c in categories %}
         <details style="border:1px solid var(--cn-line-card);border-radius:8px;padding:12px;margin-bottom:8px">
-          <summary style="font-weight:600;cursor:pointer">{{ c.title }} <span style="color:var(--cn-soft);font-weight:500">· {{ c.slug }}</span></summary>
+          <summary style="font-weight:600;cursor:pointer">{{ c.title }} <span style="color:var(--cn-soft);font-weight:500">· {{ c.slug }} · {{ c.nominees }} nominee{{ c.nominees == 1 ? '' : 's' }}</span></summary>
+          <p style="margin:8px 0 0;font-size:13px"><a href="/admin/nominees?category={{ c.id }}">See the nominees in {{ c.title }}</a></p>
           <form class="ad-form" method="post" action="/admin/programmes/{{ programme.id }}/categories" style="margin-top:12px">
             <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="id" value="{{ c.id }}">
             <div class="row">
@@ -407,17 +423,19 @@
               <div><label for="f-sort_order-{{ c.id }}">Sort order</label><input type="number" name="sort_order" id="f-sort_order-{{ c.id }}" min="0" max="255" value="{{ c.sort_order }}"></div>
               <div style="display:flex;gap:8px;align-items:flex-end">
                 <button class="ad-btn ad-btn--primary ad-btn--sm" type="submit">Update</button>
-                {# `formaction`, NOT a nested <form>. This WAS a nested form, and an HTML
-                   parser DISCARDS a <form> start tag inside an open one — so this button
-                   kept its markup, lost its action, and posted to the UPDATE route above
-                   it. Pressing Delete saved the category. `formnovalidate` because the
-                   title and slug fields beside it are `required` and a delete has no
-                   business being blocked by them. The confirm text says `title` because
-                   `c.name` does not exist on a category row, so it used to read
-                   “Delete “” permanently?”. #}
+                {% if c.in_use %}
+                {# Retired, never deleted: votes, nominees and judge criteria all cascade from
+                   a category, so a delete here erased the ballot ledger. The server refuses it
+                   too (categoryInUse); the button is not offered for what it would refuse. #}
+                <span style="font-size:12px;color:var(--cn-ink-3)">Cannot be deleted — {{ c.in_use }}.</span>
+                {% else %}
+                {# `formaction`, NOT a nested <form>: a <form> inside an open one is dropped by
+                   the parser and this button would post to the UPDATE route above it.
+                   `formnovalidate` so the required title and slug do not block a delete. #}
                 <button class="ad-btn ad-btn--danger ad-btn--sm" type="submit"
                         formaction="/admin/categories/{{ c.id }}/delete" formnovalidate
-                        data-confirm="Delete the category “{{ c.title }}” permanently? Anything already nominated or judged in it points at it by id, so this cannot be undone.">Delete</button>
+                        data-confirm="Delete the category “{{ c.title }}”? Nothing has been nominated or voted in it yet.">Delete</button>
+                {% endif %}
               </div>
             </div>
           </form>
@@ -426,7 +444,8 @@
 
         <form class="ad-form" method="post" action="/admin/programmes/{{ programme.id }}/categories" style="margin-top:18px;padding:14px;background:var(--cn-panel);border-radius:8px">
           <input type="hidden" name="_token" value="{{ csrf_token }}">
-          <strong style="font-size:13px">+ Add category</strong>
+          {% if cycle %}<input type="hidden" name="cycle_id" value="{{ cycle.id }}">{% endif %}
+          <strong style="font-size:13px">+ Add a category to {{ cycle.edition_label|default(cycle.year|default('this edition')) }}</strong>
           <div class="row">
             <div><label for="f-title">Title</label><input type="text" name="title" id="f-title" required></div>
             <div><label for="f-slug">Slug</label><input type="text" name="slug" id="f-slug" required></div>

@@ -553,6 +553,8 @@ class VoteController {
             'vote_confirmed'   => $voteConfirmed,
             'recruit'          => $recruit,
             'evidence'         => $evidence,
+            // Every photograph, the portrait first: the page used to draw photo_path alone.
+            'photos'           => \AfricaGates\Services\NomineePortrait::gallery((int) $nom->id, (string) ($nom->photo_path ?? '')),
             'shortlisted'      => $nomShortlisted,
             'result_url'       => '/results/' . \AfricaGates\Services\PublicResults::slug((int) $nom->category_id, (string) $nom->category),
             'tier_prices'      => array_map(static fn (array $t): array => $t + ['price' => PaidVoteService::price((int) $t['qty'])],

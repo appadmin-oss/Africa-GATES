@@ -34,8 +34,10 @@
 .hm-hero__lead{ margin:0; max-width:48ch; font-size:var(--ag-fs-15-5); line-height:1.55; color:var(--ag-ink-2); text-wrap:pretty }
 .hm-hero__ctas{ display:grid; grid-template-columns:minmax(0, 1fr); gap:8px; padding-top:6px }
 .hm-cta{
-  display:flex; align-items:center; justify-content:center;
-  height:54px; padding:0 22px; border-radius:16px;
+  display:flex; align-items:center; justify-content:center; text-align:center;
+  /* min-height, not height: a label that wraps (a long one, or any at 150% text) grows the
+     button instead of spilling out of it. */
+  min-height:54px; padding:8px 22px; border-radius:16px;
   font-size:var(--ag-fs-16); text-decoration:none;
 }
 .hm-cta--go{ background:var(--ag-green); color:var(--ag-surface); font-weight:700 }
@@ -281,7 +283,7 @@
   .hm-hero__h1{ font-size:var(--ag-fs-40) }
   .hm-hero__lead{ font-size:var(--ag-fs-16-5) }
   .hm-hero__ctas{ display:flex; flex-wrap:wrap; padding-top:0 }
-  .hm-cta{ height:50px; border-radius:var(--ag-r-pill) }
+  .hm-cta{ min-height:50px; border-radius:var(--ag-r-pill) }
   .hm-hero__media{ order:0; margin:0; border-radius:20px }
   
   
@@ -325,16 +327,21 @@
 .hm-slide__img,
 .hm-slide__img img{ position:absolute; inset:0; width:100%; height:100% }
 .hm-slide__img img{ object-fit:cover }
-.hm-image--cover{ display:block; aspect-ratio:5 / 4; overflow:hidden }
-.hm-slide__img .hm-image--cover{ position:absolute; inset:0; width:100%; height:100% }
-.hm-controls{ position:absolute; inset-inline-end:14px; top:14px; z-index:3; display:flex; flex-wrap:wrap; align-items:center; gap:6px; max-width:calc(100% - 28px) }
-.hm-controls[hidden]{ display:none }
-.hm-dots{ display:flex; align-items:center; padding:2px; border-radius:var(--ag-r-pill); background:color-mix(in srgb, var(--ag-ink) 66%, transparent) }
-.hm-play{ min-height:44px; padding:0 14px; border:1px solid var(--ag-line); border-radius:var(--ag-r-pill); background:var(--ag-surface); color:var(--ag-ink); font:600 var(--ag-fs-13)/1.3 var(--ag-font-ui); cursor:pointer }
-.hm-play:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
-.hm-dots__b{ width:32px; height:44px; padding:0; border:0; background:none; display:flex; align-items:center; justify-content:center; cursor:pointer }
+.hm-dots{
+  position:absolute; top:14px; inset-inline-end:14px; z-index:3;
+  display:flex; align-items:center; padding:0 4px; border-radius:var(--ag-r-pill);
+  background:color-mix(in srgb, var(--ag-ink) 38%, transparent);
+}
+.hm-dots__b{ width:28px; height:32px; padding:0; border:0; background:none; display:flex; align-items:center; justify-content:center; cursor:pointer }
 .hm-dots__b span{ display:block; width:7px; height:7px; border-radius:var(--ag-r-pill); background:color-mix(in srgb, var(--ag-surface) 60%, transparent); transition:width .2s ease }
 .hm-dots__b.is-on span{ width:18px; background:var(--ag-surface) }
+.hm-dots__p{ position:relative; width:32px; height:32px; padding:0; border:0; background:none; color:var(--ag-surface); display:flex; align-items:center; justify-content:center; cursor:pointer }
+/* 44px to a finger without widening the pill the design draws. */
+.hm-dots__p::after{ content:""; position:absolute; inset:-6px }
+.hm-dots__p[hidden]{ display:none }
+.hm-dots__ic--play,
+.hm-dots__p.is-paused .hm-dots__ic--pause{ display:none }
+.hm-dots__p.is-paused .hm-dots__ic--play{ display:block }
 
 /* 2 · who do you want to honour? */
 .hm-honour{
@@ -350,8 +357,6 @@
   transition:transform .2s ease;
 }
 .hm-hon:hover{ transform:translateY(-3px) }
-.hm-hon__img.hm-image--utility{ padding:18%; background:var(--ag-green-wash) }
-.hm-slide__img .hm-image--utility{ object-fit:contain; padding:40px 40px 140px }
 .hm-hon__img{ display:block; width:100%; height:auto; aspect-ratio:1; object-fit:cover; border-radius:18px }
 .hm-hon__row{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:0 4px 4px }
 .hm-hon__l{ font-weight:700; font-size:var(--ag-fs-16) }
@@ -411,7 +416,7 @@
 .hm-ctr__fig{ display:flex; flex-direction:column; gap:10px }
 .hm-ctr__n{ font-weight:700; font-size:var(--ag-fs-72); line-height:.9; letter-spacing:-.05em; font-variant-numeric:tabular-nums; color:var(--ag-green-deep) }
 .hm-ctr__l{ font-size:var(--ag-fs-18); font-weight:600; line-height:1.3 }
-.hm-ctr__h{ font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-26); line-height:1.15; text-wrap:balance }
+.hm-ctr__h{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-26); line-height:1.15; text-wrap:balance }
 .hm-ctr__side{ display:flex; flex-direction:column; gap:14px; align-items:flex-start }
 .hm-ctr__p{ margin:0; max-width:40ch; font-size:var(--ag-fs-16); line-height:1.55; color:var(--ag-ink-2) }
 
@@ -421,7 +426,10 @@
   background:var(--ag-surface); border:1px solid var(--ag-line); color:var(--ag-ink); text-decoration:none }
 .hm-topic:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
 .hm-topic__field{ position:relative; display:flex; align-items:center; justify-content:center; aspect-ratio:16 / 10; overflow:hidden; background:var(--ag-green-wash) }
-.hm-topic__pic{ flex:none; width:58%; height:68%; object-fit:contain }
+.hm-topic__pic{ flex:none; width:40%; height:auto; max-height:none; aspect-ratio:4 / 5; object-fit:cover; border-radius:18px; border:4px solid var(--ag-surface); box-shadow:var(--ag-sh-dot) }
+.hm-topic__pic--1{ transform:rotate(-4deg) }
+.hm-topic__pic--2{ transform:rotate(3deg) }
+.hm-topic__pic--3{ transform:rotate(-3deg) }
 .hm-topic__tag{ position:absolute; inset-inline-start:14px; top:14px; display:flex; align-items:center; height:28px; padding:0 11px; border-radius:var(--ag-r-pill);
   background:var(--ag-surface); color:var(--ag-ink); font-size:var(--ag-fs-12-5); font-weight:700 }
 .hm-topic__body{ display:flex; flex-direction:column; gap:6px; padding:18px 20px 22px }
@@ -433,7 +441,7 @@
 .hm-who > li{ flex:0 0 72%; scroll-snap-align:start }
 .hm-whoc{ position:relative; display:block; aspect-ratio:4 / 5; overflow:hidden; border-radius:24px; background:var(--ag-tint); color:var(--ag-ink); text-decoration:none }
 .hm-whoc:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
-.hm-whoc__img{ position:absolute; inset:12% 15% 26%; width:70%; height:62%; object-fit:contain }
+.hm-whoc__img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover }
 .hm-whoc__bar{ position:absolute; inset-inline:12px; bottom:12px; display:flex; align-items:center; justify-content:space-between; gap:10px;
   min-height:56px; padding:0 10px 0 18px; border-radius:16px; background:var(--ag-surface) }
 /* min-width:0 and a wrap that may break a word: with a reader's own text spacing (WCAG
@@ -448,8 +456,10 @@
 .hm-close__text{ display:flex; flex-direction:column; gap:14px }
 .hm-close__h{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-30); line-height:1.1 }
 .hm-close__d{ margin:0; font-size:var(--ag-fs-16); line-height:1.55; color:var(--ag-ink-2) }
-.hm-close__ctas{ display:flex; flex-wrap:wrap; gap:8px }
-.hm-close__art{ display:block; width:min(100%,360px); height:auto; object-fit:contain }
+.hm-close__ctas{ display:grid; grid-template-columns:minmax(0, 1fr); gap:8px }
+/* Two CTAs side by side at 360 wrapped the longer label onto two lines inside a 54px pill:
+   stacked full width on a phone, a row from 600. */
+@media (min-width:600px){ .hm-close__ctas{ display:flex; flex-wrap:wrap } }
 .hm-close__pics{ display:flex; align-items:center; justify-content:center }
 .hm-close__pic{ width:96px; height:96px; object-fit:cover; border-radius:50%; border:5px solid var(--ag-green-wash) }
 .hm-close__pic--1{ transform:rotate(-4deg) }

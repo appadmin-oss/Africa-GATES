@@ -411,9 +411,10 @@ final class PaymentTriage
     {
         $charged = [];
         $underpaid = [];
+        $failed = [];
         $clean = 0;
         $enabled = $this->enabledProviders();
-        if (!$enabled) return ['charged' => [], 'underpaid' => [], 'clean' => 0];
+        if (!$enabled) return ['charged' => [], 'underpaid' => [], 'failed' => [], 'clean' => 0];
 
         $p = $this->payments ?? new PaymentService();
 
@@ -424,19 +425,25 @@ final class PaymentTriage
                 : $enabled;
 
             $hit = null;
+            $saidFailed = false;
             foreach ($order as $provider) {
                 try { $v = $p->verify($provider, (string) $o->payment_ref); } catch (\Throwable) { continue; }
                 if (!empty($v['ok']) && (string) ($v['status'] ?? '') === 'success') {
                     $hit = ['order' => $o, 'provider' => $provider, 'amount' => (int) ($v['amount'] ?? 0)];
                     break;
                 }
+                if (!empty($v['ok']) && (string) ($v['status'] ?? '') === 'failed') $saidFailed = true;
             }
 
+            // The gateway said FAILED about a row we still call pending. This used to be
+            // counted `clean` and dropped, so an operator pressing the button watched
+            // Paystack declare every one of them failed and the screen keep them pending.
+            if ($hit === null && $saidFailed && (string) ($o->status ?? '') === 'pending') { $failed[] = $o; continue; }
             if ($hit === null)                                    { $clean++; continue; }
             if ($hit['amount'] < (int) $o->amount_naira)          { $underpaid[] = $hit; continue; }
             $charged[] = $hit;
         }
-        return ['charged' => $charged, 'underpaid' => $underpaid, 'clean' => $clean];
+        return ['charged' => $charged, 'underpaid' => $underpaid, 'failed' => $failed, 'clean' => $clean];
     }
 
     /**

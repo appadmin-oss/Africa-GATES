@@ -50,10 +50,14 @@
   document.addEventListener('click', function (event) {
     var link = event.target.closest('[data-skip-link]');
     if (!link) return;
-    var target = document.getElementById(link.hash.slice(1));
+    // The page's heading where the public shell can name it (shell.js) — focus on <main> left
+    // a screen reader below the title of the page it had just skipped to. The link's own
+    // target otherwise: the console has no AGShell.
+    var target = (window.AGShell && window.AGShell.pageHeading && window.AGShell.pageHeading())
+      || document.getElementById(link.hash.slice(1));
     if (target) {
       event.preventDefault();
-      target.tabIndex = -1;
+      if (!target.hasAttribute('tabindex')) target.tabIndex = -1;
       target.focus();
     }
   });

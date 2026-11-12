@@ -56,6 +56,7 @@ final class Emails
         'ad-review'  => 'Ads\\AdNotice::decided (approved, refused or taken down, to the advertiser)',
         'role'       => 'RoleInvites::tell (an event lead or volunteer role given, or offered to an address)',
         'event-team' => 'EventPlan\\Teams (a team, role or person proposed to the owner, and the decision back to the lead)',
+        'event-report' => 'EventPlan\\EventReport (a written report submitted to the owners, and the sign-off back to its author)',
         'event-loop' => 'EventPlan\\Rules (the daily digest to each lead, and a private nudge to the owner of work due soon)',
     ];
 

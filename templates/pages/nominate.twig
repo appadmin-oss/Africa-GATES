@@ -182,7 +182,7 @@
 
 {% block bottom_bar %}
   {% if programmes|length %}
-    <div class="nh-cta" data-bottom-ui><a class="nh-cta__go" href="{{ _start }}">{{ _startLabel }}</a></div>
+    <div class="nh-cta" data-bottom-ui role="region" aria-label="{{ 'Start a nomination'|trans }}"><a class="nh-cta__go" href="{{ _start }}">{{ _startLabel }}</a></div>
   {% endif %}
   {{ parent() }}
 {% endblock %}

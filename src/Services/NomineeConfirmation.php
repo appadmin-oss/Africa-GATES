@@ -161,6 +161,25 @@ final class NomineeConfirmation
         return ['ok' => true, 'code' => 'SENT', 'channels' => $used, 'sends' => $sent + 1];
     }
 
+    /**
+     * The confirmation link for the messages that already go to a nominee when a
+     * nomination arrives (NominationAftercare): minted or reused, counted as one send, or
+     * '' where there is nothing to ask — confirmed, expired, the send ceiling reached, or
+     * no address or number to reach them at. One message, not a second one beside it.
+     */
+    public static function linkFor(int $nominationId): string
+    {
+        $n = DB::table('gates_nominations')->where('id', $nominationId)->first();
+        if (!$n || !empty($n->nominee_confirmed_at) || self::expired($n)) return '';
+        if (trim((string) ($n->nominee_email ?? '')) === '' && trim((string) ($n->nominee_phone ?? '')) === '') return '';
+        $sent = (int) ($n->confirm_sends ?? 0);
+        if ($sent >= self::MAX_SENDS) return '';
+        $token = (string) ($n->nominee_confirm_token ?? '');
+        if ($token === '') $token = self::mint($nominationId);
+        DB::table('gates_nominations')->where('id', $nominationId)->update(['confirm_sends' => $sent + 1]);
+        return self::url($token);
+    }
+
     // ══════════════════════════════════════════════════════════════════════════
     // Answering
     // ══════════════════════════════════════════════════════════════════════════

@@ -76,9 +76,12 @@ final class NominationAftercareTest extends TestCase
             'nominator_name'  => (string) $data['nominator_name'],
             'nominator_email' => (string) $data['nominator_email'],
             'reason'          => (string) $data['reason'],
+            // As the form stores it: aftercare runs the moment the row is written, with the
+            // nominee's address on it — the confirmation link is minted off this row.
+            'nominee_email'   => strtolower((string) ($data['nominee_email'] ?? '')),
             'country_code'    => 'NG',
             'status'          => 'pending',
-            'created_at'      => '2026-08-01 10:00:00',
+            'created_at'      => date('Y-m-d H:i:s'),
         ]);
 
         return [$id, $data];
@@ -129,6 +132,13 @@ final class NominationAftercareTest extends TestCase
         $this->assertStringNotContainsString('scam.example', $all);
         $this->assertStringNotContainsString('processing fee', $all);
         $this->assertStringNotContainsString('Awards Accounts Desk', $all);
+
+        // And the one message carries the nominee's confirmation link — the step nothing
+        // called, so no nomination could reach `verified` and no challenge could pay.
+        $token = (string) DB::table('gates_nominations')->where('id', $id)->value('nominee_confirm_token');
+        $this->assertNotSame('', $token, 'no confirmation link was minted');
+        $this->assertStringContainsString(\AfricaGates\Services\NomineeConfirmation::url($token), $toNominee[0]['plainBody']);
+        $this->assertSame(1, (int) DB::table('gates_nominations')->where('id', $id)->value('confirm_sends'));
     }
 
     public function test_it_reports_the_reference_that_is_actually_on_the_record(): void

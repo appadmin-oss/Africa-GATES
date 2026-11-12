@@ -51,7 +51,7 @@ final class CoverKind
      * Each row: the words, then tone, pattern and glyph.
      */
     public const PRODUCT_KINDS = [
-        'art'       => [['art', 'print', 'poster', 'frame', 'canvas', 'painting'], 'stone', 'grid'],
+        'art'       => [['art', 'artwork', 'print', 'poster', 'frame', 'canvas', 'painting'], 'stone', 'grid'],
         'book'      => [['book', 'journal', 'notebook', 'stationery', 'diary', 'card'], 'info', 'dots'],
         'headwear'  => [['cap', 'hat', 'headwear', 'beanie'], 'info', 'stripes'],
         'apparel'   => [['apparel', 'tee', 'shirt', 'clothing', 'wear', 'hoodie', 'jersey', 'top'], 'green', 'weave'],
@@ -60,14 +60,30 @@ final class CoverKind
         'keepsake'  => [['keepsake', 'gift', 'souvenir', 'pin', 'badge', 'medal', 'accessor', 'jewel'], 'gold', 'arches'],
     ];
 
+    /** Stems in PRODUCT_KINDS that begin several words rather than being one. */
+    private const PREFIX_STEMS = ['accessor', 'jewel', 'stationer'];
+
     /** The product kind for a category, or '' for the shop's own cover. */
     public static function productKind(?string $category): string
     {
         $c = strtolower(trim((string) $category));
         if ($c === '') return '';
         if (isset(self::PRODUCT_KINDS[$c])) return $c;
+        // WORDS, not substrings. `str_contains` found "art" in "party" and "smart", "top"
+        // in "laptop", "print" in "footprint", "cap" in "capsule" and "pin" in "spinner",
+        // so a category's cover was decided by whichever stem happened to hide inside
+        // another word. A stem matches a whole word, or that word with a plural ending;
+        // the few stems that are genuinely the start of several words ("accessor-ies",
+        // "jewel-lery") are prefixes, and "-wear" is the end of a compound.
+        $tokens = preg_split('/[^a-z]+/', $c, -1, PREG_SPLIT_NO_EMPTY) ?: [];
         foreach (self::PRODUCT_KINDS as $k => [$words]) {
-            foreach ($words as $w) if (str_contains($c, $w)) return $k;
+            foreach ($words as $w) {
+                foreach ($tokens as $t) {
+                    if ($t === $w || $t === $w . 's' || $t === $w . 'es'
+                        || (in_array($w, self::PREFIX_STEMS, true) && str_starts_with($t, $w))
+                        || ($w === 'wear' && str_ends_with($t, 'wear'))) return $k;
+                }
+            }
         }
 
         return '';

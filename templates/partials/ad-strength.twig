@@ -1,0 +1,21 @@
+{#
+  Ad strength (Services\Ads\AdStrength): how the ad is put together, as Google shows beside a
+  responsive ad, with the changes worth most first. Drawn on load and redrawn by the builder
+  from POST /account/ads/check, from this one file, so the panel and the page cannot word it
+  two ways. `strength` is null until there is something to score.
+#}
+{% set _lv = {poor: 1, average: 2, good: 3, excellent: 4} %}
+{% if strength %}
+<div class="am-str">
+  <p class="am-str__h">{{ 'Ad strength'|trans }} <b>{{ strength.label|trans }}</b></p>
+  <span class="am-str__bar" role="img" aria-label="{{ '%n% of %m% checks met'|trans({'%n%': strength.passed, '%m%': strength.checks}) }}">{% for i in 1..4 %}<span class="am-str__seg{% if i <= _lv[strength.level] %} am-str__seg--on{% endif %}"></span>{% endfor %}</span>
+  {% if strength.tips %}
+  <ul class="am-str__tips">{% for t in strength.tips|slice(0, 3) %}<li>{{ t|trans }}</li>{% endfor %}</ul>
+  {% else %}
+  <p class="am-note">{{ 'Nothing to add: it has everything that helps an ad work.'|trans }}</p>
+  {% endif %}
+  <p class="am-note">{{ 'A guide to how the ad is put together. It does not change the price or how often it is shown.'|trans }}</p>
+</div>
+{% else %}
+<p class="am-note">{{ 'Write your ad to see its strength, and what would make it better.'|trans }}</p>
+{% endif %}

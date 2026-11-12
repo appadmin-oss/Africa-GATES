@@ -36,7 +36,6 @@
 {% set app_bar = {variant: 'child', title: category.title|default('Help Centre')|trans, sub: 'Help Centre'|trans, back: '/help/c/' ~ category_key} %}
 
 {% block head_styles %}
-{% include 'partials/seo-head.twig' %}
 <link rel="stylesheet" href="{{ asset('/assets/css/components/help.css') }}">
 {% endblock %}
 

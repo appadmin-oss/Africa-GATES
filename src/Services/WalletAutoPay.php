@@ -49,6 +49,8 @@ final class WalletAutoPay
     public const KIND_RETURN   = 'crw';
     public const KIND_REFERRAL = 'rp';
     public const TABLES = [self::KIND_RETURN => 'gates_return_withdrawals', self::KIND_REFERRAL => 'gates_referral_payouts'];
+    /** The settings row every automatic send locks first, so the platform cap is read by one sender at a time. */
+    public const PLATFORM_LOCK = 'wallet_auto_send_lock';
 
     // Where the engine has a request. NULL: not looked at yet.
     public const A_CHECKING = 'checking';
@@ -273,13 +275,25 @@ final class WalletAutoPay
 
         if ($recheck) {
             $over = null;
-            $n = DB::transaction(static function () use ($w, $commit, &$over): int {
+            $finding = 'velocity';
+            $n = DB::transaction(static function () use ($w, $commit, &$over, &$finding): int {
+                // The PLATFORM cap is the same race one level up: two members' withdrawals
+                // checked at the same moment each read the day's total before the other was
+                // committed, and both fit. The member lock cannot serialise two different
+                // members, so one row everybody's send locks first — a settings row, so it
+                // exists on every install without a migration — and the cap is read under it.
+                DB::table('gates_settings')->insertOrIgnore(['key_name' => self::PLATFORM_LOCK, 'value' => '1',
+                    'updated_at' => Carbon::now()->toDateTimeString()]);
+                DB::table('gates_settings')->where('key_name', self::PLATFORM_LOCK)->lockForUpdate()->first(['key_name']);
                 DB::table('gates_users')->where('id', (int) $w['user_id'])->lockForUpdate()->first(['id']);
-                $over = WalletRisk::overDaily((int) $w['user_id'], (int) $w['amount_kobo'], (new RuleEngine())->effective());
+                $eff = (new RuleEngine())->effective();
+                $over = WalletRisk::overPlatform((int) $w['amount_kobo'], $eff);
+                if ($over !== null) { $finding = 'platform'; return 0; }
+                $over = WalletRisk::overDaily((int) $w['user_id'], (int) $w['amount_kobo'], $eff);
                 return $over === null ? $commit() : 0;
             });
             if ($over !== null) {
-                self::hold($t, $id, 'velocity', $over['title'], $over['detail']);
+                self::hold($t, $id, $finding, $over['title'], $over['detail']);
                 return ['state' => self::A_HELD, 'message' => 'Held for a person: ' . $over['title'] . '.',
                         'tell' => $over['tell'] !== '' ? [$over['tell']] : []];
             }

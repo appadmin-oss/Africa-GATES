@@ -188,8 +188,16 @@ final class Recognitions
         if ($q === null) return 0;
         try {
             $seen = [];
-            foreach ($q->whereNull('r.withdrawn_at')->select('r.recipient_profile_id', 'r.recipient_nominee_id', 'r.recipient_name')->cursor() as $r) {
-                $k = $r->recipient_profile_id !== null ? 'p' . $r->recipient_profile_id
+            // The person is keyed the way shape() resolves them: the nominee's CURRENT
+            // profile first, then the one stamped on the night. Keyed on the stamped id
+            // alone, a nominee who registered after their award and was recognised again
+            // since counted as two people — one by nominee id, one by profile — and the
+            // homepage's "people recognised" figure grew with every second recognition.
+            $q->leftJoin('gates_nominees as pn', 'pn.id', '=', 'r.recipient_nominee_id');
+            foreach ($q->whereNull('r.withdrawn_at')
+                         ->select(DB::raw('COALESCE(pn.profile_id, r.recipient_profile_id) as person_profile_id'), 'r.recipient_nominee_id', 'r.recipient_name')
+                         ->cursor() as $r) {
+                $k = $r->person_profile_id !== null ? 'p' . $r->person_profile_id
                     : ($r->recipient_nominee_id !== null ? 'n' . $r->recipient_nominee_id : 'x' . mb_strtolower(trim((string) $r->recipient_name)));
                 $seen[$k] = true;
             }

@@ -100,4 +100,23 @@ final class AwardPageTest extends TestCase
         $this->assertStringContainsString('1 Nov 2026', $state['detail']);
         $this->assertStringStartsWith('Voting closes', $state['detail']);
     }
+
+    /**
+     * Owner, 11 Nov 2026: "this page looks cramped on a mobile". The four phases in four
+     * ~80px columns, a second "All awards" link under the app bar's own back arrow, and a
+     * 20px inset on a 358px screen. On a phone the phases are a vertical stepper, the
+     * duplicate link goes, and the edition's action is full width.
+     */
+    public function test_a_phone_gets_a_stepper_and_no_second_back_link(): void
+    {
+        $css = (string) preg_replace('~/\*.*?\*/~s', '', (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/css/components/awards.css'));
+        $at = strrpos($css, '@media (max-width:599px){');
+        $this->assertNotFalse($at, 'no phone layout');
+        $phone = substr($css, $at);
+        $this->assertStringContainsString('.aw-d .aw-back{ display:none }', $phone, 'two back links on a phone');
+        $this->assertStringContainsString('.aw-tl{ display:flex; flex-direction:column', $phone, 'four phases still squeezed into four columns');
+        $this->assertStringContainsString('.aw-ed__cta{ align-self:stretch; height:52px', $phone, 'the main action is not full width on a phone');
+        $tpl = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/awards/programme.twig');
+        $this->assertStringContainsString("back: '/awards'", $tpl, 'the app bar no longer goes back to the awards, so the link is the only way');
+    }
 }

@@ -226,8 +226,7 @@ final class HomePageTest extends TestCase
         $this->assertStringNotContainsString('class="hm-rec__chip"', $html,
             'a "Winner" chip was drawn with no decided award behind it — that is an invented recognition');
         $this->assertStringContainsString('/assets/img/honour/teacher-', $html);
-        $this->assertStringContainsString('Nominate someone like this', $html);
-        $this->assertSame(1, substr_count($html, 'data-hm-slide role='), 'the daily fallback stays static');
+        $this->assertStringContainsString('Teachers who changed a classroom', $html);
     }
 
     // ══ the featured campaign ════════════════════════════════════════════════
@@ -294,5 +293,50 @@ final class HomePageTest extends TestCase
 
         $this->assertDoesNotMatchRegularExpression('~<[a-z][^>]*\son[a-z]+\s*=~i', $html,
             'an inline event handler — use data-ag-do and a delegated listener');
+    }
+
+    /**
+     * A person is keyed the way the recognition page resolves them: the nominee's CURRENT
+     * profile first. Recognised once as a nominee before she registered, and once since by
+     * profile, Ada was two people to the counter.
+     */
+    public function test_one_person_recognised_before_and_after_registering_is_counted_once(): void
+    {
+        $cy = $this->programme('rec2', 'Rec Two', ['status' => 'results']);
+        $prog = (int) DB::table('gates_award_cycles')->where('id', $cy)->value('programme_id');
+        $cat = (int) DB::table('gates_award_categories')->insertGetId(['cycle_id' => $cy, 'slug' => 'r2', 'title' => 'R2', 'sort_order' => 1]);
+        $nom = (int) DB::table('gates_nominees')->insertGetId(['category_id' => $cat, 'name' => 'Ada', 'status' => 'winner', 'profile_id' => 9]);
+        $iss = (int) DB::table('gates_recognition_issuers')->insertGetId(['name' => 'Rec Two',
+            'issuer_type' => 'award', 'programme_id' => $prog, 'created_at' => date('Y-m-d H:i:s')]);
+        DB::table('gates_recognitions')->insert(['issuer_id' => $iss, 'recipient_name' => 'Ada', 'recipient_nominee_id' => $nom,
+            'recipient_profile_id' => null, 'title' => 'Winner', 'reference' => 'RA1', 'visibility' => 'public', 'created_at' => date('Y-m-d H:i:s')]);
+        DB::table('gates_recognitions')->insert(['issuer_id' => $iss, 'recipient_name' => 'Ada', 'recipient_profile_id' => 9,
+            'title' => 'Honoree', 'reference' => 'RA2', 'visibility' => 'public', 'created_at' => date('Y-m-d H:i:s')]);
+        $this->assertSame(1, \AfricaGates\Services\Recognitions::peopleCount());
+    }
+
+    /**
+     * The shop card promises "certificates and frames for the honours on your profile".
+     * Drawn only while the shop sells some — a typed promise linking to a store of caps
+     * and mugs is a broken one.
+     */
+    public function test_the_frame_your_recognition_card_needs_frames_on_sale(): void
+    {
+        DB::table('gates_products')->insert(['name' => 'Logo cap', 'slug' => 'logo-cap', 'category' => 'Caps', 'price_naira' => 5000, 'is_active' => 1]);
+        $this->assertStringNotContainsString('Frame your recognition', $this->home(), 'a shop of caps was offered as frames');
+
+        DB::table('gates_products')->insert(['name' => 'Certificate frame', 'slug' => 'cert-frame', 'category' => 'Frames', 'price_naira' => 9000, 'is_active' => 1]);
+        $this->assertStringContainsString('Frame your recognition', $this->home());
+    }
+
+    /**
+     * "Up to 50% of other support" alone is false for a nominee with none, who may still
+     * hold BonusVoteService::MIN_BONUS_CAP. The page reads the floor from that constant.
+     */
+    public function test_the_integrity_page_states_the_bonus_floor_from_the_code(): void
+    {
+        $html = ChromeRender::html('/integrity');
+        $this->assertStringContainsString('(at least ' . \AfricaGates\Services\BonusVoteService::MIN_BONUS_CAP . ')', $html);
+        $this->assertStringNotContainsString('Has no limit on how many votes can be bought', $html);
     }
 }

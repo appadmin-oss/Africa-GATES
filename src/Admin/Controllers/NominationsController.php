@@ -215,7 +215,10 @@ class NominationsController
                 return $fail('The database needs its latest update before this works.');
             }
             DB::table('gates_nominations')->where('id', $id)->update(['not_duplicate' => 1]);
-            $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'nomination.not_duplicate', 'nomination', $id);
+            // The ruling is about the entries the reviewer can see NOW. Stored as pairs,
+            // so a same-name entry arriving next week is still flagged against both.
+            $pairs = \AfricaGates\Admin\Services\NominationApart::record($nom, (int) ($_SESSION['admin_id'] ?? 0));
+            $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'nomination.not_duplicate', 'nomination', $id, ['pairs' => $pairs]);
             return $ok('Marked as a different person.', $back ?? ($fromDesk ? '/admin/nominations/desk?item=' . $id : '/admin/nominations/' . $id));
         }
 
@@ -380,8 +383,10 @@ class NominationsController
         // migration — the transaction rolls back and the moderator gets an
         // actionable flash, never a raw 500 with a half-approved nomination.
         $nomineeId = 0;
+        $ruledApart = false;
+        $sameName = [];
         try {
-            DB::transaction(function () use ($id, $catId, $approveReason, $nom, $mergeInto, $seen, $taken, &$nomineeId) {
+            DB::transaction(function () use ($id, $catId, $approveReason, $nom, $mergeInto, $seen, $taken, &$nomineeId, &$ruledApart, &$sameName) {
                 $changed = DB::table('gates_nominations')->where('id', $id)->where('status', $seen)->update(
                     // Same rule as the reject path: the approval must land even when the
                     // feedback column does not exist yet. `status` and `category_id` are
@@ -409,8 +414,16 @@ class NominationsController
                 // exactly the wrong answer, and a nominee of their own is minted.
                 // A merge joins the EARLIER entry's nominee, found by that entry's own name:
                 // on a near-miss spelling this nomination's name matches nobody.
-                $nomineeId = (int) ($nom->not_duplicate ?? 0) === 1 && $mergeInto === null ? 0
-                    : \AfricaGates\Services\MergeSuggestionService::findLiveMatch($catId, (string) ($mergeInto->nominee_name ?? $nom->nominee_name));
+                //
+                // And only on ONE match. Where the category already holds two entries with
+                // this name (two different people, already ruled apart once), attaching to
+                // the lower id is a guess about which of them this nomination means — votes
+                // and a nominator's credit would land on a stranger. That is refused, and
+                // the reviewer decides with a merge or a "Not a duplicate".
+                $ruledApart = (int) ($nom->not_duplicate ?? 0) === 1 && $mergeInto === null;
+                $sameName = \AfricaGates\Services\MergeSuggestionService::liveMatches($catId, (string) ($mergeInto->nominee_name ?? $nom->nominee_name));
+                if (!$ruledApart && $mergeInto === null && count($sameName) > 1) throw new \RuntimeException('nomination.ambiguous-name');
+                $nomineeId = $ruledApart ? 0 : ($sameName[0] ?? 0);
                 if ($nomineeId < 1 && $mergeInto !== null) {
                     throw new \RuntimeException('merge: the earlier entry has no live nominee to join');
                 }
@@ -478,10 +491,22 @@ class NominationsController
             if ($e->getMessage() === 'nomination.decided-elsewhere') {
                 return $fail('Somebody else decided this nomination a moment ago. Nothing was changed and nobody was emailed.', 409);
             }
+            if ($e->getMessage() === 'nomination.ambiguous-name') {
+                return $fail('Two entries in this category already have this name, so this nomination cannot be joined to one of them by guessing. Merge it into the right one, or mark it "Not a duplicate" to give it an entry of its own.', 409);
+            }
             if ($mergeInto !== null && str_starts_with($e->getMessage(), 'merge:')) {
                 return $fail('The earlier entry is not on the ballot any more, so nothing was merged. Approve or reject this one instead.');
             }
             return $fail($this->dbErrorFlash($e), 500);
+        }
+        // A reviewer has ruled this a different person from the same-name entry already on
+        // the ballot. The duplicate scan would otherwise offer the two as a merge for ever,
+        // and a merge is the one thing the reviewer has just said is wrong.
+        if ($ruledApart && $sameName !== [] && $nomineeId > 0) {
+            try {
+                \AfricaGates\Services\MergeSuggestionService::dismiss(array_merge([$nomineeId], $sameName),
+                    (int) ($_SESSION['admin_id'] ?? 0), 'Ruled a different person at review (nomination #' . $id . ').');
+            } catch (\Throwable) {}
         }
         if ($mergeInto !== null) {
             try {

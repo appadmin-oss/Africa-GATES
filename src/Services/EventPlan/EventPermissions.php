@@ -63,6 +63,9 @@ final class EventPermissions
         'volunteers.checkin' => ['label' => 'Check volunteers in', 'risk' => 'medium',
                                  'help' => 'See who is on the team, check volunteers in and out, and confirm their time on site.',
                                  'views' => ['people' => ['team', 'volunteers']], 'acts' => ['attend_in', 'attend_out', 'attend_confirm']],
+        'volunteers.tasks'   => ['label' => 'Set volunteer tasks', 'risk' => 'low',
+                                 'help' => 'Post work for this event’s volunteers, close it, and accept it as done with the hours it took.',
+                                 'views' => ['people' => ['tasks']], 'acts' => ['vtask_add', 'vtask_close', 'vtask_accept']],
         'sponsors.manage'    => ['label' => 'Sponsors and contacts', 'risk' => 'medium',
                                  'help' => 'Add sponsors and move them through the stages.',
                                  'views' => ['crm' => ['sponsors', 'contacts']], 'acts' => ['sponsor_add', 'sponsor_stage']],
@@ -99,7 +102,9 @@ final class EventPermissions
     ];
 
     /** Acts only a LEAD has: each gives or removes somebody's access, or proposes it. Never on the menu. */
-    public const LEAD_ACTS = ['vol_invite', 'vol_invite_cancel', 'vol_end', 'team_propose', 'role_propose', 'team_suggest', 'member_propose', 'member_end', 'proposal_withdraw', 'decide'];
+    public const LEAD_ACTS = ['vol_invite', 'vol_invite_cancel', 'vol_end', 'team_propose', 'role_propose', 'team_suggest', 'member_propose', 'member_end', 'proposal_withdraw', 'decide',
+                              // The written report (EventReport): a lead writes and submits it.
+                              'report_save', 'report_submit'];
     /**
      * Acts ANYBODY on the event's team has (EventPlan\TeamLoop): report where things stand,
      * finish their own work with its proof, suggest work for a lead to decide. Each writer
@@ -107,7 +112,9 @@ final class EventPermissions
      */
     public const TEAM_ACTS = ['report_add', 'work_done', 'work_propose', 'work_change', 'contact_stage', 'contact_rate', 'contact_add'];
     /** Acts only an OWNER has. */
-    public const OWNER_ACTS = ['decide', 'member_end', 'role_archive'];
+    public const OWNER_ACTS = ['decide', 'member_end', 'role_archive',
+                               // …and an owner signs it off or sends it back (never their own).
+                               'report_decide'];
     /** What a team's own lead may do beyond their role's ticks: propose somebody for THEIR team (an owner still decides). */
     public const TEAM_LEAD_ACTS = ['member_propose'];
 

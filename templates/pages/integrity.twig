@@ -133,7 +133,7 @@
       {k: 'Community votes'|trans, v: c ~ '%'},
       {k: 'Judge panel'|trans, v: j ~ '%'},
       {k: 'Judge quorum'|trans, v: '%n% complete scorecards'|trans({'%n%': q})},
-      {k: 'Bonus and points votes'|trans, v: 'Up to %p%% of other support'|trans({'%p%': paid_cap_pct|default(50)})},
+      {k: 'Bonus and points votes'|trans, v: 'Up to %p%% of other support (at least %n%)'|trans({'%p%': paid_cap_pct|default(50), '%n%': bonus_floor})},
       {k: 'Community return'|trans, v: _ret}
     ],
     note: 'Taken from the live settings. Each award and edition can set its own.'|trans
@@ -206,14 +206,14 @@
       {mark: 'yes', h: 'What a contribution does'|trans|e, items: [
         'Adds votes to the nominee and to the community part of their score.'|trans|e,
         (paid_sentence|default('') ? paid_sentence|e : 'Adds to the tally at full weight.'|trans|e),
-        'Has no limit on how many votes can be bought.'|trans|e,
+        'Votes bought on the ballot have no upper limit: the receipt, not a cap, is the control.'|trans|e,
         'Names the supporter, if they chose to be named.'|trans|e,
         'Can earn the nominee a share, where their award runs a community return (its rule is in the award details).'|trans|e
       ]},
       {mark: 'no', h: 'What it can’t reach'|trans|e, items: [
         'The judges’ part: judges can’t see votes or money.'|trans|e,
         'Secrecy: every result shows how many votes were bought.'|trans|e,
-        ('Bonus and points votes beyond %p%% of a nominee’s other support. Votes bought on the ballot have no such limit.'|trans({'%p%': paid_cap_pct|default(50)})|e),
+        ('Bonus and points votes beyond %p%% of a nominee’s other support, or %n%, whichever is more. That ceiling is for votes granted from a contribution or spent from points, not for votes bought on the ballot.'|trans({'%p%': paid_cap_pct|default(50), '%n%': bonus_floor})|e),
         'A refund: refunded votes are taken off again.'|trans|e
       ]}
     ]},

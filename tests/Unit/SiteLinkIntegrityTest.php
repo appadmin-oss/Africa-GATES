@@ -66,19 +66,17 @@ final class SiteLinkIntegrityTest extends TestCase
         return $r->getRouteStatus() === \Slim\Routing\RoutingResults::FOUND;
     }
 
-    public function test_the_announcement_bar_default_target_resolves(): void
+    public function test_the_announcement_bar_has_no_default_to_go_dead(): void
     {
-        // The regression. This value reaches nav.twig as a Twig global and is the
-        // href of the only button in the announcement bar.
+        // The regression this file was written for — a DEFAULT link in a banner nobody had
+        // set — is closed at its root since 11 Nov 2026: the banner is Services\SiteNotice,
+        // it draws what an operator typed and nothing else, and the three globals that
+        // carried a typed default (and a typed claim) are gone.
         $globals = $this->twigGlobals();
-
-        $this->assertArrayHasKey('announcement_url', $globals);
-        $url = (string) $globals['announcement_url'];
-
-        $this->assertStringStartsWith('/', $url, 'the default must be an internal path');
-        $this->assertTrue($this->resolves($url),
-            "the announcement bar's default target ({$url}) must be a real GET route — "
-            . 'it renders above the nav on every page');
+        foreach (['announcement_text', 'announcement_url', 'announcement_cta'] as $k) {
+            $this->assertArrayNotHasKey($k, $globals, "$k is back: a banner default is a sentence and a link nobody chose");
+        }
+        $this->assertNull(\AfricaGates\Services\SiteNotice::announcement([]), 'nothing typed, and a banner drew anyway');
     }
 
     public function test_every_static_internal_link_in_the_templates_resolves(): void

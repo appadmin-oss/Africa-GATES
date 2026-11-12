@@ -166,7 +166,8 @@ final class VolunteerController
         // so a page their grants do not carry is not there to open.
         $valid = Workspace::scopePageList($kind, $p['caps']);
         if (!isset($valid[$page])) throw new HttpNotFoundException($req);
-        $tabs = Workspace::SCOPE_TABS[$page] ?? [];
+        // An event's Nominees page is one list; the outreach tabs belong to an award's page.
+        $tabs = $kind === 'event' ? [] : (Workspace::SCOPE_TABS[$page] ?? []);
         $tab = (string) ($args['tab'] ?? array_key_first($tabs) ?? '');
         if ($tabs ? !isset($tabs[$tab]) : isset($args['tab'])) throw new HttpNotFoundException($req);
         $c = WorkspacePages::place($v, $p, $page, $tab, ['_old' => (array) ($this->take('vol_old') ?? [])] + $req->getQueryParams());
