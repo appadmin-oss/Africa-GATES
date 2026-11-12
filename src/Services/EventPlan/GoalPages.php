@@ -38,7 +38,7 @@ final class GoalPages
         foreach ($goals as $g) {
             $scope = Goals::scopes($id)[$g->scope_kind === 'event' ? 'event' : $g->scope_kind . ':' . $g->scope_id] ?? '';
             $secs[] = ['k' => 'stats', 'h' => (string) $g->title, 'items' => [
-                ['l' => Goals::METRICS[$g->metric][0], 'v' => Goals::fmt((string) $g->metric, $g->value), 's' => 'of ' . Goals::fmt((string) $g->metric, (int) $g->target) . ' · ' . $g->pct . '%'],
+                ['l' => Goals::METRICS[$g->metric][0], 'v' => Goals::fmt((string) $g->metric, $g->value), 's' => 'of ' . Goals::fmt((string) $g->metric, (int) $g->target) . ' · ' . $g->pct . '%', 'pct' => $g->pct],
                 ['l' => 'The plan expects by now', 'v' => $g->expected * 100 >= (int) $g->target ? Goals::fmt((string) $g->metric, $g->expected) : '—',
                  's' => $g->behind ? 'More than 20% behind' : ($g->expected * 100 >= (int) $g->target ? ($g->value >= $g->expected ? 'Ahead of plan' : 'On course') : 'Not started yet')],
                 ['l' => 'Deadline', 'v' => Goals::day((string) $g->deadline), 's' => $scope],
@@ -64,7 +64,7 @@ final class GoalPages
             $steps = Planner::solve($g);
             if ($steps) $secs[] = ['k' => 'rows', 'h' => 'What it takes', 'items' => array_map(static fn ($s) => ['t' => $s['t'] . ': ' . $s['v'], 'sub' => $s['from']], $steps),
                                    'link' => ['label' => 'Change the numbers', 'href' => EventPages::url($id, 'goals', 'numbers')]];
-            $secs[] = ['k' => 'form', 'h' => 'Change this goal', 'do' => 'goal_change', 'hidden' => ['goal' => $g->id], 'submit' => 'Ask for the change', 'groups' => [
+            $secs[] = ['k' => 'form', 'h' => 'Change this goal', 'fold' => true, 'foldHint' => 'Target or deadline · an owner decides', 'do' => 'goal_change', 'hidden' => ['goal' => $g->id], 'submit' => 'Ask for the change', 'groups' => [
                 ['label' => 'A large change', 'help' => 'Changing a goal’s target or deadline moves every gate and figure under it, so an owner decides it — never the person asking.',
                  'fields' => [['name' => 'target', 'label' => 'New target', 'type' => 'text', 'id' => 'gc_t' . $g->id, 'placeholder' => (string) $g->target],
                               ['name' => 'deadline', 'label' => 'New deadline', 'type' => 'date', 'id' => 'gc_d' . $g->id],
@@ -123,32 +123,40 @@ final class GoalPages
         $owners = ['' => 'Me'];
         foreach (Plan::team($id) as $p) if ($p['kind'] === Plan::ACTOR) $owners[$p['key']] = $p['name'] !== '' ? $p['name'] : $p['role'];
         $rows = [];
+        $movable = [];
         foreach (Pipeline::list($id, $me['id'], $stage) as $c) {
             $mine = (int) $c->owner_id === $me['id'];
             $row = ['t' => (string) $c->name, 'ini' => Workspace::initials((string) $c->name),
                     'sub' => implode(' · ', array_filter([Pipeline::STAGES[$c->stage] ?? $c->stage, $mine ? 'yours' : (Plan::name(Plan::ACTOR, (int) $c->owner_id) ?: ''),
                         $c->reach ? Pipeline::REACH[(int) $c->reach] . ' (private)' : '', $c->nomination_id ? 'nomination #' . $c->nomination_id : '', (string) ($c->note ?? '')])),
                     'chip' => $c->stage === 'nominated' ? ['Submitted', 'ok'] : ($c->stage === 'declined' ? ['Declined', 'mute'] : null)];
-            if ($c->stage !== 'nominated') {
-                $row['form'] = ['id' => 'c' . $c->id, 'do' => 'contact_stage', 'hidden' => ['contact' => $c->id], 'submit' => 'Move',
-                                'fields' => [['name' => 'stage', 'label' => 'Stage', 'type' => 'select', 'value' => (string) $c->stage,
-                                              'options' => array_intersect_key(Pipeline::STAGES, array_flip(Pipeline::MANUAL))]]];
-            }
+            // The next step is one tap (design plan: "move a stage with one tap"); any other move
+            // — back a step, or declined — is the small picker beside it.
+            $next = ['prospect' => ['contacted', 'Mark contacted'], 'contacted' => ['yes', 'Mark said yes']][$c->stage] ?? null;
+            if ($next) $row['cta'] = ['label' => $next[1], 'post' => ['do' => 'contact_stage', 'contact' => $c->id, 'stage' => $next[0]]];
+            if ($c->stage === 'yes') $row['sub'] .= ' · moves by itself when their nomination arrives';
             $rows[] = $row;
+            if ($c->stage !== 'nominated') $movable[(string) $c->id] = $c->name . ' (' . mb_strtolower(Pipeline::STAGES[$c->stage] ?? $c->stage) . ')';
         }
         $filter = ['' => 'Every stage'] + Pipeline::STAGES;
         $secs[] = $rows ? ['k' => 'rows', 'h' => $stage !== '' ? Pipeline::STAGES[$stage] ?? 'Contacts' : 'Everybody in the pipeline', 'items' => $rows,
                            'link' => $stage !== '' ? ['label' => 'Show every stage', 'href' => EventPages::url($id, 'goals', 'pipeline')] : null]
                         : ['k' => 'note', 'tone' => 'mute', 'text' => 'Nobody in the pipeline yet. Add the people the team means to ask, or paste a list from a sheet.'];
         unset($filter);
+        // Anything other than the next step — back a step, or declined — in one place under the list.
+        if ($movable) {
+            $secs[] = ['k' => 'form', 'h' => 'Move somebody', 'fold' => true, 'foldHint' => 'Back a step, or declined', 'do' => 'contact_stage', 'submit' => 'Move', 'groups' => [
+                ['label' => 'Who and where', 'fields' => [['name' => 'contact', 'label' => 'Who', 'type' => 'select', 'options' => $movable, 'id' => 'mv_c'],
+                    ['name' => 'stage', 'label' => 'Move to', 'type' => 'select', 'options' => array_intersect_key(Pipeline::STAGES, array_flip(Pipeline::MANUAL)), 'id' => 'mv_s']]]]];
+        }
         $scopes = Goals::scopes($id);
-        $secs[] = ['k' => 'form', 'h' => 'Add a prospect', 'do' => 'contact_add', 'hidden' => ['event' => $id], 'submit' => 'Add', 'groups' => [
+        $secs[] = ['k' => 'form', 'h' => 'Add a prospect', 'fold' => true, 'open' => $rows === [], 'foldHint' => 'One person', 'do' => 'contact_add', 'hidden' => ['event' => $id], 'submit' => 'Add', 'groups' => [
             ['label' => 'Who', 'help' => 'Their email or phone is how the pipeline knows when their nomination arrives. A person already here is refused, with where they are.',
              'fields' => [['name' => 'name', 'label' => 'Name', 'type' => 'text', 'required' => true, 'id' => 'ca_n'], ['name' => 'email', 'label' => 'Email', 'type' => 'email', 'id' => 'ca_e'],
                           ['name' => 'phone', 'label' => 'Phone', 'type' => 'tel', 'id' => 'ca_p'], ['name' => 'scope', 'label' => 'For', 'type' => 'select', 'options' => $scopes, 'id' => 'ca_s'],
                           ['name' => 'owner', 'label' => 'Working them', 'type' => 'select', 'options' => $owners, 'id' => 'ca_o']]],
         ]];
-        $secs[] = ['k' => 'form', 'h' => 'Paste a list', 'do' => 'contact_import', 'hidden' => ['event' => $id], 'submit' => 'Add them all', 'groups' => [
+        $secs[] = ['k' => 'form', 'h' => 'Paste a list', 'fold' => true, 'foldHint' => 'Many at once, from a sheet', 'do' => 'contact_import', 'hidden' => ['event' => $id], 'submit' => 'Add them all', 'groups' => [
             ['label' => 'One person a line', 'help' => 'Name first, then their email and phone, separated by commas or tabs — the way a sheet pastes. Anybody already here is skipped and counted.',
              'fields' => [['name' => 'list', 'label' => 'The list', 'type' => 'textarea', 'required' => true, 'id' => 'ci_l'],
                           ['name' => 'scope', 'label' => 'For', 'type' => 'select', 'options' => $scopes, 'id' => 'ci_s'], ['name' => 'owner', 'label' => 'Working them', 'type' => 'select', 'options' => $owners, 'id' => 'ci_o']]],
@@ -238,13 +246,15 @@ final class GoalPages
             $rows[] = ['t' => $name, 'chip' => [$r->mode === 'active' ? 'On' : ($r->mode === 'paused' ? 'Paused' : 'Shadow'), $r->mode === 'active' ? 'ok' : 'mute'],
                        'sub' => $what . ($k === 'digest' ? ' Sent at ' . sprintf('%02d:00', (int) (json_decode((string) $r->params, true)['hour'] ?? Rules::DIGEST_HOUR)) . '.' : '')
                               . ($fired > 0 ? ' · ' . ($r->mode === 'shadow' ? 'would have acted ' : 'acted ') . $fired . ' ' . ($fired === 1 ? 'time' : 'times') . ' this month' : ''),
-                       'form' => ['id' => 'r' . $r->id, 'do' => 'rule_mode', 'hidden' => ['event' => $id, 'rule' => $k], 'submit' => 'Set',
-                                  'fields' => [['name' => 'mode', 'label' => 'Mode', 'type' => 'select', 'options' => Rules::MODES, 'value' => (string) $r->mode]]]];
+                       // One tap: a watching or paused rule is switched on; a live one paused.
+                       'cta' => $r->mode === 'active'
+                           ? ['label' => 'Pause', 'post' => ['do' => 'rule_mode', 'event' => $id, 'rule' => $k, 'mode' => 'paused']]
+                           : ['label' => 'Switch on', 'primary' => true, 'post' => ['do' => 'rule_mode', 'event' => $id, 'rule' => $k, 'mode' => 'active']]];
         }
         return ['title' => 'Rules', 'secs' => [
             ['k' => 'note', 'tone' => 'info', 'text' => 'Every rule starts in Shadow: it writes down what it would have done, under What they did, and does nothing. When that looks right, set it to On. None of them can touch money, a deadline, a goal or anybody’s access.'],
             ['k' => 'rows', 'items' => $rows],
-            ['k' => 'form', 'h' => 'The digest’s hour', 'do' => 'digest_hour', 'hidden' => ['event' => $id], 'submit' => 'Save', 'groups' => [
+            ['k' => 'form', 'h' => 'The digest’s hour', 'fold' => true, 'foldHint' => 'When the daily summary is sent', 'do' => 'digest_hour', 'hidden' => ['event' => $id], 'submit' => 'Save', 'groups' => [
                 ['label' => 'Daily, at', 'fields' => [['name' => 'hour', 'label' => 'Hour (0–23)', 'type' => 'number', 'min' => 0, 'max' => 23,
                     'value' => (string) (json_decode((string) (Rules::forEvent($id)['digest']->params ?? ''), true)['hour'] ?? Rules::DIGEST_HOUR), 'id' => 'dg_h']]]]],
         ], 'acts' => [['label' => 'Pause every rule', 'post' => ['do' => 'rule_mode', 'event' => $id, 'rule' => 'all', 'mode' => 'paused'], 'danger' => true]]];

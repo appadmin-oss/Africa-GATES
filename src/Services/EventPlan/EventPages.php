@@ -355,18 +355,18 @@ final class EventPages
                     'chip' => $c->stage === 'nominated' ? ['Submitted', 'ok'] : null,
                     'form' => $c->stage === 'nominated' ? null : ['id' => 'pc' . $c->id, 'do' => 'contact_stage', 'hidden' => ['contact' => $c->id], 'submit' => 'Move',
                         'fields' => [['name' => 'stage', 'label' => 'Stage', 'type' => 'select', 'value' => (string) $c->stage, 'options' => array_intersect_key(Pipeline::STAGES, array_flip(Pipeline::MANUAL))]]]], $mineC)];
-                $secs[] = ['k' => 'form', 'h' => 'Rate a prospect’s reach', 'do' => 'contact_rate', 'submit' => 'Rate', 'groups' => [
+                $secs[] = ['k' => 'form', 'h' => 'Rate a prospect’s reach', 'fold' => true, 'foldHint' => 'Private', 'do' => 'contact_rate', 'submit' => 'Rate', 'groups' => [
                     ['label' => 'Private', 'help' => 'How far their own network reaches, after your first conversation. Only you and the leads ever see it; never them.',
                      'fields' => [['name' => 'contact', 'label' => 'Who', 'type' => 'select', 'options' => array_column(array_map(static fn ($c) => [$c->id, $c->name], $mineC), 1, 0), 'id' => 'pr_c' . $eventId],
                                   ['name' => 'reach', 'label' => 'Reach', 'type' => 'segmented', 'options' => Pipeline::REACH, 'value' => '2']]]]];
             }
-            $secs[] = ['k' => 'form', 'h' => 'Add a prospect', 'do' => 'contact_add', 'hidden' => ['event' => $eventId], 'submit' => 'Add', 'groups' => [
+            $secs[] = ['k' => 'form', 'h' => 'Add a prospect', 'fold' => true, 'foldHint' => 'Somebody to ask', 'do' => 'contact_add', 'hidden' => ['event' => $eventId], 'submit' => 'Add', 'groups' => [
                 ['label' => 'Somebody to ask', 'help' => 'Their email or phone is how the pipeline knows when their nomination arrives — it moves by itself then.',
                  'fields' => [['name' => 'name', 'label' => 'Name', 'type' => 'text', 'required' => true, 'id' => 'pa_n' . $eventId],
                               ['name' => 'email', 'label' => 'Email', 'type' => 'email', 'id' => 'pa_e' . $eventId], ['name' => 'phone', 'label' => 'Phone', 'type' => 'tel', 'id' => 'pa_p' . $eventId]]]]];
         }
         if ($mine) {
-            $secs[] = ['k' => 'form', 'h' => 'Change your work', 'do' => 'work_change', 'submit' => 'Ask for it', 'groups' => [
+            $secs[] = ['k' => 'form', 'h' => 'Change your work', 'fold' => true, 'foldHint' => 'A new name or date', 'do' => 'work_change', 'submit' => 'Ask for it', 'groups' => [
                 ['label' => 'Which, and what', 'help' => 'A new name applies itself in ' . Tiers::LAPSE_HOURS . ' hours unless a lead objects. A new date is a lead’s decision.',
                  'fields' => [['name' => 'work', 'label' => 'Work', 'type' => 'select', 'options' => array_column(array_map(static fn ($w) => [$w->id, $w->title], $mine), 1, 0), 'id' => 'wc_w' . $eventId],
                               ['name' => 'title', 'label' => 'New name', 'type' => 'text', 'id' => 'wc_t' . $eventId], ['name' => 'due_at', 'label' => 'New date', 'type' => 'date', 'id' => 'wc_d' . $eventId],
