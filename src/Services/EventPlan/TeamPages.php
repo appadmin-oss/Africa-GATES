@@ -199,7 +199,11 @@ final class TeamPages
         $facts = [['When', date('D j M, H:i', (int) strtotime((string) $e->event_date))]];
         if (in_array('plan.view', $perms, true) && ($r = Plan::readiness($id))) $facts[] = ['Ready', $r['pct'] . '% · ' . $r['done'] . ' of ' . $r['all'] . ' done'];
         if (array_intersect(['money.view', 'money.plan', 'money.approve'], $perms) && ($b = Plan::budgetWords($e)) !== null) $facts[] = ['Budget', $b];
-        if (in_array('money.approve', $perms, true)) $facts[] = ['You approve', 'up to ' . Plan::naira($st['ceiling']) . ' a line'];
+        if (in_array('money.view', $perms, true) && Goals::ready()) {
+            $earned = Goals::voteIncome($id)['total'] * 100 + Scope::ticketIncomeMinor($id);
+            $facts[] = ['Earned from votes and tickets', Plan::naira($earned)];
+        }
+        if (in_array('money.approve', $perms, true)) $facts[] = ['You approve', $st['ceiling'] >= PHP_INT_MAX ? 'spend with no per-line limit' : 'up to ' . Plan::naira($st['ceiling']) . ' a line'];
         $roleNames = array_values(array_unique(array_map(static fn ($r) => (string) $r->name . ($r->team_role === 'lead' ? ' (team lead)' : ''), $st['roles'])));
         $secs = [['k' => 'hero', 'ini' => Workspace::initials((string) $e->title), 'tone' => 'ok', 'chips' => [[LeadPages::daysShort((string) $e->event_date), 'mute']],
                   't' => (string) $e->title, 'sub' => 'Your role: ' . implode(', ', $roleNames ?: ['Event owner']), 'facts' => $facts, 'acts' => []]];

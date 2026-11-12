@@ -127,6 +127,48 @@ final class Goals
         return (int) $q->sum('d.amount_naira');
     }
 
+    /**
+     * The money paid votes have brought in, for the event's finance view: the same confirmed,
+     * refund-excluded payments the revenue goal counts, broken down by award and category,
+     * with what was refunded shown beside it rather than silently left out. Read-only; naira.
+     *
+     * @return array{total:int, orders:int, refunded:int, refunds:int, week:int,
+     *               byAward:list<array{t:string, v:int, n:int}>, byCategory:list<array{t:string, v:int, n:int}>}
+     */
+    public static function voteIncome(int $eventId): array
+    {
+        $out = ['total' => 0, 'orders' => 0, 'refunded' => 0, 'refunds' => 0, 'week' => 0, 'byAward' => [], 'byCategory' => []];
+        $cats = self::categoryIds($eventId, 'event', null);
+        if ($cats === []) return $out;
+        try {
+            $refundable = SchemaHas::column('gates_donations', 'refunded_at');
+            $rows = DB::table('gates_donations as d')->join('gates_nominees as n', 'n.id', '=', 'd.intent_nominee_id')
+                ->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')->join('gates_award_cycles as y', 'y.id', '=', 'c.cycle_id')
+                ->join('gates_award_programmes as p', 'p.id', '=', 'y.programme_id')
+                ->whereIn('n.category_id', $cats)->where('d.status', 'confirmed')->where('d.tier', 'paid-vote')
+                ->get(array_merge(['d.amount_naira', 'd.created_at', 'c.title as cat', 'p.title as award', 'y.year'], $refundable ? ['d.refunded_at'] : []))->all();
+        } catch (\Throwable) {
+            return $out;
+        }
+        $weekAgo = date('Y-m-d H:i:s', time() - 7 * 86400);
+        $award = $cat = [];
+        foreach ($rows as $r) {
+            $v = (int) $r->amount_naira;
+            if (!empty($r->refunded_at)) { $out['refunded'] += $v; $out['refunds']++; continue; }
+            $out['total'] += $v;
+            $out['orders']++;
+            if ((string) $r->created_at >= $weekAgo) $out['week'] += $v;
+            $a = $r->award . ' ' . $r->year;
+            $award[$a] = ['t' => $a, 'v' => ($award[$a]['v'] ?? 0) + $v, 'n' => ($award[$a]['n'] ?? 0) + 1];
+            $k = $r->award . ' · ' . $r->cat;
+            $cat[$k] = ['t' => $k, 'v' => ($cat[$k]['v'] ?? 0) + $v, 'n' => ($cat[$k]['n'] ?? 0) + 1];
+        }
+        $sort = static function (array $x): array { usort($x, static fn ($a, $b) => $b['v'] <=> $a['v']); return $x; };
+        $out['byAward'] = $sort(array_values($award));
+        $out['byCategory'] = $sort(array_values($cat));
+        return $out;
+    }
+
     private static function contactsIn(int $eventId, string $kind, ?int $id)
     {
         $q = DB::table('gates_event_contacts')->where('event_id', $eventId);

@@ -1006,13 +1006,29 @@ final class EventPages
         $sp = Scope::sponsors($id);
         $agreed = array_sum(array_map(static fn ($s) => (int) $s->value_minor, array_filter($sp, static fn ($s) => in_array($s->stage, ['agreed', 'paid'], true))));
         $paid = array_sum(array_map(static fn ($s) => (int) $s->value_minor, array_filter($sp, static fn ($s) => $s->stage === 'paid')));
-        $stats = [['l' => 'Tickets', 'v' => Plan::naira($tickets), 's' => number_format(EventTicketService::soldForEvent($id)) . ' sold']];
+        // Votes as well as tickets (owner, 12 Nov 2026: the finance admin "also see[s] the money
+        // earned from votes and tickets"). Votes are read exactly as the revenue goal counts them:
+        // confirmed paid-vote payments for nominees in this event's awards, refunds kept apart.
+        $votes = Goals::ready() ? Goals::voteIncome($id) : ['total' => 0, 'orders' => 0, 'refunded' => 0, 'refunds' => 0, 'week' => 0, 'byAward' => [], 'byCategory' => []];
+        $voteMinor = $votes['total'] * 100;
+        $stats = [
+            ['l' => 'Earned from votes and tickets', 'v' => Plan::naira($voteMinor + $tickets), 's' => 'Before gateway fees'],
+            ['l' => 'Paid votes', 'v' => Plan::naira($voteMinor), 's' => number_format($votes['orders']) . ' ' . ($votes['orders'] === 1 ? 'payment' : 'payments') . ($votes['week'] > 0 ? ' · ' . Plan::naira($votes['week'] * 100) . ' this week' : '')],
+            ['l' => 'Tickets', 'v' => Plan::naira($tickets), 's' => number_format(EventTicketService::soldForEvent($id)) . ' sold'],
+        ];
+        if ($votes['refunds'] > 0) $stats[] = ['l' => 'Refunded votes', 'v' => Plan::naira($votes['refunded'] * 100), 's' => $votes['refunds'] . ' ' . ($votes['refunds'] === 1 ? 'payment' : 'payments') . ', not counted above'];
         if ($sp) {
             $stats[] = ['l' => 'Sponsors agreed', 'v' => Plan::naira($agreed), 's' => ''];
             $stats[] = ['l' => 'Sponsors paid', 'v' => Plan::naira($paid), 's' => ''];
         }
-        return ['title' => 'Money', 'secs' => [['k' => 'stats', 'items' => $stats],
-            ['k' => 'note', 'tone' => 'mute', 'text' => 'Ticket income is what confirmed tickets were sold for, before gateway fees. Sponsor money counts once a sponsor is at Agreed.']]];
+        $secs = [['k' => 'stats', 'items' => $stats]];
+        $row = static fn (array $x) => ['t' => $x['t'], 'sub' => number_format($x['n']) . ' ' . ($x['n'] === 1 ? 'payment' : 'payments'), 'meta' => Plan::naira($x['v'] * 100)];
+        if (count($votes['byAward']) > 1) $secs[] = ['k' => 'rows', 'h' => 'Votes by award', 'items' => array_map($row, $votes['byAward'])];
+        if ($votes['byCategory']) $secs[] = ['k' => 'rows', 'h' => 'Votes by category', 'items' => array_map($row, $votes['byCategory'])];
+        elseif ($votes['orders'] === 0) $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => Goals::categoryIds($id, 'event', null) === []
+            ? 'This event presents no award yet, so no vote money is counted here. Link its award in the event’s setup.' : 'No paid votes yet in this event’s awards.'];
+        $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => 'Vote money is confirmed paid-vote payments for nominees in this event’s awards; ticket money is what confirmed tickets were sold for. Both are before gateway fees, and a refunded payment is never counted. Sponsor money counts once a sponsor is at Agreed.'];
+        return ['title' => 'Money', 'secs' => $secs];
     }
 
     // ── The night ───────────────────────────────────────────────────────────────────────

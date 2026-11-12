@@ -113,4 +113,28 @@ final class EventFinanceAdminTest extends TestCase
         [, $req] = $this->asked();
         $this->assertSame('role', Requests::find($req)->decider_kind);
     }
+
+    public function test_they_see_the_money_earned_from_votes_and_tickets_with_refunds_kept_out(): void
+    {
+        $now = date('Y-m-d H:i:s');
+        $prog = (int) DB::table('gates_award_programmes')->insertGetId(['slug' => 'p-' . bin2hex(random_bytes(3)), 'title' => 'Teaching Award', 'is_active' => 1, 'created_at' => $now]);
+        $cycle = (int) DB::table('gates_award_cycles')->insertGetId(['programme_id' => $prog, 'year' => 2026, 'status' => 'voting', 'created_at' => $now]);
+        $cat = (int) DB::table('gates_award_categories')->insertGetId(['cycle_id' => $cycle, 'slug' => 'primary', 'title' => 'Primary', 'sort_order' => 0]);
+        DB::table('gates_event_programmes')->insert(['event_id' => $this->ev, 'programme_id' => $prog]);
+        $nom = (int) DB::table('gates_nominees')->insertGetId(['category_id' => $cat, 'name' => 'Ngozi Eze', 'status' => 'approved', 'vote_count' => 0]);
+        $cols = array_flip(DB::schema()->getColumnListing('gates_donations'));
+        $pay = fn (int $naira, ?string $refunded = null) => DB::table('gates_donations')->insert(array_intersect_key([
+            'amount_naira' => $naira, 'status' => 'confirmed', 'tier' => 'paid-vote', 'intent_nominee_id' => $nom, 'reference' => 'R' . bin2hex(random_bytes(4)),
+            'email' => 'buyer@example.test', 'donor_email' => 'buyer@example.test', 'donor_name' => 'A buyer', 'payment_ref' => 'P' . bin2hex(random_bytes(4)), 'currency' => 'NGN', 'refunded_at' => $refunded, 'created_at' => $now], $cols));
+        $pay(20000);
+        $pay(5000);
+        $pay(8000, $now);
+        $v = \AfricaGates\Services\EventPlan\Goals::voteIncome($this->ev);
+        $this->assertSame([25000, 2, 8000, 1], [$v['total'], $v['orders'], $v['refunded'], $v['refunds']], 'a refunded payment is shown apart, never counted');
+        $this->makeFinance();
+        $page = json_encode(\AfricaGates\Services\EventPlan\EventPages::page(['id' => $this->fin, 'name' => 'Funmi'], Plan::event($this->ev), 'money', 'income', []));
+        $this->assertStringContainsString('Earned from votes and tickets', (string) $page);
+        $this->assertStringContainsString('25,000', (string) $page);
+        $this->assertStringContainsString('Teaching Award', (string) $page, 'by award and category');
+    }
 }
