@@ -444,8 +444,11 @@ final class GeeTest extends TestCase
             'the waiting line never touches a step');
         // The launcher's hide-on-scroll has one timer too (it comes back when scrolling
         // stops), allowed by name on the same terms: it touches the launcher and nothing else.
+        // The second is the one late look after a page's entrance animations (a celebration's
+        // buttons rise into place after the first look), and it only calls look().
         $this->assertSame(1, preg_match('/function tuckOnScroll\(\) \{(.*?)\n  \}/s', $js, $tuck));
-        $this->assertSame(1, substr_count($tuck[1], 'setTimeout('));
+        $this->assertSame(2, substr_count($tuck[1], 'setTimeout('));
+        $this->assertStringContainsString('setTimeout(look, 1600)', $tuck[1]);
         $this->assertDoesNotMatchRegularExpression('/data-state|stepRow|finishWork|step-/', $tuck[1],
             'the launcher\'s timer never touches a step');
         // And Copy's "Copied" lasts a moment, then the button says Copy again: it touches the

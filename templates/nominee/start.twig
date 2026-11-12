@@ -26,7 +26,7 @@
     <section class="ap-gate" aria-labelledby="apTitle">
       <img class="ap-gate__logo" src="{{ asset('/assets/img/logo-africa-gates-alpha.png') }}" width="96" height="110" alt="Africa GATES">
       {% if state == 'signin' or state == 'spent' %}
-        <h1 class="ap-gate__h" id="apTitle">{{ state == 'spent' ? 'Welcome back' : 'Congratulations' }}{{ nominee ? ', ' ~ nominee.name|split(' ')|first }}</h1>
+        <h1 class="ap-gate__h" id="apTitle">{{ state == 'spent' ? 'Welcome back' : 'Congratulations' }}{{ nominee ? ', ' ~ nominee.name|address_as }}</h1>
         <p class="ap-gate__lede">{% if state == 'spent' %}Sign in with the account you used before to see your nomination.{% elseif early %}You’ve been nominated{{ nominee and nominee.category ? ' for ' ~ nominee.category }}. Sign in or make your free account to make your nomination as strong as it can be before it is reviewed.{% else %}You’re a nominee{{ nominee and nominee.category ? ' for ' ~ nominee.category }}. Sign in or make your free account to finish your profile.{% endif %}</p>
         <ul class="ap-gate__why">
           {% if early %}<li>Add evidence of your work: the reviewer sees it</li>{% endif %}

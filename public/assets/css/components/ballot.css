@@ -205,9 +205,6 @@
    and stacked — the ring above the words — because the ballot column is narrow at every
    width and the words beside an 88px ring wrapped to three short lines. */
 .vb-done .ag-cel--inline{ border:0; border-radius:0; padding:12px 0 0; background:none; overflow:visible }
-.vb-done .ag-cel__row{ flex-direction:column; text-align:center; gap:8px }
-.vb-done .ag-cel__text{ align-items:center }
-.vb-done .ag-cel__sub{ max-width:34ch }
 .vb-done .ag-cel--inline .ag-cel__actions{ grid-template-columns:minmax(0,1fr) }
 .vb-done .ag-cel--inline .ag-cel__sub{ margin-bottom:4px }
 .vb-done + *{ border-top:1px solid var(--ag-line); padding-top:16px }

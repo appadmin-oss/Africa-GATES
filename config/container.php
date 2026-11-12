@@ -584,6 +584,9 @@ return [
         ));
         // A feed's "· 3h", and a member's text with its links made links (escaped first).
         $twig->getEnvironment()->addFilter(new \Twig\TwigFilter('ago', [\AfricaGates\Support\Ago::class, 'of']));
+        // How a page names a nominee in a short phrase: a person's first name without a title,
+        // an organisation's whole name ("Chief won." and "Vote for Glow" were both shipped).
+        $twig->getEnvironment()->addFilter(new \Twig\TwigFilter('address_as', [\AfricaGates\Support\Name::class, 'addressAs']));
         $twig->getEnvironment()->addFilter(new \Twig\TwigFilter('linked', [\AfricaGates\Support\TextLinks::class, 'html'], ['is_safe' => ['html']]));
         // `{{ asset('/assets/js/gee.js') }}` → the path with a CONTENT-HASH cache
         // buster. Replaces `?v={{ asset_version }}`, which in production returned

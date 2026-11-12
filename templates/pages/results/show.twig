@@ -100,7 +100,7 @@
           </div>
         </section>
 
-        {% include 'partials/celebration.twig' with {kind: 'win', size: 'inline', first: w.name|split(' ')|first,
+        {% include 'partials/celebration.twig' with {kind: 'win', size: 'inline', first: w.name|address_as,
             context: {moment: 'award_won', category_id: r.category.id, nominee_id: w.nominee_id, edition: r.programme_slug ~ '-' ~ r.cycle_year, subject: w.nominee_id},
             sub: '%c%, %e%.'|trans({'%c%': r.category.title, '%e%': r.programme ~ (r.edition ? ' ' ~ r.edition)}),
             secondary: {label: 'See every winner'|trans, href: _edition_url}} only %}

@@ -1163,6 +1163,10 @@
     if (window.requestAnimationFrame) requestAnimationFrame(look); else look();
     document.addEventListener('ag:load', function () { reading = false; look(); });
     if (document.readyState !== 'complete') window.addEventListener('load', look);
+    // And once more after the page's own entrance animations: a celebration's buttons rise
+    // into place over ~1.3s, so the first look found nothing under the tab and it parked
+    // over "Share" for good.
+    setTimeout(look, 1600);
   }
   tuckOnScroll();
 })();
