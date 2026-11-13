@@ -58,6 +58,7 @@ final class Emails
         'event-team' => 'EventPlan\\Teams (a team, role or person proposed to the owner, and the decision back to the lead)',
         'event-report' => 'EventPlan\\EventReport (a written report submitted to the owners, and the sign-off back to its author)',
         'event-loop' => 'EventPlan\\Rules (the daily digest to each lead, and a private nudge to the owner of work due soon)',
+        'payment-found' => 'SupportContext::findPayment() (a payer without their reference: the references, sent to the address that paid)',
     ];
 
     /**

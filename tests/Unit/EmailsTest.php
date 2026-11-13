@@ -81,6 +81,8 @@ final class EmailsTest extends TestCase
                           'items' => [['Order lanyards', 'Suggested by Chika Nwosu'], ['Venue contract', 'Reported blocked twice this week']],
                           'goals' => [['Paid-vote revenue: ₦15M', '₦2.1M of ₦15M · 21 days left']],
                           'action_url' => 'https://x.test/lead/event/4', 'action_label' => 'Open the event'],
+            'payment-found' => ['items' => [['AFG-PVOTE-957ef35ed73d', 'vote purchase · ₦2,000 · 2026-11-09 11:02 — confirmed — all 10 votes delivered']],
+                          'added' => 10, 'action_url' => 'https://x.test/vote/verify'],
             default   => self::fail("no sample for $key — add one when the key is added"),
         };
     }

@@ -700,7 +700,9 @@ final class EventPages
      *     roster is not theirs to browse;
      *   · end a role, and withdraw an invitation still waiting.
      *
-     * Leads cannot make leads: leading moves money, and that stays staff's to give. Every one of
+     * Leads cannot make leads: leading moves money, and that stays staff's to give. They CAN name
+     * the event's finance admin (owner's ask, 13 Nov 2026) — never themselves or another lead or
+     * owner, so the one asking for money is never the one approving it. Every one of
      * these is re-checked against the lead's grant on THIS event in LeadController::recruit.
      *
      * @return list<array<string,mixed>>
@@ -729,6 +731,23 @@ final class EventPages
             ['label' => 'Who', 'help' => 'By their email. An approved volunteer gets the role at once; anybody else is asked to apply, the volunteer team checks every application, and the role switches on once theirs is approved. Either way we email them.',
              'fields' => [['name' => 'email', 'label' => 'Their email', 'type' => 'email', 'required' => true],
                           ['name' => 'capability', 'label' => 'Role', 'type' => 'select', 'options' => $roles]]],
+            ['label' => 'Until', 'fields' => [['name' => 'until', 'label' => 'Ends', 'type' => 'date', 'value' => $until]]],
+        ]];
+        // The event's finance admin: who approves its money. Given by the lead (or staff), never
+        // to the lead or an owner of this event — LeadController::recruit holds that rule.
+        $fin = Leads::finance($id);
+        $finWaiting = \AfricaGates\Services\RoleInvites::waiting($id, ['event.finance']);
+        $finItems = array_map(static fn ($f) => ['t' => $f->name, 'ini' => '₦', 'sub' => 'Finance admin · ' . $f->email . ' · until ' . $f->until,
+            'cta' => ['label' => 'End', 'post' => ['do' => 'finance_end', 'event' => $id, 'grant' => (int) $f->id]]], $fin);
+        foreach ($finWaiting as $i) {
+            $finItems[] = ['t' => (string) $i->email, 'ini' => '@', 'sub' => 'Finance admin · waiting ' . $i->waiting . ' · until ' . $i->until,
+                'cta' => ['label' => 'Withdraw', 'post' => ['do' => 'vol_invite_cancel', 'event' => $id, 'invite' => (int) $i->id]]];
+        }
+        $secs[] = $finItems !== [] ? ['k' => 'rows', 'h' => 'Finance admin', 'items' => $finItems]
+            : ['k' => 'note', 'tone' => 'mute', 'text' => 'Finance admin: nobody yet. Until there is one, spend requests over your limit go to the platform’s finance team.'];
+        $secs[] = ['k' => 'form', 'h' => 'Give finance access', 'fold' => $fin !== [], 'foldHint' => 'Who approves this event’s money', 'do' => 'finance_give', 'hidden' => ['event' => $id], 'submit' => 'Make them finance admin', 'groups' => [
+            ['label' => 'Who', 'help' => 'A volunteer or anybody else, by their email. They decide spend requests over your limit, approve spend lines, sign off money milestones and see what votes and tickets earned. They can’t be you or anybody who leads or owns this event.',
+             'fields' => [['name' => 'email', 'label' => 'Their email', 'type' => 'email', 'required' => true]]],
             ['label' => 'Until', 'fields' => [['name' => 'until', 'label' => 'Ends', 'type' => 'date', 'value' => $until]]],
         ]];
         if (count($held) > 1) {

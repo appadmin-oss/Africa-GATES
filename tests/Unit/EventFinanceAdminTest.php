@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
+use AfricaGates\Controllers\LeadController;
+use AfricaGates\Services\EventPlan\EventPages;
 use AfricaGates\Services\EventPlan\EventPermissions;
 use AfricaGates\Services\EventPlan\Goals;
 use AfricaGates\Services\EventPlan\Leads;
@@ -10,6 +12,8 @@ use AfricaGates\Services\EventPlan\Plan;
 use AfricaGates\Services\Grants;
 use AfricaGates\Services\Requests;
 use Illuminate\Database\Capsule\Manager as DB;
+use Slim\Psr7\Factory\ServerRequestFactory;
+use Slim\Psr7\Response;
 use Tests\TestCase;
 
 /**
@@ -35,6 +39,13 @@ final class EventFinanceAdminTest extends TestCase
         $this->ev = (int) DB::table('gates_site_events')->insertGetId(['slug' => 'ev-' . bin2hex(random_bytes(3)), 'title' => 'Alimosho Honours',
             'event_date' => date('Y-m-d 18:00:00', strtotime('+40 days')), 'venue' => 'Civic Centre', 'status' => 'published', 'created_at' => date('Y-m-d H:i:s')]);
         Grants::grant('member', $this->lead, 'event.lead', 'event', $this->ev, date('Y-m-d', strtotime('+60 days')), 1);
+    }
+
+    /** The lead tests sign somebody in; a session left behind changes what later tests see. */
+    protected function tearDown(): void
+    {
+        $_SESSION = [];
+        parent::tearDown();
     }
 
     private function member(string $name): int
@@ -136,5 +147,53 @@ final class EventFinanceAdminTest extends TestCase
         $this->assertStringContainsString('Earned from votes and tickets', (string) $page);
         $this->assertStringContainsString('25,000', (string) $page);
         $this->assertStringContainsString('Teaching Award', (string) $page, 'by award and category');
+    }
+
+    /** POST to the lead portal as somebody; returns [refused?, the sentence shown]. */
+    private function leadPost(int $as, array $body): array
+    {
+        $_SESSION['user_id'] = $as;
+        unset($_SESSION['lead_toast'], $_SESSION['lead_error']);
+        $b = new \DI\ContainerBuilder();
+        $b->addDefinitions(dirname(__DIR__, 2) . '/config/container.php');
+        $b->build()->get(LeadController::class)->act((new ServerRequestFactory())->createServerRequest('POST', '/lead/act')
+            ->withParsedBody($body + ['back' => '/lead']), new Response());
+        return [isset($_SESSION['lead_error']), (string) ($_SESSION['lead_error'] ?? $_SESSION['lead_toast'] ?? '')];
+    }
+
+    /** Owner, 13 Nov 2026: the LEAD names the finance admin too — never themselves or another lead. */
+    public function test_the_lead_names_the_finance_admin_and_can_end_it(): void
+    {
+        $email = (string) DB::table('gates_users')->where('id', $this->fin)->value('email');
+        [$refused, $msg] = $this->leadPost($this->lead, ['do' => 'finance_give', 'event' => $this->ev, 'email' => $email]);
+        $this->assertFalse($refused, $msg);
+        $this->assertTrue(Grants::allows('member', $this->fin, 'event.finance', 'event', $this->ev));
+        $grant = (int) Leads::finance($this->ev)[0]->id;
+
+        // The form is on the lead's own team page, with the person listed.
+        $page = json_encode(EventPages::page(['id' => $this->lead, 'name' => 'Tunde Akin'], Plan::event($this->ev), 'people', 'volunteers', []));
+        $this->assertStringContainsString('finance_give', (string) $page);
+
+        [$refused, $msg] = $this->leadPost($this->lead, ['do' => 'finance_end', 'event' => $this->ev, 'grant' => $grant]);
+        $this->assertFalse($refused, $msg);
+        $this->assertFalse(Grants::allows('member', $this->fin, 'event.finance', 'event', $this->ev));
+    }
+
+    public function test_the_lead_cannot_approve_their_own_money(): void
+    {
+        $mine = (string) DB::table('gates_users')->where('id', $this->lead)->value('email');
+        [$refused] = $this->leadPost($this->lead, ['do' => 'finance_give', 'event' => $this->ev, 'email' => strtoupper($mine)]);
+        $this->assertTrue($refused, 'not to themselves');
+
+        $other = $this->member('Second Lead');
+        Grants::grant('member', $other, 'event.lead', 'event', $this->ev, date('Y-m-d', strtotime('+60 days')), 1);
+        [$refused] = $this->leadPost($this->lead, ['do' => 'finance_give', 'event' => $this->ev,
+            'email' => (string) DB::table('gates_users')->where('id', $other)->value('email')]);
+        $this->assertTrue($refused, 'not to another lead of the same event');
+        $this->assertSame([], Leads::finance($this->ev));
+
+        // And a volunteer at the event, or anybody else, cannot hand it out at all.
+        [$refused] = $this->leadPost($this->fin, ['do' => 'finance_give', 'event' => $this->ev, 'email' => 'someone@example.test']);
+        $this->assertTrue($refused, 'only a lead of this event');
     }
 }

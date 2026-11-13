@@ -207,7 +207,7 @@ final class LeadController
             'attend_in' => [$this->attend($me, $b, true), 'Checked in.', 'event', $int('event')],
             'attend_out' => [$this->attend($me, $b, false), 'Checked out. Their hours count now.', 'event', $int('event')],
             'attend_confirm' => [$this->attendConfirm($me, $b), 'Confirmed. Their hours count now.', 'event', $int('event')],
-            'vol_invite', 'vol_invite_cancel', 'vol_end' => [$this->recruit($me, $b, $do), '', 'event', $int('event')],
+            'vol_invite', 'vol_invite_cancel', 'vol_end', 'finance_give', 'finance_end' => [$this->recruit($me, $b, $do), '', 'event', $int('event')],
             'team_propose' => [Teams::proposeTeam($int('event'), $b, $me), '', 'event', $int('event')],
             'role_propose' => [Teams::proposeRole($int('event'), $b, $me), '', 'event', $int('event')],
             'member_propose' => [Teams::proposeMember($int('event'), $b, $me), '', 'event', $int('event')],
@@ -303,6 +303,32 @@ final class LeadController
                 $r = \AfricaGates\Services\RoleInvites::offer((string) ($b['email'] ?? ''), $cap, $event, (string) ($b['until'] ?? ''), $by);
                 if (!$r['ok']) return $r;
                 return $r + ['event' => $event, 'msg' => (!empty($r['granted']) ? 'They were already an approved volunteer, so the role is theirs now.' : 'Invitation sent. It is waiting ' . \AfricaGates\Services\RoleInvites::reason((string) ($b['email'] ?? ''), $cap) . ', and switches on by itself after that. It is listed below until then.') . $mail($r)];
+            case 'finance_give':
+                // ── THE EVENT'S FINANCE ADMIN, GIVEN BY ITS LEAD ─────────────────────
+                // Staff gave this alone until the owner asked for the lead to be able to,
+                // because the lead is the one who knows who on the team keeps the books. What
+                // keeps it a CHECK and not a rubber stamp is who may hold it: never the lead
+                // giving it, and never anybody who leads or owns this event — the person who
+                // asks for money is never the person who approves it. Recorded in the event's
+                // audit like every lead act, and staff can end it from the console.
+                $email = strtolower(trim((string) ($b['email'] ?? '')));
+                $mine = strtolower(trim((string) \Illuminate\Database\Capsule\Manager::table('gates_users')->where('id', $me['id'])->value('email')));
+                if ($email === $mine) {
+                    return ['ok' => false, 'error' => 'You lead this event, so its money is approved by somebody else. Give it to another person.'];
+                }
+                $u = \Illuminate\Database\Capsule\Manager::table('gates_users')->whereRaw('LOWER(email) = ?', [$email])->first(['id']);
+                if ($u && (Plan::isLead((int) $u->id, $event) || Teams::isOwner((int) $u->id, $event))) {
+                    return ['ok' => false, 'error' => 'They lead or own this event, and whoever asks for money here is never the one who approves it. Choose somebody else.'];
+                }
+                $r = \AfricaGates\Services\RoleInvites::offer($email, 'event.finance', $event, (string) ($b['until'] ?? ''), $by);
+                if (!$r['ok']) return $r;
+                return $r + ['event' => $event, 'msg' => (!empty($r['granted'])
+                    ? 'Done. They are this event’s finance admin now: spend requests over your limit go to them.'
+                    : 'Invitation sent. It is waiting ' . \AfricaGates\Services\RoleInvites::reason($email, 'event.finance') . ', then switches on by itself.') . $mail($r)];
+            case 'finance_end':
+                return \AfricaGates\Services\EventPlan\Leads::end((int) ($b['grant'] ?? 0), $event, 0, 'event.finance')
+                    ? ['ok' => true, 'event' => $event, 'msg' => 'Ended. Spend requests over your limit go to the platform’s finance team again.']
+                    : ['ok' => false, 'error' => 'That finance access had already ended.'];
             case 'vol_invite_cancel':
                 return \AfricaGates\Services\RoleInvites::cancel((int) ($b['invite'] ?? 0), $event)
                     ? ['ok' => true, 'event' => $event, 'msg' => 'Invitation withdrawn.'] : ['ok' => false, 'error' => 'That invitation had already been used or withdrawn.'];
