@@ -22,8 +22,8 @@
     links (`?cat={id}`, the base URL for All), so a view has an address and works with no
     script, and vote.js switches views in place without a reload. One category: no All.
   · Race rows: rank, name, meta, a bar against the LEADER, the live count and the gap to the
-    position above (RaceService: ties share a rank, a gap skips ties). The headline banner is
-    absent, not empty, when there is no race yet (the destroyed page's rule).
+    position above (RaceService: ties share a rank, a gap skips ties). No "X leads Y by N"
+    line above a list: names run long enough to wrap it, and the rows already say who leads.
   · "Shortlisted" comes from the PUBLISHED snapshot only — never a live threshold.
   · The bottom bar counts what THIS DEVICE recorded (see vote.twig); Review votes is
     disabled (tint / mute) until there is one, and lists those votes with links back.
@@ -74,19 +74,12 @@
   </li>
 {% endmacro %}
 
-{% macro race(id, title, count, h, open) %}
+{% macro race(id, title, count) %}
   <div class="vp-race__head" data-cat="{{ id }}">
     <div class="vp-race__row">
       <h2 class="vp-race__t" id="view-{{ id }}-t">{{ title }}</h2>
       <span class="vp-race__n">{{ count == 1 ? '1 nominee'|trans : '%n% nominees'|trans({'%n%': count}) }}</span>
     </div>
-    {% if h %}
-      <span class="vp-race__hl" data-headline>
-        {%- if open %}<span class="vp-race__dot" aria-hidden="true"></span>{% endif -%}
-        {%- if h.lead > 0 %}{{ '%a% leads %b% by %n% votes'|trans({'%a%': h.leader, '%b%': h.chaser, '%n%': h.lead|number_format}) }}
-        {%- else %}{{ 'The leaders are level'|trans }}{% endif -%}
-      </span>
-    {% endif %}
   </div>
 {% endmacro %}
 {% import _self as m %}
@@ -163,7 +156,7 @@
       {% if categories|length %}
       {% if _many %}
       <section class="vp-view" data-view="all" aria-labelledby="view-all-t"{% if _view != 'all' %} hidden{% endif %}>
-        {{ m.race('all', 'All nominees'|trans, overall.nominees|length, overall.headline, _f.open) }}
+        {{ m.race('all', 'All nominees'|trans, overall.nominees|length) }}
         <p class="vp-note">{{ 'Every category in this edition, ranked by public votes.'|trans }}</p>
         <ol class="vp-race" data-race="all">
           {% for n in overall.nominees %}{{ m.row(n, _f.open, true) }}{% endfor %}
@@ -172,7 +165,7 @@
       {% endif %}
       {% for c in categories %}
       <section class="vp-view" data-view="{{ c.category.id }}" aria-labelledby="view-{{ c.category.id }}-t"{% if _view != c.category.id %} hidden{% endif %}>
-        {{ m.race(c.category.id, c.category.title, c.nominees|length, c.headline, _f.open) }}
+        {{ m.race(c.category.id, c.category.title, c.nominees|length) }}
         <ol class="vp-race" data-race="{{ c.category.id }}">
           {% for n in c.nominees %}{{ m.row(n, _f.open, false) }}{% endfor %}
         </ol>

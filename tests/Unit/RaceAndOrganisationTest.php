@@ -157,41 +157,11 @@ final class RaceAndOrganisationTest extends TestCase
 
         $this->assertSame(1, $r[0]['field']);
         $this->assertSame(100, $r[0]['pct']);
-        $this->assertNull(RaceService::headline($r), 'one nominee has no contest to describe');
     }
 
     public function test_an_empty_category_returns_nothing_rather_than_erroring(): void
     {
         $this->assertSame([], RaceService::annotate([]));
-        $this->assertNull(RaceService::headline([]));
-    }
-
-    // ── The headline ─────────────────────────────────────────────────────────
-
-    public function test_the_headline_names_the_leader_and_the_real_margin(): void
-    {
-        $h = RaceService::headline(RaceService::annotate($this->field([100, 88, 12])));
-
-        $this->assertSame(12, $h['lead']);
-        $this->assertSame('N1', $h['leader']);
-        $this->assertSame('N2', $h['chaser']);
-    }
-
-    /**
-     * The margin is over the nearest LOWER total. Row two may be tied for first, and
-     * "leads by 0" is not a fact anyone needs.
-     */
-    public function test_the_headline_measures_past_a_tie_at_the_top(): void
-    {
-        $h = RaceService::headline(RaceService::annotate($this->field([100, 100, 60])));
-
-        $this->assertSame(40, $h['lead'], 'the lead is over the nearest lower total, not over the co-leader');
-    }
-
-    /** "0 ahead" on a category nobody has voted in is noise, not drama. */
-    public function test_no_headline_before_any_votes_are_cast(): void
-    {
-        $this->assertNull(RaceService::headline(RaceService::annotate($this->field([0, 0]))));
     }
 
     // ── The organisation ─────────────────────────────────────────────────────

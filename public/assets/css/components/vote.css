@@ -158,8 +158,6 @@
 .vp-race__row{ display:flex; align-items:baseline; justify-content:space-between; gap:12px }
 .vp-race__t{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-22) }
 .vp-race__n{ font-size:var(--ag-fs-13-5); color:var(--ag-soft); white-space:nowrap }
-.vp-race__hl{ display:flex; align-items:center; gap:8px; font-size:var(--ag-fs-14-5); font-weight:600 }
-.vp-race__dot{ flex:none; width:7px; height:7px; border-radius:50%; background:var(--ag-live) }
 .vp-race{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-20); overflow:hidden }
 .vp-race li + li{ border-top:1px solid var(--ag-line) }
 .vp-row{ display:grid; grid-template-columns:56px minmax(0,1fr) auto; gap:14px; align-items:center; padding:14px; color:var(--ag-ink); text-decoration:none; background:var(--ag-surface) }

@@ -126,7 +126,6 @@ class VoteController {
         // per nominee — which would be one full category scan for every card on the page.
         foreach ($cats as &$c) {
             $c['nominees'] = \AfricaGates\Services\RaceService::annotate($c['nominees']);
-            $c['headline'] = \AfricaGates\Services\RaceService::headline($c['nominees']);
         }
         unset($c);
 
@@ -168,8 +167,7 @@ class VoteController {
                     $all[] = $n;
                 }
             }
-            $ranked  = \AfricaGates\Services\RaceService::annotate($all);
-            $overall = ['nominees' => $ranked, 'headline' => \AfricaGates\Services\RaceService::headline($ranked)];
+            $overall = ['nominees' => \AfricaGates\Services\RaceService::annotate($all)];
         }
 
         $q   = $req->getQueryParams();
@@ -238,7 +236,6 @@ class VoteController {
                 $ranked = \AfricaGates\Services\RaceService::annotate($list);
                 $out[] = [
                     'category_id' => $cid,
-                    'headline'    => \AfricaGates\Services\RaceService::headline($ranked),
                     'nominees'    => array_map(static fn (array $n) => [
                         'id'    => (int) $n['id'],
                         'votes' => (int) $n['vote_count'],

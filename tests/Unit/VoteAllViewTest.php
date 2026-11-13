@@ -143,6 +143,20 @@ final class VoteAllViewTest extends TestCase
         $this->assertStringContainsString('Public votes are one part of the score; the judges decide the rest.', $html);
     }
 
+    /**
+     * No "X leads Y by N votes" line above a list (owner, 13 Nov 2026: unnecessary, and
+     * two long names wrap it). The rows already show who leads and by how much.
+     */
+    public function test_no_leader_line_sits_above_a_list(): void
+    {
+        $this->seed();
+        foreach ([[], ['cat' => '211']] as $q) {
+            $html = $this->page($q);
+            $this->assertStringNotContainsString('data-headline', $html);
+            $this->assertStringNotContainsString('Choir High leads', $html);
+        }
+    }
+
     public function test_the_live_tallies_carry_the_edition_ranks_and_the_page_patches_each_list_from_its_own(): void
     {
         $this->seed();
