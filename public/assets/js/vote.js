@@ -70,6 +70,44 @@
     }
   }
 
+  /* ── every category on one page ───────────────────────────────────────────
+     The page draws every category's nominees, one section after another; the
+     chips (phone) and the list (desktop) are plain #cat-{id} jumps. This marks
+     the chip for the section being read, scrolls the chip row sideways to keep
+     that chip in sight, and lands an old ?cat= link on its section. */
+  function sections(root) {
+    var secs = $$('[data-cat-sec]', root);
+    if (!secs.length) return;
+    var links = $$('[data-cat-link]', root), row = $('.vp-chips', root), cur = null;
+    var mark = function (id) {
+      if (id === cur) return;
+      cur = id;
+      links.forEach(function (a) {
+        if (a.getAttribute('data-cat-link') === id) a.setAttribute('aria-current', 'true');
+        else a.removeAttribute('aria-current');
+      });
+      var chip = row && $('[data-cat-link="' + id + '"]', row);
+      if (chip && row.scrollWidth > row.clientWidth) {
+        var x = Math.max(0, chip.offsetLeft - (row.clientWidth - chip.offsetWidth) / 2);
+        try { row.scrollTo({ left: x, behavior: 'smooth' }); } catch (e) { row.scrollLeft = x; }
+      }
+    };
+    links.forEach(function (a) {
+      a.addEventListener('click', function () { mark(a.getAttribute('data-cat-link')); });
+    });
+    if ('IntersectionObserver' in window) {
+      /* The section whose top has crossed a thin band just under the sticky bars
+         is the one being read; the band is thin so only one qualifies at a time. */
+      var io = new IntersectionObserver(function (es) {
+        es.forEach(function (e) { if (e.isIntersecting) mark(e.target.getAttribute('data-cat-sec')); });
+      }, { rootMargin: '-130px 0px -60% 0px', threshold: 0 });
+      secs.forEach(function (s) { io.observe(s); });
+    }
+    var m = /[?&]cat=(\d+)/.exec(location.search);
+    var want = m && document.getElementById('cat-' + m[1]);
+    if (want && !location.hash) { mark(m[1]); want.scrollIntoView({ block: 'start' }); }
+  }
+
   /* ── an edition's vote page ──────────────────────────────────────────────── */
   function votePage(root) {
     var pid = root.getAttribute('data-programme'), cats = parseInt(root.getAttribute('data-categories'), 10) || 0;
@@ -77,6 +115,7 @@
     $$('[data-cat-link]').forEach(function (a) {
       var t = $('.vp-done', a); if (t) t.hidden = !b[a.getAttribute('data-cat-link')];
     });
+    sections(root);
     $$('[data-ballot-fill]').forEach(function (f) { f.style.width = pct + '%'; });
     $$('[data-ballot-ratio]').forEach(function (r) { r.textContent = n + '/' + cats; });
     var bar = $('[data-ballot-bar]'); if (bar) bar.setAttribute('aria-valuenow', String(n));
