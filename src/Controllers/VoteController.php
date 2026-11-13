@@ -150,9 +150,34 @@ class VoteController {
             unset($c);
         }
 
+        // ── ALL: THE WHOLE EDITION AS ONE LIST ───────────────────────────────
+        //
+        // The award is decided across the edition (the community half is scored against
+        // the edition's field, never a category's — see EditionScaleTest), so a voter
+        // reading one category at a time never saw the race the prize is actually about.
+        // "All" ranks every nominee by public votes in one list, each row naming its
+        // category. Same RaceService arithmetic, over the edition instead of a category.
+        // It is a list of VOTES, not the overall standing — the judges' half is not in it,
+        // and the page says so under the list. One category has nothing to add: no All.
+        $overall = null;
+        if (count($cats) > 1) {
+            $all = [];
+            foreach ($cats as $c) {
+                foreach ($c['nominees'] as $n) {
+                    $n['category_title'] = (string) ($c['category']['title'] ?? '');
+                    $all[] = $n;
+                }
+            }
+            $ranked  = \AfricaGates\Services\RaceService::annotate($all);
+            $overall = ['nominees' => $ranked, 'headline' => \AfricaGates\Services\RaceService::headline($ranked)];
+        }
+
         $q   = $req->getQueryParams();
         $tab = ($q['tab'] ?? '') === 'about' ? 'about' : 'vote';
         $catId = isset($q['cat']) && ctype_digit((string) $q['cat']) ? (int) $q['cat'] : null;
+        // The view drawn on arrival: a category only when ?cat= names one on this page.
+        $catView = null;
+        foreach ($cats as $c) { if ($catId !== null && (int) $c['category']['id'] === $catId) { $catView = $catId; break; } }
 
         return $this->view->render($res, 'pages/vote-program.twig', [
             'paid_only'        => PaidVoteService::freeVotingDisabled(),
@@ -161,6 +186,8 @@ class VoteController {
             'gates_page'       => 'awards',
             'programme'        => $p,
             'categories'       => $cats,
+            'overall'          => $overall,
+            'cat_view'         => $catView,
             'front'            => \AfricaGates\Services\VoteFront::programme($p, $cats, $catId),
             'tab'              => $tab,
             'breadcrumbs'      => [
@@ -221,7 +248,15 @@ class VoteController {
                     ], $ranked),
                 ];
             }
-            return ['ok' => true, 'at' => date('c'), 'categories' => $out];
+            // The All list ranks across the edition, so its rank and bar are not any one
+            // category's; sent separately so the page patches each list from its own race.
+            $overall = [];
+            if (count($byCat) > 1) {
+                foreach (\AfricaGates\Services\RaceService::annotate(array_merge(...array_values($byCat))) as $n) {
+                    $overall[] = ['id' => (int) $n['id'], 'votes' => (int) $n['vote_count'], 'rank' => (int) $n['rank'], 'gap' => $n['gap'], 'pct' => (int) $n['pct']];
+                }
+            }
+            return ['ok' => true, 'at' => date('c'), 'categories' => $out, 'overall' => $overall];
         });
 
         // CacheService stores and returns ARRAYS (it json_decodes on read), so the

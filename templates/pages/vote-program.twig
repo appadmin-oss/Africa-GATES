@@ -15,11 +15,12 @@
     category chip row at top:52px under them.
   · Desktop: the dark hero band, then categories · race · the sticky ballot rail.
   · Tabs are LINKS (`?tab=about`), so every view has an address and works with no script.
-  · EVERY CATEGORY IS DRAWN, one section after another, each with its nominees. The page used
-    to draw one category at a time (as the DC did), so a voter had to tap each category chip to
-    find out who was in it, and most never saw past the first. The chips and the desktop list
-    now jump to a section (`#cat-{id}`, which works with no script); vote.js marks the chip for
-    the section being read and keeps it in view. An old `?cat=` link still lands on its section.
+  · ALL FIRST. The award is decided across the whole edition, so the first view (and the one
+    drawn without ?cat=) ranks every nominee in the edition by public votes, each row naming
+    its category. The page used to draw one category and nothing else, so a voter had to tap
+    each chip to find out who was in it. The category chips filter to one category; they are
+    links (`?cat={id}`, the base URL for All), so a view has an address and works with no
+    script, and vote.js switches views in place without a reload. One category: no All.
   · Race rows: rank, name, meta, a bar against the LEADER, the live count and the gap to the
     position above (RaceService: ties share a rank, a gap skips ties). The headline banner is
     absent, not empty, when there is no race yet (the destroyed page's rule).
@@ -47,6 +48,46 @@
     <span class="vp-clock__c"><b data-tick-h>{{ '%02d'|format((left % 86400) // 3600) }}</b><span>{{ 'hours'|trans }}</span></span>
     <span class="vp-clock__c"><b data-tick-m>{{ '%02d'|format((left % 3600) // 60) }}</b><span>{{ 'mins'|trans }}</span></span>
   </span>
+{% endmacro %}
+{% macro row(n, open, in_all) %}
+  <li>
+    <a class="vp-row" href="{{ n.url }}" data-nominee="{{ n.id }}">
+      <span class="vp-row__av">{% include 'partials/photo.twig' with {kind: 'person', src: n.photo_path, name: n.name} only %}</span>
+      <span class="vp-row__main">
+        <span class="vp-row__name"><span class="vp-row__rank" data-rank>#{{ n.rank }}</span><span class="vp-row__n">{{ n.name }}</span></span>
+        <span class="vp-row__meta">
+          {{- in_all ? n.category_title : (n.tagline ?: n.organisation) -}}
+          {%- if n.shortlisted|default(false) %} · {{ 'Shortlisted'|trans }}{% endif -%}
+        </span>
+        {% if n.field > 1 %}<span class="vp-row__bar" role="img" aria-label="{{ '%n%% of the leader’s total'|trans({'%n%': n.pct}) }}"><span aria-hidden="true" data-bar style="width:{{ n.pct }}%" class="{{ n.is_leader ? 'is-lead' }}"></span><span class="ag-sr">{{ '%n%% of the leader’s total'|trans({'%n%': n.pct}) }}</span></span>{% endif %}
+        <span class="vp-row__figs vp-row__figs--in">
+          <span class="vp-row__tally"><b data-votes>{{ n.vote_count|number_format }}</b> {{ n.vote_count == 1 ? 'vote'|trans : 'votes'|trans }}</span>
+          {% if n.field > 1 %}<span class="vp-row__gap{{ n.is_leader ? ' is-lead' }}" data-gap>{{ n.is_leader ? 'Leading'|trans : '%n% behind #%r%'|trans({'%n%': n.gap|number_format, '%r%': n.next_rank}) }}</span>{% endif %}
+        </span>
+      </span>
+      <span class="vp-row__figs vp-row__figs--side">
+        <b><span data-votes>{{ n.vote_count|number_format }}</span> {{ n.vote_count == 1 ? 'vote'|trans : 'votes'|trans }}</b>
+        {% if n.field > 1 %}<span class="vp-row__gap{{ n.is_leader ? ' is-lead' }}" data-gap>{{ n.is_leader ? 'Leading'|trans : '%n% behind #%r%'|trans({'%n%': n.gap|number_format, '%r%': n.next_rank}) }}</span>{% endif %}
+      </span>
+      <span class="vp-row__go{{ open ? '' : ' vp-row__go--view' }}" aria-hidden="true">{{ open ? 'Vote'|trans : 'View'|trans }}</span>
+    </a>
+  </li>
+{% endmacro %}
+
+{% macro race(id, title, count, h, open) %}
+  <div class="vp-race__head" data-cat="{{ id }}">
+    <div class="vp-race__row">
+      <h2 class="vp-race__t" id="view-{{ id }}-t">{{ title }}</h2>
+      <span class="vp-race__n">{{ count == 1 ? '1 nominee'|trans : '%n% nominees'|trans({'%n%': count}) }}</span>
+    </div>
+    {% if h %}
+      <span class="vp-race__hl" data-headline>
+        {%- if open %}<span class="vp-race__dot" aria-hidden="true"></span>{% endif -%}
+        {%- if h.lead > 0 %}{{ '%a% leads %b% by %n% votes'|trans({'%a%': h.leader, '%b%': h.chaser, '%n%': h.lead|number_format}) }}
+        {%- else %}{{ 'The leaders are level'|trans }}{% endif -%}
+      </span>
+    {% endif %}
+  </div>
 {% endmacro %}
 {% import _self as m %}
 
@@ -95,19 +136,23 @@
 
   {% if tab == 'vote' %}
   <div class="vp-body">
-    {% if categories|length %}
+    {% set _many = overall is not null %}
+    {% set _view = cat_view ?: (_many ? 'all' : (categories|length ? (categories|first).category.id : null)) %}
+    {% if categories|length > 1 %}
     <nav class="vp-cats" aria-label="{{ 'Categories'|trans }}">
       <span class="vp-cats__k">{{ 'Categories'|trans }}</span>
+      <a class="vp-cats__a" href="{{ _base }}" data-view-link="all"{% if _view == 'all' %} aria-current="true"{% endif %}><span>{{ 'All'|trans }}</span></a>
       {% for c in categories %}
-        <a class="vp-cats__a" href="#cat-{{ c.category.id }}" data-cat-link="{{ c.category.id }}"{% if _cur and c.category.id == _cur.category.id %} aria-current="true"{% endif %}>
+        <a class="vp-cats__a" href="{{ _base }}?cat={{ c.category.id }}" data-cat-link="{{ c.category.id }}" data-view-link="{{ c.category.id }}"{% if _view == c.category.id %} aria-current="true"{% endif %}>
           <span>{{ c.category.title }}</span>
           <svg class="vp-done" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden><path d="m5 12.5 4.5 4.5L19 7"/></svg>
         </a>
       {% endfor %}
     </nav>
     <div class="vp-chips" role="navigation" aria-label="{{ 'Categories'|trans }}">
+      <a class="ag-chip vp-chip" href="{{ _base }}" data-view-link="all"{% if _view == 'all' %} aria-current="true"{% endif %}>{{ 'All'|trans }}</a>
       {% for c in categories %}
-        <a class="ag-chip vp-chip" href="#cat-{{ c.category.id }}" data-cat-link="{{ c.category.id }}"{% if _cur and c.category.id == _cur.category.id %} aria-current="true"{% endif %}>
+        <a class="ag-chip vp-chip" href="{{ _base }}?cat={{ c.category.id }}" data-cat-link="{{ c.category.id }}" data-view-link="{{ c.category.id }}"{% if _view == c.category.id %} aria-current="true"{% endif %}>
           {{ c.category.title }}<svg class="vp-done" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden><path d="m5 12.5 4.5 4.5L19 7"/></svg>
         </a>
       {% endfor %}
@@ -116,47 +161,20 @@
 
     <div class="vp-race-wrap">
       {% if categories|length %}
+      {% if _many %}
+      <section class="vp-view" data-view="all" aria-labelledby="view-all-t"{% if _view != 'all' %} hidden{% endif %}>
+        {{ m.race('all', 'All nominees'|trans, overall.nominees|length, overall.headline, _f.open) }}
+        <p class="vp-note">{{ 'Every category in this edition, ranked by public votes.'|trans }}</p>
+        <ol class="vp-race" data-race="all">
+          {% for n in overall.nominees %}{{ m.row(n, _f.open, true) }}{% endfor %}
+        </ol>
+      </section>
+      {% endif %}
       {% for c in categories %}
-      <section class="vp-catsec" id="cat-{{ c.category.id }}" data-cat-sec="{{ c.category.id }}" aria-labelledby="cat-{{ c.category.id }}-t">
-        {% set _h = c.headline %}
-        <div class="vp-race__head" data-cat="{{ c.category.id }}">
-          <div class="vp-race__row">
-            <h2 class="vp-race__t" id="cat-{{ c.category.id }}-t">{{ c.category.title }}</h2>
-            <span class="vp-race__n">{{ c.nominees|length == 1 ? '1 nominee'|trans : '%n% nominees'|trans({'%n%': c.nominees|length}) }}</span>
-          </div>
-          {% if _h %}
-            <span class="vp-race__hl" data-headline>
-              {%- if _f.open %}<span class="vp-race__dot" aria-hidden="true"></span>{% endif -%}
-              {%- if _h.lead > 0 %}{{ '%a% leads %b% by %n% votes'|trans({'%a%': _h.leader, '%b%': _h.chaser, '%n%': _h.lead|number_format}) }}
-              {%- else %}{{ 'The leaders are level'|trans }}{% endif -%}
-            </span>
-          {% endif %}
-        </div>
+      <section class="vp-view" data-view="{{ c.category.id }}" aria-labelledby="view-{{ c.category.id }}-t"{% if _view != c.category.id %} hidden{% endif %}>
+        {{ m.race(c.category.id, c.category.title, c.nominees|length, c.headline, _f.open) }}
         <ol class="vp-race" data-race="{{ c.category.id }}">
-          {% for n in c.nominees %}
-            <li>
-              <a class="vp-row" href="{{ n.url }}" data-nominee="{{ n.id }}">
-                <span class="vp-row__av">{% include 'partials/photo.twig' with {kind: 'person', src: n.photo_path, name: n.name} only %}</span>
-                <span class="vp-row__main">
-                  <span class="vp-row__name"><span class="vp-row__rank" data-rank>#{{ n.rank }}</span><span class="vp-row__n">{{ n.name }}</span></span>
-                  <span class="vp-row__meta">
-                    {{- n.tagline ?: n.organisation -}}
-                    {%- if n.shortlisted|default(false) %} · {{ 'Shortlisted'|trans }}{% endif -%}
-                  </span>
-                  {% if n.field > 1 %}<span class="vp-row__bar" role="img" aria-label="{{ '%n%% of the leader’s total'|trans({'%n%': n.pct}) }}"><span aria-hidden="true" data-bar style="width:{{ n.pct }}%" class="{{ n.is_leader ? 'is-lead' }}"></span><span class="ag-sr">{{ '%n%% of the leader’s total'|trans({'%n%': n.pct}) }}</span></span>{% endif %}
-                  <span class="vp-row__figs vp-row__figs--in">
-                    <span class="vp-row__tally"><b data-votes>{{ n.vote_count|number_format }}</b> {{ n.vote_count == 1 ? 'vote'|trans : 'votes'|trans }}</span>
-                    {% if n.field > 1 %}<span class="vp-row__gap{{ n.is_leader ? ' is-lead' }}" data-gap>{{ n.is_leader ? 'Leading'|trans : '%n% behind #%r%'|trans({'%n%': n.gap|number_format, '%r%': n.next_rank}) }}</span>{% endif %}
-                  </span>
-                </span>
-                <span class="vp-row__figs vp-row__figs--side">
-                  <b><span data-votes>{{ n.vote_count|number_format }}</span> {{ n.vote_count == 1 ? 'vote'|trans : 'votes'|trans }}</b>
-                  {% if n.field > 1 %}<span class="vp-row__gap{{ n.is_leader ? ' is-lead' }}" data-gap>{{ n.is_leader ? 'Leading'|trans : '%n% behind #%r%'|trans({'%n%': n.gap|number_format, '%r%': n.next_rank}) }}</span>{% endif %}
-                </span>
-                <span class="vp-row__go{{ _f.open ? '' : ' vp-row__go--view' }}" aria-hidden="true">{{ _f.open ? 'Vote'|trans : 'View'|trans }}</span>
-              </a>
-            </li>
-          {% endfor %}
+          {% for n in c.nominees %}{{ m.row(n, _f.open, false) }}{% endfor %}
         </ol>
       </section>
       {% endfor %}

@@ -70,42 +70,39 @@
     }
   }
 
-  /* ── every category on one page ───────────────────────────────────────────
-     The page draws every category's nominees, one section after another; the
-     chips (phone) and the list (desktop) are plain #cat-{id} jumps. This marks
-     the chip for the section being read, scrolls the chip row sideways to keep
-     that chip in sight, and lands an old ?cat= link on its section. */
-  function sections(root) {
-    var secs = $$('[data-cat-sec]', root);
-    if (!secs.length) return;
-    var links = $$('[data-cat-link]', root), row = $('.vp-chips', root), cur = null;
-    var mark = function (id) {
-      if (id === cur) return;
-      cur = id;
+  /* ── All, or one category ─────────────────────────────────────────────────
+     The page draws every view and shows one: All (the whole edition ranked by
+     votes, the race the award is decided on) or a single category. The chips are
+     links (?cat=, or the bare URL for All) so each view has an address and works
+     with no script; here they switch in place, keep the address in step, and keep
+     the chosen chip in sight in the sideways chip row. */
+  function views(root) {
+    var panes = $$('[data-view]', root);
+    if (panes.length < 2) return;
+    var links = $$('[data-view-link]', root), row = $('.vp-chips', root), wrap = $('.vp-race-wrap', root);
+    var show = function (id) {
+      panes.forEach(function (p) { p.hidden = p.getAttribute('data-view') !== id; });
       links.forEach(function (a) {
-        if (a.getAttribute('data-cat-link') === id) a.setAttribute('aria-current', 'true');
+        if (a.getAttribute('data-view-link') === id) a.setAttribute('aria-current', 'true');
         else a.removeAttribute('aria-current');
       });
-      var chip = row && $('[data-cat-link="' + id + '"]', row);
+      var chip = row && $('[data-view-link="' + id + '"]', row);
       if (chip && row.scrollWidth > row.clientWidth) {
         var x = Math.max(0, chip.offsetLeft - (row.clientWidth - chip.offsetWidth) / 2);
         try { row.scrollTo({ left: x, behavior: 'smooth' }); } catch (e) { row.scrollLeft = x; }
       }
+      /* Somebody scrolled down a long list and switched: start the new one at
+         its top rather than somewhere in its middle. */
+      if (wrap && wrap.getBoundingClientRect().top < 0) wrap.scrollIntoView({ block: 'start' });
     };
     links.forEach(function (a) {
-      a.addEventListener('click', function () { mark(a.getAttribute('data-cat-link')); });
+      a.addEventListener('click', function (e) {
+        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        e.preventDefault();
+        show(a.getAttribute('data-view-link'));
+        if (history.replaceState) history.replaceState(history.state, '', a.href);
+      });
     });
-    if ('IntersectionObserver' in window) {
-      /* The section whose top has crossed a thin band just under the sticky bars
-         is the one being read; the band is thin so only one qualifies at a time. */
-      var io = new IntersectionObserver(function (es) {
-        es.forEach(function (e) { if (e.isIntersecting) mark(e.target.getAttribute('data-cat-sec')); });
-      }, { rootMargin: '-130px 0px -60% 0px', threshold: 0 });
-      secs.forEach(function (s) { io.observe(s); });
-    }
-    var m = /[?&]cat=(\d+)/.exec(location.search);
-    var want = m && document.getElementById('cat-' + m[1]);
-    if (want && !location.hash) { mark(m[1]); want.scrollIntoView({ block: 'start' }); }
   }
 
   /* ── an edition's vote page ──────────────────────────────────────────────── */
@@ -115,7 +112,7 @@
     $$('[data-cat-link]').forEach(function (a) {
       var t = $('.vp-done', a); if (t) t.hidden = !b[a.getAttribute('data-cat-link')];
     });
-    sections(root);
+    views(root);
     $$('[data-ballot-fill]').forEach(function (f) { f.style.width = pct + '%'; });
     $$('[data-ballot-ratio]').forEach(function (r) { r.textContent = n + '/' + cats; });
     var bar = $('[data-ballot-bar]'); if (bar) bar.setAttribute('aria-valuenow', String(n));
@@ -148,14 +145,20 @@
         if (document.hidden) return;
         fetch(url, { headers: { Accept: 'application/json' } }).then(function (r) { return r.json(); }).then(function (d) {
           if (!d || !d.ok || !d.categories) return;
-          d.categories.forEach(function (c) {
-            (c.nominees || []).forEach(function (x) {
-              var row = $('[data-nominee="' + x.id + '"]'); if (!row) return;
+          /* A nominee is drawn twice — in All and in their category — with a
+             different rank and bar in each, so each list is patched from its own
+             race and never from the other's. */
+          var patch = function (list, items) {
+            if (!list) return;
+            (items || []).forEach(function (x) {
+              var row = $('[data-nominee="' + x.id + '"]', list); if (!row) return;
               $$('[data-votes]', row).forEach(function (v) { v.textContent = fmt(x.votes); });
               var r = $('[data-rank]', row); if (r) r.textContent = '#' + x.rank;
               var bb = $('[data-bar]', row); if (bb) bb.style.width = x.pct + '%';
             });
-          });
+          };
+          d.categories.forEach(function (c) { patch($('[data-race="' + c.category_id + '"]'), c.nominees); });
+          patch($('[data-race="all"]'), d.overall);
         }).catch(function () {});
       };
       pg.every(poll, 10000);
