@@ -1,0 +1,20 @@
+{#- A volunteer's application is in · Volunteering.
+    Sender: VolunteerController::apply, once the application is stored.
+    Variables: first_name, community_url (Volunteers::communityUrl()), action_url (/volunteer).
+    Only what the code does: the volunteer team reads the application and the referee is asked. -#}
+{% extends 'emails/_layout.html.twig' %}
+{% block category %}Volunteering{% endblock %}
+{% block hero %}illo-shield{% endblock %}
+{% block transactional %}1{% endblock %}
+{% block why %}You applied to volunteer with Africa GATES.{% endblock %}
+{% block subject %}Your volunteer application is in{% endblock %}
+{% block preheader %}Join the volunteers’ WhatsApp community while we read it.{% endblock %}
+{% block body %}
+{%- import 'emails/_blocks.html.twig' as b -%}
+{{ b.h1('Thank you, ' ~ first_name) }}
+{{ b.p('Your application to volunteer is in. The volunteer team reads every one, and we have asked your referee. You will hear from us when it is decided.') }}
+{{ b.h2('Join our volunteers’ community') }}
+{{ b.p('Our volunteers talk on WhatsApp — news, calls for help, and each other. Join now; you do not need to wait for the decision.') }}
+{{ b.button('Join on WhatsApp', community_url) }}
+{{ b.note('Your volunteer workspace shows where your application is: ' ~ action_url) }}
+{% endblock %}

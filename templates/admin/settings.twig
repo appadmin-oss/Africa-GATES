@@ -2220,6 +2220,26 @@
     </div>
   </div></div>
 
+  {# ── THE VOLUNTEERS' COMMUNITY ───────────────────────────────────────────
+     The WhatsApp community link every new volunteer is sent when they apply, and offered on
+     their workspace. Here because invite links get rotated and there is no SSH. #}
+  <div class="ad-card" data-sec="ops"
+       data-keys="volunteer volunteers community whatsapp group invite link chat"
+       x-show="show($el)"><div class="ad-card__head">
+    <div class="ad-card__title">Volunteers’ community<small>The WhatsApp link new volunteers are sent</small></div>
+  </div><div class="ad-card__body">
+    <p>Emailed to everybody who applies to volunteer, and shown on their workspace, so they can join
+      before their application is decided. If you reset the invite link in WhatsApp, paste the new one here.</p>
+    <div class="ad-form">
+      <div>
+        <label for="f-volunteer_community_url">Community link</label>
+        <input type="url" name="volunteer_community_url" id="f-volunteer_community_url" value="{{ volunteer_community_url }}"
+               autocomplete="off" spellcheck="false">
+        <small>An https:// link. Leave blank to use the built-in one.</small>
+      </div>
+    </div>
+  </div></div>
+
   {# ── THE PERSON DIRECTORY ────────────────────────────────────────────────
      One record per human across the estate's five apps. This platform PUSHES its account
      list to CACENTRE; CACENTRE reads no database of ours. Settable here because there is no

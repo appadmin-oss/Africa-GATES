@@ -107,6 +107,7 @@ final class WorkspacePages
                                          'cta' => ['label' => 'See tasks', 'href' => '/volunteer/tasks/library']];
 
         $side[] = self::guideCard();
+        $side[] = self::communityCard();
         return ['title' => 'Today', 'purpose' => self::homeLine($v, $lv), 'acts' => self::homeActs($v), 'secs' => $secs, 'side' => $side];
     }
 
@@ -128,6 +129,14 @@ final class WorkspacePages
      * equal buttons beside the title competed with the one thing Today is for, and "how to
      * use this" is a reference, not an action.
      */
+    /** The volunteers' WhatsApp community: offered from the day somebody applies. */
+    private static function communityCard(): array
+    {
+        return ['k' => 'note', 'h' => 'Join the volunteers’ community', 'tone' => 'info',
+                'text' => 'Our volunteers talk on WhatsApp: news, calls for help and each other. Join from your phone.',
+                'cta' => ['label' => 'Join on WhatsApp', 'href' => Volunteers::communityUrl()]];
+    }
+
     private static function guideCard(): array
     {
         return ['k' => 'note', 'h' => 'New here?', 'tone' => 'info', 'text' => 'The academy shows every step, with pictures.',
@@ -160,7 +169,7 @@ final class WorkspacePages
         }
         $secs[] = ['k' => 'note', 'text' => 'Do the training now and you can start the day you’re approved.', 'tone' => 'ok',
                    'cta' => ['label' => 'Start training', 'href' => '/volunteer/training']];
-        return ['title' => 'Application', 'acts' => [['label' => 'How to use this portal', 'href' => Workspace::GUIDE['href']]], 'purpose' => $asked ? 'Your application is with us. It moves on when your reference replies.' : 'Your application is with the volunteer team.', 'secs' => $secs];
+        return ['title' => 'Application', 'acts' => [['label' => 'How to use this portal', 'href' => Workspace::GUIDE['href']]], 'purpose' => $asked ? 'Your application is with us. It moves on when your reference replies.' : 'Your application is with the volunteer team.', 'secs' => $secs, 'side' => [self::communityCard()]];
     }
 
     private static function gettingStarted(object $v): array
@@ -181,7 +190,7 @@ final class WorkspacePages
         $secs[] = $rows ? ['k' => 'rows', 'h' => 'Good first tasks', 'items' => $rows]
                         : ['k' => 'note', 'text' => 'No tasks are open right now. We tell you when one is posted.', 'tone' => 'mute'];
         $secs[] = ['k' => 'note', 'text' => 'Nothing is expected of you until you pick something. Hours count from your first accepted task.', 'tone' => 'mute'];
-        return ['title' => 'Today', 'purpose' => 'Two steps to your first task. Most people finish in a day.', 'acts' => self::homeActs($v), 'secs' => $secs, 'side' => [self::guideCard()]];
+        return ['title' => 'Today', 'purpose' => 'Two steps to your first task. Most people finish in a day.', 'acts' => self::homeActs($v), 'secs' => $secs, 'side' => [self::guideCard(), self::communityCard()]];
     }
 
 

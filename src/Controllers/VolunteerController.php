@@ -300,7 +300,19 @@ final class VolunteerController
                 'interests', 'skills', 'languages', 'tshirt', 'experience', 'motivation', 'emergency_name', 'emergency_phone', 'access_needs', 'ref_name', 'ref_contact', 'ref_relation', 'heard_from']));
             return $this->to($res, '/volunteer/apply');
         }
-        $_SESSION['vol_toast'] = 'Thank you. Your application is in; we’ve asked your referee.';
+        // The confirmation, with the volunteers' WhatsApp community (owner, 13 Nov 2026). A
+        // mail that fails costs nothing but the mail: the application is in either way, and the
+        // workspace offers the same link.
+        try {
+            \AfricaGates\Services\Mail\Emails::send($this->mailer ?? \AfricaGates\Services\OtpService::boot(), (string) $user->email, 'volunteer-applied', [
+                'first_name' => trim((string) strtok(trim((string) ($user->name ?? '')), ' ')) ?: 'there',
+                'community_url' => Volunteers::communityUrl(),
+                'action_url' => rtrim(\AfricaGates\Support\SiteUrl::base(), '/') . '/volunteer',
+            ]);
+        } catch (\Throwable $e) {
+            error_log('[volunteer] application mail failed: ' . $e->getMessage());
+        }
+        $_SESSION['vol_toast'] = 'Thank you. Your application is in; we’ve asked your referee. Join the volunteers’ WhatsApp community while you wait.';
         return $this->to($res, '/volunteer');
     }
 

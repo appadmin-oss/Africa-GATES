@@ -25,6 +25,33 @@ final class Volunteers
 {
     public const CONDUCT_VERSION = '3';
 
+    /**
+     * The volunteers' WhatsApp community (owner, 13 Nov 2026), offered in the email sent when
+     * somebody applies and on their workspace. A default rather than only a setting so it works
+     * the day it ships; `volunteer_community_url` in Settings replaces it, and an empty saved
+     * value is read as "use the default" — the invite link is the thing staff will rotate.
+     * The tracking query WhatsApp's share sheet adds (?s=…&p=…&iam=…) is left off.
+     */
+    public const COMMUNITY_DEFAULT = 'https://chat.whatsapp.com/CQyjtaLB7RhLY6q5xAZzkc';
+
+    /** The one resolver for the community link. Never empty. */
+    public static function communityUrl(): string
+    {
+        try {
+            $v = trim((string) DB::table('gates_settings')->where('key_name', 'volunteer_community_url')->value('value'));
+        } catch (\Throwable) {
+            $v = '';
+        }
+        return self::validCommunityUrl($v) ? $v : self::COMMUNITY_DEFAULT;
+    }
+
+    /** An https link to a real host, nothing else — it is put in an email and on a button. */
+    public static function validCommunityUrl(string $url): bool
+    {
+        $p = $url !== '' ? parse_url($url) : false;
+        return is_array($p) && strtolower((string) ($p['scheme'] ?? '')) === 'https' && !empty($p['host']) && empty($p['user']);
+    }
+
     /** Roles an applicant can say they are interested in, with what each involves. */
     public const INTERESTS = [
         'drive'   => 'Voter drives',

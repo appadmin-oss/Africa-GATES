@@ -350,6 +350,7 @@ class SettingsController
             'gas_secret_set' => \AfricaGates\Services\GoogleMeetService::gasSecret() !== '',
             // The CACENTRE CRM: where this platform's subscribers and enquiries are sent. Read
             // through the one resolver; the secret is write-only like every other credential.
+            'volunteer_community_url' => \AfricaGates\Services\Volunteer\Volunteers::communityUrl(),
             'crm_url'        => \AfricaGates\Services\CrmAudiencePush::base(),
             'crm_secret_set' => \AfricaGates\Services\CrmAudiencePush::ready(),
             'crm_last'       => \AfricaGates\Services\CrmAudiencePush::lastResult(),
@@ -1085,6 +1086,18 @@ class SettingsController
         // Marker-gated like the rest, and the secret write-only: a blank field keeps it.
         if (($why = $this->saveCrm($b, $adminId)) !== null) {
             $_SESSION['flash_error'] = $why;
+        }
+
+        // The volunteers' WhatsApp community: the link in the application email and on the
+        // workspace. Blank means the built-in default (Volunteers::COMMUNITY_DEFAULT); anything
+        // that is not an https link is refused rather than mailed to every applicant.
+        if (array_key_exists('volunteer_community_url', $b)) {
+            $url = trim((string) $b['volunteer_community_url']);
+            if ($url === '' || \AfricaGates\Services\Volunteer\Volunteers::validCommunityUrl($url)) {
+                $this->settings->set('volunteer_community_url', $url, $adminId);
+            } else {
+                $_SESSION['flash_error'] = 'The volunteers’ community link was not saved — it has to be an https:// link, such as a WhatsApp invite. Everything else was saved.';
+            }
         }
 
         // Messaging (SMS / WhatsApp) — Twilio + WhatsApp Business Cloud API.
