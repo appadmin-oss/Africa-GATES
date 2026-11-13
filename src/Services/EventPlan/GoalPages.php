@@ -100,6 +100,7 @@ final class GoalPages
         if ($c->tier !== 'large') return Plan::may($memberId, $eventId, 'plan.edit');
         if ((int) $c->proposed_by === $memberId) return false;
         if (Teams::isOwner($memberId, $eventId)) return true;
+        if ($c->kind === 'finance') return false;   // who approves the money: an owner only
         $money = ($c->subject_kind === 'goal' && \Illuminate\Database\Capsule\Manager::table('gates_event_goals')->where('id', (int) $c->subject_id)->value('metric') === 'revenue')
               || ($c->subject_kind === 'gate' && \Illuminate\Database\Capsule\Manager::table('gates_event_gates')->where('id', (int) $c->subject_id)->value('approver') === 'owner');
         return $money && \AfricaGates\Services\Grants::allows(Plan::ACTOR, $memberId, 'event.finance', 'event', $eventId);

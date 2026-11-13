@@ -161,39 +161,72 @@ final class EventFinanceAdminTest extends TestCase
         return [isset($_SESSION['lead_error']), (string) ($_SESSION['lead_error'] ?? $_SESSION['lead_toast'] ?? '')];
     }
 
-    /** Owner, 13 Nov 2026: the LEAD names the finance admin too — never themselves or another lead. */
-    public function test_the_lead_names_the_finance_admin_and_can_end_it(): void
+    /** Owner, 13 Nov 2026: the LEAD asks for the finance admin, and an OWNER approves it. */
+    public function test_the_lead_asks_and_only_an_owner_approves(): void
     {
+        $owner = $this->member('Olu Owner');
+        Grants::grant('member', $owner, 'event.own', 'event', $this->ev, date('Y-m-d', strtotime('+60 days')), 1);
         $email = (string) DB::table('gates_users')->where('id', $this->fin)->value('email');
-        [$refused, $msg] = $this->leadPost($this->lead, ['do' => 'finance_give', 'event' => $this->ev, 'email' => $email]);
+
+        [$refused] = $this->leadPost($this->lead, ['do' => 'finance_give', 'event' => $this->ev, 'email' => $email]);
+        $this->assertTrue($refused, 'a reason is needed: the owner reads it first');
+        [$refused, $msg] = $this->leadPost($this->lead, ['do' => 'finance_give', 'event' => $this->ev, 'email' => $email, 'reason' => 'Keeps our books']);
         $this->assertFalse($refused, $msg);
-        $this->assertTrue(Grants::allows('member', $this->fin, 'event.finance', 'event', $this->ev));
+        $this->assertFalse(Grants::allows('member', $this->fin, 'event.finance', 'event', $this->ev), 'nothing until an owner approves');
+
+        // The lead sees it waiting, on their own team page.
+        $page = (string) json_encode(EventPages::page(['id' => $this->lead, 'name' => 'Tunde Akin'], Plan::event($this->ev), 'people', 'volunteers', []));
+        $this->assertStringContainsString('Waiting for an owner', $page);
+
+        $change = (int) DB::table('gates_event_changes')->where('event_id', $this->ev)->where('kind', 'finance')->value('id');
+        [$refused] = $this->leadPost($this->lead, ['do' => 'change_decide', 'change' => $change, 'verdict' => 'approve']);
+        $this->assertTrue($refused, 'the lead cannot approve their own ask');
+        $this->assertFalse(Grants::allows('member', $this->fin, 'event.finance', 'event', $this->ev));
+
+        // The owner — not a lead — sees it with its button on Rules › Changes.
+        $ownerView = (string) json_encode(EventPages::page(['id' => $owner, 'name' => 'Olu Owner'], Plan::event($this->ev), 'rules', 'changes', []));
+        $this->assertStringContainsString('change_decide', $ownerView);
+        [$refused, $msg] = $this->leadPost($owner, ['do' => 'change_decide', 'change' => $change, 'verdict' => 'approve']);
+        $this->assertFalse($refused, $msg);
+        $this->assertTrue(Grants::allows('member', $this->fin, 'event.finance', 'event', $this->ev), 'the owner\'s approval gives it');
+
         $grant = (int) Leads::finance($this->ev)[0]->id;
-
-        // The form is on the lead's own team page, with the person listed.
-        $page = json_encode(EventPages::page(['id' => $this->lead, 'name' => 'Tunde Akin'], Plan::event($this->ev), 'people', 'volunteers', []));
-        $this->assertStringContainsString('finance_give', (string) $page);
-
         [$refused, $msg] = $this->leadPost($this->lead, ['do' => 'finance_end', 'event' => $this->ev, 'grant' => $grant]);
         $this->assertFalse($refused, $msg);
         $this->assertFalse(Grants::allows('member', $this->fin, 'event.finance', 'event', $this->ev));
     }
 
+    /** With no owner, staff decide it — and a lead's ask cannot lapse into a grant. */
+    public function test_with_no_owner_staff_decide_and_nothing_lapses(): void
+    {
+        $email = (string) DB::table('gates_users')->where('id', $this->fin)->value('email');
+        $r = \AfricaGates\Services\EventPlan\Changes::proposeFinance($this->ev, $email, '', 'Keeps our books', $this->lead);
+        $this->assertTrue($r['ok']);
+        $this->assertStringContainsString('staff', $r['msg']);
+        DB::table('gates_event_changes')->where('id', $r['id'])->update(['lapse_at' => date('Y-m-d H:i:s', time() - 60)]);
+        \AfricaGates\Services\EventPlan\Changes::lapse($this->ev, true);
+        $this->assertFalse(Grants::allows('member', $this->fin, 'event.finance', 'event', $this->ev), 'a large change never lapses');
+        $d = \AfricaGates\Services\EventPlan\Changes::decide((int) $r['id'], 0, 'approve', '', true);
+        $this->assertTrue($d['ok'], (string) ($d['error'] ?? ''));
+        $this->assertTrue(Grants::allows('member', $this->fin, 'event.finance', 'event', $this->ev));
+    }
+
     public function test_the_lead_cannot_approve_their_own_money(): void
     {
         $mine = (string) DB::table('gates_users')->where('id', $this->lead)->value('email');
-        [$refused] = $this->leadPost($this->lead, ['do' => 'finance_give', 'event' => $this->ev, 'email' => strtoupper($mine)]);
+        [$refused] = $this->leadPost($this->lead, ['do' => 'finance_give', 'event' => $this->ev, 'email' => strtoupper($mine), 'reason' => 'x']);
         $this->assertTrue($refused, 'not to themselves');
 
         $other = $this->member('Second Lead');
         Grants::grant('member', $other, 'event.lead', 'event', $this->ev, date('Y-m-d', strtotime('+60 days')), 1);
-        [$refused] = $this->leadPost($this->lead, ['do' => 'finance_give', 'event' => $this->ev,
+        [$refused] = $this->leadPost($this->lead, ['do' => 'finance_give', 'event' => $this->ev, 'reason' => 'x',
             'email' => (string) DB::table('gates_users')->where('id', $other)->value('email')]);
         $this->assertTrue($refused, 'not to another lead of the same event');
         $this->assertSame([], Leads::finance($this->ev));
+        $this->assertSame(0, DB::table('gates_event_changes')->where('kind', 'finance')->count(), 'and nothing was even asked');
 
         // And a volunteer at the event, or anybody else, cannot hand it out at all.
-        [$refused] = $this->leadPost($this->fin, ['do' => 'finance_give', 'event' => $this->ev, 'email' => 'someone@example.test']);
+        [$refused] = $this->leadPost($this->fin, ['do' => 'finance_give', 'event' => $this->ev, 'email' => 'someone@example.test', 'reason' => 'x']);
         $this->assertTrue($refused, 'only a lead of this event');
     }
 }

@@ -304,27 +304,22 @@ final class LeadController
                 if (!$r['ok']) return $r;
                 return $r + ['event' => $event, 'msg' => (!empty($r['granted']) ? 'They were already an approved volunteer, so the role is theirs now.' : 'Invitation sent. It is waiting ' . \AfricaGates\Services\RoleInvites::reason((string) ($b['email'] ?? ''), $cap) . ', and switches on by itself after that. It is listed below until then.') . $mail($r)];
             case 'finance_give':
-                // ── THE EVENT'S FINANCE ADMIN, GIVEN BY ITS LEAD ─────────────────────
-                // Staff gave this alone until the owner asked for the lead to be able to,
-                // because the lead is the one who knows who on the team keeps the books. What
-                // keeps it a CHECK and not a rubber stamp is who may hold it: never the lead
-                // giving it, and never anybody who leads or owns this event — the person who
-                // asks for money is never the person who approves it. Recorded in the event's
-                // audit like every lead act, and staff can end it from the console.
+                // ── THE EVENT'S FINANCE ADMIN: THE LEAD ASKS, AN OWNER APPROVES ───────
+                // Owner, 13 Nov 2026: the lead knows who on the team keeps the books, but who
+                // approves the money is the owner's to agree. So this files a request in the
+                // event's change queue (Changes::proposeFinance) and grants nothing; the
+                // owner's approval gives it. Never the lead asking, never anybody who leads or
+                // owns this event — whoever asks for money is never who approves it.
                 $email = strtolower(trim((string) ($b['email'] ?? '')));
                 $mine = strtolower(trim((string) \Illuminate\Database\Capsule\Manager::table('gates_users')->where('id', $me['id'])->value('email')));
                 if ($email === $mine) {
-                    return ['ok' => false, 'error' => 'You lead this event, so its money is approved by somebody else. Give it to another person.'];
+                    return ['ok' => false, 'error' => 'You lead this event, so its money is approved by somebody else. Ask for another person.'];
                 }
                 $u = \Illuminate\Database\Capsule\Manager::table('gates_users')->whereRaw('LOWER(email) = ?', [$email])->first(['id']);
                 if ($u && (Plan::isLead((int) $u->id, $event) || Teams::isOwner((int) $u->id, $event))) {
                     return ['ok' => false, 'error' => 'They lead or own this event, and whoever asks for money here is never the one who approves it. Choose somebody else.'];
                 }
-                $r = \AfricaGates\Services\RoleInvites::offer($email, 'event.finance', $event, (string) ($b['until'] ?? ''), $by);
-                if (!$r['ok']) return $r;
-                return $r + ['event' => $event, 'msg' => (!empty($r['granted'])
-                    ? 'Done. They are this event’s finance admin now: spend requests over your limit go to them.'
-                    : 'Invitation sent. It is waiting ' . \AfricaGates\Services\RoleInvites::reason($email, 'event.finance') . ', then switches on by itself.') . $mail($r)];
+                return \AfricaGates\Services\EventPlan\Changes::proposeFinance($event, $email, (string) ($b['until'] ?? ''), (string) ($b['reason'] ?? ''), $me['id']);
             case 'finance_end':
                 return \AfricaGates\Services\EventPlan\Leads::end((int) ($b['grant'] ?? 0), $event, 0, 'event.finance')
                     ? ['ok' => true, 'event' => $event, 'msg' => 'Ended. Spend requests over your limit go to the platform’s finance team again.']

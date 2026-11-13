@@ -700,9 +700,9 @@ final class EventPages
      *     roster is not theirs to browse;
      *   · end a role, and withdraw an invitation still waiting.
      *
-     * Leads cannot make leads: leading moves money, and that stays staff's to give. They CAN name
-     * the event's finance admin (owner's ask, 13 Nov 2026) — never themselves or another lead or
-     * owner, so the one asking for money is never the one approving it. Every one of
+     * Leads cannot make leads: leading moves money, and that stays staff's to give. They can ASK
+     * for the event's finance admin (owner, 13 Nov 2026), and an owner approves it — never
+     * themselves or another lead or owner, so the one asking for money is never the one approving it. Every one of
      * these is re-checked against the lead's grant on THIS event in LeadController::recruit.
      *
      * @return list<array<string,mixed>>
@@ -745,9 +745,14 @@ final class EventPages
         }
         $secs[] = $finItems !== [] ? ['k' => 'rows', 'h' => 'Finance admin', 'items' => $finItems]
             : ['k' => 'note', 'tone' => 'mute', 'text' => 'Finance admin: nobody yet. Until there is one, spend requests over your limit go to the platform’s finance team.'];
-        $secs[] = ['k' => 'form', 'h' => 'Give finance access', 'fold' => $fin !== [], 'foldHint' => 'Who approves this event’s money', 'do' => 'finance_give', 'hidden' => ['event' => $id], 'submit' => 'Make them finance admin', 'groups' => [
-            ['label' => 'Who', 'help' => 'A volunteer or anybody else, by their email. They decide spend requests over your limit, approve spend lines, sign off money milestones and see what votes and tickets earned. They can’t be you or anybody who leads or owns this event.',
-             'fields' => [['name' => 'email', 'label' => 'Their email', 'type' => 'email', 'required' => true]]],
+        foreach (Changes::pending($id) as $c) {
+            if ($c->kind !== 'finance') continue;
+            $secs[] = ['k' => 'note', 'tone' => 'info', 'text' => 'Waiting for an owner: ' . $c->summary . '.'];
+        }
+        $secs[] = ['k' => 'form', 'h' => 'Ask for a finance admin', 'fold' => $fin !== [], 'foldHint' => 'An owner approves it', 'do' => 'finance_give', 'hidden' => ['event' => $id], 'submit' => 'Ask the owner', 'groups' => [
+            ['label' => 'Who', 'help' => 'A volunteer or anybody else, by their email. Once an owner of this event approves, they decide spend requests over your limit, approve spend lines, sign off money milestones and see what votes and tickets earned. They can’t be you or anybody who leads or owns this event.',
+             'fields' => [['name' => 'email', 'label' => 'Their email', 'type' => 'email', 'required' => true],
+                          ['name' => 'reason', 'label' => 'Why them', 'required' => true, 'placeholder' => 'Keeps our books; did the same for the gala']]],
             ['label' => 'Until', 'fields' => [['name' => 'until', 'label' => 'Ends', 'type' => 'date', 'value' => $until]]],
         ]];
         if (count($held) > 1) {

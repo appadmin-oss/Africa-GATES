@@ -213,6 +213,10 @@ final class EventPermissions
         if (($st['finance'] ?? false) && in_array($do, ['request_act', 'gate_sign', 'change_decide'], true)) return true;
         if ($st['lead'] && in_array($do, self::LEAD_ACTS, true)) return true;
         if ($st['owner'] && in_array($do, self::OWNER_ACTS, true)) return true;
+        // An owner decides the LARGE changes — a goal's target, and who approves the money
+        // (Changes::decide holds who may decide which). Not in OWNER_ACTS: a lead's plan.edit
+        // reaches the same button for the small and medium ones, and that list is owner-only.
+        if ($st['owner'] && $do === 'change_decide') return true;
         if ($st['teamLeadOf'] && in_array($do, self::TEAM_LEAD_ACTS, true)) return true;
         $p = self::permFor($do);
         return $p !== null && in_array($p, $st['perms'], true);

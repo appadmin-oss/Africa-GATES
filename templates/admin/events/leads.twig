@@ -73,6 +73,17 @@
 <section class="cn-card vl-sec" aria-labelledby="fh">
   <h2 class="vl-h" id="fh">Finance admin</h2>
   <p class="vl-help">Decides this event’s spend requests — anything over the lead’s limit comes to them instead of the platform’s finance team — approves its spend lines and signs off its money gates. They never plan spend themselves, so whoever asks for money is never the one who approves it.</p>
+  {% for c in finance_asks|default([]) %}
+    <div class="vl-ask">
+      <p><strong>Asked by the lead:</strong> {{ c.summary }}{% if c.reason %} — “{{ c.reason }}”{% endif %}. An owner of the event normally decides this; with no owner, it is yours.</p>
+      <form class="vl-form" method="post" action="/admin/events/{{ event.id }}/leads">
+        <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="do" value="finance_decide"><input type="hidden" name="change" value="{{ c.id }}">
+        <label for="fv{{ c.id }}">Decision<select id="fv{{ c.id }}" name="verdict"><option value="approve">Approve</option><option value="reject">Reject</option></select></label>
+        <label for="fn{{ c.id }}">Why (needed to reject)<input id="fn{{ c.id }}" name="note" autocomplete="off"></label>
+        <p class="vl-acts vl-wide"><button class="cn-btn cn-btn--primary" type="submit">Decide</button></p>
+      </form>
+    </div>
+  {% endfor %}
   {% if finance is empty %}
     {{ kit.empty('No finance admin yet', 'Until there is one, this event’s spend requests go to the platform’s finance team.', 'users') }}
   {% else %}

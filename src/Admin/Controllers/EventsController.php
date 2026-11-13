@@ -1182,7 +1182,8 @@ class EventsController
         return $this->view->render($res, 'admin/events/leads.twig', [
             'admin_page' => 'events', 'topbar_title' => 'Leads and volunteers', 'event' => $event,
             'leads' => \AfricaGates\Services\EventPlan\Leads::of((int) $event->id), 'flash_ok' => $ok, 'flash_error' => $err,
-            'owners' => \AfricaGates\Services\EventPlan\Teams::owners((int) $event->id), 'finance' => \AfricaGates\Services\EventPlan\Leads::finance((int) $event->id), 'team' => $this->teamView((int) $event->id),
+            'owners' => \AfricaGates\Services\EventPlan\Teams::owners((int) $event->id), 'finance' => \AfricaGates\Services\EventPlan\Leads::finance((int) $event->id),
+            'finance_asks' => array_values(array_filter(\AfricaGates\Services\EventPlan\Changes::pending((int) $event->id), static fn ($c) => $c->kind === 'finance')), 'team' => $this->teamView((int) $event->id),
             'invites' => \AfricaGates\Services\RoleInvites::waiting((int) $event->id),
             'awards' => \AfricaGates\Services\EventInvites::programmesFor((int) $event->id),
             'may_staff' => $mayStaff, 'crew' => $this->crew((int) $event->id),
@@ -1372,6 +1373,16 @@ class EventsController
                 $this->audit->record($adminId, 'event.finance.end', 'event', $id, ['grant' => $grant]);
             } else {
                 $_SESSION['flash_error'] = 'That access had already ended.';
+            }
+        } elseif ($do === 'finance_decide') {
+            // A lead's request for a finance admin. An owner normally decides it in the lead
+            // portal; staff decide it here, and must for an event with no owner.
+            $r = \AfricaGates\Services\EventPlan\Changes::decide((int) ($b['change'] ?? 0), 0, (string) ($b['verdict'] ?? ''), (string) ($b['note'] ?? ''), true);
+            if ($r['ok']) {
+                $_SESSION['flash_ok'] = (string) $r['msg'];
+                $this->audit->record($adminId, 'event.finance.decide', 'event', $id, ['change' => (int) ($b['change'] ?? 0), 'verdict' => (string) ($b['verdict'] ?? '')]);
+            } else {
+                $_SESSION['flash_error'] = (string) $r['error'];
             }
         } elseif ($do === 'owner_end') {
             $grant = (int) ($b['grant'] ?? 0);

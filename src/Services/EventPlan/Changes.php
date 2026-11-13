@@ -78,6 +78,35 @@ final class Changes
         }];
     }
 
+    /**
+     * A lead asks for somebody to become the event's FINANCE ADMIN (owner, 13 Nov 2026:
+     * "requires event owner approval"). LARGE, so an owner decides — never the lead who asked,
+     * and never the event's current finance admin, who would be approving their own colleague's
+     * hold on the money. With no owner, staff decide it on the event's leads page.
+     * Nothing is granted until it is approved; then {@see apply()} gives it as an invitation.
+     */
+    public static function proposeFinance(int $eventId, string $email, string $until, string $reason, int $memberId): array
+    {
+        if (!self::ready()) return ['ok' => false, 'error' => 'The database needs its latest update first.'];
+        if (!Plan::isLead($memberId, $eventId)) return ['ok' => false, 'error' => 'Only a lead of this event can ask for that.'];
+        $email = strtolower(trim($email));
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) return ['ok' => false, 'error' => 'Type their email address.'];
+        $reason = trim($reason);
+        if ($reason === '') return ['ok' => false, 'error' => 'Say why them: an owner decides this, and reads the reason first.'];
+        $waiting = DB::table('gates_event_changes')->where('event_id', $eventId)->where('kind', 'finance')->where('status', 'pending')->get(['payload']);
+        foreach ($waiting as $w) {
+            if ((json_decode((string) $w->payload, true)['email'] ?? '') === $email) return ['ok' => false, 'error' => 'That is already waiting for an owner.'];
+        }
+        $until = preg_match('/^\d{4}-\d{2}-\d{2}$/', trim($until)) ? trim($until) : '';
+        $id = (int) DB::table('gates_event_changes')->insertGetId(['event_id' => $eventId, 'kind' => 'finance', 'tier' => 'large', 'subject_kind' => 'event',
+            'subject_id' => $eventId, 'payload' => json_encode(['email' => $email, 'until' => $until]),
+            'summary' => mb_substr('Make ' . $email . ' the event’s finance admin' . ($until !== '' ? ' until ' . Goals::day($until) : ''), 0, 255),
+            'reason' => mb_substr($reason, 0, 255), 'status' => 'pending', 'proposed_by' => $memberId, 'created_at' => date('Y-m-d H:i:s')]);
+        return ['ok' => true, 'id' => $id, 'event' => $eventId, 'msg' => 'Asked. ' . (Teams::owners($eventId)
+            ? 'An owner of this event approves it; nothing changes until they do.'
+            : 'This event has no owner yet, so the platform’s staff approve it.')];
+    }
+
     private static function normalise(string $col, string $v): int|string|null
     {
         $v = trim($v);
@@ -109,7 +138,10 @@ final class Changes
         if (!$c || $c->status !== 'pending') return ['ok' => false, 'error' => 'That change has already been decided.'];
         $eventId = (int) $c->event_id;
         if (!$admin) {
-            if ($c->tier === 'large') {
+            if ($c->kind === 'finance') {
+                if (!Teams::isOwner($memberId, $eventId)) return ['ok' => false, 'error' => 'An owner of this event decides who approves its money.'];
+                if ((int) $c->proposed_by === $memberId) return ['ok' => false, 'error' => 'You asked for it, so another owner or the platform’s staff decides it.'];
+            } elseif ($c->tier === 'large') {
                 // A change to money — a revenue goal's target, a money gate's date — may also be the finance admin's.
                 $money = ($c->subject_kind === 'goal' && DB::table('gates_event_goals')->where('id', (int) $c->subject_id)->value('metric') === 'revenue')
                       || ($c->subject_kind === 'gate' && DB::table('gates_event_gates')->where('id', (int) $c->subject_id)->value('approver') === 'owner');
@@ -128,6 +160,23 @@ final class Changes
             return ['ok' => true, 'event' => $eventId, 'msg' => 'Not changed. They see your reason.'];
         }
         if ($verdict !== 'approve') return ['ok' => false, 'error' => 'Approve or reject it.'];
+        if ($c->kind === 'finance') {
+            // Grant first, then mark it approved: a grant the role system refused (an inactive
+            // account, somebody who now leads this event) must leave the request waiting with
+            // the reason, not recorded as done.
+            $p = json_decode((string) $c->payload, true) ?: [];
+            $u = DB::table('gates_users')->whereRaw('LOWER(email) = ?', [(string) ($p['email'] ?? '')])->first(['id']);
+            if ($u && (Plan::isLead((int) $u->id, $eventId) || Teams::isOwner((int) $u->id, $eventId))) {
+                return ['ok' => false, 'error' => 'They lead or own this event now, so they cannot approve its money. Reject it with that reason.'];
+            }
+            $r = \AfricaGates\Services\RoleInvites::offer((string) ($p['email'] ?? ''), 'event.finance', $eventId, (string) ($p['until'] ?? ''),
+                ['kind' => $admin ? 'admin' : Plan::ACTOR, 'id' => $memberId, 'name' => Plan::name(Plan::ACTOR, (int) $c->proposed_by) ?: 'the event lead']);
+            if (!$r['ok']) return $r;
+            DB::table('gates_event_changes')->where('id', $changeId)->where('status', 'pending')->update(['status' => 'approved', 'decided_by' => $memberId ?: null,
+                'decided_at' => date('Y-m-d H:i:s'), 'decided_note' => $note !== '' ? mb_substr($note, 0, 255) : null]);
+            return ['ok' => true, 'event' => $eventId, 'msg' => !empty($r['granted']) ? 'Approved. They are the event’s finance admin now.'
+                : 'Approved. Their invitation is sent and switches on once ' . \AfricaGates\Services\RoleInvites::reason((string) ($p['email'] ?? ''), 'event.finance') . '.'];
+        }
         self::apply($changeId, $memberId, 'approved', $note);
         return ['ok' => true, 'event' => $eventId, 'msg' => 'Approved and applied.'];
     }
@@ -140,6 +189,7 @@ final class Changes
         $n = DB::table('gates_event_changes')->where('id', $changeId)->where('status', 'pending')->update(['status' => $status, 'decided_by' => $by ?: null,
             'decided_at' => date('Y-m-d H:i:s'), 'decided_note' => $note !== '' ? mb_substr($note, 0, 255) : null]);
         if ($n === 0) return false;
+        if (!isset(self::KINDS[(string) $c->kind])) return true;   // 'finance' is granted in decide(), never by lapse
         [$sk, $col] = self::KINDS[(string) $c->kind];
         $value = json_decode((string) $c->payload, true)['value'] ?? null;
         $set = [$col => $value];
