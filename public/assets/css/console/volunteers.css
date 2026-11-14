@@ -27,3 +27,9 @@
 .vl-li:first-child { border-top: 0; }
 .vl-li__t { font-weight: 600; color: var(--cn-ink); }
 .vl-li form { margin-left: auto; }
+/* One person's take on a task: their progress and the accept form, kept together. */
+.vl-take { display: flex; flex-direction: column; gap: 2px; padding: 4px 0; border-bottom: 1px solid var(--cn-line-row); }
+.vl-take:last-child { border-bottom: 0; }
+/* Changing or closing a task is folded away under its name until somebody asks for it. */
+.vl-edit { margin-top: 6px; font-size: var(--cn-fs-13); }
+.vl-edit summary { cursor: pointer; color: var(--cn-ink-2); }

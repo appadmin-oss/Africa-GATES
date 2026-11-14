@@ -140,6 +140,10 @@ a.sh7-row__t:hover { text-decoration: underline; }
 /* A row's title is a link a thumb has to hit: padded to the 24px floor (WCAG 2.5.8) without moving the line. */
 a.sh7-row__t { display: inline-block; padding-block: 4px; margin-block: -4px; }
 .sh7-row__sub { font-size: var(--cn-fs-13); color: var(--cn-ink-3); line-height: 1.45; }
+/* What to do, as staff wrote it: the task's own words, line breaks kept, under its one-line summary. */
+.sh7-row__body { font-size: var(--cn-fs-13-5); color: var(--cn-ink-2); line-height: 1.5; white-space: pre-line; overflow-wrap: anywhere; }
+/* A row with a second action (Hand it in, then Drop): side by side, wrapping on a phone. */
+.sh7-row__cta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .sh7-row__time { font-family: var(--cn-mono); font-size: var(--cn-fs-12-5); color: var(--cn-soft); }
 .sh7-row__chev { color: var(--cn-faint-2); display: flex; }
 .sh7-rowform { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 6px; }

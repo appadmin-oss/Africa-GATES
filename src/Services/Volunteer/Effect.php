@@ -13,7 +13,8 @@ use Illuminate\Database\Capsule\Manager as DB;
  * Every figure is counted from what happened, over the last six months, and none is typed:
  *   hours        verified hours, and the number of weeks they were given in
  *   tasks        finished (accepted by a lead), handed back, and taken but past their due date
- *   on time      of finished tasks that had a due date, how many were in by it
+ *                without being handed in (handed in and waiting for staff is never late)
+ *   on time      of finished tasks that had a due date, how many were HANDED IN by it
  *   turned up    of past events they held a role at, how many they checked in to
  *
  * RELIABILITY is the one summary: what they finished or turned up to, out of what they took on.
@@ -47,15 +48,19 @@ final class Effect
         }
 
         $takes = DB::table('gates_vol_task_takes as k')->join('gates_vol_tasks as t', 't.id', '=', 'k.task_id')
-            ->where('k.volunteer_id', $vid)->where('k.taken_at', '>=', $sinceAt)->get(['k.status', 'k.done_at', 't.due_at']);
+            ->where('k.volunteer_id', $vid)->where('k.taken_at', '>=', $sinceAt)->get(['k.status', 'k.done_at', 'k.handed_in_at', 't.due_at']);
         $done = $dropped = $late = $open = $onTime = $dated = 0;
         foreach ($takes as $k) {
-            if ($k->status === 'done') {
+            // On time is measured by when the VOLUNTEER finished — the hand-in — and only falls
+            // back to the acceptance for takes from before a volunteer could hand work in. A take
+            // handed in and waiting for staff is not late, however long staff take to answer.
+            if ($k->status === Tasks::DONE) {
                 $done++;
-                if ($k->due_at) { $dated++; if ($k->done_at && $k->done_at <= $k->due_at) $onTime++; }
-            } elseif ($k->status === 'dropped') {
+                $finished = $k->handed_in_at ?: $k->done_at;
+                if ($k->due_at) { $dated++; if ($finished && $finished <= $k->due_at) $onTime++; }
+            } elseif ($k->status === Tasks::DROPPED) {
                 $dropped++;
-            } elseif ($k->due_at && $k->due_at < $now) {
+            } elseif ($k->status === Tasks::TAKEN && $k->due_at && $k->due_at < $now) {
                 $late++;
             } else {
                 $open++;

@@ -94,7 +94,8 @@ final class WorkspacePages
 
         // This week: tasks due and meetings, in the order the week happens.
         $week = [];
-        foreach (Tasks::mine($v) as $t) if ($t->due_at && strtotime((string) $t->due_at) < strtotime('+7 days')) {
+        // Due this week: only what is still theirs to finish. Handed-in work is waiting on staff.
+        foreach (Tasks::mine($v) as $t) if ($t->take_status === Tasks::TAKEN && $t->due_at && strtotime((string) $t->due_at) < strtotime('+7 days')) {
             $week[] = ['at' => (string) $t->due_at, 'time' => date('D', (int) strtotime((string) $t->due_at)), 't' => $t->title . ' due', 'd' => self::progressWords($t), 'st' => ''];
         }
         foreach (Meetings::mine($v) as $m) if ($m->next && strtotime((string) $m->next) < strtotime('+7 days') && $m->answer !== 'no') {
@@ -159,7 +160,8 @@ final class WorkspacePages
         $rows = [];
         foreach (array_slice(Tasks::library($v), 0, 3) as $t) {
             $rows[] = ['t' => (string) $t->title, 'sub' => ($t->from_home ? 'From home' : 'In person') . ($t->est_minutes ? ' · about ' . self::minutes((int) $t->est_minutes) : '') . ($t->module_key ? '' : ' · no training needed'),
-                       'chip' => $t->trained ? ['Fits you', 'ok'] : ['After training', 'mute'],
+                       'body' => self::taskBody($t),
+                       'chip' => $t->fits ? ['Fits you', 'ok'] : ($t->trained ? null : ['After training', 'mute']),
                        'cta' => $t->trained ? ['label' => 'Take it', 'post' => ['do' => 'take', 'task' => $t->id]] : ['label' => 'Start training', 'href' => '/volunteer/training/take/' . $t->module_key]];
         }
         $secs = [['k' => 'steps', 'h' => 'Getting started', 'items' => [
@@ -168,7 +170,7 @@ final class WorkspacePages
             ['t' => 'A first task', 'sub' => 'One that fits you', 'st' => $taken ? 'done' : ($trained ? 'now' : '')],
         ]]];
         $secs[] = $rows ? ['k' => 'rows', 'h' => 'Good first tasks', 'items' => $rows]
-                        : ['k' => 'note', 'text' => 'No tasks are open right now. We tell you when one is posted.', 'tone' => 'mute'];
+                        : ['k' => 'note', 'text' => 'No tasks are open right now. ' . ((string) ($v->notify_fit ?: 'weekly') === 'never' ? 'You can ask to hear about new ones under Notifications.' : 'We email you when one that fits you is posted.'), 'tone' => 'mute'];
         $secs[] = ['k' => 'note', 'text' => 'Nothing is expected of you until you pick something. Hours count from your first accepted task.', 'tone' => 'mute'];
         return ['title' => 'Today', 'purpose' => 'Two steps to your first task. Most people finish in a day.', 'acts' => self::homeActs($v), 'secs' => $secs];
     }
@@ -271,8 +273,16 @@ final class WorkspacePages
         if ($tab === 'mine') {
             $rows = [];
             foreach (Tasks::mine($v) as $t) {
-                $row = ['t' => (string) $t->title, 'sub' => (Tasks::CHECKED_BY[$t->checked_by] ?? '') . ($t->due_at ? ' · due ' . Workspace::day($t->due_at) : ''),
-                        'cta' => ['label' => 'Drop this task', 'post' => ['do' => 'droptask', 'task' => $t->id], 'confirm' => 'Drop this task?']];
+                // Taken: the volunteer says when it is finished ("Hand it in") — until that existed
+                // only staff could end a take, and finished work sat here counted late. Handed in:
+                // it waits for staff, and says so, with nothing left for the volunteer to press.
+                $in = $t->take_status === Tasks::HANDED_IN;
+                $row = ['t' => (string) $t->title, 'sub' => self::checkWords($t) . ($in ? ' · handed in ' . Workspace::day($t->handed_in_at) . ', waiting for a lead to accept it'
+                                                                               : ($t->due_at ? ' · due ' . Workspace::day($t->due_at) : '')),
+                        'body' => self::taskBody($t),
+                        'chip' => $in ? ['Handed in', 'info'] : null,
+                        'cta' => $in ? null : ['label' => 'Hand it in', 'primary' => true, 'post' => ['do' => 'handin', 'task' => $t->id], 'confirm' => 'Hand this task in as finished?'],
+                        'also' => $in ? null : ['label' => 'Drop this task', 'post' => ['do' => 'droptask', 'task' => $t->id], 'confirm' => 'Drop this task?']];
                 if ($t->target) { $row['pct'] = (int) min(100, round((int) $t->progress * 100 / (int) $t->target)); $row['barT'] = self::progressWords($t); }
                 $rows[] = $row;
             }
@@ -281,7 +291,8 @@ final class WorkspacePages
         } elseif ($tab === 'library') {
             $rows = [];
             foreach (Tasks::library($v) as $t) {
-                $rows[] = ['t' => (string) $t->title, 'sub' => trim(($t->from_home ? 'From home · ' : '') . ($t->est_minutes ? 'about ' . self::minutes((int) $t->est_minutes) . ' · ' : '') . (Tasks::CHECKED_BY[$t->checked_by] ?? ''), ' ·'),
+                $rows[] = ['t' => (string) $t->title, 'sub' => trim(($t->from_home ? 'From home · ' : '') . ($t->est_minutes ? 'about ' . self::minutes((int) $t->est_minutes) . ' · ' : '') . ($t->due_at ? 'due ' . Workspace::day($t->due_at) . ' · ' : '') . self::checkWords($t), ' ·'),
+                           'body' => self::taskBody($t),
                            'chip' => $t->module_key ? ($t->trained ? ['Trained', 'ok'] : ['Needs training', 'mute']) : ($t->from_home ? ['From home', 'ok'] : null),
                            'cta' => $t->trained ? ['label' => 'Take it', 'post' => ['do' => 'take', 'task' => $t->id]] : ['label' => 'Train first', 'href' => '/volunteer/training/take/' . $t->module_key]];
             }
@@ -290,7 +301,8 @@ final class WorkspacePages
             $rows = [];
             foreach (Tasks::mine($v, 'done') as $t) {
                 $h = (float) DB::table('gates_vol_hours')->where('ref_kind', 'take')->where('ref_id', $t->take_id)->value('hours');
-                $rows[] = ['t' => (string) $t->title, 'sub' => 'Accepted ' . Workspace::day($t->done_at) . ($h > 0 ? ' · ' . Level::h($h) : ''), 'chip' => ['Accepted', 'ok']];
+                $rows[] = ['t' => (string) $t->title, 'sub' => ($t->handed_in_at ? 'Handed in ' . Workspace::day($t->handed_in_at) . ' · ' : '') . 'Accepted ' . Workspace::day($t->done_at) . ($h > 0 ? ' · ' . Level::h($h) : ''),
+                           'body' => $t->checked_note ? 'How it was checked: ' . $t->checked_note : '', 'chip' => ['Accepted', 'ok']];
             }
             $secs[] = $rows ? ['k' => 'rows', 'h' => 'Done', 'items' => $rows] : ['k' => 'note', 'text' => 'Tasks you finish show here once they’re accepted.', 'tone' => 'mute'];
         }
@@ -625,14 +637,20 @@ final class WorkspacePages
         if ($kind === 'cycle' && $page === 'drive') return self::drive($v, $p, $tab);
         if ($kind === 'cycle' && $page === 'nominees') return self::nominees($v, $p, $tab, (int) ($q['n'] ?? 0), $q);
         if ($page === 'guide') return ['title' => 'Role guide', 'secs' => self::guide($p['caps'])];
-        $tasks = DB::table('gates_vol_tasks')->where('scope_kind', $kind)->where('scope_id', $id)->where('status', 'open')->orderBy('due_at')->get()->all();
+        // The place's tasks anybody may still take (Tasks::offered: open and not past due), so the
+        // place page and the library cannot disagree about whether a task can be taken.
+        $tasks = Tasks::offered()->where('scope_kind', $kind)->where('scope_id', $id)->orderBy('due_at')->get()->all();
         $taskRows = static function () use ($tasks, $v): array {
             $rows = [];
-            $taken = DB::table('gates_vol_task_takes')->where('volunteer_id', $v->id)->where('status', 'taken')->pluck('task_id')->all();
+            $held = [];
+            foreach (DB::table('gates_vol_task_takes')->where('volunteer_id', $v->id)->whereIn('status', [...Tasks::ON_THE_GO, Tasks::DONE])->get(['task_id', 'status']) as $k) $held[(int) $k->task_id] = (string) $k->status;
             foreach ($tasks as $t) {
-                $have = in_array((int) $t->id, array_map('intval', $taken), true);
-                $rows[] = ['t' => (string) $t->title, 'sub' => trim(($t->due_at ? 'Due ' . Workspace::day($t->due_at) . ' · ' : '') . (Tasks::CHECKED_BY[$t->checked_by] ?? ''), ' ·'),
-                           'chip' => $have ? ['Yours', 'ok'] : null, 'cta' => $have ? null : ['label' => 'Take it', 'post' => ['do' => 'take', 'task' => $t->id]]];
+                $st = $held[(int) $t->id] ?? null;
+                $trained = !$t->module_key || Training::holds((int) $v->id, (string) $t->module_key);
+                $rows[] = ['t' => (string) $t->title, 'sub' => trim(($t->due_at ? 'Due ' . Workspace::day($t->due_at) . ' · ' : '') . self::checkWords($t), ' ·'),
+                           'body' => self::taskBody($t),
+                           'chip' => match ($st) { Tasks::DONE => ['Done', 'ok'], Tasks::HANDED_IN => ['Handed in', 'info'], Tasks::TAKEN => ['Yours', 'ok'], default => null },
+                           'cta' => $st !== null ? null : ($trained ? ['label' => 'Take it', 'post' => ['do' => 'take', 'task' => $t->id]] : ['label' => 'Train first', 'href' => '/volunteer/training/take/' . $t->module_key])];
             }
             return $rows ? [['k' => 'rows', 'items' => $rows]] : [['k' => 'note', 'text' => 'No tasks here yet.', 'tone' => 'mute']];
         };
@@ -654,7 +672,7 @@ final class WorkspacePages
             if ($steps) $secs[] = ['k' => 'steps', 'h' => 'Where the award is', 'items' => $steps];
             $part = [];
             $mineHere = (int) DB::table('gates_vol_task_takes as k')->join('gates_vol_tasks as t', 't.id', '=', 'k.task_id')->where('k.volunteer_id', $v->id)
-                ->where('t.scope_kind', 'cycle')->where('t.scope_id', $id)->whereIn('k.status', ['taken', 'done'])->count();
+                ->where('t.scope_kind', 'cycle')->where('t.scope_id', $id)->whereIn('k.status', [...Tasks::ON_THE_GO, Tasks::DONE])->count();
             if ($mineHere) $part[] = ['l' => 'Your tasks', 'v' => (string) $mineHere];
             if (in_array(NominationChecks::CAPABILITY, $p['caps'], true)) {
                 $n = (int) DB::table('gates_vol_nom_checks')->where('volunteer_id', $v->id)->where('cycle_id', $id)->count();
@@ -1073,9 +1091,10 @@ final class WorkspacePages
             'notifications' => [['k' => 'rows', 'h' => 'Always on, by email', 'items' => [
                     ['t' => 'Meeting invitations, and when one is called off', 'sub' => 'Only meetings you’re in', 'chip' => ['Always on', 'mute']],
                     ['t' => 'A reminder the day before each meeting', 'sub' => 'When, where and the agenda', 'chip' => ['Always on', 'mute']],
-                    ['t' => 'Training about to run out', 'sub' => 'A week before', 'chip' => ['Always on', 'mute']]]],
+                    ['t' => 'Training about to run out', 'sub' => 'A week before', 'chip' => ['Always on', 'mute']],
+                    ['t' => 'A task you hold is due', 'sub' => 'The day before, unless you’ve handed it in', 'chip' => ['Always on', 'mute']]]],
                 ['k' => 'form', 'do' => 'save_notifications', 'submit' => 'Save changes', 'groups' => [
-                ['label' => 'New tasks that fit me', 'fields' => [['name' => 'notify_fit', 'label' => 'New tasks that fit me', 'type' => 'segmented', 'value' => (string) ($v->notify_fit ?: 'weekly'), 'options' => ['never' => 'Never', 'weekly' => 'Weekly', 'posted' => 'When posted']]]],
+                ['label' => 'New tasks that fit me', 'help' => 'Tasks you’re trained for, and work from home only if you take it. Weekly is one email on Monday about the week before.', 'fields' => [['name' => 'notify_fit', 'label' => 'New tasks that fit me', 'type' => 'segmented', 'value' => (string) ($v->notify_fit ?: 'weekly'), 'options' => ['never' => 'Never', 'weekly' => 'Weekly', 'posted' => 'When posted']]]],
                 ['label' => 'Award news', 'fields' => [['name' => 'notify_news', 'label' => 'Tell me about the awards I help on', 'type' => 'switch', 'value' => (string) (int) $v->notify_news]]],
                 ['label' => 'How we reach you', 'help' => 'Reminders go by email for now. Your choice here is kept for when other channels open.', 'fields' => [['name' => 'channel', 'label' => 'Channel', 'type' => 'segmented', 'value' => (string) ($v->channel ?: 'email'), 'options' => ['email' => 'Email', 'whatsapp' => 'WhatsApp', 'sms' => 'SMS']]]]]]],
             'access' => self::accessAll($v),
@@ -1133,6 +1152,23 @@ final class WorkspacePages
     private static function placeLine(object $v, array $p): string
     {
         return $p['ends'] ? 'Your access ends ' . Workspace::day($p['ends']) . '.' : '';
+    }
+
+    /**
+     * "What to do", as staff wrote it on the Tasks tab. It was stored and shown on no volunteer
+     * screen, so a volunteer took a task knowing only its name. Plain text: the template escapes it.
+     */
+    private static function taskBody(object $t): string
+    {
+        return trim((string) ($t->body ?? ''));
+    }
+
+    /** How the task is checked, with staff's own note where they wrote one ("A lead reads 5 in 50"). */
+    private static function checkWords(object $t): string
+    {
+        $how = Tasks::CHECKED_BY[$t->checked_by] ?? '';
+        $note = trim((string) ($t->checked_note ?? ''));
+        return $note !== '' ? trim($how . ': ' . $note, ': ') : $how;
     }
 
     private static function progressWords(object $t): string

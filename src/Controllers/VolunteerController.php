@@ -327,6 +327,7 @@ final class VolunteerController
             'meet_notes' => ($k = Meetings::notes($v, (int) ($b['meeting'] ?? 0), (string) ($b['notes'] ?? '')))['ok'] ? $ok('Notes saved. Everybody invited can read them.') : $no((string) $k['error']),
             'meet_cancel' => Meetings::cancel($v, (int) ($b['meeting'] ?? 0), $this->mailer) ? $ok('Called off. Everybody invited is told.') : $no('Only the organiser can call it off, before it starts.'),
             'take' => $active ? (($t = Tasks::take($v, (int) ($b['task'] ?? 0)))['ok'] ? $ok('It’s yours. It’s in Tasks › Mine.') : $no((string) $t['error'])) : $no('Tasks open once you’re approved.'),
+            'handin' => Tasks::handIn($v, (int) ($b['task'] ?? 0)) ? $ok('Handed in. A lead checks it and accepts it; then it moves to Tasks › Done with its hours.') : $no('Only a task you hold and haven’t handed in yet can be handed in.'),
             'droptask' => Tasks::drop($v, (int) ($b['task'] ?? 0)) ? $ok('Dropped.') : $no('That task is not yours to drop.'),
             'log' => ($l = Hours::log($v, (string) ($b['date'] ?? ''), (string) ($b['what'] ?? ''), (float) ($b['hours'] ?? 0), (string) ($b['witness'] ?? ''), (string) ($b['proof'] ?? '')))['ok']
                 ? $ok('Sent for confirming. It’s under Hours › In review until a lead answers; then it shows Confirmed, or their reason.') : $no((string) $l['error']),

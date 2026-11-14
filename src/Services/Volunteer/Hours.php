@@ -72,11 +72,17 @@ final class Hours
     }
 
 
-    /** Hours from accepted task work. Idempotent per take. */
+    /**
+     * Hours from accepted task work. Idempotent per take, and HELD by the database rather than by
+     * the check above it: two acceptances arriving together both pass an exists() and both insert,
+     * which is how "never counted twice" was false while the index under it was a plain one. The
+     * UNIQUE on (ref_kind, ref_id) (2027_05_03_vol_task_handin) refuses the second, and the insert
+     * ignores that refusal rather than throwing it at a member of staff.
+     */
     public static function fromTask(object $take, object $task, float $hours, string $byName): void
     {
         if ($hours <= 0 || DB::table('gates_vol_hours')->where('ref_kind', 'take')->where('ref_id', $take->id)->exists()) return;
-        DB::table('gates_vol_hours')->insert([
+        DB::table('gates_vol_hours')->insertOrIgnore([
             'volunteer_id' => $take->volunteer_id, 'source' => 'task', 'ref_kind' => 'take', 'ref_id' => $take->id,
             'worked_on' => date('Y-m-d'), 'what' => mb_substr((string) $task->title, 0, 255), 'hours' => round($hours * 4) / 4,
             'status' => 'verified', 'confirmed_name' => mb_substr($byName, 0, 190) ?: null, 'confirmed_at' => date('Y-m-d H:i:s'),

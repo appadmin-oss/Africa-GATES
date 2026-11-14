@@ -131,6 +131,32 @@
       <p><button class="cn-btn cn-btn--primary" type="submit">Post the task</button></p>
     </form>
   </section>
+  {#
+    HANDED IN, WAITING FOR YOU. A volunteer saying "finished" (Tasks::handIn) used to have nowhere
+    to go: only staff ended a take, so finished work sat as taken and turned "late" on its due
+    date. What they hand in waits here, oldest first, and the tab's count is this list.
+  #}
+  <section class="cn-card vl-sec" aria-labelledby="vlWaitH">
+    <h2 class="vl-h" id="vlWaitH">Handed in, waiting for you</h2>
+    {% if waiting is empty %}{{ kit.empty('Nothing handed in', 'When a volunteer hands a task in as finished, it waits here for you to accept it.', 'list') }}{% else %}
+    <p class="vl-help">Check the work the way the task says it is checked, then accept it with the hours it earned. Accepting adds the hours to their record at once.</p>
+    <table class="cn-table">
+      <thead><tr><th scope="col">Volunteer</th><th scope="col">Task</th><th scope="col">Handed in</th><th scope="col">Accept</th></tr></thead>
+      <tbody>
+        {% for k in waiting %}
+          <tr><td>{{ k.display_name ?: k.name }}</td>
+            <td>{{ k.title }}{% if k.target %}<br><span class="vl-help">{{ k.progress }} of {{ k.target }} recorded</span>{% endif %}</td>
+            <td>{{ k.handed_in_at|date('j M, H:i') }}{% if k.due_at and k.handed_in_at <= k.due_at %}<br><span class="vl-help">before the due date</span>{% elseif k.due_at %}<br><span class="vl-help">after the due date</span>{% endif %}</td>
+            <td><form method="post" action="/admin/volunteers" class="vl-inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="tab" value="tasks">
+              <input type="hidden" name="do" value="accept"><input type="hidden" name="take" value="{{ k.id }}">
+              <label class="sr-only" for="wh{{ k.id }}">Hours it earned</label><input id="wh{{ k.id }}" type="number" name="hours" min="0" step="0.25" placeholder="Hours" required>
+              <label class="sr-only" for="wa{{ k.id }}">Accepted</label><input id="wa{{ k.id }}" type="number" name="accepted" min="0" placeholder="Accepted" value="{{ k.progress ?: '' }}">
+              <button class="cn-btn cn-btn--sm cn-btn--primary" type="submit">Accept</button></form></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>{% endif %}
+  </section>
+
   <section class="cn-card vl-sec" aria-label="Open tasks">
     <h2 class="vl-h">Open tasks</h2>
     {% if rows is empty %}{{ kit.empty('No open tasks', 'Post one above.', 'list') }}{% else %}
@@ -138,14 +164,38 @@
       <thead><tr><th scope="col">Task</th><th scope="col">Who has it</th></tr></thead>
       <tbody>
         {% for t in rows %}
-          <tr><td>{{ t.title }}<br><span class="cn-code--soft">{{ checked[t.checked_by]|default('') }}</span></td>
+          <tr><td>{{ t.title }}{% if t.status != 'open' %} <span class="vl-help">· closed, still held</span>{% endif %}<br><span class="cn-code--soft">{{ checked[t.checked_by]|default('') }}</span>
+              {% if t.due_at %}<br><span class="vl-help">Due {{ t.due_at|date('j M Y, H:i') }}</span>{% endif %}
+              {% if t.status == 'open' %}
+              <details class="vl-edit"><summary>Change or close</summary>
+                <form method="post" action="/admin/volunteers" class="vl-form"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="tab" value="tasks">
+                  <input type="hidden" name="do" value="task_edit"><input type="hidden" name="task" value="{{ t.id }}">
+                  <label>Name <input name="title" required value="{{ t.title }}"></label>
+                  <label>Due <input type="datetime-local" step="1" name="due_at" value="{{ t.due_at|when_input }}"></label>
+                  <label>Target (how many) <input type="number" name="target" min="0" value="{{ t.target }}"></label>
+                  <label>How it’s checked, in a line <input name="checked_note" value="{{ t.checked_note }}"></label>
+                  <label class="vl-wide">What to do <textarea name="body" rows="3">{{ t.body }}</textarea></label>
+                  <p><button class="cn-btn cn-btn--sm" type="submit">Save changes</button></p>
+                </form>
+                <form method="post" action="/admin/volunteers" class="vl-inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="tab" value="tasks">
+                  <input type="hidden" name="do" value="task_close"><input type="hidden" name="task" value="{{ t.id }}">
+                  <button class="cn-btn cn-btn--sm" type="submit" data-confirm="Close this task? It stops being offered. Anybody part-way through can still hand it in.">Close the task</button></form>
+              </details>
+              {% endif %}</td>
             <td>{% for k in t.takes %}
-              <form method="post" action="/admin/volunteers" class="vl-inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="tab" value="tasks">
-                <input type="hidden" name="do" value="accept"><input type="hidden" name="take" value="{{ k.id }}">
-                {{ k.display_name ?: k.name }}{% if t.target %} · {{ k.progress }} of {{ t.target }}{% endif %}
-                <label class="sr-only" for="th{{ k.id }}">Hours it earned</label><input id="th{{ k.id }}" type="number" name="hours" min="0" step="0.25" placeholder="Hours" required>
-                <label class="sr-only" for="ta{{ k.id }}">Accepted</label><input id="ta{{ k.id }}" type="number" name="accepted" min="0" placeholder="Accepted">
-                <button class="cn-btn cn-btn--sm" type="submit">Accept</button></form>
+              <div class="vl-take">
+                <span>{{ k.display_name ?: k.name }}{% if k.status == 'handed_in' %} · handed in {{ k.handed_in_at|date('j M') }}{% endif %}{% if t.target %} · {{ k.progress }} of {{ t.target }}{% endif %}</span>
+                <form method="post" action="/admin/volunteers" class="vl-inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="tab" value="tasks">
+                  <input type="hidden" name="do" value="progress"><input type="hidden" name="take" value="{{ k.id }}">
+                  <label class="sr-only" for="tp{{ k.id }}">Done so far</label><input id="tp{{ k.id }}" type="number" name="progress" min="0" placeholder="Done so far" value="{{ k.progress }}">
+                  <label class="sr-only" for="tq{{ k.id }}">Accepted so far</label><input id="tq{{ k.id }}" type="number" name="accepted" min="0" placeholder="Accepted so far" value="{{ k.accepted }}">
+                  <button class="cn-btn cn-btn--sm" type="submit">Save progress</button></form>
+                <form method="post" action="/admin/volunteers" class="vl-inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="tab" value="tasks">
+                  <input type="hidden" name="do" value="accept"><input type="hidden" name="take" value="{{ k.id }}">
+                  <label class="sr-only" for="th{{ k.id }}">Hours it earned</label><input id="th{{ k.id }}" type="number" name="hours" min="0" step="0.25" placeholder="Hours" required>
+                  <label class="sr-only" for="ta{{ k.id }}">Accepted</label><input id="ta{{ k.id }}" type="number" name="accepted" min="0" placeholder="Accepted">
+                  <button class="cn-btn cn-btn--sm" type="submit">Accept</button></form>
+              </div>
             {% else %}Nobody yet{% endfor %}</td></tr>
         {% endfor %}
       </tbody>

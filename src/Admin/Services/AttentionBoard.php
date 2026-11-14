@@ -95,7 +95,8 @@ final class AttentionBoard
     public static function forRole(string $role): array
     {
         return array_values(array_filter(self::items(), static function (array $i) use ($role): bool {
-            $section = Permissions::sectionForPath((string) $i['href']);
+            // The guard sees a path, never a query string: ask about the path the card opens.
+            $section = Permissions::sectionForPath((string) strtok((string) $i['href'], '?'));
             return $section !== null
                 ? Permissions::canAccess($role, $section)
                 : $role === 'superadmin';
@@ -248,6 +249,16 @@ final class AttentionBoard
                     'Nobody can be voted for, interviewed or asked about their own work until '
                         . 'their nomination is approved.',
                     '/admin/nominations', 'Go through them', '');
+            },
+            static function (): ?array {
+                // A volunteer said "finished" and is waiting for somebody to accept it; until then
+                // the hours are not on their record. Unmigrated tables cost only this card.
+                $n = \AfricaGates\Services\Volunteer\Tasks::handedInCount();
+                return self::item('volunteer_tasks', $n,
+                    $n === 1 ? 'volunteer task handed in and waiting' : 'volunteer tasks handed in and waiting',
+                    'A volunteer finished the work and its hours are not on their record until it '
+                        . 'is accepted. Leaving it reads to them as nobody having looked.',
+                    '/admin/volunteers?tab=tasks', 'Accept the work', '');
             },
             static function (): ?array {
                 $n = (int) DB::table('gates_profiles')->where('status', 'pending')->count();

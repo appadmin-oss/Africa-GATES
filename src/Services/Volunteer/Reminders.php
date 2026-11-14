@@ -5,6 +5,7 @@ namespace AfricaGates\Services\Volunteer;
 
 use AfricaGates\Services\OtpService;
 use AfricaGates\Support\BroadcastLog;
+use AfricaGates\Services\EmailOptOut;
 use AfricaGates\Support\SiteUrl;
 use Illuminate\Database\Capsule\Manager as DB;
 
@@ -14,10 +15,16 @@ use Illuminate\Database\Capsule\Manager as DB;
  *
  *   training  a passed module lapses within a week
  *   meeting   the day before each meeting in a series (Meetings::due)
+ *   task due  the day before a task they hold falls due, unless they have handed it in
+ *   new task  a task that FITS them (Tasks::fits) was posted — as it is posted, or once a week,
+ *             as they chose under "New tasks that fit me" (gates_volunteers.notify_fit). That
+ *             setting was saved, and the page promised "We tell you when one is posted", while
+ *             nothing read it: the promise was a sentence with no sender behind it.
  *
  * ── ONE PERSON, ABOUT THEIR OWN WORK ─────────────────────────────────────────
  *
- * Each message goes to one volunteer about their own training or a meeting they are in. Nothing here sends to
+ * Each message goes to one volunteer about their own training, a meeting they are in, a task they
+ * hold, or work that fits them which they asked to hear about. Nothing here sends to
  * a group, and nothing lets a volunteer or a lead send — the owner was explicit that the
  * workspace has no broadcast. So these are service messages, not announcements: no
  * unsubscribe link, never held by the bulk cap, and stated on the Notifications page as always
@@ -39,6 +46,14 @@ final class Reminders
     /** How far ahead a meeting is reminded: inside the next day, never one already started. */
     public const MEETING_HOURS = 26;
     public const TRAINING_DAYS = 7;
+    /** How far ahead a held task's due date is reminded: the day before, never one already past. */
+    public const TASK_DUE_HOURS = 26;
+    /**
+     * A task is announced "as posted" only while it is this new. Bounds the first run after this
+     * shipped (it must not mail every volunteer about every open task ever posted) and a volunteer
+     * who switches to "When posted" months in.
+     */
+    public const NEW_TASK_DAYS = 7;
 
     /**
      * @param ?callable(string $to, string $subject, string $html, string $plain): bool $send for tests
@@ -102,6 +117,70 @@ final class Reminders
             $lines = ['Hello ' . $p[1] . ',', 'Your ' . $r->title . ' training runs out on ' . Workspace::day((string) $r->expires_at) . '.'];
             $lines[] = 'It takes a few minutes to renew.';
             $out[] = ['vol-train:' . $r->pid, $p[0], 'Renew your ' . $r->title . ' training', $lines, '/volunteer/training/take/' . $r->slug];
+        }
+
+        // A task they hold falls due within a day, and they have not handed it in.
+        $soon = date('Y-m-d H:i:s', time() + self::TASK_DUE_HOURS * 3600);
+        foreach (DB::table('gates_vol_task_takes as k')->join('gates_vol_tasks as t', 't.id', '=', 'k.task_id')
+                     ->where('k.status', Tasks::TAKEN)->whereNotNull('t.due_at')->where('t.due_at', '>', $now)->where('t.due_at', '<=', $soon)
+                     ->limit(self::BATCH)->get(['k.id as take_id', 'k.volunteer_id', 't.title', 't.due_at']) as $r) {
+            if (!$p = $person((int) $r->volunteer_id)) continue;
+            $lines = ['Hello ' . $p[1] . ',', 'Your task ' . $r->title . ' is due on ' . Workspace::day((string) $r->due_at) . ' at ' . date('H:i', (int) strtotime((string) $r->due_at)) . '.',
+                      'When it is finished, hand it in from Tasks › Mine so a lead can accept it. If you can’t finish it, drop it so somebody else can.'];
+            $out[] = ['vol-taskdue:' . $r->take_id, $p[0], 'Due tomorrow: ' . $r->title, $lines, '/volunteer/tasks/mine'];
+        }
+
+        array_push($out, ...self::newTasks());
+        return $out;
+    }
+
+    /**
+     * New tasks that fit, to the volunteers who asked (notify_fit): `posted` hears about each task
+     * once, while it is new; `weekly` hears once a week about the tasks posted the week before.
+     * The claim keys make each exactly-once — per task for `posted`, per ISO week for `weekly` —
+     * and what was already claimed is left out here, so a tick does not try every address again.
+     *
+     * @return list<array{0:string,1:string,2:string,3:list<string>,4:string}>
+     */
+    private static function newTasks(): array
+    {
+        $out = [];
+        $weekStart = strtotime('monday this week 00:00');
+        $lastWeek = date('o-W', $weekStart - 86400);
+        $fresh = Tasks::offered()->where('created_at', '>=', date('Y-m-d H:i:s', min(time() - self::NEW_TASK_DAYS * 86400, $weekStart - 7 * 86400)))
+            ->orderBy('id')->limit(self::BATCH)->get()->all();
+        if ($fresh === []) return [];
+        $people = DB::table('gates_volunteers as v')->join('gates_users as u', 'u.id', '=', 'v.user_id')->where('v.status', 'active')
+            ->whereIn('v.notify_fit', ['posted', 'weekly'])->orderBy('v.id')->limit(2000)->get(['v.*', 'u.email', 'u.name as user_name'])->all();
+        $weekKey = 'vol-taskweek:' . $lastWeek;
+        $weekDone = BroadcastLog::handled($weekKey);
+        $seen = [];
+        foreach ($people as $v) {
+            if (!filter_var((string) $v->email, FILTER_VALIDATE_EMAIL)) continue;
+            $hash = EmailOptOut::hash((string) $v->email);
+            $first = trim((string) strtok(Volunteers::name($v), ' ')) ?: 'there';
+            $held = array_map('intval', DB::table('gates_vol_task_takes')->where('volunteer_id', $v->id)->pluck('task_id')->all());
+            $fit = array_values(array_filter($fresh, static fn ($t) => !in_array((int) $t->id, $held, true) && Tasks::fits($v, $t)));
+            if ((string) $v->notify_fit === 'posted') {
+                foreach ($fit as $t) {
+                    if ((string) $t->created_at < date('Y-m-d H:i:s', time() - self::NEW_TASK_DAYS * 86400)) continue;
+                    $key = 'vol-task:' . $t->id;
+                    $seen[$key] ??= BroadcastLog::handled($key);
+                    if (isset($seen[$key][$hash])) continue;
+                    $lines = ['Hello ' . $first . ',', 'A new task fits you: ' . $t->title . '.'];
+                    if ($t->due_at) $lines[] = 'Due: ' . Workspace::day((string) $t->due_at) . '.';
+                    $lines[] = 'You can change how often we tell you about new tasks in your volunteering, under Notifications.';
+                    $out[] = [$key, (string) $v->email, 'A new task for you: ' . $t->title, $lines, '/volunteer/tasks/library'];
+                }
+                continue;
+            }
+            if (isset($weekDone[$hash])) continue;
+            $week = array_values(array_filter($fit, static fn ($t) => (int) strtotime((string) $t->created_at) >= $weekStart - 7 * 86400 && (int) strtotime((string) $t->created_at) < $weekStart));
+            if ($week === []) continue;
+            $lines = ['Hello ' . $first . ',', (count($week) === 1 ? 'One new task fits you' : count($week) . ' new tasks fit you') . ' from last week:'];
+            foreach (array_slice($week, 0, 10) as $t) $lines[] = '· ' . $t->title . ($t->due_at ? ', due ' . Workspace::day((string) $t->due_at) : '');
+            $lines[] = 'You can change how often we tell you about new tasks in your volunteering, under Notifications.';
+            $out[] = [$weekKey, (string) $v->email, 'New tasks that fit you', $lines, '/volunteer/tasks/library'];
         }
         return $out;
     }

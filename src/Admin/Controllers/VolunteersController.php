@@ -48,6 +48,8 @@ final class VolunteersController
         $counts = $ready ? [
             'applications' => (int) DB::table('gates_volunteers')->where('status', 'applicant')->count(),
             'hours' => count(Hours::waiting()),
+            // Work a volunteer has handed in and nobody has accepted: the tab's count is the job.
+            'tasks' => Tasks::handedInCount(),
         ] : [];
         $qp = $req->getQueryParams();
         if ($ready && $tab === 'reports') {
@@ -57,7 +59,7 @@ final class VolunteersController
         $data = $ready ? match ($tab) {
             'applications' => ['rows' => $this->applications()],
             'roster' => ['rows' => $this->roster((string) ($req->getQueryParams()['sort'] ?? 'name')), 'sort' => (string) ($req->getQueryParams()['sort'] ?? 'name'), 'caps' => Grants::CAPABILITIES, 'places' => $this->places()],
-            'tasks' => ['rows' => $this->tasks(), 'checked' => Tasks::CHECKED_BY, 'places' => $this->places(), 'modules' => Training::titles()],
+            'tasks' => ['rows' => $this->tasks(), 'waiting' => Tasks::handedIn(), 'checked' => Tasks::CHECKED_BY, 'places' => $this->places(), 'modules' => Training::titles()],
             'training' => ['rows' => DB::table('gates_vol_modules')->orderBy('title')->get()->all(), 'caps' => Grants::CAPABILITIES],
             'hours' => ['rows' => Hours::waiting()],
             'reports' => ['report' => Outreach::report($cycles, $days, 200), 'awards' => $this->awardsWithContacts(), 'cycle' => $cycle, 'days' => $days,
@@ -91,11 +93,14 @@ final class VolunteersController
             'revoke' => [Grants::revoke((int) ($b['grant'] ?? 0), $adminId), 'Ended. It leaves their workspace on their next page.', (int) ($b['grant'] ?? 0)],
             'task' => $this->created(Tasks::create($b, $adminId), 'Posted to the task library.'),
             'accept' => [Tasks::accept((int) ($b['take'] ?? 0), (float) ($b['hours'] ?? 0), (int) ($b['accepted'] ?? 0), $adminName), 'Accepted: the hours are on their record.', (int) ($b['take'] ?? 0)],
+            'progress' => [Tasks::progress((int) ($b['take'] ?? 0), (int) ($b['progress'] ?? 0), (int) ($b['accepted'] ?? 0)), 'Progress saved. They see it on their task.', (int) ($b['take'] ?? 0)],
+            'task_edit' => $this->created(Tasks::update((int) ($b['task'] ?? 0), $b), 'Saved. Volunteers see the change now.'),
+            'task_close' => [Tasks::close((int) ($b['task'] ?? 0)), 'Closed. It is no longer offered; anybody part-way through can still hand it in.', (int) ($b['task'] ?? 0)],
             'module' => $this->created(Training::save($b), 'Saved. Volunteers see it in Training.'),
             'hours' => $this->hours($b, $adminId, $adminName),
             default => [false, 'That isn’t something this page can do.', 0],
         };
-        if ($ok) $this->audit->record($adminId, 'volunteers.' . $do, 'volunteer', (int) $target, array_intersect_key($b, array_flip(['id', 'capability', 'scope_kind', 'scope_id', 'expires_at', 'title', 'reason', 'kept', 'verdict'])));
+        if ($ok) $this->audit->record($adminId, 'volunteers.' . $do, 'volunteer', (int) $target, array_intersect_key($b, array_flip(['id', 'capability', 'scope_kind', 'scope_id', 'expires_at', 'title', 'reason', 'kept', 'verdict', 'task', 'take', 'progress', 'accepted', 'hours', 'due_at'])));
         return $this->back($res, $tab, $ok, $msg);
     }
 
@@ -203,12 +208,21 @@ final class VolunteersController
         return $out;
     }
 
+    /**
+     * Open tasks, and a closed one for as long as somebody still holds it — closing stops a task
+     * being offered, not the work already under way, which can still be handed in and accepted.
+     * Every take on the go is listed, taken AND handed in: a list that spelled `taken` alone would
+     * drop handed-in work off the one screen that accepts it.
+     */
     private function tasks(): array
     {
-        $rows = DB::table('gates_vol_tasks')->where('status', 'open')->orderByDesc('id')->limit(100)->get()->all();
+        $held = DB::table('gates_vol_task_takes')->whereIn('status', Tasks::ON_THE_GO)->distinct()->pluck('task_id')->all();
+        $rows = DB::table('gates_vol_tasks')->where(static fn ($w) => $held ? $w->where('status', 'open')->orWhereIn('id', $held) : $w->where('status', 'open'))
+            ->orderByDesc('id')->limit(100)->get()->all();
         foreach ($rows as $t) {
             $t->takes = DB::table('gates_vol_task_takes as k')->join('gates_volunteers as v', 'v.id', '=', 'k.volunteer_id')->join('gates_users as u', 'u.id', '=', 'v.user_id')
-                ->where('k.task_id', $t->id)->where('k.status', 'taken')->get(['k.id', 'k.progress', 'v.display_name', 'u.name'])->all();
+                ->where('k.task_id', $t->id)->whereIn('k.status', Tasks::ON_THE_GO)->orderBy('k.status')->orderBy('k.id')
+                ->get(['k.id', 'k.status', 'k.progress', 'k.accepted', 'k.handed_in_at', 'v.display_name', 'u.name'])->all();
         }
         return $rows;
     }

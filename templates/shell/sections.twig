@@ -135,6 +135,7 @@
           <span class="sh7-row__words">
             {% if r.href is defined and r.href %}<a class="sh7-row__t" href="{{ r.href }}">{{ r.t }}</a>{% else %}<span class="sh7-row__t">{{ r.t }}</span>{% endif %}
             {% if r.sub %}<span class="sh7-row__sub">{{ r.sub }}</span>{% endif %}
+            {% if r.body is defined and r.body %}<span class="sh7-row__body">{{ r.body }}</span>{% endif %}
             {% if r.pct is defined %}{{ M.bar(r.pct, r.barT|default('')) }}{% endif %}
             {% if r.inline is defined and r.inline %}
               <form class="sh7-rowform" method="post" action="{{ act }}">
@@ -176,7 +177,7 @@
           </span>
           {% if r.meta is defined and r.meta %}<span class="sh7-row__time">{{ r.meta }}</span>{% endif %}
           {{ M.chip(r.chip|default(null)) }}
-          {% if r.cta is defined and r.cta %}<span class="sh7-row__cta">{{ M.action(r.cta, here, true, act, r.t) }}</span>{% endif %}
+          {% if r.cta is defined and r.cta %}<span class="sh7-row__cta">{{ M.action(r.cta, here, true, act, r.t) }}{% if r.also is defined and r.also %}{{ M.action(r.also, here, true, act, r.t) }}{% endif %}</span>{% endif %}
           {% if r.href is defined and r.href and not (r.cta is defined and r.cta) %}<span class="sh7-row__chev" aria-hidden="true">{{ M.icon('chev') }}</span>{% endif %}
         </li>
       {% endfor %}
