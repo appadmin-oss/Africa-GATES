@@ -194,7 +194,7 @@ final class Rules
                 }
                 $cats = Goals::categoryIds($eventId, 'event', null);
                 if ($cats) {
-                    foreach (DB::table('gates_nominations')->whereIn('category_id', $cats)->where('status', '!=', 'rejected')->whereNull('merged_into')->whereNotNull('nominee_email')
+                    foreach (DB::table('gates_nominations')->whereIn('category_id', $cats)->whereNotIn('status', Goals::NOT_SUBMITTED)->whereNull('merged_into')->whereNotNull('nominee_email')
                                  ->where('nominee_email', '!=', '')->groupBy('nominee_email')->havingRaw('COUNT(DISTINCT category_id) > 1')->pluck('nominee_email')->all() as $e) {
                         $out[] = ['dupnom:' . strtolower((string) $e), ($act ? 'Flagged' : 'flag') . ' a nominee in two categories', (string) $e];
                     }
@@ -246,7 +246,7 @@ final class Rules
         if (!$cats) return [];
         $out = [];
         foreach (DB::table('gates_event_contacts')->where('event_id', $eventId)->where('stage', '!=', 'nominated')->get()->all() as $c) {
-            $q = DB::table('gates_nominations')->whereIn('category_id', $cats)->where('status', '!=', 'rejected')->whereNull('merged_into');
+            $q = DB::table('gates_nominations')->whereIn('category_id', $cats)->whereNotIn('status', Goals::NOT_SUBMITTED)->whereNull('merged_into');
             $q->where(static function ($w) use ($c) {
                 if ($c->email) $w->orWhereRaw('LOWER(nominee_email) = ?', [$c->email]);
                 // Ends with the stored ten digits; escaped through Like (CLAUDE.md: the two drivers disagree on LIKE's escape).

@@ -104,6 +104,12 @@ final class EventGoalsTest extends TestCase
         $a = Planner::assumptions($g)['curve'];
         $this->assertFalse(Planner::setAssumption((int) $a->id, '50,10', $this->lead)['ok'], 'shares must add to 100');
         $this->assertTrue(Planner::setAssumption((int) $a->id, '50,50', $this->lead)['ok']);
+        // A figure a target rests on is a LARGE change: it waits for an owner (AUDIT-AND-PLAN EV-8).
+        $this->assertSame(3, DB::table('gates_event_gates')->where('goal_id', $g)->count(), 'nothing moves until an owner decides');
+        $c = (int) DB::table('gates_event_changes')->where('kind', 'assumption')->value('id');
+        $this->assertSame('large', (string) DB::table('gates_event_changes')->where('id', $c)->value('tier'));
+        $this->assertFalse(Changes::decide($c, $this->lead, 'approve', '')['ok'], 'the lead who asked never approves it');
+        $this->assertTrue(Changes::decide($c, 0, 'approve', '', true)['ok'], 'staff decide where the event has no owner');
         $this->assertSame(2, DB::table('gates_event_gates')->where('goal_id', $g)->count(), 'the open gates re-drafted from it');
     }
 

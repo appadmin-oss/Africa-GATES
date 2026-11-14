@@ -117,7 +117,7 @@ final class Leads
     }
 
     /** End a lead's, an owner's or a finance admin's access at this event — only those, only here. */
-    public static function end(int $grantId, int $eventId, int $adminId, string $capability = 'event.lead'): bool
+    public static function end(int $grantId, int $eventId, ?int $adminId, string $capability = 'event.lead'): bool
     {
         if (!in_array($capability, ['event.lead', 'event.own', 'event.finance'], true)) return false;
         $g = Grants::ready() ? DB::table('gates_grants')->where('id', $grantId)->where('capability', $capability)

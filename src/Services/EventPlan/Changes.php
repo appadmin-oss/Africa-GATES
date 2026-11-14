@@ -25,8 +25,13 @@ final class Changes
         'target'        => ['goal', 'target', 'Change the target of'],
         'goal_deadline' => ['goal', 'deadline', 'Move the deadline of'],
         'gate_date'     => ['gate', 'due_at', 'Move the date of'],
+        // Tiers calls both of these LARGE — "an assumption a target rests on, the budget" — and
+        // both used to apply the moment a lead typed them (AUDIT-AND-PLAN EV-8).
+        'assumption'    => ['assumption', 'value', 'Change the figure'],
+        'budget'        => ['event', 'budget_minor', 'Change the budget of'],
     ];
-    private const TABLE = ['work' => 'gates_event_work', 'goal' => 'gates_event_goals', 'gate' => 'gates_event_gates'];
+    private const TABLE = ['work' => 'gates_event_work', 'goal' => 'gates_event_goals', 'gate' => 'gates_event_gates',
+                           'assumption' => 'gates_event_assumptions', 'event' => 'gates_site_events'];
 
     public static function ready(): bool
     {
@@ -46,8 +51,8 @@ final class Changes
         [$sk, $col, $verb] = self::KINDS[$kind];
         $row = DB::table(self::TABLE[$sk])->where('id', $subjectId)->first();
         if (!$row) return ['ok' => false, 'error' => 'That is not there.'];
-        $eventId = (int) $row->event_id;
-        $lead = Plan::may($memberId, $eventId, 'plan.edit');
+        $eventId = $sk === 'event' ? (int) $row->id : (int) $row->event_id;
+        $lead = Plan::may($memberId, $eventId, $sk === 'event' ? 'settings.edit' : 'plan.edit');
         if ($sk === 'work' && !$lead && !($row->owner_kind === Plan::ACTOR && (int) $row->owner_id === $memberId)) {
             return ['ok' => false, 'error' => 'Only who owns this work, or a lead, can ask to change it.'];
         }
@@ -60,7 +65,7 @@ final class Changes
         if ($tier === 'large' && $reason === '') return ['ok' => false, 'error' => 'Say why: an owner decides this, and reads the reason first.'];
         // Plan rule 8: inside the last three days before a gate, any change to the plan goes to the top.
         if ($tier !== 'large' && self::nearGate($eventId)) $tier = 'large';
-        $title = (string) ($row->title ?? 'it');
+        $title = (string) ($row->title ?? $row->label ?? 'it');
         $summary = mb_substr($verb . ' “' . $title . '” to ' . self::words($col, $new) . ' (now ' . self::words($col, $row->{$col}) . ')', 0, 255);
         $now = date('Y-m-d H:i:s');
         $id = (int) DB::table('gates_event_changes')->insertGetId(['event_id' => $eventId, 'kind' => $kind, 'tier' => $tier, 'subject_kind' => $sk,
@@ -112,6 +117,8 @@ final class Changes
         $v = trim($v);
         if ($col === 'title') return $v !== '' ? mb_substr($v, 0, 255) : null;
         if ($col === 'target') { $n = Goals::number($v); return $n !== null && $n > 0 ? $n : null; }
+        if ($col === 'value') return $v !== '' ? mb_substr($v, 0, 64) : null;   // validated by Planner::setAssumption before it gets here
+        if ($col === 'budget_minor') return $v === '' ? '' : (ctype_digit($v) ? (int) $v : null);   // kobo; '' clears it
         $t = strtotime($v);
         return $t === false ? null : date('Y-m-d 23:59:59', $t);
     }
@@ -119,7 +126,8 @@ final class Changes
     private static function words(string $col, mixed $v): string
     {
         if ($v === null || $v === '') return 'nothing';
-        return match ($col) { 'title' => '“' . $v . '”', 'target' => number_format((int) $v), default => Goals::day((string) $v) };
+        return match ($col) { 'title' => '“' . $v . '”', 'target' => number_format((int) $v), 'value' => (string) $v,
+            'budget_minor' => Plan::naira((int) $v), default => Goals::day((string) $v) };
     }
 
     private static function nearGate(int $eventId): bool
@@ -143,8 +151,7 @@ final class Changes
                 if ((int) $c->proposed_by === $memberId) return ['ok' => false, 'error' => 'You asked for it, so another owner or the platform’s staff decides it.'];
             } elseif ($c->tier === 'large') {
                 // A change to money — a revenue goal's target, a money gate's date — may also be the finance admin's.
-                $money = ($c->subject_kind === 'goal' && DB::table('gates_event_goals')->where('id', (int) $c->subject_id)->value('metric') === 'revenue')
-                      || ($c->subject_kind === 'gate' && DB::table('gates_event_gates')->where('id', (int) $c->subject_id)->value('approver') === 'owner');
+                $money = self::isMoney($c);
                 $finance = $money && \AfricaGates\Services\Grants::allows(Plan::ACTOR, $memberId, 'event.finance', 'event', $eventId);
                 if (!Teams::isOwner($memberId, $eventId) && !$finance) return ['ok' => false, 'error' => 'An owner of this event decides this one' . ($money ? ', or its finance admin.' : '.')];
                 if ((int) $c->proposed_by === $memberId) return ['ok' => false, 'error' => 'You asked for it, so another owner or the platform’s staff decides it.'];
@@ -177,8 +184,30 @@ final class Changes
             return ['ok' => true, 'event' => $eventId, 'msg' => !empty($r['granted']) ? 'Approved. They are the event’s finance admin now.'
                 : 'Approved. Their invitation is sent and switches on once ' . \AfricaGates\Services\RoleInvites::reason((string) ($p['email'] ?? ''), 'event.finance') . '.'];
         }
-        self::apply($changeId, $memberId, 'approved', $note);
+        if (!self::apply($changeId, $memberId, 'approved', $note)) {
+            $now = DB::table('gates_event_changes')->where('id', $changeId)->value('status');
+            return $now === 'rejected'
+                ? ['ok' => true, 'event' => $eventId, 'msg' => 'Nothing was changed: what it asked to change has since been replaced or removed. It is closed with that reason.']
+                : ['ok' => false, 'error' => 'That change has already been decided.'];
+        }
         return ['ok' => true, 'event' => $eventId, 'msg' => 'Approved and applied.'];
+    }
+
+    /**
+     * Is this change about money? The one answer: it was spelled out three times (here,
+     * GoalPages and TeamPages), which is how the three come to disagree (AUDIT-AND-PLAN EV-20).
+     * A revenue goal or one of its figures, a money gate, the budget.
+     */
+    public static function isMoney(object $c): bool
+    {
+        $goalIsRevenue = static fn (?int $goal): bool => $goal !== null && DB::table('gates_event_goals')->where('id', $goal)->value('metric') === 'revenue';
+        return match ((string) $c->subject_kind) {
+            'goal' => $goalIsRevenue((int) $c->subject_id),
+            'gate' => DB::table('gates_event_gates')->where('id', (int) $c->subject_id)->value('approver') === 'owner',
+            'assumption' => $goalIsRevenue(($g = DB::table('gates_event_assumptions')->where('id', (int) $c->subject_id)->value('goal_id')) !== null ? (int) $g : null),
+            'event' => (string) $c->kind === 'budget',
+            default => false,
+        };
     }
 
     /** Apply a change, claimed first so two deciders cannot both apply it. */
@@ -186,16 +215,33 @@ final class Changes
     {
         $c = DB::table('gates_event_changes')->where('id', $changeId)->first();
         if (!$c) return false;
+        // The thing it changes may be gone: re-drafting a goal deletes its open gates, so a
+        // pending gate change pointed at nothing and was still reported "Approved and applied"
+        // (AUDIT-AND-PLAN EV-10). Closed as not applied, with the reason, instead.
+        if (isset(self::KINDS[(string) $c->kind])) {
+            $sk = self::KINDS[(string) $c->kind][0];
+            if (!DB::table(self::TABLE[$sk])->where('id', (int) $c->subject_id)->exists()) {
+                DB::table('gates_event_changes')->where('id', $changeId)->where('status', 'pending')->update(['status' => 'rejected', 'decided_by' => $by ?: null,
+                    'decided_at' => date('Y-m-d H:i:s'), 'decided_note' => 'No longer applies: what it changed has since been replaced or removed.']);
+                return false;
+            }
+        }
         $n = DB::table('gates_event_changes')->where('id', $changeId)->where('status', 'pending')->update(['status' => $status, 'decided_by' => $by ?: null,
             'decided_at' => date('Y-m-d H:i:s'), 'decided_note' => $note !== '' ? mb_substr($note, 0, 255) : null]);
         if ($n === 0) return false;
         if (!isset(self::KINDS[(string) $c->kind])) return true;   // 'finance' is granted in decide(), never by lapse
         [$sk, $col] = self::KINDS[(string) $c->kind];
         $value = json_decode((string) $c->payload, true)['value'] ?? null;
+        if ($sk === 'event' && $value === '') $value = null;
         $set = [$col => $value];
-        if ($sk !== 'gate') $set['updated_at'] = date('Y-m-d H:i:s');
+        if (!in_array($sk, ['gate', 'event'], true)) $set['updated_at'] = date('Y-m-d H:i:s');
+        if ($sk === 'assumption') {
+            $was = DB::table('gates_event_assumptions')->where('id', (int) $c->subject_id)->value('value');
+            $set += ['source' => 'Corrected (was ' . mb_substr((string) $was, 0, 40) . ')', 'status' => 'confirmed', 'updated_by' => (int) $c->proposed_by ?: null];
+        }
         DB::table(self::TABLE[$sk])->where('id', (int) $c->subject_id)->update($set);
         if ($sk === 'goal') Planner::draftGates((int) $c->subject_id);   // a new target or deadline re-drafts the open gates
+        if ($sk === 'assumption' && ($g = (int) DB::table('gates_event_assumptions')->where('id', (int) $c->subject_id)->value('goal_id'))) Planner::draftGates($g);
         return true;
     }
 

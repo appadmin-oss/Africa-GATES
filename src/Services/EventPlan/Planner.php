@@ -92,7 +92,7 @@ final class Planner
      * open gates are re-drafted from it. (It moves what each person is asked for, never the goal
      * itself — changing the goal or its target is a large change, Tiers.)
      */
-    public static function setAssumption(int $id, string $value, int $memberId): array
+    public static function setAssumption(int $id, string $value, int $memberId, string $reason = ''): array
     {
         $a = DB::table('gates_event_assumptions')->where('id', $id)->first();
         if (!$a) return ['ok' => false, 'error' => 'That figure is not there.'];
@@ -111,10 +111,10 @@ final class Planner
             $value = (string) $n;
         }
         if ($value === (string) $a->value) return ['ok' => true, 'event' => (int) $a->event_id, 'msg' => 'No change.'];
-        DB::table('gates_event_assumptions')->where('id', $id)->update(['value' => mb_substr($value, 0, 64), 'source' => 'Corrected by a lead (was ' . mb_substr((string) $a->value, 0, 40) . ')',
-            'status' => 'confirmed', 'updated_by' => $memberId, 'updated_at' => date('Y-m-d H:i:s')]);
-        if ($a->goal_id) self::draftGates((int) $a->goal_id);
-        return ['ok' => true, 'event' => (int) $a->event_id, 'msg' => 'Changed. Everything below it re-solved, and the open gates moved with it.'];
+        // A figure a target rests on is a LARGE change (Tiers): an owner decides, never the lead
+        // who typed it. It used to apply at once, re-drafting the money gates with nobody
+        // deciding (AUDIT-AND-PLAN EV-8). On approval Changes::apply() re-solves the gates.
+        return Changes::propose('assumption', $id, $value, $reason !== '' ? $reason : 'A lead corrected the figure', $memberId);
     }
 
     private static function num(array $as, string $k, float $fallback): float

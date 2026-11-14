@@ -482,7 +482,15 @@ final class Plan
         if ($budget !== '' && $b === null) return ['ok' => false, 'error' => 'Give the budget in naira.'];
         // One spelling per series, so "Alimosho Ceremony" and "alimosho-ceremony " are one series.
         $key = Slug::make($series, 64);
-        DB::table('gates_site_events')->where('id', $eventId)->update(['budget_minor' => $b ?: null, 'series_key' => $key !== '' ? $key : null]);
+        DB::table('gates_site_events')->where('id', $eventId)->update(['series_key' => $key !== '' ? $key : null]);
+        // The budget is a LARGE change (Tiers): an owner decides it. It used to be written here
+        // straight away (AUDIT-AND-PLAN EV-8). The series is only a label and still applies.
+        $now = DB::table('gates_site_events')->where('id', $eventId)->value('budget_minor');
+        if ((string) ($b ?: '') !== (string) ($now ?? '')) {
+            $r = Changes::propose('budget', $eventId, $b ? (string) $b : '', 'The lead set the event’s budget', $leadId);
+            if (!$r['ok']) return $r;
+            return ['ok' => true, 'event' => $eventId, 'msg' => 'Saved. The budget change waits for an owner: ' . (string) ($r['msg'] ?? '')];
+        }
         return ['ok' => true, 'event' => $eventId];
     }
 

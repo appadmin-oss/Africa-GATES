@@ -1265,7 +1265,13 @@ final class EventPages
                   'report_decide' => 'decided the written report'];
         $rows = [];
         foreach (Scope::audit((int) $e->id) as $a) {
-            $verb = substr((string) $a->action, 5);
+            // `lead.<verb>` from the lead console; anything else is staff's own word for it.
+            $staff = ['event.finance.give' => 'gave the event a finance admin', 'event.finance.invite' => 'invited a finance admin',
+                      'event.finance.end' => 'ended the finance admin’s access', 'event.finance.decide' => 'decided a finance proposal',
+                      'event.owner.give' => 'gave the event an owner', 'event.owner.invite' => 'invited an owner', 'event.owner.end' => 'ended an owner’s access'];
+            $verb = str_starts_with((string) $a->action, 'lead.') ? substr((string) $a->action, 5) : (string) $a->action;
+            if (isset($staff[$verb])) $words[$verb] = $staff[$verb];
+            if (!isset($words[$verb]) && str_starts_with($verb, 'event.team.')) $words[$verb] = 'decided a team proposal (staff)';
             $meta = json_decode((string) ($a->meta ?? ''), true) ?: [];
             $detail = trim((string) ($meta['title'] ?? $meta['name'] ?? $meta['label'] ?? ''));
             $rows[] = ['t' => ((string) ($meta['lead'] ?? '') ?: ($a->name ?: 'Someone')) . ' ' . ($words[$verb] ?? $verb), 'sub' => $detail, 'meta' => date('j M, H:i', (int) strtotime((string) $a->created_at))];

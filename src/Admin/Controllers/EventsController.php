@@ -1377,7 +1377,11 @@ class EventsController
         } elseif ($do === 'finance_decide') {
             // A lead's request for a finance admin. An owner normally decides it in the lead
             // portal; staff decide it here, and must for an event with no owner.
-            $r = \AfricaGates\Services\EventPlan\Changes::decide((int) ($b['change'] ?? 0), 0, (string) ($b['verdict'] ?? ''), (string) ($b['note'] ?? ''), true);
+            // Only a change belonging to THIS event: the id came from a form, and deciding any
+            // change id from any event's page was possible (AUDIT-AND-PLAN EV-20).
+            $belongs = \Illuminate\Database\Capsule\Manager::table('gates_event_changes')->where('id', (int) ($b['change'] ?? 0))->where('event_id', $id)->exists();
+            $r = $belongs ? \AfricaGates\Services\EventPlan\Changes::decide((int) ($b['change'] ?? 0), 0, (string) ($b['verdict'] ?? ''), (string) ($b['note'] ?? ''), true)
+                          : ['ok' => false, 'error' => 'That proposal is not this event’s.'];
             if ($r['ok']) {
                 $_SESSION['flash_ok'] = (string) $r['msg'];
                 $this->audit->record($adminId, 'event.finance.decide', 'event', $id, ['change' => (int) ($b['change'] ?? 0), 'verdict' => (string) ($b['verdict'] ?? '')]);
