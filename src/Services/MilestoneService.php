@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\Env;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
 use Psr\Log\LoggerInterface;
@@ -35,7 +36,11 @@ class MilestoneService
             if (!$nominee) return null;
 
             $count = (int)$nominee->vote_count;
+            $highest = null;
 
+            // Record EVERY newly-crossed milestone — a single vote or a bonus
+            // redemption can leap several thresholds at once; returning after the
+            // first would silently drop the rest.
             foreach (self::MILESTONES as $milestone) {
                 if ($count < $milestone) break;
 
@@ -43,21 +48,27 @@ class MilestoneService
                     ->where('nominee_id', $nomineeId)
                     ->where('milestone', $milestone)
                     ->exists();
+                if ($alreadyRecorded) continue;
 
-                if (!$alreadyRecorded) {
+                try {
                     DB::table('gates_vote_milestones')->insert([
                         'nominee_id'  => $nomineeId,
                         'milestone'   => $milestone,
                         'notified'    => 0,
                         'achieved_at' => Carbon::now()->toDateTimeString(),
                     ]);
-
-                    $this->events?->milestoneReached($nomineeId, $milestone);
-                    $this->notifyAdmin($nominee, $milestone);
-                    $this->log?->info("[milestone] {$nominee->name} reached {$milestone} votes");
-                    return $milestone;
+                } catch (\Throwable $e) {
+                    // A concurrent voter crossed the same milestone first (UNIQUE
+                    // violation) — not an error; skip notifying for it here.
+                    continue;
                 }
+
+                $this->events?->milestoneReached($nomineeId, $milestone);
+                $this->notifyAdmin($nominee, $milestone);
+                $this->log?->info("[milestone] {$nominee->name} reached {$milestone} votes");
+                $highest = $milestone;
             }
+            return $highest; // highest milestone newly recorded this call (null if none)
         } catch (\Throwable $e) {
             $this->log?->error('[milestone] check failed: ' . $e->getMessage());
         }
@@ -66,21 +77,28 @@ class MilestoneService
 
     private function notifyAdmin(object $nominee, int $milestone): void
     {
-        $adminEmail = $_ENV['ADMIN_ALERT_EMAIL'] ?? ($_ENV['MAIL_FROM_ADDRESS'] ?? null);
-        if (!$adminEmail || !$this->mailer) return;
+        // The one resolver (Settings, then .env), not a second reading of the same keys: this
+        // read ADMIN_ALERT_EMAIL from .env alone, so an address changed in /admin/settings
+        // reached every other alert and never this one.
+        $adminEmail = Notifier::adminEmail();
+        if ($adminEmail === '' || !$this->mailer) return;
 
         $formatted = number_format($milestone);
+        // A nominee's name is what somebody else typed into a nomination form; in an HTML
+        // mail it is markup unless it is escaped.
+        $name  = htmlspecialchars((string) $nominee->name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $total = htmlspecialchars((string) $nominee->vote_count, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $html = <<<HTML
-<p><strong>{$nominee->name}</strong> has just crossed the
+<p><strong>{$name}</strong> has just crossed the
 <span style="color:#15803d;font-size:1.25em;font-weight:700">{$formatted} votes</span>
 milestone in the Africa GATES 2026 cycle. 🎉</p>
 <p>Notify the nominee so they can share this achievement with their supporters.</p>
 <table role="presentation" cellpadding="0" cellspacing="0" border="0"
        style="margin:16px 0;background:#f0fdf4;border-left:4px solid #22c55e;border-radius:0 8px 8px 0;padding:12px 16px">
   <tr><td style="font-size:14px;color:#166534">
-    Nominee: <strong>{$nominee->name}</strong><br>
+    Nominee: <strong>{$name}</strong><br>
     Milestone: <strong>{$formatted} votes</strong><br>
-    Total votes: <strong>{$nominee->vote_count}</strong>
+    Total votes: <strong>{$total}</strong>
   </td></tr>
 </table>
 HTML;
@@ -96,29 +114,43 @@ HTML;
                 ->where('milestone', $milestone)
                 ->update(['notified' => 1]);
         } catch (\Throwable) {}
-    }
 
-    /**
-     * Get all milestones achieved by a nominee (for their campaign page).
-     */
-    public function getForNominee(int $nomineeId): array
-    {
+        // Also congratulate the nominee themselves — the admin alert above says to
+        // "notify the nominee", so do it automatically when we can reach their
+        // linked registry profile. Best-effort; never breaks the vote path.
         try {
-            return DB::table('gates_vote_milestones')
-                ->where('nominee_id', $nomineeId)
-                ->orderBy('milestone')
-                ->get()->toArray();
-        } catch (\Throwable) {
-            return [];
-        }
-    }
-
-    /** Next milestone the nominee hasn't reached yet */
-    public function nextMilestone(int $currentVotes): ?int
-    {
-        foreach (self::MILESTONES as $m) {
-            if ($currentVotes < $m) return $m;
-        }
-        return null;
+            $pid   = DB::table('gates_nominees')->where('id', $nominee->id)->value('profile_id');
+            $email = $pid ? DB::table('gates_profiles')->where('id', $pid)->value('email') : null;
+            if ($email && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                // The handoff's "Milestone" — an announcement, so it carries the opt-out
+                // link (EmailOptOut, HMAC-bound to this address) and the List-Unsubscribe
+                // header. It counts VOTES; whether separate people count too is the
+                // edition's own basis, so that sentence is stated only where it is true.
+                $base = \AfricaGates\Support\SiteUrl::base();
+                $ctx  = DB::table('gates_nominees as n')
+                    ->leftJoin('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+                    ->leftJoin('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
+                    ->where('n.id', $nominee->id)->first(['cy.id as cycle_id', 'cy.programme_id', 'cy.voting_close']);
+                $closes = '';
+                if ($ctx && !empty($ctx->voting_close)) {
+                    $closes = \AfricaGates\Support\DisplayTime::showZoned((string) $ctx->voting_close, 'j F, H:i');
+                }
+                $eff   = (new RuleEngine())->effective(
+                    $ctx && $ctx->programme_id !== null ? (int) $ctx->programme_id : null,
+                    $ctx && $ctx->cycle_id !== null ? (int) $ctx->cycle_id : null);
+                $basis = CpiService::basis($eff['community_basis'] ?? null);
+                $unsub = EmailOptOut::url($base, (string) $email);
+                \AfricaGates\Services\Mail\Emails::send($this->mailer, (string) $email, 'milestone', [
+                    'first_name'      => DoorWelcome::firstName((string) $nominee->name) ?: (string) $nominee->name,
+                    'full_name'       => (string) $nominee->name,
+                    'votes'           => $formatted,
+                    'closes'          => $closes,
+                    'page_url'        => \AfricaGates\Support\NomineeUrl::ballot((int) $nominee->id),
+                    'by_people'       => in_array($basis, [CpiService::BASIS_IDEAL, CpiService::BASIS_REACH], true),
+                    'unsubscribe_url' => $unsub,
+                    'site_url'        => $base,
+                ], [], $unsub);
+            }
+        } catch (\Throwable) {}
     }
 }

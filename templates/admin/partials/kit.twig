@@ -1,0 +1,136 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE CONSOLE KIT — chart, time range, filter chips, row menu, help mark, empty state
+  ══════════════════════════════════════════════════════════════════════════════
+  Owner, 13 Oct 2026, with three screenshots of a console they liked (a home page with an
+  activity chart and a health card; an alerts page with "+ Status · + Agent · + Tool" and
+  a range control that steps a window at a time; a request log with a histogram, a
+  search bar, Export and a ⋯ on every row). These are those pieces, once, for any console
+  list to use.
+
+  EVERY ONE WORKS WITH NO SCRIPT. A filter chip, a range preset and a bar of the chart are
+  LINKS to the filtered URL; a menu is a native <details>. console-ux.js only closes an
+  open menu on an outside click or Escape and adds "copy link". So the view always has an
+  address, survives Back, and can be sent to a colleague.
+
+  Use: {% import 'admin/partials/kit.twig' as kit %}
+    kit.chart(series, {label, base, params})   — series from Admin\Support\TimeSeries
+    kit.range(range, base, params)            — range from Admin\Support\TimeRange
+    kit.filters(defs, base, params)           — defs: [{key, label, value, options:[{v,l}]}]
+    kit.rowmenu(items)                        — items: [{label, href} | {label, copy}]
+    kit.help(text)
+    kit.empty(title, message, icon)
+#}
+
+{# A URL for `base` with `params` changed by `set` — nulls and blanks dropped, page reset. #}
+{% macro url(base, params, set) -%}
+  {%- set q = params|merge(set|default({}))|filter((v, k) => v is not null and v != '' and k != 'page') -%}
+  {{- base }}{{ q ? '?' ~ q|url_encode : '' -}}
+{%- endmacro %}
+
+{% macro chart(series, opts) %}
+  {% import _self as kit %}
+  {% set _max = max(series.max, 1) %}
+  {% set _mid = (_max / 2)|round(0, 'ceil') %}
+  <figure class="cn-chart" aria-label="{{ opts.label|default('Activity') }}">
+    <figcaption class="cn-chart__t">
+      <span>{{ opts.label|default('Activity') }}</span>
+      <span class="cn-chart__n">{{ series.total|number_format }} {{ opts.unit|default('events') }}</span>
+    </figcaption>
+    <div class="cn-chart__plot">
+      <div class="cn-chart__y" aria-hidden="true"><span>{{ _max|number_format }}</span><span>{{ _mid|number_format }}</span><span>0</span></div>
+      <div class="cn-chart__bars" role="list">
+        {% for b in series.bars %}
+          {# Each bar is a link that narrows the view to its own slice — the screenshot's
+             "focus to selection", as a URL. #}
+          <a class="cn-chart__bar{{ b.n == 0 ? ' is-zero' }}" role="listitem" style="--h:{{ (b.n * 100 / _max)|round }}%"
+             href="{{ kit.url(opts.base, opts.params|filter((v, k) => k != 'range'), {from: b.q_from, to: b.q_to}) }}"
+             title="{{ b.label }} · {{ b.n|number_format }}" aria-label="{{ b.label }}: {{ b.n|number_format }}"></a>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="cn-chart__x" aria-hidden="true">
+      <span>{{ series.bars|first.label|default('') }}</span><span>{{ series.bars|last.label|default('') }}</span>
+    </div>
+  </figure>
+{% endmacro %}
+
+{% macro range(r, base, params) %}
+  {% import _self as kit %}
+  {% set _keep = params|filter((v, k) => k not in ['range', 'from', 'to']) %}
+  {% set _prev = r.previous() %}
+  {% set _next = r.next() %}
+  <div class="cn-range" role="group" aria-label="Time range">
+    <a class="cn-range__step" href="{{ kit.url(base, _keep|merge(_prev.query()), {}) }}" aria-label="Previous window" title="Previous window">‹</a>
+    <details class="cn-menuwrap cn-range__pick">
+      <summary class="cn-range__l">
+        <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+        <span>{{ r.label() }}</span><span class="cn-range__z">· {{ r.zone() }}</span>
+      </summary>
+      <div class="cn-pop" role="menu">
+        {% for k, p in constant('AfricaGates\\Admin\\Support\\TimeRange::PRESETS') %}
+          <a class="cn-pop__i" role="menuitemradio" aria-checked="{{ r.preset == k ? 'true' : 'false' }}" href="{{ kit.url(base, _keep, {range: k}) }}">{{ p[0] }}</a>
+        {% endfor %}
+        <form class="cn-pop__form" method="get" action="{{ base }}">
+          {% for k, v in _keep %}{% if v is not iterable %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{% endfor %}
+          <label>From <input type="datetime-local" step="1" name="from" value="{{ r.show(r.from, 'Y-m-d\\TH:i:s') }}"></label>
+          <label>To <input type="datetime-local" step="1" name="to" value="{{ r.show(r.to, 'Y-m-d\\TH:i:s') }}"></label>
+          <button type="submit" class="cn-btn cn-btn--sm">Apply</button>
+        </form>
+      </div>
+    </details>
+    {% if _next %}
+      <a class="cn-range__step" href="{{ kit.url(base, _keep|merge(_next.query()), {}) }}" aria-label="Next window" title="Next window">›</a>
+    {% else %}
+      <span class="cn-range__step is-off" aria-hidden="true">›</span>
+    {% endif %}
+  </div>
+{% endmacro %}
+
+{% macro filters(defs, base, params) %}
+  {% import _self as kit %}
+  <div class="cn-fchips" role="group" aria-label="Filters">
+    {% for d in defs %}
+      {% if d.value is not null and d.value != '' %}
+        {% set _on = d.options|filter(o => o.v ~ '' == d.value ~ '')|first %}
+        <a class="cn-fchip is-on" href="{{ kit.url(base, params, {(d.key): null}) }}" aria-label="Remove filter: {{ d.label }} {{ _on ? _on.l : d.value }}">
+          <span class="cn-fchip__k">{{ d.label }}</span><span class="cn-fchip__v">{{ _on ? _on.l : d.value }}</span><span aria-hidden="true">✕</span>
+        </a>
+      {% elseif d.options is not empty %}
+        <details class="cn-menuwrap">
+          <summary class="cn-fchip"><span aria-hidden="true">+</span> {{ d.label }}</summary>
+          <div class="cn-pop cn-pop--list" role="menu">
+            {% for o in d.options %}
+              <a class="cn-pop__i" role="menuitem" href="{{ kit.url(base, params, {(d.key): o.v}) }}">{{ o.l }}{% if o.n is defined and o.n is not null %}<span class="cn-pop__n">{{ o.n|number_format }}</span>{% endif %}</a>
+            {% endfor %}
+          </div>
+        </details>
+      {% endif %}
+    {% endfor %}
+  </div>
+{% endmacro %}
+
+{% macro rowmenu(items, label) %}
+  <details class="cn-menuwrap cn-rowmenu">
+    <summary class="cn-rowmenu__b" aria-label="{{ label|default('Row actions') }}" title="More">⋯</summary>
+    <div class="cn-pop cn-pop--end" role="menu">
+      {% for i in items %}
+        {% if i.copy is defined %}
+          <button type="button" class="cn-pop__i" role="menuitem" data-ag-do="copy" data-copy="{{ i.copy }}">{{ i.label }}</button>
+        {% else %}
+          <a class="cn-pop__i" role="menuitem" href="{{ i.href }}">{{ i.label }}</a>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </details>
+{% endmacro %}
+
+{% macro help(text) %}<span class="cn-help" tabindex="0" role="img" aria-label="{{ text }}" title="{{ text }}">?</span>{% endmacro %}
+
+{% macro empty(title, message, icon) %}
+  <div class="cn-empty cn-empty--icon">
+    <svg class="cn-empty__ic" aria-hidden="true" focusable="false"><use href="#ic-{{ icon|default('search') }}"/></svg>
+    <span class="cn-empty__t">{{ title }}</span>
+    {% if message %}<span class="cn-empty__m">{{ message }}</span>{% endif %}
+  </div>
+{% endmacro %}

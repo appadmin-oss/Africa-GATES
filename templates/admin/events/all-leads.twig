@@ -1,0 +1,32 @@
+{% extends "admin/layout.twig" %}
+{#
+  EVERY EVENT'S LEADS AND OWNERS — one list (owner, 3 Nov 2026: "nowhere lists every lead across all
+  events"). Live leads and invitations still waiting, grouped by event. Roles are given and
+  ended on each event's own Leads and volunteers page; this page only reads.
+#}
+{% import 'admin/partials/kit.twig' as kit %}
+{% block topbar_sub %}Who leads and who owns each event, and who has been invited. Give or end a role from the event’s own page.{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/console/volunteers.css') }}">{% endblock %}
+
+{% block content %}
+<section class="cn-card vl-sec" aria-labelledby="alh">
+  <h2 class="vl-h" id="alh">Event leads</h2>
+  {% if rows is empty %}
+    {{ kit.empty('No event has a lead yet', 'Open an event under Events and choose Leads to give it to somebody.', 'users') }}
+  {% else %}
+    <ul class="vl-list">
+      {% for r in rows %}
+        <li class="vl-li">
+          <span class="vl-li__t">{{ r.state in ['lead', 'owner'] ? r.name : r.email }}</span>
+          <span class="vl-help">{{ r.event }}{% if r.date %} · {{ r.date|date('j M Y') }}{% endif %} · {{ {
+            lead: 'leads it, until ' ~ r.until ~ ' · ' ~ r.email,
+            owner: 'owns it, until ' ~ r.until ~ ' · ' ~ r.email,
+            owner_invited: 'invited to own it, waiting ' ~ r.waiting|default('') ~ ' · until ' ~ r.until,
+          }[r.state]|default('invited to lead it, waiting ' ~ r.waiting|default('') ~ ' · until ' ~ r.until) }}</span>
+          <a class="cn-btn" href="/admin/events/{{ r.event_id }}/leads">Open<span class="sr-only"> {{ r.event }}’s leads</span></a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+</section>
+{% endblock %}

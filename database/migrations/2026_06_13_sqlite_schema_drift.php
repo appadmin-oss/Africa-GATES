@@ -8,18 +8,16 @@
  * This adds the missing tables (SQLite dialect) + the fraud columns FraudService
  * stamps onto gates_votes. Idempotent: safe to re-run.
  */
-require __DIR__ . '/../../vendor/autoload.php';
-Dotenv\Dotenv::createImmutable(__DIR__ . '/../../')->safeLoad();
+require __DIR__ . '/../bootstrap.php';
 use Illuminate\Database\Capsule\Manager as DB;
 
-$c = new DB();
-$c->addConnection(require __DIR__ . '/../../config/database.php');
-$c->setAsGlobal();
-$c->bootEloquent();
-
 if (DB::connection()->getDriverName() !== 'sqlite') {
-    fwrite(STDERR, "Refusing to run: connection is not SQLite (use INSTALL.sql / schema.sql for MySQL).\n");
-    exit(1);
+    // SQLite-only drift repair — on MySQL these tables already ship in schema.sql /
+    // INSTALL.sql, so this is a no-op. MUST `return` (never exit/die): this file is
+    // include()d in a loop by MigrationRunner / db:migrate, and exit would kill the
+    // whole process before any later migration runs.
+    echo "not sqlite — skip (MySQL tables ship in schema.sql)\n";
+    return;
 }
 
 $ddl = <<<'SQL'

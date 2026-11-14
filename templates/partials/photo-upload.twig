@@ -1,0 +1,10 @@
+{# Shared native file control. JavaScript adds previews and selection feedback; upload
+   and validation continue to work without it. Keep policy aligned with UploadService. #}
+<div class="ag-upload-field">
+<label for="{{ id }}">{{ label|default('Choose a photo')|trans }}</label>
+<p id="{{ id }}-help">{{ help|default('JPEG, PNG, WebP or GIF.')|trans }} {{ 'Server limit per file:'|trans }} {{ photo_upload_limit_label|default('10 MB') }}.</p>
+<input id="{{ id }}" type="file" name="{{ name|default('photo') }}" accept="{{ accept|default('image/jpeg,image/png,image/webp,image/gif') }}"
+  data-photo-upload data-photo-max-bytes="{{ max_bytes|default(photo_upload_limit|default(10485760)) }}" data-photo-min-side="{{ min_side|default(0) }}"
+  aria-describedby="{{ id }}-help"{% if required|default(false) %} required{% endif %}{% if multiple|default(false) %} multiple{% endif %}>
+
+</div>

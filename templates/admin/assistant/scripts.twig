@@ -1,0 +1,77 @@
+{% extends "admin/layout.twig" %}
+{#
+  OPERATIONS SCRIPTS — the platform's own diagnostic and repair commands, runnable with no
+  shell (Services\Ops\OpsScripts). Checks read and report; the admin assistant runs them
+  itself before it answers. Repairs change data and are run only from here, by a person,
+  with a reason. Each script is shown only to a role whose console gate covers what it
+  reveals. Every run is kept in gates_ops_runs; the latest result of each is drawn below.
+#}
+{% block topbar_title %}Operations scripts{% endblock %}
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .ops-list{ display:flex; flex-direction:column; gap:10px }
+  .ops-row{ display:flex; gap:16px; align-items:flex-start; justify-content:space-between; flex-wrap:wrap;
+    padding:12px 14px; border:1px solid var(--cn-line-card); border-radius:10px; scroll-margin-top:96px }
+  .ops-row:target{ outline:2px solid var(--cn-ink); outline-offset:2px }
+  .ops-row__main{ flex:1 1 320px; min-width:0 }
+  .ops-row__main p{ margin:4px 0 0 }
+  .ops-row details{ margin-top:8px }
+  .ops-code{ white-space:pre-wrap; word-break:break-word; max-height:320px; overflow:auto; margin:8px 0 0;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace }
+</style>
+{% endblock %}
+{% block content %}
+<div class="ad-card">
+  <div class="ad-card__head"><div class="ad-card__title">Checks
+    <small>Read-only. They report and change nothing — the <a href="/admin/assistant">assistant</a> runs these itself when you ask it something.</small></div></div>
+  <div class="ad-card__body ops-list">
+    {% for s in checks %}
+      <div class="ops-row" id="{{ s.key }}">
+        <div class="ops-row__main">
+          <strong>{{ s.title }}</strong>
+          <p><small>{{ s.what }}</small></p>
+          {% if s.last %}
+            <details{% if not s.last.ok %} open{% endif %}>
+              <summary><small>Last run {{ s.last.created_at }} by {{ s.last.via == 'ai' ? 'the assistant' : 'a person' }} — {{ s.last.ok ? 'finished' : 'reported a problem' }} in {{ (s.last.ms / 1000)|number_format(1) }}s</small></summary>
+              <pre class="ops-code">{{ s.last.output }}</pre>
+            </details>
+          {% endif %}
+        </div>
+        <form method="post" action="/admin/assistant/scripts/{{ s.key }}">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <button class="ad-btn ad-btn--xs" type="submit">Run</button>
+        </form>
+      </div>
+    {% else %}
+      <p><small>No checks are open to your role.</small></p>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="ad-card">
+  <div class="ad-card__head"><div class="ad-card__title">Repairs
+    <small>These change data. A person runs them, with a reason that is kept with the run. The assistant can recommend one; it can never run it.</small></div></div>
+  <div class="ad-card__body ops-list">
+    {% for s in repairs %}
+      <div class="ops-row" id="{{ s.key }}">
+        <div class="ops-row__main">
+          <strong>{{ s.title }}</strong>
+          <p><small>{{ s.what }}</small></p>
+          {% if s.last %}
+            <details{% if not s.last.ok %} open{% endif %}>
+              <summary><small>Last run {{ s.last.created_at }} — {{ s.last.ok ? 'finished' : 'reported a problem' }}{% if s.last.reason %} · “{{ s.last.reason }}”{% endif %}</small></summary>
+              <pre class="ops-code">{{ s.last.output }}</pre>
+            </details>
+          {% endif %}
+        </div>
+        <form method="post" action="/admin/assistant/scripts/{{ s.key }}" data-confirm="Run this repair? It changes live data, and what it writes stays written. {{ s.title }}: {{ s.what }}">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <button class="ad-btn ad-btn--xs ad-btn--primary" type="submit">Run</button>
+        </form>
+      </div>
+    {% else %}
+      <p><small>Repairs are run by an admin or a superadmin.</small></p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

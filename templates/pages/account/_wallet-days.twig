@@ -1,0 +1,25 @@
+{#
+  A wallet's movements under Today, Yesterday and dates — the wallet's last four and the
+  whole history draw the same rows, so a row cannot look one way in one place and another
+  in the other. Each row opens its receipt. On a phone the time rides in the sub line and
+  the status pill under the amount; from 600 they have columns of their own.
+#}
+{% for d in days %}
+  <h3 class="wl-day">{{ d.label|trans }}</h3>
+  <ul class="acx-card wl-list">
+    {% for t in d.items %}
+      <li>
+        <a class="wl-tx" href="/account/wallet/tx/{{ t.key }}">
+          <span class="wl-tx__i wl-tx__i--{{ (t.unit|default('naira')) == 'pts' ? 'pts' : t.dir }}" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="{{ (t.unit|default('naira')) == 'pts' ? 'M12 2l2.9 6.3 6.8.7-5.1 4.6 1.5 6.7L12 16.9 5.9 20.3l1.5-6.7L2.3 9l6.8-.7z' : (t.dir == 'in' ? 'M17 7 7 17M7 9v8h8' : 'M7 17 17 7M9 7h8v8') }}"/></svg></span>
+          <span class="wl-tx__b"><b>{{ t.title|trans }}</b><span>{{ t.sub }}<span class="wl-tx__tp"> · {{ t.at|date('g:i a') }}</span></span></span>
+          <span class="wl-tx__t">{{ t.at|date('g:i a') }}</span>
+          <span class="wl-tx__p"><span class="wl-pill wl-pill--{{ t.status }}">{{ t.status_label|trans }}</span></span>
+          <span class="wl-tx__r">
+            <span class="wl-tx__a wl-tx__a--{{ t.dir == 'in' and t.status != 'refused' ? 'in' : 'out' }}"><span class="ag-sr">{{ t.dir == 'in' ? 'In'|trans : 'Out'|trans }}</span>{{ t.dir == 'in' ? '+' : '−' }}<span class="wl-amt" data-wl-amt="{{ t.amount_kobo }}" data-wl-unit="{{ t.unit|default('naira') }}"><span class="wl-amt__v">{% if (t.unit|default('naira')) == 'pts' %}{{ t.amount_kobo|number_format }} pts{% else %}₦{{ (t.amount_kobo / 100)|number_format(2) }}{% endif %}</span><span class="wl-amt__m" aria-hidden="true">••••</span></span></span>
+            <span class="wl-pill wl-pill--{{ t.status }} wl-tx__pp">{{ t.status_label|trans }}</span>
+          </span>
+        </a>
+      </li>
+    {% endfor %}
+  </ul>
+{% endfor %}

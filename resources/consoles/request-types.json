@@ -1,0 +1,291 @@
+{
+ "statuses": [
+  "Waiting",
+  "Needs info",
+  "Approved",
+  "Declined",
+  "Withdrawn"
+ ],
+ "transitions": {
+  "decider": {
+   "Waiting": [
+    "Approved",
+    "Needs info",
+    "Declined"
+   ]
+  },
+  "requester": {
+   "Waiting": [
+    "Withdrawn"
+   ],
+   "Needs info": [
+    "Waiting",
+    "Withdrawn"
+   ]
+  }
+ },
+ "noteRequiredFor": [
+  "Needs info",
+  "Declined",
+  "Add info"
+ ],
+ "lead": [
+  {
+   "key": "spend",
+   "label": "Spend over my limit",
+   "usually": "usually decided within a day",
+   "fields": [
+    {
+     "key": "title",
+     "label": "What you need",
+     "placeholder": "MC fee for the ceremony",
+     "multiline": false,
+     "required": true
+    },
+    {
+     "key": "amount",
+     "label": "Amount (₦)",
+     "placeholder": "450,000",
+     "multiline": false,
+     "required": false
+    },
+    {
+     "key": "by",
+     "label": "Needed by",
+     "placeholder": "Fri 30 Oct",
+     "multiline": false,
+     "required": false
+    },
+    {
+     "key": "why",
+     "label": "Why, and what happens if it waits",
+     "placeholder": "The MC holds the date until Friday",
+     "multiline": true,
+     "required": true
+    }
+   ],
+   "route": "finance"
+  },
+  {
+   "key": "access",
+   "label": "Access for my team",
+   "usually": "usually within a day",
+   "fields": [
+    {
+     "key": "title",
+     "label": "Who, and what access",
+     "placeholder": "Kemi Bello: Money, read only",
+     "multiline": false,
+     "required": true
+    },
+    {
+     "key": "by",
+     "label": "Until",
+     "placeholder": "Sun 8 Nov",
+     "multiline": false,
+     "required": false
+    },
+    {
+     "key": "why",
+     "label": "Why",
+     "placeholder": "",
+     "multiline": true,
+     "required": true
+    }
+   ],
+   "route": "admin"
+  },
+  {
+   "key": "message",
+   "label": "A message to a big audience",
+   "usually": "usually within 4 hours",
+   "fields": [
+    {
+     "key": "title",
+     "label": "What, and to whom",
+     "placeholder": "Voting reminder to 8,420 voters",
+     "multiline": false,
+     "required": true
+    },
+    {
+     "key": "amount",
+     "label": "SMS cost (₦), if any",
+     "placeholder": "",
+     "multiline": false,
+     "required": false
+    },
+    {
+     "key": "by",
+     "label": "Send on",
+     "placeholder": "Wed 28 Oct, 09:00",
+     "multiline": false,
+     "required": false
+    },
+    {
+     "key": "why",
+     "label": "Why",
+     "placeholder": "",
+     "multiline": true,
+     "required": true
+    }
+   ],
+   "route": "admin"
+  },
+  {
+   "key": "venue",
+   "label": "Venue or date change",
+   "usually": "usually within 2 days",
+   "fields": [
+    {
+     "key": "title",
+     "label": "What changes",
+     "placeholder": "Move to Lagos City Hall",
+     "multiline": false,
+     "required": true
+    },
+    {
+     "key": "amount",
+     "label": "Cost (₦)",
+     "placeholder": "",
+     "multiline": false,
+     "required": false
+    },
+    {
+     "key": "why",
+     "label": "Why",
+     "placeholder": "",
+     "multiline": true,
+     "required": true
+    }
+   ],
+   "route": "admin"
+  },
+  {
+   "key": "other",
+   "label": "Something else",
+   "usually": "usually within 2 days",
+   "fields": [
+    {
+     "key": "title",
+     "label": "What you need",
+     "placeholder": "",
+     "multiline": false,
+     "required": true
+    },
+    {
+     "key": "why",
+     "label": "Details",
+     "placeholder": "",
+     "multiline": true,
+     "required": true
+    }
+   ],
+   "route": "admin"
+  }
+ ],
+ "volunteer": [
+  {
+   "key": "off",
+   "label": "Time off",
+   "usually": "usually within a day",
+   "fields": [
+    {
+     "key": "title",
+     "label": "From and to",
+     "placeholder": "9 to 16 Nov",
+     "multiline": false,
+     "required": true
+    },
+    {
+     "key": "why",
+     "label": "Anything we should know",
+     "placeholder": "",
+     "multiline": true,
+     "required": true
+    }
+   ],
+   "route": "lead"
+  },
+  {
+   "key": "hours",
+   "label": "Correct my hours",
+   "usually": "usually within 2 days",
+   "fields": [
+    {
+     "key": "title",
+     "label": "Which hours",
+     "placeholder": "Sat 17 Oct, Egbeda",
+     "multiline": false,
+     "required": true
+    },
+    {
+     "key": "amount",
+     "label": "What it should be (hours)",
+     "placeholder": "3.5",
+     "multiline": false,
+     "required": false
+    },
+    {
+     "key": "why",
+     "label": "What happened",
+     "placeholder": "",
+     "multiline": true,
+     "required": true
+    }
+   ],
+   "route": "staff"
+  },
+  {
+   "key": "role",
+   "label": "Access to a role",
+   "usually": "after any training it needs",
+   "fields": [
+    {
+     "key": "title",
+     "label": "Which role",
+     "placeholder": "Interview scheduling",
+     "multiline": false,
+     "required": true
+    },
+    {
+     "key": "why",
+     "label": "Why you’d be good at it",
+     "placeholder": "",
+     "multiline": true,
+     "required": true
+    }
+   ],
+   "route": "staff"
+  },
+  {
+   "key": "travel",
+   "label": "Travel refund",
+   "usually": "under ₦5,000 is paid with your points",
+   "fields": [
+    {
+     "key": "title",
+     "label": "Which shift",
+     "placeholder": "Voter drive, Ikotun",
+     "multiline": false,
+     "required": true
+    },
+    {
+     "key": "amount",
+     "label": "Amount (₦)",
+     "placeholder": "1,500",
+     "multiline": false,
+     "required": false
+    },
+    {
+     "key": "why",
+     "label": "How you travelled",
+     "placeholder": "",
+     "multiline": true,
+     "required": true
+    }
+   ],
+   "route": "lead"
+  }
+ ],
+ "_comment": "Seeded from docs/handoff/consoles-v7/request-types.json (v7). The handoff named a person as each type's decider; here each type has a ROUTE instead (finance | admin | lead | staff), resolved by Services\\Requests to whoever holds that role or grant at the request's scope, so a name is never typed."
+}

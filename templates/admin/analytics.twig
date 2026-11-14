@@ -1,0 +1,730 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  Charts are inline SVG, drawn from figures the controller already computed.
+
+  No charting library. The CSP on this console forbids remote script and every
+  chart library worth using wants a CDN tag or a build step; more to the point,
+  none of these shapes needs one. A sparkline is a polyline, a bar is a rect and
+  a heatmap is a nested loop, and doing it in Twig keeps the numbers on the page
+  identical to the numbers in the test that asserts them.
+#}
+
+
+
+{% import 'admin/partials/analytics-charts.twig' as ch %}
+
+{% block head_styles %}
+
+<link rel="stylesheet" href="{{ asset('/assets/css/console/analytics.css') }}">
+{% endblock %}
+
+{% block content %}
+
+
+<p class="an-lede">
+  The dashboard counts what exists right now. This page is the other half: rates, ratios and
+  funnels — whether voting is growing, how many nominations survive to a ballot, whether voters
+  come back, and where the drop-offs are. Nothing here is a naira figure; the money lives in
+  {% if admin_role in ['superadmin', 'admin'] %}<a href="/admin/finance">Finance</a>{% else %}Finance (available to finance staff){% endif %}. Nothing here reads a name, an address or a phone number
+  either — voters are counted through the hash the votes table already stores.
+</p>
+
+<nav class="an-tabs" aria-label="Reporting period">
+  {% for k, label in ranges %}
+    <a class="an-tab {{ range == k ? 'is-on' : '' }}" href="/admin/analytics?range={{ k }}"{% if range == k %} aria-current="true"{% endif %}>{{ label }}</a>
+  {% endfor %}
+</nav>
+
+<p class="an-scope"><strong>Reporting scope:</strong> dated activity uses the selected {{ days }}-day window. Account totals, nomination funnels and geography are lifetime figures; retention follows the last eight weekly cohorts.</p>
+<nav class="an-jump" aria-label="Analytics sections">{% for key, label in {arrivals: 'Acquisition', audience: 'Audience', voting: 'Voting', retention: 'Retention', funnels: 'Funnels', actions: 'Actions', geography: 'Geography', delivery: 'Community & delivery'} %}<a href="#report-{{ key }}">{{ label }}</a>{% endfor %}</nav>
+{# ══ ARRIVALS ═══════════════════════════════════════════════════════════════
+   The only section on this page not counted off a domain table. Everything else
+   reports what happened AFTER somebody arrived; this is the half that says where
+   they came from — which, on a platform whose reach is shared links, is the
+   question an organiser actually asks on the Tuesday after a flier.
+
+   EVERY COLUMN THE TABLE STORES IS RENDERED SOMEWHERE BELOW. The first cut showed
+   five of twelve, and the four that were written and never read cost nothing
+   visible: the page looked complete, and the only symptom was an operator who
+   could not answer a question the data was already sitting there to answer. #}
+<section class="an-sec" id="report-arrivals">
+  <div class="an-sec__h"><h2>Where people came from</h2><span>last {{ days }} days</span></div>
+
+  {% if not arrivals.tracking %}
+    {# A page of zeroes reads as "nobody came". It has to say which it is. #}
+    <p class="an-sec__note"><strong>Nothing is being recorded.</strong>
+      Arrival tracking is switched off, so these are not low numbers — they are no numbers.
+      Turn it on in <a href="/admin/settings#f-visits_enabled">Settings &rarr; Arrivals</a>.</p>
+  {% else %}
+    <p class="an-sec__note">
+      A visit is counted the way Google Analytics counts one: it ends after
+      {{ arrivals_idle_minutes }} minutes without a page view, so somebody who comes back
+      tomorrow is a second visit. Staff signed in to this console, bots, link previews and
+      pages a browser fetched in advance are not counted. The column worth reading is the
+      last one: four hundred visits that do nothing is a worse Tuesday than thirty that vote.
+      <strong>Direct</strong> is honest rather than embarrassing — every app that strips the
+      referrer on the way out lands there.
+    </p>
+
+    <div class="an-grid">
+      <div class="an-card">
+        <div class="an-card__k">Visits</div>
+        <div class="an-card__n">{{ arrivals.total|number_format }}</div>
+        <div class="an-card__s">
+          {% if arrivals.growth_pct is null %}
+            <span class="an-flat">no prior activity</span> to compare against
+          {% elseif arrivals.growth_pct >= 0 %}
+            <span class="an-up">+{{ arrivals.growth_pct }}%</span> on the {{ days }} days before
+          {% else %}
+            <span class="an-down">{{ arrivals.growth_pct }}%</span> on the {{ days }} days before
+          {% endif %}
+        </div>
+        {{ ch.spark(arrivals.series, 'var(--cn-green)', 46, 0.13, 'Visits') }}
+      </div>
+      <div class="an-card">
+        <div class="an-card__k">Did something</div>
+        <div class="an-card__n">{{ arrivals.rate }}%</div>
+        <div class="an-card__s">{{ arrivals.converted|number_format }} of {{ arrivals.total|number_format }}</div>
+        {# Plotted on the day they ARRIVED, not the day they converted — otherwise
+           Tuesday's flier is credited to Thursday. #}
+        {{ ch.spark(arrivals.converted_series, 'var(--cn-gold)', 46, 0.13, 'Converted visits') }}
+      </div>
+      <div class="an-card">
+        <div class="an-card__k">People</div>
+        <div class="an-card__n">{{ arrivals.visitors|number_format }}</div>
+        <div class="an-card__s">
+          {% if arrivals.returning_pct is null %}one per visit until visits are measured{% else %}{{ arrivals.returning_pct }}% of visits were a return{% endif %}
+        </div>
+      </div>
+      <div class="an-card">
+        <div class="an-card__k">Went further</div>
+        <div class="an-card__n">
+          {% if arrivals.engaged_pct is null %}&mdash;{% else %}{{ arrivals.engaged_pct }}%{% endif %}
+        </div>
+        <div class="an-card__s">
+          {% if arrivals.engaged_pct is null %}
+            not measured on this database yet
+          {% else %}
+            opened a second page or did something · {{ arrivals.pages_per_visit }} pages a visit{% if arrivals.median_minutes is not null %} · typically {{ arrivals.median_minutes }} min{% endif %}
+          {% endif %}
+        </div>
+      </div>
+      <div class="an-card">
+        <div class="an-card__k">Time to act</div>
+        <div class="an-card__n">
+          {% if arrivals.minutes_to_act is null %}&mdash;{% else %}{{ arrivals.minutes_to_act }} min{% endif %}
+        </div>
+        <div class="an-card__s">
+          {% if arrivals.minutes_to_act is null %}nobody has done anything yet{% else %}typical time from arriving to doing something{% endif %}
+        </div>
+      </div>
+      {% for k in arrivals.kinds|slice(0, 1) %}
+        <div class="an-card">
+          <div class="an-card__k">Most often</div>
+          <div class="an-card__n">{{ k.count|number_format }}</div>
+          <div class="an-card__s">{{ k.kind }}{% if arrivals.kinds|length > 1 %}, of {{ arrivals.kinds|length }} kinds{% endif %}</div>
+        </div>
+      {% endfor %}
+    </div>
+
+    {% if arrivals.sources|length %}
+      <div class="an-two" style="margin-top:14px">
+        <div>
+          <h3 style="font-size:13px;margin:0 0 8px">By source</h3>
+          <div class="an-scroll"><table class="an-tbl">
+            <thead><tr><th scope="col">Source</th><th scope="col" class="n">Visits</th><th scope="col" class="n">Networks</th><th scope="col" class="n">Went further</th><th scope="col" class="n">Did something</th></tr></thead>
+            <tbody>
+            {% for r in arrivals.sources %}
+              <tr>
+                <td>{{ r.source }}</td>
+                <td class="n">{{ r.visits|number_format }}</td>
+                <td class="n">{{ r.networks|default(0)|number_format }}</td>
+                <td class="n">{{ arrivals.measured ? r.engaged|default(0) ~ '%' : '—' }}</td>
+                <td class="n">{{ r.converted|number_format }} <span class="an-flat">({{ r.rate }}%)</span></td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table></div>
+          <p class="an-sec__note" style="margin-top:8px">
+            <strong>Networks</strong> is a floor on people, not a headcount: the address is
+            hashed with a daily salt, so one machine visiting on five days counts as five —
+            and mobile carriers here put thousands of real people behind one address. It is
+            worth reading in one direction only. Four hundred arrivals from three networks
+            is one machine reloading a link, not a campaign.
+          </p>
+        </div>
+        <div>
+          <h3 style="font-size:13px;margin:0 0 8px">
+            {% if arrivals.campaigns|length %}By campaign{% else %}Landed on{% endif %}
+          </h3>
+          {% if arrivals.campaigns|length %}
+            <div class="an-scroll"><table class="an-tbl">
+              <thead><tr><th scope="col">Campaign</th><th scope="col" class="n">Arrivals</th><th scope="col" class="n">Did something</th></tr></thead>
+              <tbody>
+              {% for r in arrivals.campaigns %}
+                <tr><td>{{ r.campaign }}</td><td class="n">{{ r.visits|number_format }}</td>
+                    <td class="n">{{ r.converted|number_format }} <span class="an-flat">({{ r.rate }}%)</span></td></tr>
+              {% endfor %}
+              </tbody>
+            </table></div>
+          {% else %}
+            {# No campaigns tagged yet. Saying HOW to tag one is more useful than an empty
+               table, and it is the one thing that makes this report sharp. #}
+            <div class="an-scroll"><table class="an-tbl">
+              <thead><tr><th scope="col">Page</th><th scope="col" class="n">Arrivals</th><th scope="col" class="n">Did something</th></tr></thead>
+              <tbody>
+              {% for r in arrivals.landings %}
+                <tr><td><code>{{ r.path }}</code></td><td class="n">{{ r.visits|number_format }}</td>
+                    <td class="n">{{ r.converted|number_format }} <span class="an-flat">({{ r.rate }}%)</span></td></tr>
+              {% endfor %}
+              </tbody>
+            </table></div>
+            <p class="an-sec__note" style="margin-top:8px">
+              Add <code>?utm_source=flier&amp;utm_campaign=gala26</code> to a link you share and
+              it will be counted here by name.
+            </p>
+          {% endif %}
+        </div>
+      </div>
+
+      {# ── the three lists that only exist because their columns are stored ──
+         Landing pages when campaigns took the slot above, the hosts behind a
+         folded source, and the countries a CDN told us about. Each is skipped
+         when it has nothing to say, rather than drawn as an empty box. #}
+      <div class="an-two" style="margin-top:14px">
+        {% if arrivals.campaigns|length and arrivals.landings|length %}
+          <div>
+            <h3 style="font-size:13px;margin:0 0 8px">Landed on</h3>
+            <div class="an-scroll"><table class="an-tbl">
+              <thead><tr><th scope="col">Page</th><th scope="col" class="n">Arrivals</th><th scope="col" class="n">Did something</th></tr></thead>
+              <tbody>
+              {% for r in arrivals.landings %}
+                <tr><td><code>{{ r.path }}</code></td><td class="n">{{ r.visits|number_format }}</td>
+                    <td class="n">{{ r.converted|number_format }} <span class="an-flat">({{ r.rate }}%)</span></td></tr>
+              {% endfor %}
+              </tbody>
+            </table></div>
+            <p class="an-sec__note" style="margin-top:8px">
+              A page with traffic and no conversions is a page problem, not a channel one.
+            </p>
+          </div>
+        {% endif %}
+
+        {% if arrivals.sections|length > 1 %}
+          <div>
+            <h3 style="font-size:13px;margin:0 0 8px">What kind of page</h3>
+            <div class="an-scroll"><table class="an-tbl">
+              <thead><tr><th scope="col">Section</th><th scope="col" class="n">Arrivals</th><th scope="col" class="n">Did something</th></tr></thead>
+              <tbody>
+              {% for r in arrivals.sections %}
+                <tr><td><code>{{ r.section }}</code></td><td class="n">{{ r.visits|number_format }}</td>
+                    <td class="n">{{ r.converted|number_format }} <span class="an-flat">({{ r.rate }}%)</span></td></tr>
+              {% endfor %}
+              </tbody>
+            </table></div>
+            <p class="an-sec__note" style="margin-top:8px">
+              Every nominee has their own page, so a share-card campaign lands on hundreds
+              of them. Ranked exactly, that is hundreds of rows of one visit each and the
+              real answer &mdash; &ldquo;most arrivals land on a nominee profile&rdquo; &mdash;
+              is not a row at all.
+            </p>
+          </div>
+        {% endif %}
+
+        {% if arrivals.mediums|length %}
+          <div>
+            <h3 style="font-size:13px;margin:0 0 8px">How they reached it</h3>
+            <div class="an-scroll"><table class="an-tbl">
+              <thead><tr><th scope="col">Medium</th><th scope="col" class="n">Arrivals</th></tr></thead>
+              <tbody>
+              {% for r in arrivals.mediums %}
+                <tr><td>{{ r.medium }}</td><td class="n">{{ r.visits|number_format }}</td></tr>
+              {% endfor %}
+              </tbody>
+            </table></div>
+            <p class="an-sec__note" style="margin-top:8px">
+              As distinct from WHERE. One campaign run across a flier and a WhatsApp
+              broadcast is one campaign and two mediums, and the campaign row alone cannot
+              say which half worked.
+            </p>
+          </div>
+        {% endif %}
+
+        {% if arrivals.hosts|length %}
+          <div>
+            <h3 style="font-size:13px;margin:0 0 8px">Sites that linked here</h3>
+            <div class="an-scroll"><table class="an-tbl">
+              <thead><tr><th scope="col">Host</th><th scope="col" class="n">Arrivals</th></tr></thead>
+              <tbody>
+              {% for r in arrivals.hosts %}
+                <tr><td>{{ r.host }}</td><td class="n">{{ r.visits|number_format }}</td></tr>
+              {% endfor %}
+              </tbody>
+            </table></div>
+            <p class="an-sec__note" style="margin-top:8px">
+              The hostname behind a folded source — &ldquo;facebook&rdquo; is five of these, and
+              the folded name is the one thing that cannot say which is sending people.
+            </p>
+          </div>
+        {% endif %}
+
+        {% if arrivals.countries|length %}
+          <div>
+            <h3 style="font-size:13px;margin:0 0 8px">Countries</h3>
+            <div class="an-scroll"><table class="an-tbl">
+              <thead><tr><th scope="col">Country</th><th scope="col" class="n">Arrivals</th></tr></thead>
+              <tbody>
+              {% for r in arrivals.countries %}
+                <tr><td>{{ r.country }}</td><td class="n">{{ r.visits|number_format }}</td></tr>
+              {% endfor %}
+              </tbody>
+            </table></div>
+          </div>
+        {% endif %}
+
+        {% if arrivals.devices|length %}
+          <div>
+            <h3 style="font-size:13px;margin:0 0 8px">On what</h3>
+            <div class="an-scroll"><table class="an-tbl">
+              <thead><tr><th scope="col">Device</th><th scope="col" class="n">Arrivals</th></tr></thead>
+              <tbody>
+              {% for r in arrivals.devices %}
+                <tr><td>{{ r.device }}</td><td class="n">{{ r.visits|number_format }}</td></tr>
+              {% endfor %}
+              </tbody>
+            </table></div>
+          </div>
+        {% endif %}
+      </div>
+
+      {% if not arrivals.countries|length %}
+        <p class="an-sec__note" style="margin-top:10px">
+          No country is recorded: it is only read from a header a CDN in front of this site
+          sets. Nothing is geolocated here — a lookup would mean sending every visitor's
+          address to somebody else to fill in a column.
+        </p>
+      {% endif %}
+    {% else %}
+      <p class="an-sec__note">No arrivals recorded in this window yet.</p>
+    {% endif %}
+  {% endif %}
+</section>
+
+{# ══ AUDIENCE ═══════════════════════════════════════════════════════════════ #}
+<section class="an-sec" id="report-audience">
+  <div class="an-sec__h"><h2>Audience</h2><span>accounts on the platform</span></div>
+  <p class="an-sec__note">
+    A headline user count is nearly content-free on its own: if most accounts never confirmed an
+    email address, every per-user average computed from the headline is wrong. The shares are the
+    honest figures.
+  </p>
+  <div class="an-grid">
+    <div class="an-card">
+      <div class="an-card__k">Accounts</div>
+      <div class="an-card__n">{{ audience.total|number_format }}</div>
+      <div class="an-card__s">All time</div>
+    </div>
+    <div class="an-card">
+      <div class="an-card__k">Email verified</div>
+      <div class="an-card__n">{{ audience.verified_pct }}%</div>
+      <div class="an-card__s">{{ audience.verified|number_format }} of {{ audience.total|number_format }}</div>
+    </div>
+    <div class="an-card">
+      <div class="an-card__k">Signed in ≤ 30 days</div>
+      <div class="an-card__n">{{ audience.active_pct }}%</div>
+      <div class="an-card__s">{{ audience.active_30d|number_format }} accounts</div>
+    </div>
+    <div class="an-card">
+      <div class="an-card__k">New this period</div>
+      <div class="an-card__n">{{ audience.new_in_window|number_format }}</div>
+      <div class="an-card__s">
+        {% if audience.growth_pct is null %}
+          <span class="an-flat">no prior activity</span> to compare against
+        {% elseif audience.growth_pct >= 0 %}
+          <span class="an-up">+{{ audience.growth_pct }}%</span> on the {{ days }} days before
+        {% else %}
+          <span class="an-down">{{ audience.growth_pct }}%</span> on the {{ days }} days before
+        {% endif %}
+      </div>
+      {{ ch.spark(audience.new_series, 'var(--cn-green)', 46, 0.13, 'New accounts') }}
+    </div>
+  </div>
+</section>
+
+{# ══ VOTING ═════════════════════════════════════════════════════════════════ #}
+<section class="an-sec" id="report-voting">
+  <div class="an-sec__h"><h2>Voting</h2><span>last {{ days }} days</span></div>
+  <p class="an-sec__note">
+    Split three ways, because the vote table has three kinds and they mean different things.
+    <strong>Organic</strong> is somebody choosing to vote — the only kind the index counts as
+    support. <strong>Points</strong> are votes minted when a member redeems loyalty points; nobody
+    paid money, but nobody freely chose them either, and they are excluded from the index.
+    <strong>Paid</strong> was bought. Folding points into “free” would report a loyalty payout as
+    organic support, which is exactly the claim the integrity page promises we do not make.
+  </p>
+
+  <div class="an-grid" style="margin-bottom:12px">
+    <div class="an-card">
+      <div class="an-card__k">Votes cast</div>
+      <div class="an-card__n">{{ voting.total|number_format }}</div>
+      <div class="an-card__s">{{ voting.voters|number_format }} distinct voters</div>
+    </div>
+    <div class="an-card">
+      <div class="an-card__k">Votes per voter</div>
+      <div class="an-card__n">{{ voting.per_voter }}</div>
+      <div class="an-card__s">Higher means fewer people, more each</div>
+    </div>
+    <div class="an-card">
+      <div class="an-card__k">Organic share</div>
+      <div class="an-card__n">{{ voting.organic_pct }}%</div>
+      <div class="an-card__s">
+        {{ voting.paid_pct }}% paid · {{ voting.bonus_pct }}% points
+      </div>
+    </div>
+    <div class="an-card">
+      <div class="an-card__k">Flagged by fraud checks</div>
+      <div class="an-card__n">{{ voting.flagged_pct }}%</div>
+      <div class="an-card__s">{{ voting.flagged|number_format }} of {{ voting.total|number_format }} votes</div>
+    </div>
+  </div>
+
+  <div class="an-two">
+    <div class="an-panel">
+      <h3 class="an-panel__title">Where the votes came from</h3>
+      <div class="an-split">
+        <div class="an-split__a" style="width:{{ voting.organic_pct }}%"></div>
+        <div class="an-split__c" style="width:{{ voting.bonus_pct }}%"></div>
+        <div class="an-split__b" style="width:{{ voting.paid_pct }}%"></div>
+      </div>
+      <div class="an-key">
+        <span><i style="background:#237B22"></i>Organic — {{ voting.standard|number_format }}</span>
+        <span><i style="background:#5A6D6F"></i>Points — {{ voting.bonus|number_format }}</span>
+        <span><i style="background:#C9A24B"></i>Paid — {{ voting.paid|number_format }}</span>
+      </div>
+      {{ ch.spark(voting.standard_series, 'var(--cn-green)', 46, 0.13, 'Standard votes') }}
+      {{ ch.spark(voting.paid_series, 'var(--cn-gold)', 46, 0.13, 'Paid votes') }}
+    </div>
+
+    <div class="an-panel">
+      <h3 class="an-panel__title">When people vote</h3>
+      <p class="an-sec__note" style="margin:4px 0 0">
+        Hour of day, platform clock. This is what a closing time should be chosen against.
+      </p>
+      {% set hpeak = 1 %}
+      {% for v in voting.by_hour %}{% if v > hpeak %}{% set hpeak = v %}{% endif %}{% endfor %}
+      <div class="an-hours">
+        {% for h in 0..23 %}
+          <div class="an-hours__b" style="height:{{ (voting.by_hour[h] / hpeak * 100)|round }}%"
+               title="{{ h }}:00 — {{ voting.by_hour[h] }} votes"></div>
+        {% endfor %}
+      </div>
+      <div class="an-hours__time"><span>00</span><span>06</span><span>12</span><span>18</span><span>23</span></div>
+    </div>
+  </div>
+</section>
+
+{# ══ RETENTION ══════════════════════════════════════════════════════════════ #}
+<section class="an-sec" id="report-retention">
+  <div class="an-sec__h"><h2>Do voters come back?</h2><span>weekly cohorts</span></div>
+  <p class="an-sec__note">
+    Each row is the group of voters who first appeared that week, followed forward. One averaged
+    retention figure would blend a launch week with a dead one and describe neither; what matters
+    is whether the people who arrived in week 3 behave like the people who arrived in week 1.
+  </p>
+  {% if retention.rows|length %}
+    <div class="an-panel an-scroll">
+      <div class="an-scroll"><table class="an-ret">
+        <thead>
+          <tr>
+            <th scope="col" class="lbl">Cohort</th><th scope="col" class="lbl">Voters</th>
+            {% for i in 0..(retention.weeks|length - 1) %}<th scope="col">W{{ i }}</th>{% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+        {% for row in retention.rows %}
+          <tr>
+            <td class="lbl">{{ row.cohort }}</td>
+            <td class="lbl">{{ row.size }}</td>
+            {% for v in row.retained %}
+              {% if v is null or row.size == 0 %}
+                <td class="void">—</td>
+              {% else %}
+                <td style="background:rgba(35,123,34,{{ (v / 100 * 0.72 + 0.05)|round(3) }});
+                           color:{{ v > 55 ? '#fff' : '#10292C' }}">{{ v }}%</td>
+              {% endif %}
+            {% endfor %}
+            {% for _ in 1..(retention.weeks|length - row.retained|length) %}<td class="void"></td>{% endfor %}
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table></div>
+    </div>
+  {% else %}
+    <p class="an-empty">No votes carry a voter hash yet, so cohorts cannot be formed.</p>
+  {% endif %}
+</section>
+
+{# ══ FUNNELS ════════════════════════════════════════════════════════════════ #}
+<section class="an-sec" id="report-funnels">
+  <div class="an-sec__h"><h2>Funnels</h2><span>where things stop</span></div>
+  <p class="an-sec__note">
+    The drop between two stages is the only actionable number in a funnel — “1,400 nominations” is
+    a vanity figure, “1,400 in, 300 approved, 40 claimed” says where the next week goes.
+  </p>
+
+  <div class="an-two">
+    <div class="an-panel">
+      <h3 class="an-panel__title">Nomination to ballot</h3>
+      {% if noms.stages|length %}
+        <div class="an-fun">
+          {% for s in noms.stages %}
+            <div class="an-fun__row">
+              <div class="an-fun__top">
+                <span>{{ s.label }}</span>
+                <span class="an-fun__n">{{ s.n|number_format }}{% if s.pct is not null %} · {{ s.pct }}%{% endif %}</span>
+              </div>
+              <div class="an-fun__bar"><div class="an-fun__fill" style="width:{{ s.pct ?? 0 }}%"></div></div>
+              <div class="an-fun__note">{{ s.note }}</div>
+            </div>
+          {% endfor %}
+        </div>
+        {% if noms.pending > 0 %}
+          <div class="an-warn">
+            {{ noms.pending|number_format }} nomination(s) are still waiting on a decision. Every one is
+            somebody who put a name forward and has heard nothing.
+          </div>
+        {% endif %}
+      {% else %}
+        <p class="an-empty">No nominations recorded yet.</p>
+      {% endif %}
+    </div>
+
+    <div class="an-panel">
+      <h3 class="an-panel__title">Ballot flow</h3>
+      <p class="an-sec__note" style="margin:4px 0 8px">
+        Distinct sessions per recorded step, biggest first. Sessions rather than events, so one
+        person refreshing the ballot six times counts once.
+      </p>
+      {% if ballot.steps|length %}
+        <div class="an-scroll"><table class="an-tbl">
+          <thead><tr><th scope="col">Step</th><th scope="col" class="n">Sessions</th><th scope="col" class="n">Share</th></tr></thead>
+          <tbody>
+          {% for s in ballot.steps %}
+            <tr><td>{{ s.step }}</td><td class="n">{{ s.sessions|number_format }}</td><td class="n">{{ s.pct }}%</td></tr>
+          {% endfor %}
+          </tbody>
+        </table></div>
+      {% else %}
+        <p class="an-empty">
+          Nothing has been recorded to <code>gates_funnel_events</code> in this window, so the ballot
+          flow cannot be drawn. That is an instrumentation gap, not a traffic reading.
+        </p>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+{# ══ RECORDED ACTIONS ═══════════════════════════════════════════════════════
+
+   `gates_events` was written on four paths since the day it was added and read by nothing
+   until this panel. What it holds that no domain table does is the ACTOR beside the action,
+   which is why the actor and device columns are here rather than a bare count: the count of
+   votes is already on this page, better, from the votes table. Eleven OTP requests and one
+   vote from one device is the sentence this exists to make sayable. #}
+<section class="an-sec" id="report-actions">
+  <div class="an-sec__h"><h2>Recorded actions</h2><span>volume, and how many people it came from</span></div>
+  <div class="an-panel">
+    <p class="an-sec__note" style="margin:0 0 8px">
+      Straight from the platform's own event log. A row where the volume is high and the
+      people count is low is one device doing something repeatedly — which is the only
+      reading here that domain tables cannot give you.
+    </p>
+    {% if events.rows|length %}
+      <div class="an-scroll"><table class="an-tbl">
+        <thead><tr><th scope="col">Action</th><th scope="col" class="n">Times</th><th scope="col" class="n">People</th><th scope="col" class="n">Devices</th><th scope="col">Last</th></tr></thead>
+        <tbody>
+        {% for e in events.rows %}
+          <tr>
+            <td><code>{{ e.name }}</code></td>
+            <td class="n">{{ e.count|number_format }}</td>
+            <td class="n">{{ e.actors ? e.actors|number_format : '—' }}</td>
+            <td class="n">{{ e.devices ? e.devices|number_format : '—' }}</td>
+            <td>{{ e.last ? e.last|when : '—' }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table></div>
+    {% else %}
+      <p class="an-empty">
+        Nothing has been recorded to <code>gates_events</code> in this window. That is an
+        instrumentation gap rather than a quiet platform — votes and sign-in codes are
+        counted elsewhere on this page and will show there regardless.
+      </p>
+    {% endif %}
+  </div>
+</section>
+
+{# ══ GEOGRAPHY ══════════════════════════════════════════════════════════════ #}
+<section class="an-sec" id="report-geography">
+  <div class="an-sec__h"><h2>Geography</h2><span>reach, and the gaps in it</span></div>
+  <p class="an-sec__note">
+    A top-ten list shows where the platform already is. The number that decides outreach is the
+    one a list cannot show — the states with nothing at all.
+  </p>
+  <div class="an-two">
+    <div class="an-panel">
+      <h3 class="an-panel__title">Votes by nominee country</h3>
+      {% if geo.vote_countries|length %}
+        <div class="an-scroll"><table class="an-tbl">
+          <thead><tr><th scope="col">Country</th><th scope="col" class="n">Votes</th><th scope="col" class="n">Share</th></tr></thead>
+          <tbody>
+          {% for c in geo.vote_countries %}
+            <tr><td>{{ c.code }}</td><td class="n">{{ c.votes|number_format }}</td><td class="n">{{ c.pct }}%</td></tr>
+          {% endfor %}
+          </tbody>
+        </table></div>
+      {% else %}<p class="an-empty">No country is recorded against any vote yet.</p>{% endif %}
+    </div>
+
+    <div class="an-panel">
+      <h3 class="an-panel__title">Nominations by state</h3>
+      {% if geo.nomination_states|length %}
+        <p class="an-sec__note" style="margin:4px 0 8px">
+          {{ geo.states_covered }} of 37 states and the FCT have sent at least one nomination.
+          <strong>{{ geo.states_silent }} have sent none.</strong>
+        </p>
+        <div class="an-scroll"><table class="an-tbl">
+          <thead><tr><th scope="col">State</th><th scope="col" class="n">Nominations</th></tr></thead>
+          <tbody>
+          {% for s in geo.nomination_states %}
+            <tr><td>{{ s.state }}</td><td class="n">{{ s.n|number_format }}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table></div>
+      {% else %}<p class="an-empty">No nomination carries a state yet.</p>{% endif %}
+    </div>
+  </div>
+</section>
+
+{# ══ SEARCHES THAT FOUND NOTHING ═════════════════════════════════════════════
+   What visitors looked for on Discover and did not find, after the typo correction had
+   its try (SearchMisses). Anonymous by construction: the words only, never who; an email
+   or a phone number is never stored. #}
+<section class="an-sec" id="report-search">
+  <div class="an-sec__h"><h2>Searches that found nothing</h2><span>last {{ days }} days</span></div>
+  <p class="an-sec__note">
+    Each is somebody who came looking and left with nothing. A name spelled another way is a
+    nominee or profile to check; a word the site does not use is a title or category to rename.
+  </p>
+  {% if search_misses %}
+    <div class="an-scroll"><table class="an-tbl">
+      <thead><tr><th>Searched for</th><th>Tab</th><th class="n">Times</th><th>Last</th></tr></thead>
+      <tbody>
+        {% for m in search_misses %}
+          <tr><td><a href="/discover?{{ {q: m.query, tab: m.tab == 'all' ? null : m.tab}|filter(v => v)|url_encode }}" target="_blank" rel="noopener">{{ m.query }}</a></td>
+              <td>{{ m.tab }}</td><td class="n">{{ m.hits|number_format }}</td><td>{{ m.last_at|date('j M, H:i') }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  {% else %}<p class="an-empty">Every search in this period found something.</p>{% endif %}
+</section>
+
+{# ══ COMMUNITY + SUPPORT + MAIL ═════════════════════════════════════════════ #}
+<section class="an-sec" id="report-delivery">
+  <div class="an-sec__h"><h2>Community, support and delivery</h2><span>last {{ days }} days</span></div>
+
+  <div class="an-two">
+    <div class="an-panel">
+      <h3 class="an-panel__title">The feed</h3>
+      <p class="an-sec__note" style="margin:4px 0 6px">
+        A thousand posts from four accounts is not a community. The author count and the top
+        author's share are next to the volume so that shape is visible immediately.
+      </p>
+      <div class="an-scroll"><table class="an-tbl">
+        <tbody>
+          <tr><td>Posts</td><td class="n">{{ community.posts|number_format }}</td></tr>
+          <tr><td>Distinct authors</td><td class="n">{{ community.authors|number_format }}</td></tr>
+          <tr><td>Busiest author's share</td><td class="n">{{ community.top_author_pct }}%</td></tr>
+          <tr><td>Replies</td><td class="n">{{ community.replies|number_format }}</td></tr>
+          <tr><td>Cheers</td><td class="n">{{ community.cheers|number_format }}</td></tr>
+        </tbody>
+      </table></div>
+      {{ ch.spark(community.series, 'var(--cn-green)', 46, 0.13, 'Community posts') }}
+      {% if community.pending_moderation > 0 %}
+        <div class="an-warn">{{ community.pending_moderation }} comment(s) waiting on moderation.</div>
+      {% endif %}
+    </div>
+
+    <div class="an-panel">
+      <h3 class="an-panel__title">Support desk</h3>
+      <p class="an-sec__note" style="margin:4px 0 6px">
+        Open tickets alone is ambiguous — forty is fine on a results day. Opened minus resolved
+        says whether the queue is growing, and the median is what a person writing in experiences.
+      </p>
+      <div class="an-scroll"><table class="an-tbl">
+        <tbody>
+          <tr><td>Opened</td><td class="n">{{ support.opened|number_format }}</td></tr>
+          <tr><td>Resolved</td><td class="n">{{ support.resolved|number_format }}</td></tr>
+          <tr><td>Open right now</td><td class="n">{{ support.open_now|number_format }}</td></tr>
+          <tr>
+            <td>Median first reply</td>
+            <td class="n">
+              {% if support.median_first_reply_mins is null %}—
+              {% elseif support.median_first_reply_mins < 90 %}{{ support.median_first_reply_mins }} min
+              {% else %}{{ (support.median_first_reply_mins / 60)|round(1) }} h{% endif %}
+            </td>
+          </tr>
+          <tr><td>Never answered</td><td class="n">{{ support.unanswered|number_format }}</td></tr>
+        </tbody>
+      </table></div>
+      {% if support.backlog_delta > 0 %}
+        <div class="an-bad">
+          The queue grew by {{ support.backlog_delta }} this period — more came in than went out.
+        </div>
+      {% elseif support.opened > 0 %}
+        <div class="an-warn" style="background:#f2f9f1;border-color:#bfe0bd;color:#1a4d18">
+          The queue shrank by {{ support.backlog_delta|abs }} this period.
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="an-panel" style="margin-top:12px">
+    <h3 class="an-panel__title">Email delivery</h3>
+    <p class="an-sec__note" style="margin:4px 0 8px">
+      Not a nicety here: a vote code that does not arrive is a vote that does not happen, and the
+      failure is invisible on every other screen — it just looks like a quiet day.
+    </p>
+    {% if mail.sent + mail.failed > 0 %}
+      <div class="an-grid" style="margin-bottom:10px">
+        <div class="an-card"><div class="an-card__k">Sent</div><div class="an-card__n">{{ mail.sent|number_format }}</div></div>
+        <div class="an-card"><div class="an-card__k">Failed</div><div class="an-card__n">{{ mail.failed|number_format }}</div></div>
+        <div class="an-card"><div class="an-card__k">Failure rate</div><div class="an-card__n">{{ mail.failure_pct }}%</div></div>
+      </div>
+      {% if mail.failure_pct >= 5 %}
+        <div class="an-bad">
+          {{ mail.failure_pct }}% of mail did not go out. Vote codes, receipts and sign-in links all
+          travel this path.
+        </div>
+      {% endif %}
+      <div class="an-scroll"><table class="an-tbl">
+        <thead><tr><th scope="col">Category</th><th scope="col" class="n">Sent</th><th scope="col" class="n">Failed</th><th scope="col" class="n">Failure</th></tr></thead>
+        <tbody>
+        {% for c in mail.by_category %}
+          <tr>
+            <td>{{ c.category }}</td>
+            <td class="n">{{ c.sent|number_format }}</td>
+            <td class="n">{{ c.failed|number_format }}</td>
+            <td class="n">{{ c.failure_pct }}%</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table></div>
+    {% else %}
+      <p class="an-empty">No mail has been attempted in this window.</p>
+    {% endif %}
+  </div>
+</section>
+
+{% endblock %}

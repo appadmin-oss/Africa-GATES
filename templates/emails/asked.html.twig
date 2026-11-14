@@ -1,0 +1,19 @@
+{#- Asked for more (to the nominator) · Nominations. Sender: NominationAsk::ask(), from the review
+    desk's "Ask for more". Variables: nominee, first_name, reviewer_note, fix_url, closes_on.
+    Design: Email Templates.dc.html → "Asked for more", corrected to the live site: nothing closes
+    a nomination automatically, so the last line says when the LINK stops working instead. -#}
+{% extends 'emails/_layout.html.twig' %}
+{% block category %}Nominations{% endblock %}
+{% block hero %}illo-envelope{% endblock %}
+{% block why %}You nominated somebody on Africa GATES.{% endblock %}
+{% block subject %}One more thing for {{ nominee }}’s nomination{% endblock %}
+{% block preheader %}Add one photo, letter or link. It takes about two minutes.{% endblock %}
+{% block body %}
+{%- import 'emails/_blocks.html.twig' as b -%}
+{{ b.h1('We need one more thing before we can review it') }}
+{{ b.p("Thank you for nominating #{nominee}. Before a reviewer can decide, please add what’s missing below.") }}
+{{ b.warn(reviewer_note, 'Missing') }}
+{{ b.button('Add what’s missing', fix_url) }}
+{{ b.note("It goes back to the reviewer as soon as you add it. The link works until #{closes_on}.") }}
+{{ b.sign('With thanks,', 'The Africa GATES team') }}
+{% endblock %}

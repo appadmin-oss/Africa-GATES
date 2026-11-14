@@ -15,6 +15,11 @@ class NomineeScoringTest extends TestCase
 {
     public function test_average_is_mean_across_judges_each_weighted_by_criterion(): void
     {
+        // The shipped rubric is installed by a migration, so it is present in the
+        // harness exactly as it is in a migrated production database. Cleared here
+        // because this test DECLARES the rubric under test — and because these
+        // fixtures pin criterion ids, which would collide with the seeded rows.
+        DB::table('gates_judge_criteria')->delete();
         DB::table('gates_judge_criteria')->insert([
             ['id' => 1, 'slug' => 'a', 'label' => 'A', 'weight' => 25, 'is_active' => 1],
             ['id' => 2, 'slug' => 'b', 'label' => 'B', 'weight' => 75, 'is_active' => 1],
@@ -42,6 +47,11 @@ class NomineeScoringTest extends TestCase
         // Pins the current `(int)weight ?: 25` behaviour: a 0-weight criterion counts
         // as weight 25 (a div-by-zero guard), it does NOT silently disable the criterion.
         // If this ever changes, the nominee would drop out of the map and this fails.
+        // The shipped rubric is installed by a migration, so it is present in the
+        // harness exactly as it is in a migrated production database. Cleared here
+        // because this test DECLARES the rubric under test — and because these
+        // fixtures pin criterion ids, which would collide with the seeded rows.
+        DB::table('gates_judge_criteria')->delete();
         DB::table('gates_judge_criteria')->insert([
             ['id' => 1, 'slug' => 'a', 'label' => 'A', 'weight' => 0, 'is_active' => 1],
         ]);

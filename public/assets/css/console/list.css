@@ -1,0 +1,96 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   THE CONSOLE'S LIST PAGE — AdminConsole v2's one pattern (README §10b, `PG` in the DC).
+   Segmented tabs with counts, search, a hairline-bordered table (36px header, 56px rows),
+   a footer count, and on a phone the same rows as cards. Linked by each page built on it.
+
+   Cell kinds: primary (title and sub), text, a mono figure (`__num`, `__time`), a status
+   pill. Status colours are the spec's: green live/paid/published, gold pending/scheduled,
+   red stuck/failed/overdue/due today, grey ended/closed. Pills are tinted, never solid.
+   Colour only from var(--cn-*); the page measures its own container.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.ls { container-type: inline-size; display: flex; flex-direction: column; gap: 16px; }
+
+/* ── the toolbar ───────────────────────────────────────────────────────────── */
+.ls-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ls-bar__gap { flex: 1; }
+.ls-tabs { display: flex; padding: 2px; border-radius: 9px; background: var(--cn-ground); overflow-x: auto; scrollbar-width: none; }
+.ls-tab {
+  display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 7px;
+  color: var(--cn-soft) !important; font-size: var(--cn-fs-12-5); font-weight: 500; text-decoration: none; white-space: nowrap;
+}
+.ls-tab:hover { color: var(--cn-ink) !important; }
+.ls-tab[aria-current="page"] { background: var(--cn-surface); color: var(--cn-ink) !important; box-shadow: 0 1px 2px color-mix(in srgb, var(--cn-ink) 10%, transparent); }
+.ls-tab__num { font: 400 var(--cn-fs-11-5)/1 var(--cn-mono); color: var(--cn-faint); }
+
+.ls-search {
+  width: 250px; max-width: 100%; height: 32px; display: flex; align-items: center; gap: 8px; padding: 0 6px 0 10px;
+  border: 1px solid var(--cn-line); border-radius: var(--cn-r-8); background: var(--cn-surface); color: var(--cn-faint-2);
+}
+.ls-search:focus-within { border-color: var(--cn-ink-3); }
+.ls-search svg { flex: none; width: 13px; height: 13px; }
+.ls-search input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; font-size: var(--cn-fs-13); color: var(--cn-ink); }
+.ls-search__kbd { flex: none; padding: 1px 5px; border: 1px solid var(--cn-line); border-radius: 5px; font: 400 var(--cn-fs-11)/1.4 var(--cn-mono); color: var(--cn-faint-2); }
+
+.ls-select {
+  height: 32px; padding: 0 10px; border: 1px solid var(--cn-line); border-radius: var(--cn-r-8);
+  background: var(--cn-surface); font-size: var(--cn-fs-13); color: var(--cn-ink); cursor: pointer;
+}
+
+/* ── the table ─────────────────────────────────────────────────────────────── */
+.ls-table { border: 1px solid var(--cn-line-faint); border-radius: 12px; overflow: hidden; background: var(--cn-surface); }
+.ls-row { display: grid; grid-template-columns: var(--ls-cols); gap: 16px; align-items: center; padding: 0 16px; }
+.ls-head { height: 36px; background: var(--cn-panel); border-bottom: 1px solid var(--cn-line-row); font-size: var(--cn-fs-12); font-weight: 500; color: var(--cn-faint); }
+.ls-item { min-height: 56px; padding-block: 8px; color: var(--cn-ink) !important; text-decoration: none; }
+.ls-item + .ls-item { border-top: 1px solid var(--cn-line-soft); }
+a.ls-item:hover { background: var(--cn-panel); }
+.ls-item[hidden] { display: none; }
+
+.ls-cell { min-width: 0; font-size: var(--cn-fs-13-5); color: var(--cn-ink-2); }
+.ls-cell--primary { display: flex; flex-direction: column; gap: 2px; }
+.ls-cell--primary strong { font-weight: 500; color: var(--cn-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ls-cell--primary span { font-size: var(--cn-fs-12-5); color: var(--cn-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ls-cell__time, .ls-cell__num { font: 400 var(--cn-fs-12-5)/1.4 var(--cn-mono); color: var(--cn-ink-3); white-space: nowrap; }
+.ls-opt { display: none; }
+
+.ls-pill {
+  display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: var(--cn-r-pill);
+  font-size: var(--cn-fs-12); font-weight: 500; white-space: nowrap; background: var(--cn-ground); color: var(--cn-ink-3);
+}
+.ls-pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .8; }
+.ls-pill--green { background: var(--cn-green-wash); color: var(--cn-green-ink); }
+.ls-pill--gold  { background: var(--cn-gold-wash); color: var(--cn-gold-ink); }
+.ls-pill--red   { background: var(--cn-red-wash); color: var(--cn-red-ink); }
+.ls-pill--grey  { background: var(--cn-ground); color: var(--cn-ink-3); }
+
+.ls-foot { font-size: var(--cn-fs-12-5); color: var(--cn-soft); }
+
+/* ── empty and filtered-to-nothing are different states ───────────────────── */
+.ls-empty {
+  display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 48px 24px; text-align: center;
+  border: 1px solid var(--cn-line-faint); border-radius: 12px;
+}
+.ls-empty__ic { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--cn-ground); color: var(--cn-ink-3); margin-bottom: 4px; }
+.ls-empty__ic svg { width: 18px; height: 18px; }
+.ls-empty__t { font-weight: 600; font-size: var(--cn-fs-15); }
+.ls-empty__m { max-width: 380px; font-size: var(--cn-fs-13-5); color: var(--cn-soft); line-height: 1.5; text-wrap: pretty; }
+.ls-none { padding: 28px 16px; text-align: center; font-size: var(--cn-fs-13-5); color: var(--cn-soft); }
+.ls-none button {
+  margin-inline-start: 6px; height: 28px; padding: 0 10px; border: 1px solid var(--cn-line); border-radius: 7px;
+  background: var(--cn-surface); font-size: var(--cn-fs-12-5); font-weight: 500; cursor: pointer;
+}
+
+@container (min-width: 760px) { .ls-opt { display: block; } }
+
+/* ── phone: rows become cards ─────────────────────────────────────────────── */
+@container (max-width: 599px) {
+  .ls-bar { gap: 8px; }
+  .ls-search { width: 100%; height: 44px; }
+  .ls-search input { font-size: var(--cn-fs-16); }
+  .ls-tab { min-height: 36px; }
+  .ls-head { display: none; }
+  .ls-row { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 12px 14px; }
+  .ls-row > .ls-cell--primary { grid-column: 1; }
+  .ls-row > .ls-cell--end { grid-column: 2; grid-row: 1; justify-self: end; }
+  .ls-row > .ls-cell:not(.ls-cell--primary):not(.ls-cell--end) { grid-column: 1 / -1; }
+}

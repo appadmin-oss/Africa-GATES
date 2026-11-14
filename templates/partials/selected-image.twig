@@ -1,0 +1,14 @@
+{# A catalogue/record selection carries its description and responsive candidates together. #}
+{% if image.kind == 'cover' %}
+  <span class="{{ class|default('') }} hm-image--cover" data-image-id="{{ image.id }}" aria-hidden="true">
+    {% include 'partials/cover.twig' with {subject: 'award', identity: image.id, title: image.label|default('Recognition'), content: 'none', fill: true} only %}
+  </span>
+{% else %}
+  <img class="{{ class|default('') }}{{ image.kind == 'utility' ? ' hm-image--utility' : '' }}"
+       {{ deferred|default(false) ? 'data-hm-src' : 'src' }}="{{ image.kind == 'media' ? image.src|media_url(preset|default('portrait')) : asset(image.src) }}"
+       {% if image.srcset %}{{ deferred|default(false) ? 'data-hm-srcset' : 'srcset' }}="{{ image.srcset }}" sizes="{{ sizes|default('100vw') }}"{% endif %}
+       alt="{{ decorative|default(false) or image.kind == 'utility' ? '' : (image.kind == 'media' ? 'Photo of %name%'|trans({'%name%': image.alt}) : image.alt|trans) }}"
+       {% if image.width and image.height %}width="{{ image.width }}" height="{{ image.height }}"{% endif %}
+       {% if image.id|default('') %}data-image-id="{{ image.id }}"{% endif %}
+       {% if eager|default(false) %}fetchpriority="high"{% else %}loading="lazy"{% endif %} decoding="async">
+{% endif %}
