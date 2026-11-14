@@ -69,15 +69,24 @@ final class Tasks
      */
     public static function accept(int $takeId, float $hours, int $accepted, string $byName): bool
     {
+        // The same bounds the event path has always had. Staff could accept any figure: a
+        // negative one closed the task and wrote nothing, and 10,000 or more overflows
+        // DECIMAL(6,2) on MySQL — after the take was already marked done (AUDIT-AND-PLAN VO-2).
+        if ($hours <= 0 || $hours > 24) return false;
         $k = DB::table('gates_vol_task_takes')->where('id', $takeId)->where('status', 'taken')->first();
         if (!$k) return false;
         $t = DB::table('gates_vol_tasks')->where('id', $k->task_id)->first();
         if (!$t) return false;
-        DB::table('gates_vol_task_takes')->where('id', $takeId)->update(['status' => 'done', 'done_at' => date('Y-m-d H:i:s'),
-            'accepted' => max(0, $accepted), 'progress' => max((int) $k->progress, $accepted)]);
-        $k->status = 'done';
-        Hours::fromTask($k, $t, $hours, $byName);
-        return true;
+        // Closing the take and writing its hours are ONE act: a take marked done with no
+        // hours row is work nobody can see was ever credited.
+        return DB::connection()->transaction(static function () use ($k, $t, $takeId, $hours, $accepted, $byName): bool {
+            $n = DB::table('gates_vol_task_takes')->where('id', $takeId)->where('status', 'taken')->update(['status' => 'done', 'done_at' => date('Y-m-d H:i:s'),
+                'accepted' => max(0, $accepted), 'progress' => max((int) $k->progress, $accepted)]);
+            if ($n === 0) return false;
+            $k->status = 'done';
+            Hours::fromTask($k, $t, $hours, $byName);
+            return true;
+        });
     }
 
     /** Staff record progress on a take ("41 of 58 verified"). */

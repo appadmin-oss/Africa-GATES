@@ -173,10 +173,17 @@ final class Grants
     }
 
     /** @param \Illuminate\Database\Query\Builder $q */
-    private static function live($q)
+    /**
+     * THE answer to "is this grant live now": not revoked, not expired, and started. Public so
+     * every reader asks it (as `->where(fn ($w) => Grants::live($w, 'g.'))`) instead of spelling
+     * the clause again: seven readers did, and none checked `starts_at`, so a role that had
+     * not started yet already allowed check-in, team membership and meeting invites
+     * (AUDIT-AND-PLAN VO-9). VolunteerControlsTest sweeps for a new copy.
+     */
+    public static function live($q, string $prefix = '')
     {
         $now = date('Y-m-d H:i:s');
-        return $q->whereNull('revoked_at')->where('expires_at', '>', $now)
-            ->where(static fn ($w) => $w->whereNull('starts_at')->orWhere('starts_at', '<=', $now));
+        return $q->whereNull($prefix . 'revoked_at')->where($prefix . 'expires_at', '>', $now)
+            ->where(static fn ($w) => $w->whereNull($prefix . 'starts_at')->orWhere($prefix . 'starts_at', '<=', $now));
     }
 }

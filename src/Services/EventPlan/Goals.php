@@ -6,6 +6,7 @@ use AfricaGates\Services\EventTicketService;
 use AfricaGates\Services\PaidVoteService;
 use AfricaGates\Services\Volunteer\Workspace;
 use AfricaGates\Support\SchemaHas;
+use AfricaGates\Services\Grants;
 use Illuminate\Database\Capsule\Manager as DB;
 
 /**
@@ -115,7 +116,7 @@ final class Goals
                 'revenue'     => self::revenue($cats, $until),
                 'tickets'     => EventTicketService::soldForEvent($eventId),
                 'volunteers'  => (int) DB::table('gates_grants')->where('scope_kind', 'event')->where('scope_id', $eventId)->where('capability', 'like', 'vol.%')
-                                     ->whereNull('revoked_at')->where('expires_at', '>', date('Y-m-d H:i:s'))->distinct()->count('actor_id'),
+                                     ->where(static fn ($w) => Grants::live($w))->distinct()->count('actor_id'),
                 'contacted'   => (int) self::contactsIn($eventId, $kind, $id)->whereIn('stage', ['contacted', 'yes', 'nominated'])->count(),
                 'converted'   => (int) self::contactsIn($eventId, $kind, $id)->where('stage', 'nominated')->count(),
                 default       => 0,

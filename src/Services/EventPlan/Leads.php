@@ -56,16 +56,14 @@ final class Leads
     public static function everywhere(): array
     {
         $out = [];
-        foreach (Grants::ready() ? DB::table('gates_grants')->where('capability', 'event.lead')->where('scope_kind', 'event')->whereNull('revoked_at')
-            ->where('expires_at', '>', date('Y-m-d H:i:s'))->orderBy('expires_at')->get()->all() : [] as $g) {
+        foreach (Grants::ready() ? DB::table('gates_grants')->where('capability', 'event.lead')->where('scope_kind', 'event')->where(static fn ($w) => Grants::live($w))->orderBy('expires_at')->get()->all() : [] as $g) {
             if ($g->actor_kind !== Plan::ACTOR) continue;
             $u = DB::table('gates_users')->where('id', $g->actor_id)->first(['name', 'email']);
             $out[] = (object) ['event_id' => (int) $g->scope_id, 'name' => (string) ($u->name ?? 'A member'), 'email' => (string) ($u->email ?? ''),
                 'until' => Workspace::day((string) $g->expires_at), 'state' => 'lead', 'grant' => (int) $g->id];
         }
         // Owners too (EventPlan\Teams): the person who decides what the leads propose.
-        foreach (Grants::ready() ? DB::table('gates_grants')->where('capability', 'event.own')->where('scope_kind', 'event')->whereNull('revoked_at')
-            ->where('expires_at', '>', date('Y-m-d H:i:s'))->orderBy('expires_at')->get()->all() : [] as $g) {
+        foreach (Grants::ready() ? DB::table('gates_grants')->where('capability', 'event.own')->where('scope_kind', 'event')->where(static fn ($w) => Grants::live($w))->orderBy('expires_at')->get()->all() : [] as $g) {
             if ($g->actor_kind !== Plan::ACTOR) continue;
             $u = DB::table('gates_users')->where('id', $g->actor_id)->first(['name', 'email']);
             $out[] = (object) ['event_id' => (int) $g->scope_id, 'name' => (string) ($u->name ?? 'A member'), 'email' => (string) ($u->email ?? ''),

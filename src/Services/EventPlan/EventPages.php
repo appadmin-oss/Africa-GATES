@@ -585,7 +585,7 @@ final class EventPages
         $out = [];
         foreach (DB::table('gates_grants as g')->join('gates_volunteers as v', 'v.user_id', '=', 'g.actor_id')
                      ->where('g.actor_kind', 'member')->where('g.scope_kind', 'event')->where('g.scope_id', $eventId)->where('g.capability', 'like', 'vol.%')
-                     ->whereNull('g.revoked_at')->where('g.expires_at', '>', date('Y-m-d H:i:s'))->get(['v.*', 'g.capability']) as $v) {
+                     ->where(static fn ($w) => Grants::live($w, 'g.'))->get(['v.*', 'g.capability']) as $v) {
             $out[(int) $v->id] ??= (object) ['name' => Volunteers::name($v), 'role' => Grants::CAPABILITIES[$v->capability] ?? 'Volunteer'];
         }
         return array_values($out);
@@ -718,7 +718,7 @@ final class EventPages
         $held = ['' => 'Choose a role to end…'];
         foreach (DB::table('gates_grants as g')->join('gates_volunteers as v', 'v.user_id', '=', 'g.actor_id')
             ->where('g.actor_kind', 'member')->where('g.scope_kind', 'event')->where('g.scope_id', $id)->whereIn('g.capability', array_keys($roles))
-            ->whereNull('g.revoked_at')->where('g.expires_at', '>', date('Y-m-d H:i:s'))->orderBy('g.id')->get(['g.id as grant', 'g.capability', 'v.*']) as $g) {
+            ->where(static fn ($w) => Grants::live($w, 'g.'))->orderBy('g.id')->get(['g.id as grant', 'g.capability', 'v.*']) as $g) {
             $held[(int) $g->grant] = Volunteers::name($g) . ' — ' . ($roles[$g->capability] ?? 'Volunteer');
         }
         $waiting = \AfricaGates\Services\RoleInvites::waiting($id, array_keys($roles));
@@ -1336,7 +1336,7 @@ final class EventPages
         $now = date('Y-m-d H:i:s');
         $rows = [];
         if (Grants::ready()) {
-            foreach (DB::table('gates_grants')->where('scope_kind', 'event')->where('scope_id', $id)->whereNull('revoked_at')->where('expires_at', '>', $now)
+            foreach (DB::table('gates_grants')->where('scope_kind', 'event')->where('scope_id', $id)->where(static fn ($w) => Grants::live($w))
                 ->orderBy('capability')->orderBy('expires_at')->get()->all() as $g) {
                 // One row per PERSON, their roles together: a lead who is also a team lead was two
                 // rows with the same name. And no "volunteer" on every member — a lead and an

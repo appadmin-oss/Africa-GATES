@@ -31,13 +31,21 @@ final class Hours
      */
     public static function log(object $v, string $date, string $what, float $hours, string $witness = '', string $proof = ''): array
     {
+        // Only somebody who volunteers here logs hours. Applicants, the declined and the
+        // departed could, and their rows landed in staff's "Hours to confirm" (VO-7).
+        if (!in_array((string) ($v->status ?? ''), ['active', 'paused'], true)) return ['ok' => false, 'error' => 'Hours can be logged once you are an approved volunteer.'];
         $what = trim($what);
         $t = strtotime($date);
         if ($what === '') return ['ok' => false, 'error' => 'Say what you did.'];
         if ($t === false || $t > time()) return ['ok' => false, 'error' => 'Pick the day you did it; it cannot be in the future.'];
         if ($hours <= 0 || $hours > 16) return ['ok' => false, 'error' => 'Hours must be more than 0 and no more than 16 for one day.'];
+        // A day has 24 hours, however many entries it is split into (VO-7).
+        $already = (float) DB::table('gates_vol_hours')->where('volunteer_id', $v->id)->where('worked_on', date('Y-m-d', $t))
+            ->whereIn('status', ['review', 'verified'])->sum('hours');
+        if ($already + $hours > 24) return ['ok' => false, 'error' => 'That would make more than 24 hours on one day.'];
         $proof = trim($proof);
-        if ($proof !== '' && !preg_match('~^https?://~i', $proof)) return ['ok' => false, 'error' => 'A proof link starts with https://'];
+        // https, as the message has always said: the check let http:// through (VO-7).
+        if ($proof !== '' && !preg_match('~^https://~i', $proof)) return ['ok' => false, 'error' => 'A proof link starts with https://'];
         $id = (int) DB::table('gates_vol_hours')->insertGetId([
             'volunteer_id' => $v->id, 'source' => 'manual', 'worked_on' => date('Y-m-d', $t), 'what' => mb_substr($what, 0, 255),
             'hours' => round($hours * 4) / 4, 'status' => 'review', 'witness' => mb_substr(trim($witness), 0, 190) ?: null,
@@ -50,7 +58,7 @@ final class Hours
     public static function addProof(object $v, int $hourId, string $proof): bool
     {
         $proof = trim($proof);
-        if (!preg_match('~^https?://~i', $proof)) return false;
+        if (!preg_match('~^https://~i', $proof)) return false;
         return DB::table('gates_vol_hours')->where('id', $hourId)->where('volunteer_id', $v->id)->where('status', 'review')
             ->update(['proof' => mb_substr($proof, 0, 255)]) > 0;
     }

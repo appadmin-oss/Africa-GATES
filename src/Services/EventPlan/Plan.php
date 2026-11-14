@@ -149,7 +149,7 @@ final class Plan
         if (!Grants::ready()) return [];
         $now = date('Y-m-d H:i:s');
         $rows = DB::table('gates_grants')->where('scope_kind', 'event')->where('scope_id', $eventId)
-            ->whereNull('revoked_at')->where('expires_at', '>', $now)
+            ->where(static fn ($w) => Grants::live($w))
             ->where(static fn ($w) => $w->whereNull('starts_at')->orWhere('starts_at', '<=', $now))
             ->orderBy('id')->get()->all();
         $out = [];

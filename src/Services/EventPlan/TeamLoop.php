@@ -74,7 +74,7 @@ final class TeamLoop
         $now = date('Y-m-d H:i:s');
         if (Grants::ready() && DB::table('gates_grants')->where('actor_kind', Plan::ACTOR)->where('actor_id', $memberId)
                 ->where('scope_kind', 'event')->where('scope_id', $eventId)->where('capability', 'like', 'vol.%')
-                ->whereNull('revoked_at')->where('expires_at', '>', $now)->exists()) return true;
+                ->where(static fn ($w) => Grants::live($w))->exists()) return true;
         return Plan::ready() && DB::table('gates_event_work')->where('event_id', $eventId)->where('owner_kind', Plan::ACTOR)->where('owner_id', $memberId)->exists();
     }
 

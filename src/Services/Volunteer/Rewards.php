@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace AfricaGates\Services\Volunteer;
 
 use AfricaGates\Services\PointsService;
+use AfricaGates\Services\Grants;
 use Illuminate\Database\Capsule\Manager as DB;
 
 /**
@@ -76,7 +77,7 @@ final class Rewards
         $cycle = (int) (DB::table('gates_nominees as n')->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')->where('n.id', $nomineeId)->value('c.cycle_id') ?? 0);
         if ($cycle < 1) return false;
         return DB::table('gates_grants')->where('actor_kind', 'member')->where('actor_id', $userId)->where('capability', 'like', 'vol.%')
-            ->where('scope_kind', 'cycle')->where('scope_id', $cycle)->whereNull('revoked_at')->where('expires_at', '>', date('Y-m-d H:i:s'))->exists();
+            ->where('scope_kind', 'cycle')->where('scope_id', $cycle)->where(static fn ($w) => Grants::live($w))->exists();
     }
 
     /**

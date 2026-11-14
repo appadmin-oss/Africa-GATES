@@ -621,7 +621,7 @@ final class WorkspacePages
         $log = [];
         foreach (Requests::history($id) as $e) {
             $who = $e->actor_kind === 'member' && (int) $e->actor_id === (int) $v->user_id ? 'You' : (string) ($e->actor_name ?? 'Someone');
-            $verb = ['asked' => 'asked', 'approve' => 'approved', 'ask_info' => 'asked for information', 'decline' => 'declined', 'add_info' => 'added information', 'withdraw' => 'withdrew it', 'undo' => 'undid the last step', 'remind' => 'sent a reminder', 'sent' => 'sent it'][$e->action] ?? $e->action;
+            $verb = ['asked' => 'asked', 'approve' => 'approved', 'ask_info' => 'asked for information', 'decline' => 'declined', 'add_info' => 'added information', 'withdraw' => 'withdrew it', 'undo' => 'undid the last step', 'remind' => 'sent a reminder', 'sent' => 'sent it', 'note' => 'noted'][$e->action] ?? $e->action;
             $log[] = ['time' => date('j M', (int) strtotime((string) $e->created_at)), 't' => $who . ' ' . $verb, 'd' => (string) ($e->note ?? ''), 'st' => 'done'];
         }
         if ($log) $secs[] = ['k' => 'agenda', 'h' => 'Activity', 'items' => $log];
@@ -727,7 +727,7 @@ final class WorkspacePages
             $rows = [];
             foreach (DB::table('gates_grants as g')->join('gates_volunteers as o', 'o.user_id', '=', 'g.actor_id')
                          ->where('g.actor_kind', 'member')->where('g.scope_kind', 'event')->where('g.scope_id', $id)->where('g.capability', 'like', 'vol.%')
-                         ->whereNull('g.revoked_at')->where('g.expires_at', '>', date('Y-m-d H:i:s'))->where('o.id', '!=', $v->id)
+                         ->where(static fn ($w) => Grants::live($w, 'g.'))->where('o.id', '!=', $v->id)
                          ->get(['o.*', 'g.capability']) as $o) {
                 $n = Volunteers::name($o);
                 $rows[$o->id] ??= ['t' => $n, 'sub' => Grants::CAPABILITIES[$o->capability] ?? 'Volunteer', 'ini' => Workspace::initials($n)];
@@ -1156,7 +1156,7 @@ final class WorkspacePages
                     ? ['t' => 'Withdraw your application', 'sub' => 'It is closed and nothing more is asked of you. You can apply again later.',
                        'cta' => ['label' => 'Withdraw my application', 'post' => ['do' => 'leave'], 'confirm' => 'Withdraw your application?', 'danger' => true]]
                     : ['t' => 'Step back for good', 'sub' => 'Every role you hold ends now. Your verified record stays yours and can still give references.',
-                       'cta' => ['label' => 'Leave for good', 'post' => ['do' => 'leave'], 'confirm' => 'Step back for good? Every role you hold ends now.', 'danger' => true]]]))]],
+                       'cta' => ['label' => 'Leave for good', 'post' => ['do' => 'leave'], 'confirm' => 'Step back for good? Every volunteer and event team role you hold ends now.', 'danger' => true]]]))]],
             default => [],
         };
         return ['title' => Workspace::ME[$page][0] ?? 'Profile', 'secs' => $secs];

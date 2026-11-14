@@ -341,7 +341,7 @@ final class EventPermissions
         if (!SchemaHas::table('gates_event_team_members')) return [];
         $now = date('Y-m-d H:i:s');
         $grants = DB::table('gates_grants')->where('actor_kind', Plan::ACTOR)->where('actor_id', $userId)->whereIn('capability', ['event.role', 'vol.event_role'])
-            ->where('scope_kind', 'event')->where('scope_id', $eventId)->whereNull('revoked_at')->where('expires_at', '>', $now)
+            ->where('scope_kind', 'event')->where('scope_id', $eventId)->where(static fn ($w) => Grants::live($w))
             ->where(static fn ($w) => $w->whereNull('starts_at')->orWhere('starts_at', '<=', $now))->pluck('id')->map(static fn ($i) => (int) $i)->all();
         if ($grants === []) return [];
         $invites = DB::table('gates_role_invites')->whereIn('grant_id', $grants)->pluck('id')->map(static fn ($i) => (int) $i)->all();

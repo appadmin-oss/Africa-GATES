@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace AfricaGates\Services\Volunteer;
 
 use AfricaGates\Support\SchemaHas;
+use AfricaGates\Services\Grants;
 use Illuminate\Database\Capsule\Manager as DB;
 
 /**
@@ -34,8 +35,8 @@ final class Attendance
     public static function holdsRole(object $v, int $eventId): bool
     {
         return DB::table('gates_grants')->where('actor_kind', 'member')->where('actor_id', $v->user_id)->where('scope_kind', 'event')
-            ->where('scope_id', $eventId)->where('capability', 'like', 'vol.%')->whereNull('revoked_at')
-            ->where(static fn ($w) => $w->whereNull('expires_at')->orWhere('expires_at', '>', date('Y-m-d H:i:s')))->exists();
+            ->where('scope_id', $eventId)->where('capability', 'like', 'vol.%')
+            ->where(static fn ($w) => Grants::live($w))->exists();
     }
 
     /**
@@ -111,7 +112,7 @@ final class Attendance
         $out = [];
         foreach (DB::table('gates_grants as g')->join('gates_volunteers as v', 'v.user_id', '=', 'g.actor_id')
                      ->where('g.actor_kind', 'member')->where('g.scope_kind', 'event')->where('g.scope_id', $eventId)->where('g.capability', 'like', 'vol.%')
-                     ->whereNull('g.revoked_at')->where(static fn ($w) => $w->whereNull('g.expires_at')->orWhere('g.expires_at', '>', date('Y-m-d H:i:s')))
+                     ->where(static fn ($w) => Grants::live($w, 'g.'))
                      ->get(['v.*', 'g.capability']) as $v) {
             if (isset($out[(int) $v->id])) continue;
             $open = self::ready() ? self::open((int) $v->id, $eventId) : null;

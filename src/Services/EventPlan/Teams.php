@@ -416,7 +416,7 @@ final class Teams
         $u = DB::table('gates_users')->whereRaw('LOWER(email) = ?', [strtolower((string) $m->email)])->first();
         if ($u) {
             $g = DB::table('gates_grants')->where('actor_kind', Plan::ACTOR)->where('actor_id', $u->id)->where('capability', $cap)->where('scope_kind', 'event')
-                ->where('scope_id', $eventId)->whereNull('revoked_at')->where('expires_at', '>', date('Y-m-d H:i:s'))->orderByDesc('expires_at')->first();
+                ->where('scope_id', $eventId)->where(static fn ($w) => Grants::live($w))->orderByDesc('expires_at')->first();
             if ($g) {
                 RoleInvites::tell((string) $m->email, (string) ($u->name ?? ''), $cap, $event, (string) $g->expires_at, 'given', $who, (string) $role->name);
                 return ['ok' => true, 'granted' => true, 'grant_id' => (int) $g->id];

@@ -337,10 +337,29 @@ final class Volunteers
             ->update(['status' => 'active', 'paused_until' => null, 'updated_at' => date('Y-m-d H:i:s')]) > 0;
     }
 
-    /** Step back for good. The verified record stays theirs; every role they hold ends now. */
+    /**
+     * Breaks that have run out, ended. Only the volunteer's own page used to end one, so
+     * somebody whose break ended without a visit stayed `paused`, and every reminder skips
+     * the paused, for good (AUDIT-AND-PLAN VO-5). Run by the reminders sweep, every tick.
+     */
+    public static function resumeEndedBreaks(): int
+    {
+        if (!self::ready()) return 0;
+        return DB::table('gates_volunteers')->where('status', 'paused')->whereNotNull('paused_until')->where('paused_until', '<=', date('Y-m-d H:i:s'))
+            ->update(['status' => 'active', 'paused_until' => null, 'updated_at' => date('Y-m-d H:i:s')]);
+    }
+
+    /**
+     * Step back for good. The verified record stays theirs; every volunteer and event-team role
+     * they hold ends now. A team role (`event.role`) used to survive leaving (AUDIT-AND-PLAN
+     * VO-12). An event's lead, owner or finance admin is not a volunteer role — staff gave it,
+     * and it is ended where it was given — so it is left alone and the page says so.
+     */
     public static function leave(object $v): bool
     {
-        foreach (Grants::forActor('member', (int) $v->user_id, 'vol.') as $g) Grants::revoke((int) $g->id, null);
+        foreach (array_merge(Grants::forActor('member', (int) $v->user_id, 'vol.'), Grants::forActor('member', (int) $v->user_id, 'event.role')) as $g) {
+            Grants::revoke((int) $g->id, null);
+        }
         return DB::table('gates_volunteers')->where('id', $v->id)
             ->update(['status' => 'left', 'left_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')]) > 0;
     }

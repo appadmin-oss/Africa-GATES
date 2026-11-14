@@ -4912,8 +4912,8 @@ return function(App $app) {
         // Derived on read from the platform's own records (Admin\Services\ConsoleAlerts):
         // an email outage, a stalled schedule, chargebacks on a clock, schema behind the
         // code. The top bar's alert pill and Home's "needs a person" read the same list.
-        // The staff side of the volunteer workspace (consoles v7 §6; review slice V1). Unmapped in
-        // Permissions, so the guard holds it to superadmin until the owner decides who else.
+        // The staff side of the volunteer workspace (consoles v7 §6; review slice V1). Its own
+        // `volunteers` section in Permissions: superadmin and admin (owner, 31 Oct 2026).
         $a->get('/volunteers',  \AfricaGates\Admin\Controllers\VolunteersController::class.':index');
         $a->post('/volunteers', \AfricaGates\Admin\Controllers\VolunteersController::class.':act');
         // Where staff decide what leads and volunteers asked for (§2.6). Mapped to `finance`.
