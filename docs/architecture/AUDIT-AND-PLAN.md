@@ -1,6 +1,6 @@
 # Africa GATES: architecture audit and restructuring plan
 
-*Draft for the owner's review, 16 Oct 2026; Africa GATES Events added 17 Oct 2026 and restructured 18 Oct 2026 (§9). Each phase waits for your approval.*
+*Draft for the owner's review, 16 Oct 2026; Africa GATES Events added 17 Oct 2026 and restructured 18 Oct 2026 (§9). **Events and volunteers audited against the code and brought up to date 13 Nov 2026** (§7.4, §9 Part D, §14, D39–D43). Each phase waits for your approval.*
 
 You asked for an audit of how the app is built, research, and a plan that covers every part
 of the platform. That includes:
@@ -76,6 +76,15 @@ experience and operations (§13). We take the ideas that survive on one app and 
 hosting, and leave out the ones that only make sense at their size. Gee's research is in §12.
 
 Everything moves one piece at a time, behind the live site, and every step ships on its own.
+
+**Events and volunteers on 13 Nov 2026.** Both have shipped far past this plan's first
+draft (§7.4, §9.21), and the audit found the controls under them lagging the features: a lead
+can approve their own spend, a lead can verify their own hours, stand payments are filed as
+vote money, an offline door can admit a replayed flush twice, one automation emails people
+every fifteen minutes once switched on, the volunteer "leave" button does nothing, and the
+WhatsApp community invite reaches unvetted 16-year-olds. Meanwhile the award layer the Events
+product was positioned on (§9.1) has not been started, and none of stage E0's evidence
+exists. §9.24 sets the corrected order: harden, four resolvers, then the award layer.
 
 **What I need from you** is in §16: thirty-five decisions, eight of them now settled. The ones that shape everything are:
 
@@ -580,6 +589,8 @@ the role tables (D6).
 - **The console asks the same function everywhere.** `Permissions::canOpen()` already
   decides every page and every nav entry. It gains a scope: `canOpen(person, page, scope)`.
   So a volunteer sees the same console as staff, with only their scope's pages and rows.
+  *Superseded (28 Oct 2026, consoles v7 C1): volunteers are never admin actors; they work in
+  `/volunteer` and at events in `/lead/event/{id}`, cut to their role's ticks. See 7.4.*
 - **Personal data is masked by default.** A volunteer working a queue sees "Ada N.,
   0803•••••12" unless the task needs more, and every unmasking is audited.
 
@@ -598,7 +609,7 @@ evidence and the form engine.
    qualification.
 4. **Activate.** A grant of a role at a scope. The code of conduct is accepted and
    versioned, like award terms.
-5. **Work.** Shifts and tasks.
+5. **Work.** Shifts and tasks. *(Shifts removed by the owner, 29 Oct 2026: tasks, and check-in and check-out by a lead. See 7.4.)*
 6. **Recognise.** Hours, badges, certificates and a standing per centre. A volunteer
    award can be run as an Africa GATES programme in its own right.
 7. **Offboard.** Grants expire on their own, and access never outlives the reason for it.
@@ -644,6 +655,91 @@ volunteers can practise in the sandbox, which already exists for exactly this.
   hours, their level and what the next one needs, and a downloadable certificate.
 - Field work (door, stands, check-in) uses full-screen field tools built for a phone and
   a poor connection, as the door scanner already is.
+
+### 7.4 Volunteers: the state on 13 Nov 2026
+
+*Added 13 Nov 2026. 7.2 and 7.3 are the target as written on 16 Oct. What shipped, what the
+owner changed since, and what the 13 Nov audit found are here; the build log is in
+`CONSOLES-V7-REVIEW.md` §6 and `WORKSPACE-COMPARISON.md`.*
+
+**Owner decisions that change 7.2 and 7.3.**
+
+- **Volunteers are never admin actors** (consoles v7 handoff §0.4; review C1). They work in
+  their own area, `/volunteer`, and at events through `/lead/event/{id}` with only the pages
+  their role's ticks open. 7.2's "a volunteer sees the same console as staff" is superseded.
+- **Shifts were removed** (29 Oct). A volunteer's role at an event or award is a grant that
+  ends on its own; work is tasks; hours on site come from **check-in and check-out**
+  (`Volunteer\Attendance`, 30 Oct): a lead's tap counts at once, the volunteer's own taps wait
+  for a lead. `gates_vol_shifts` and `gates_vol_signups` stay, unread and unwritten, because
+  verified hours point at them. Step 5 of 7.3 ("shifts and tasks") and the "door steward"
+  row ("check-in and check-out by QR scan") now mean this. Whether the **door** should also
+  check volunteers in, with a pass per role, is still the owner's question.
+- **Effectiveness is one resolver** (`Volunteer\Effect`, 30 Oct): over six months, verified
+  hours, tasks finished, handed back and late, events turned up to; reliability shown only
+  after three.
+- **No broadcast** (29 Oct): every message goes to one person about their own work.
+- **Meetings** of up to twelve people a volunteer already works with; a minor is invited only
+  by a team lead and never organises.
+- **The WhatsApp community invite on applying** (13 Nov, aed96da).
+
+**7.3 against the code.**
+
+| Step or element | State | Where |
+|---|---|---|
+| Apply | Partial: a fixed form, not the form engine (§8) | `Volunteers::apply` |
+| Screen: references | Partial: stored; nothing contacts the referee, staff tick "replied" by hand, and the applicant's email says "we have asked your referee" | `Volunteers.php:215, 247` |
+| Screen: ID check for roles that see personal data, money or a door (D12) | **Missing** | — |
+| Screen: age, guardian consent (D12) | Partial: date of birth asked, under 16 refused. Under 18, "consent" is the **applicant's own tickbox**, stored as a timestamp; no guardian name, contact or confirmation | `Volunteers.php:162-170, 192` |
+| Train | Built: modules, a check, passes that lapse | `Training` |
+| Training gates a role | **Missing.** `unlocks` is only displayed; no grant reader asks for a pass, although the docblock says the door role stops when Safety lapses | `Training.php:11` |
+| Activate: a grant at a scope | Built | `Grants::grant` |
+| Activate: versioned code of conduct | Partial: the version is stored and never compared, so a new version asks nobody again | `Volunteers.php:26, 197` |
+| Work | Built: tasks, check-in, outreach, nomination checks (masked on the server), voter drive | `Tasks`, `Attendance`, `Outreach`, `NominationChecks`, `VoterDrive` |
+| Recognise: hours, levels, points | Built; levels from evidence, thresholds in `Volunteer\Rules` (D36 defaults), not settable by hand | `Level`, `Rewards` |
+| Recognise: certificate or reference letter | **Missing.** "Ask for a letter" files a request nothing fulfils | `WorkspacePages.php:446` |
+| Level 3 is a lead | **Missing.** Lead powers come from a `vol.team_lead` grant whatever the level | `Team.php:20-26` |
+| Spot-check share that moves with accuracy; Level 2 publishes after a spot check | **Missing** | — |
+| Provenance on volunteer work | Built | hours source and confirmer, task poster, check author |
+| Masked data, audited unmasking | Partial: nomination checks are masked on the server; outreach shows full contacts after a terms agreement, and no view is audited | `Outreach.php:277-281` |
+| Offboard | **Broken** (VO-1) | — |
+| The four numbers | Hours and reliability built; outcomes partial (outreach and drive credits not in `Effect`); quality only as nomination-check agreement, not on the roster | `Effect.php:39-92` |
+
+**Defects found** (P as in 9.22; each fix starts with the failing test).
+
+| # | P | Defect | Evidence | Fix |
+|---|---|---|---|---|
+| VO-1 | P0 | **"Leave for good" and "Withdraw my application" do nothing** (verified). `VolunteerController::act` has two `'leave'` arms in one `match`; PHP takes the first, the event check-out, so both buttons answer "Not checked in." and no grant is ever revoked from the workspace. Offboarding (step 7) is not reachable by the volunteer. | `VolunteerController.php:333, 371` | Rename one verb (`checkout`); a test posts each. |
+| VO-2 | P1 | Staff can accept a task with any hours. On MySQL, 10,000 or more overflows `DECIMAL(6,2)`; the task is already marked done and the hours insert fails with no transaction. Negative hours also close the task silently. | `VolunteersController.php:93`, `Tasks.php:76`, `Hours.php:79` | The 24-hour cap the event path uses; one transaction. |
+| VO-3 | P0 | **Staff can give any role to anybody with a volunteer row** (verified): declined applicants, current applicants and people who have left, and any capability `Grants` knows, including `event.lead`, `event.own` and `event.finance`, bypassing the owner (EV-5). | `VolunteersController.php:218-225`, `Grants.php:73` | Refuse non-`active` volunteers and non-`vol.` capabilities, as `RoleInvites::eligible` does. |
+| VO-4 | P0 | **The WhatsApp community invite goes to every applicant at once**, including 16- and 17-year-olds and people not yet vetted, into a group where adults the platform has not vetted can message them. The platform's own rules say otherwise elsewhere (nothing for under-18s in the Afrovanguard list; only a lead may invite a minor to a meeting). The link is a bearer credential committed to the repository as a default (verified); a blank setting falls back to it, so staff cannot switch the invite off; any `https` host is accepted. | `VolunteerController.php:306-311`, `Volunteers.php:35-52`, `Meetings.php:85` | Invite only approved volunteers aged 18 or over; no default in code (blank means off); accept only `chat.whatsapp.com`; rotate the link, since the old one stays in git history. D39. |
+| VO-5 | P1 | A break that has ended stays a break until the volunteer opens their own page, so reminders skip them indefinitely. | `VolunteerController.php:503`, `Reminders.php:86` | Resume in the maintenance sweep. |
+| VO-6 | P1 | **Approved requests change nothing**: an approved hours correction writes no hours, approved time off does not pause, an approved role grants nothing. The requests look decided and the work is not done. | no consumer of approved `hours`, `off`, `role` requests | A handler per request type, run by the decision. |
+| VO-7 | P1 | Applicants, declined and departed volunteers can log hours; no daily total; proof accepts `http://` though the message says https. | `Hours.php:32, 40` | Status check; a 24-hour day; https only. |
+| VO-8 | P1 | A lead's "team" is everybody with any grant at the place, so a lead confirms the hours of event leads and finance admins too. | `Team.php:34` | `capability LIKE 'vol.%'` through `Grants::live`. |
+| VO-9 | P1 | Seven readers hand-roll "is this grant live" and none checks `starts_at`; a role that has not started already allows check-in, team membership and meeting invites. | `Attendance.php:36, 112`, `Effect.php:67`, `Team.php:34`, `Meetings.php:80`, `WorkspacePages.php:726`, `Rewards.php:78` | `Grants::live` only (9.24 K1). |
+| VO-10 | P0 | **A lead can verify their own hours.** The lead console's check-in never refuses the lead's own volunteer row, and the hours land verified with the lead as witness. | `LeadController.php:427-433` | One approval rule (9.24 K2). |
+| VO-11 | P2 | Three age calculations (365.25-day years in applying), one of which can be a day wrong at a birthday — the boundary of the minimum age. | `Volunteers.php:166`, `Meetings.php:64-66`, `VolunteersController.php:110` | One resolver (9.24 K4). |
+| VO-12 | P1 | Leaving revokes only `vol.*` roles; `event.lead`, `event.role` and `event.finance` survive offboarding. | `Volunteers.php:309` | Revoke every member grant, with the event owner told. |
+| VO-13 | P2 | Stale access notes say `/admin/volunteers` is superadmin only; it maps to `volunteers` (superadmin and admin, 31 Oct). Staff audit rows are all typed `volunteer` whatever the id points at. Meeting reminders read 500 rows with no order, so past meetings can crowd out the next. | `VolunteersController.php:30-34, 98`, `routes.php:4915`, `Meetings.php:265` | Correct; type the target; order and filter by date. |
+
+**Checked and clean:** every volunteer status column is VARCHAR; no `where($col, $array)`;
+nothing reachable writes the shift tables; reminders are claimed before they are sent;
+nomination checks strip nominator data and the desk's signals.
+
+**What 7.3 should now say, step by step.** Apply (the form engine when §8 lands) → screen
+(referee contacted by the platform with a one-click reply; ID check for the roles D12 names;
+**a guardian confirms by their own email or phone**, not the applicant's tick) → train (a pass
+**gates** the role that needs it) → activate (a grant; a new conduct version asks again) →
+work (tasks and check-in by a lead; never their own) → recognise (the four numbers;
+certificates and reference letters generated from the record, G12) → offboard (every grant
+ends, the person is told). Each step has an owner and a due time: an application unanswered
+in 7 days, an hours row unconfirmed in 3, escalate to the scope's lead and then staff.
+
+**Safeguarding is the gap with the highest cost.** The platform now admits 16- and
+17-year-olds, holds their dates of birth and emergency contacts, and (until VO-4 is fixed)
+sends them into an unmoderated adult group. Before any more volunteer recruitment: VO-4, a
+guardian's own confirmation, a written safeguarding policy with a named lead (the five tests'
+"owned"), and minors' data classed as sensitive under D33.
 
 ---
 
@@ -795,6 +891,9 @@ The section is in three parts:
   messages, safety, privacy, AI and targets.
 - **Part C, what could go wrong** (9.19–9.20): risks, and the evidence that would change
   this plan.
+- **Part D, the state on 13 Nov 2026** (9.21–9.26): what shipped, the defects the audit found,
+  the five tests now, the corrected order, and refreshed research. **Where Part D and Parts
+  A–C disagree, Part D is current.**
 
 ### Part A. The product
 
@@ -874,7 +973,8 @@ The events code is already the largest domain here (26.7k lines), and much of th
 | The whole award: nominations, shortlist, paid and free voting, judging with quorum, sealed release | the awards domain, `CycleMaterialiser`, `ReleasedStanding` |
 | Organisations with CAC checks, a verified settlement account and a Paystack subaccount on any schedule | `PartnerOrg` |
 
-**What does not exist.**
+**What does not exist.** *(As of 18 Oct. Much of the "Plan" and "Operate" list below has
+since been built; 9.21 is the current list.)*
 
 - **Per-organiser settlement for tickets.** Ticket money today goes to one destination for
   the whole `events` stream (`PaymentDestination`), which is right while Africa GATES is the
@@ -1047,7 +1147,7 @@ exit test:
 | **E1. Award events, in house** | For Africa GATES's own awards and its centres: the award's timeline as the event's plan; tasks and milestones as work items; budget lines; templates and cloning; ceremony cues per category; results released at the cue; honours seating; nominee mobilisation kits (D32); the capacity check and the state permit checklist; the audit trail complete for events. | Pilots 1 and 2 pass (9.7); a cloned award event runs at a second centre with nothing configured beyond venue, date and lead. |
 | **E2. The award bundle, open** | Outside award organisers: organiser scopes, verification, first-event review, **per-organiser settlement** to their own subaccount (new organisers after the event, 9.5), the award integrity rules (D34), per-edition billing and the share-of-votes option (D30). | One outside award runs end to end, is paid after its event, and has no unresolved report. |
 | **E3. The door and selling, hardened** | Signed tickets and the revocation list (D25), rotating codes for high-value tiers, gateway failover, virtual accounts, SMS ticket retrieval, installments. | A pilot with the network deliberately cut at the gate: zero lost scans, zero false refusals. |
-| **E4. The free core, open to anybody** | Self-serve sign-up for any organiser; attendee reports that pause sales; sales velocity limits; staff and volunteer shifts verified by scans; the incident log; the safety evidence pack; a live view by polling. | Pilot 3 passes; thirty days open with every report closed inside its deadline and no organiser paid for an event that did not happen. |
+| **E4. The free core, open to anybody** | Self-serve sign-up for any organiser; attendee reports that pause sales; sales velocity limits; staff and volunteer hours verified by check-in (shifts were removed, 29 Oct; 9.24); the incident log; the safety evidence pack; a live view by polling. | Pilot 3 passes; thirty days open with every report closed inside its deadline and no organiser paid for an event that did not happen. |
 | **E5. Learn, then grow on demand** | The generated post-event report (attendance from scans, money from the ledger, hours from shifts, feedback from the form engine); messaging cost per event; AI change-sets. General planning tools (vendors and RFQs, change requests, sponsors and talent) are built **only when organisers ask for a specific one**, recorded as requests. | The post-event report needs no manual figures. |
 
 Cashless wallets, escrow, the device mesh, native apps, multi-region hosting and expansion
@@ -1345,6 +1445,201 @@ Written before the pilots, so their results decide rather than persuade:
 - **If legal advice says outside organisers make Africa GATES a controller of their guests'
   data in a way the platform cannot meet**, open the award bundle only to organisers who sign
   the processing terms, and hold E4.
+
+### Part D. The state on 13 Nov 2026: audit and corrected plan
+
+*Added 13 Nov 2026. §9.1–9.20 were written on 17–18 Oct, before any of the event planning or
+volunteer code existed. Since then about 11,000 lines have shipped in `Services\EventPlan` and
+`Services\Volunteer`, the owner made several decisions that change the plan (shifts removed,
+one login, roles given by address, owners and finance admins per event), and progress was
+logged in `CONSOLES-V7-REVIEW.md` §6 and `WORKSPACE-COMPARISON.md` rather than here. This part
+brings the plan back into line with the code. Every finding below cites the code and was
+traced by reading it; the ones marked **verified** were re-read line by line before being
+written here. No test run backs this part: see 9.25.*
+
+### 9.21 Where the code stands against Part A and Part B
+
+**Built since 18 Oct, which §9.3's "does not exist" list still described as missing.**
+
+| Area | State | Where |
+|---|---|---|
+| The event as a scope, with roles that end on their own | Built | `Grants` (`gates_grants`, `starts_at`/`expires_at`, read live by `Grants::live`), `EventPermissions::standing` |
+| Leads, owners, custom roles, teams, a fixed permission menu, two people for any access | Built | `EventPlan\Leads`, `Teams`, `EventPermissions::MENU`, `RoleInvites` (a role offered to an address, switched on once that address is verified) |
+| A finance admin per event, approved by the owner | Built, with gaps (9.22, EV-1 to EV-6) | `Leads::giveFinance`, `Changes::decide`, `EventFinanceAdminTest` |
+| Work with an owner and a due date; readiness counted, not typed | Built | `Plan::addWork`, `Plan::isLate`, the team loop (`TeamLoop`: reports, proof before done) |
+| Risks (level computed), decisions (reversed, never edited), sponsors, safety checks, seating, run of show | Built as plain lists | `Scope` |
+| Budget lines (estimate, committed, paid), a lead's limit, spend over it as a request | Built, with gaps (EV-1, EV-2) | `Plan::approveLine`, `Plan::askLine`, `Requests` |
+| Requests as the first real work item (decider, append-only history, reminder) | Built; no due date | `Requests`, `gates_requests`, `gates_request_events` |
+| Goals and gates that count themselves, with targets worked back from assumptions | Built (not in the plan) | `Goals`, `Planner`, `Setup` |
+| A prospect pipeline before nomination | Built (not in the plan) | `Pipeline`, `Outreach` |
+| Rules (automations) with shadow mode and a daily digest, run on the tick | Built (not in the plan), with a fault (EV-7) | `Rules::runAll()` from `Maintenance` |
+| Change tiers: small changes apply after 24 hours unless a lead objects; near a gate, everything is large | Built (not in the plan), with bypasses (EV-8) | `Changes`, `Tiers` |
+| The AI suggests teams and reviews roles; a person decides | Built, advisory, degrades with no provider | `TeamSuggest` (§9.17's "agents propose, people approve", in its first form) |
+| The written post-event report, signed off by the owner | Built (the generated report of E5 is not) | `EventReport`, `gates_event_writeups` |
+| Vote and ticket income on the event's money view | Built | `Goals::voteIncome`, `Scope::ticketIncomeMinor` |
+| The volunteer workspace, staff side, training, hours, levels, meetings, nomination checks, voter drive, outreach, rewards | Built (7.4) | `Services\Volunteer\*` |
+
+**Still missing from §9.6, §9.10 and §9.15.** These are the features §9.1 says the product
+leads with, and they are the ones that have not been built:
+
+| Plan item | State | Evidence |
+|---|---|---|
+| The award's timeline as the event's milestones, read from the cycle's own dates (9.6) | **Missing.** Cycle dates are read once, as suggested goal deadlines | `Setup::dates()` (`Setup.php:87-99`); the Timeline tab shows work, decisions and the night only (`EventPages.php:485-505`) |
+| Run-of-show cues generated per category (9.6) | **Partial.** Cues are typed by hand | `Scope::addCue` (`Scope.php:68-90`) |
+| Results released at the cue (9.6) | **Missing.** No EventPlan file calls `CycleMaterialiser`; marking a cue done only stamps it | `Scope::cueDone` (`Scope.php:92-99`) |
+| Honours seating tied to the door's greeting (9.6) | **Partial.** Seats exist; the door does not read them | `Scope::seat` (`Scope.php:243-311`) |
+| Nominee mobilisation stages (9.6, D32) | **Missing** as a programme. `ShareKit` and `VoteRecruit` exist; nothing runs them as stages with work items | — |
+| Dependencies and a computed critical path (9.10) | **Missing.** A yes/no "the night waits on it" and a free-text note | `EventPages.php:479` |
+| Cloning an event with its plan (9.10) | **Partial.** The event row and its tiers only. Not work, roles, teams, run of show, safety checks, budget, goals, rules or the award link | `Admin\Services\EventCopy` (`EventCopy.php:31-55`) |
+| A complete audit trail for the event (9.10) | **Partial.** Money and access writes do not appear on the event's own audit tab (EV-9) | `Scope::audit` (`Scope.php:365-375`) |
+| Capacity and density calculator, state permit rules as data, incident log, evidence pack (9.15) | **Missing**, all four | no `incident` or permit rule anywhere in `EventPlan` |
+| Message cost shown before a send, a per-event budget (9.14) | **Missing** | `Outreach.php` |
+| Per-organiser settlement (9.13) | **Missing.** Events have no organiser column at all | `PaymentService.php:644-645`, `PaymentDestination.php:631` |
+| Signed tickets, revocation list, clock offset, failover, virtual accounts, installments, velocity limits, VAT, FX fields (9.12, 9.13) | **Missing** (FX partial: naira is checked, no currency or rate stored) | `EventTicketService.php:668`; no `sodium_crypto_sign` in `src/` |
+
+**The finding that matters most is the shape of this table, not any row in it.** §9.1 decided
+that the product leads with what nobody else does: the whole award behind the ceremony. Since
+then the general project-management layer (goals, pipeline, rules, change tiers, team loop)
+has been built in depth, and the award-specific layer (timeline from the cycle, release at the
+cue, cues per category, mobilisation stages, cloning an award event) has not been started.
+The order drifted from the position. That is recoverable, and 9.24 corrects it.
+
+### 9.22 Defects found in the 13 Nov audit
+
+Priority: **P0** is money, access or a safeguard that is wrong now; **P1** is wrong output a
+person acts on; **P2** is debt that will become P1. Each has the test that must fail before
+the fix and pass after it. Defects in the volunteer domain are in 7.4.
+
+| # | P | Defect | Evidence | Fix | Test that holds it |
+|---|---|---|---|---|---|
+| EV-1 | P0 | **A lead approves their own spend** (verified). A lead holds both `money.plan` and `money.approve`; `approveLine` never compares approver and proposer, and the limit is per line, so ₦1m in five ₦200k lines is self-approved. `LeadConsoleTest.php:204-216` asserts the self-approval is allowed, which contradicts the finance-admin rule shipped in 39b34dd ("the person who asks for money is never the one who approves it"). | `Plan.php:361-383`, `EventPermissions.php:151-153` | One rule, `Approval::mayDecide($who, $line)`: never the proposer, never a person holding both roles at the event. A per-event running total against the limit, not per line. | A lead approving a line they proposed is refused; five lines under the limit summing over it are refused. Rewrite the `LeadConsoleTest` case that asserts the opposite. |
+| EV-2 | P0 | **Committed and paid have no ceiling.** Once a line is approved, any committed or paid figure is accepted. | `Plan::setSpend` (`Plan.php:418-432`) | Over the approved estimate (plus a set tolerance) is a new approval. | Recording ₦10m paid on a ₦50k line is refused. |
+| EV-3 | P0 | **The finance admin's limit is unlimited by default and cannot be set** (verified). `financeCeiling()` returns `PHP_INT_MAX` when `event_finance_limit_naira` is unset; neither it nor `lead_spend_limit_naira` nor `lead_week_hours` has a settings field. The menu's help text promises "never above the lead's own limit". | `EventPermissions.php:82, 185-193` | A default (D41) and fields on `/admin/settings`, one resolver each (CLAUDE.md: anything operational must be settable there). | The setting is on the settings page; with it unset the ceiling is the default, not `PHP_INT_MAX`. |
+| EV-4 | P0 | **A spend request skips the grant and the ceiling.** The decider is fixed when the request is made; `canDecide` compares ids and never re-checks that the `event.finance` grant is still live; `financeCeiling()` is never asked on this path. | `Requests.php:230-234, 262-270`, `LeadController.php:418-423` | Re-resolve the decider and the ceiling at decision time through `Grants::allows`. | A finance admin whose grant has ended cannot decide; a request above the ceiling goes to platform finance. |
+| EV-5 | P0 | **The owner's approval of a finance admin holds on one path only.** Staff `finance_give` grants directly; nothing stops staff later making the finance admin a lead, at which point one person proposes and approves any amount. | `EventsController.php:1357-1368`, `Leads.php:97-102`, `Changes.php:169` | Check "not a lead or owner of this event" in `Grants::grant` for `event.finance`, and the reverse for `event.lead`. | Both orders of giving the two roles are refused. |
+| EV-6 | P1 | **A lead can undo the owner alone.** `finance_end` revokes with `revoked_by = 0`; `vol_invite_cancel` cancels any invitation, including an owner-approved `event.finance` or a staff-given `event.own`. | `LeadController.php:323-326`, `RoleInvites.php:138-142` | Record who revoked; a lead cancels only invitations a lead could have made. | A lead cannot cancel an `event.own` or `event.finance` invitation. |
+| EV-7 | P0 | **Reminders are emailed on every tick, not once a day** (verified). The `reminder` rule sends the mail inside `evaluate()`; the once-a-day check in `run()` only skips the log row, and `heardOf()` looks at reports and the work row, which a reminder changes neither of. With the rule active, each owner of work due within two days gets about 96 emails a day per item. | `Rules.php:121-123, 158-169, 250-255` | Claim the send in `gates_broadcast_log` (as `Volunteer\Reminders` does) before mailing; evaluate returns intentions, `run()` acts on the claimed ones. Same for the digest (`Rules.php:214-217`), which claims nothing. | Two runs in one day send one email. |
+| EV-8 | P1 | **Large-tier changes apply at once.** `Tiers` says an assumption a target rests on, and the budget, need an owner; `Planner::setAssumption` and `Plan::setEventSettings` apply immediately. A lead alone can also place anybody into an owner-approved role that carries `money.approve`. | `Tiers.php:18-21`, `Planner.php:95-117`, `Plan.php:461-479`, `Teams.php:204-212` | Route both through `Changes`; membership of a role with a risky tick is large. | Each write lands as a pending change. |
+| EV-9 | P1 | **The event's audit tab misses money and access.** It filters `target_type='event' AND action LIKE 'lead.%'`; approvals, spend, requests, work and staff `event.finance.*`/`event.owner.*` writes have other types or prefixes. §9.10 requires every state change. | `Scope.php:365-375`, `LeadController.php:176-188, 254-261` | Store the event id on every event write (a column or meta key) and filter on that. | Every verb in `EventPermissions::MENU` and every staff event action appears on the tab. |
+| EV-10 | P1 | An approved change can apply nothing and still say "Approved and applied": `draftGates` deletes open gates, and a pending gate change then updates zero rows. | `Planner.php:190`, `Changes.php:185-200` | `apply()` returns false on zero rows; the decision says the change no longer applies. | — |
+| EV-11 | P1 | **Stand money is filed as vote money and falls outside every backstop** (verified; worse than §2 fault 8). `AFG-STAND-…` references have no branch in `streamForReference` and fall through to `votes`, so checkout applies the **votes** subaccount, the webhook looks in donations and logs `unmatched`, and refunds do the same. | `PaymentDestination.php:631-634`, `StandFee.php:217`, `PaymentService.php:644-645`, `PaymentController.php:533-647` | A `stands` stream, in `CHECKOUT_STREAMS`, with webhook, reconciler, `GatewayLedger` and `RefundService` branches (D8's ledger is the long fix). | A test that every reference prefix any service mints maps to a stream other than the fallback. |
+| EV-12 | P0 | **A balance payment overwrites the deposit** (verified). `StandFee::confirm` sets `paid_naira` to the latest payment rather than adding it, and treats a second payment smaller than the first as already recorded. A second "Pay" in another tab overwrites `payment_ref` and orphans the first. | `StandFee.php:229, 277-285` | Record each payment as its own row (or add), keyed by reference. | Deposit then balance records the sum. |
+| EV-13 | P0 | **A tier oversells when a payment lands after its hold expired.** `sold()` stops counting a pending row after 30 minutes; `confirm()` checks only `status='pending'`. A bank transfer that settles after the seat was resold confirms a second buyer. The reconciler's comment describes the resale and fixes only the lost money. | `EventTicketService.php:241-260, 676-688`, `PaymentReconciler.php:217-221, 451` | On a late confirm, re-check capacity: confirm if a seat is free, otherwise refund automatically and tell the buyer. | Hold lapses, seat resold, late payment: no oversell, a refund row. |
+| EV-14 | P1 | **Money with no ticket.** An expired paid waitlist offer is cleared without the paid-row guard `releaseExpired` has; `rotateReference` orphans an earlier reference still settling. Both log `unmatched`. Waitlist `promote()` reads then updates, so two promotions can offer one seat twice. | `EventWaitlist.php:186-216, 254-263`, `EventsController.php:663-674` | Keep superseded references matchable; guard and lock as `releaseExpired` does. | — |
+| EV-15 | P0 | **A replayed offline flush admits extra seats** (verified). The door's script sends a client id so a retry cannot count twice, and `DoorController::sync()` reads the id and never uses it; a flush resent after a lost response admits the same seats again on a multi-seat ticket. `DoorOfflineTest` uses a one-seat ticket, so it cannot see it. | `DoorController.php:503-521`, `door.twig:704-706` | Store the client scan id with a UNIQUE key; a repeat returns the first verdict. | The same flush twice on a four-seat ticket admits two, not four. |
+| EV-16 | P1 | **Scans queued when a door pass closes are never recorded.** After the pass ends, every flush gets 403 and the queue stays on the phone for good. | `DoorController.php:479-483`, `EventScanPass.php:45` | Accept a flush for scans timed inside the pass's window for a grace period after it closes. | — |
+| EV-17 | P1 | **A refund can race the door.** `checkIn` updates by id and seat count without `status='confirmed'`, so a cancel committed between its read and its write leaves a guest refunded and admitted. Offline, a refunded ticket is admitted by eye (no revocation list, 9.12). | `EventTicketService.php:1339-1343` | Add the status and code to the UPDATE's WHERE. | — |
+| EV-18 | P0 (latent) | **An outside organisation's paid event would put its money in Africa GATES's account.** Events have no organiser column; every ticket settles to the one `events` destination. Only staff can create tiers today, so nothing has happened, but staff can already set up an event for an outside organisation (owners and leads are member accounts precisely so organisations can run events). That is the platform holding client funds (D29). | `PaymentService.php:644-645`; no organiser column on `gates_site_events` | Until per-organiser settlement exists, a paid tier is refused on an event whose organiser is not Africa GATES (needs the organiser column, D40). | Creating a paid tier on an outside organiser's event is refused. |
+| EV-19 | P2 | The "Nominees confirmed" goal falls at results (counts `approved`, and release moves winners to `winner`/`runner_up`); "Nominations submitted" counts drafts. | `Goals.php:104-105`, `CycleMaterialiser.php:640-644` | Count through the awards domain's own definitions. | — |
+| EV-20 | P2 | `gates_event_rules.review_at` is written and read by nothing; "is this a money change" is spelled in three files; staff `finance_decide` does not check the change belongs to the event. | `Rules.php:64, 81`; `Changes.php:146`, `GoalPages.php:105`, `TeamPages.php:232`; `EventsController.php:1378-1386` | Read or drop; one predicate; scope the decide. | — |
+
+**Still open from §2**, re-checked: fault 4 (no index on `gates_donations.payment_ref`; the
+webhook still reads by it, and `RecurringGiving.php:225` works around it), fault 5 (no
+transaction in `RefundService`, `PaymentReconciler`, `ShopOrderService`, `StandFee` or
+`PaymentController`), fault 8 (now EV-11). Ticket sales and the stand fee are what Events
+adds to these paths, so they are Events' faults too.
+
+**Checked and clean.** The event and volunteer migrations use `SchemaIndex::ensure` and
+VARCHAR statuses, so none of the ENUM or `CREATE INDEX IF NOT EXISTS` traps; no
+`where($col, $array)`; lead audit rows write `admin_id` null, not 0; the webhook and verify
+paths cannot both issue a ticket (one conditional UPDATE); reserve fails a race as "sold out"
+rather than overselling.
+
+### 9.23 What the five tests say now
+
+| Process | Repeatable | Visible | Owned + due | Verified | Replicable |
+|---|---|---|---|---|---|
+| Event work (tasks) | yes: the team loop | yes: readiness counted | **yes**: owner and due on every item | partial: proof before done, a lead accepts | **no**: cloning drops the plan |
+| Event spend | partial | partial: not on the audit tab (EV-9) | partial: requests have a decider and **no due date** | **no**: self-approval (EV-1), no ceiling on paid (EV-2) | no |
+| Access at an event | yes | yes: Leads page | yes: two people | yes: owner decides | partial: per event, by hand |
+| Volunteer application and screening | partial: no runbook for approving; referees contacted off-platform | partial | **no**: no owner or deadline on an application | **no**: no ID check, guardian consent is the applicant's own tick (7.4) | no: one national list of states, one community link |
+| Volunteer hours | yes | yes | partial: unanswered hours have no owner or escalation | partial: check-in by a lead is observed; a lead can verify their own (VO-10) | yes |
+| Door check-in | yes | yes | partial | **yes**, with EV-15 and EV-17 to close | yes |
+| Stand fees | partial | **no**: filed as votes (EV-11) | no | **no** | no |
+
+The pattern from §6.2 holds, sharpened: where the platform records the fact itself (scans,
+counted readiness, check-ins by a lead), it passes. Where a person approves a person's own
+claim, or money crosses a path built for another stream, it fails.
+
+### 9.24 The corrected order (supersedes 9.8 for what comes next)
+
+**The proposition.** Stop adding event and volunteer features until the controls under them
+are true, then build the award layer the product was positioned on. Three moves, each
+shippable on its own:
+
+**H. Harden (now, before any new feature).** The P0 rows of 9.22 and 7.4, in this order:
+EV-7 (it mails people today if any lead switches the rule on), EV-15, EV-13, EV-12, EV-11,
+EV-1 to EV-5, EV-18's guard, VO-1, VO-3, VO-4. Then §2 faults 4 and 5 for the ticket and
+stand paths. Exit test: every row's test exists, failed before its fix, and passes; a MySQL
+parity run of the event and volunteer suites is green (`scripts/mysql-parity.sh --filter
+'Event|Lead|Volunt|Door|Stand|Ticket'`).
+
+**K. Four resolvers, one each, because each fault above is two spellings of one rule.**
+
+1. **`Grants::live` is the only answer to "is this role live"**, `starts_at` included. Seven
+   readers hand-roll it today (VO-9). A sweep, like `OtpAttemptCapTest`, fails on a second
+   copy.
+2. **One approval rule** (`Approval::mayDecide`): never the proposer, never somebody holding
+   the deciding and the asking role at once, re-resolved at decision time, with a due date.
+   Spend lines, requests, changes and hours all ask it. This is the §6 "owned and due" block
+   arriving through the one process that needs it most.
+3. **One map from reference prefix to money stream**, with an exhaustive test over every
+   prefix minted in `src/`. Stands first; it is the precondition for D8's one ledger.
+4. **One age resolver** (calendar dates, not 365.25-day years), used by applying, meetings and
+   the staff list (VO-11).
+
+**A. The award layer, which is the product (E1 proper).** In the order a pilot needs it:
+(1) the award's timeline on the event's plan, read live from the cycle; (2) cloning an award
+event with its plan, roles, run of show, budget lines, goals, rules and award link, so the
+second centre is "venue, date, lead"; (3) cues per category generated from the cycle, and
+**release at the cue** through `CycleMaterialiser::release()` (the seal and the announcement
+rules stay exactly as they are; the cue is only the moment); (4) honours seats read by
+`DoorWelcome`; (5) mobilisation stages as work items over `ShareKit` and `VoteRecruit`, the
+same for every nominee (D32); (6) the capacity check and Lagos's permit rules as data, which
+are cheap and are the one safety feature competitors lack (9.2).
+
+**Then E0 and the rest of 9.8 stand as written**, with these changes: E4 no longer contains
+"staff and volunteer shifts verified by scans" (shifts were removed, 29 Oct; hours come from
+check-in by a lead, `Volunteer\Attendance`); per-organiser settlement (E2) needs an organiser
+column on events first (D40); E0's evidence is still entirely missing — no backup, no
+restore drill, no load test, no legal advice and no Paystack answer is recorded anywhere in
+the repository — so **no stage past E1 can open**, and pilot 1 should not be an on-sale
+large enough to need the ceiling until the load test exists.
+
+**Stage status on 13 Nov 2026.**
+
+| Stage | Status |
+|---|---|
+| E0 Ready | **Not started.** None of the five pieces of evidence exists. |
+| E1 Award events in house | **Partial.** Plan, work, budget, people and the night as lists are built; the award layer (A above) and the capacity and permit checks are not. Pilots 1 and 2 have not run. |
+| E2 Award bundle open | Not started. Blocked on E0, D40, per-organiser settlement, EV-18. |
+| E3 Door and selling hardened | Not started. EV-15 to EV-17 are prerequisites, not E3 work. |
+| E4 Free core open | Not started. |
+| E5 Learn | The written report and its sign-off exist; the generated report does not. AI change-sets exist in one place (`TeamSuggest`). |
+
+### 9.25 What this audit could not do
+
+- **No test run.** `vendor/` is not installed in this container and the lock file needs PHP
+  8.4 (the container has 8.3); the install timed out on the network. Every finding is from
+  reading the code, and those marked verified were re-read; each P0 fix starts by writing the
+  failing test in 9.22.
+- **No MySQL parity run**, so nothing here confirms the absence of a width or ENUM fault on
+  production beyond reading the migrations. VO-2 is MySQL-only by construction.
+- **Not read in depth:** `PartnerOrg`, `EventSales`, `EventArrivals`, `InvitePass`,
+  `GatewayLedger`'s matching, all of `WorkspacePages`, and whether `uq_evreg` survives on a
+  production database built by `2026_06_21` (if it does, a second ticket for one email is
+  refused).
+
+### 9.26 Research refreshed (13 Nov 2026)
+
+Reported figures, not confirmed with the companies or regulators. Sources in §17.
+
+| Topic | What changed or was confirmed | Effect on the plan |
+|---|---|---|
+| WhatsApp pricing | Meta has billed **per delivered template message**, not per conversation, since 1 July 2025. Reported Nigerian rates are about USD 0.0101 per utility message and USD 0.062 per marketing message, matching 9.14. Utility messages inside an open customer-service window are free. One Nigerian provider reports service messages becoming chargeable from 1 Oct 2026; that page could not be read from here, so it is unconfirmed. | 9.14's cost table must price per message and per category, and treat the service-window rule as a setting that will change. Check Meta's own rate card before the first paid send. |
+| GAID 2025 | In force since 19 Sept 2025. Commentaries disagree on the tiers: one describes Ultra-High, Extra-High and Ordinary-High levels with thresholds of about 5,000 and 200 people in six months, which does not match the "2,500, 10,000 and 50,000" in 9.2. Audit filing fees of ₦100,000–₦1,000,000 apply from the 2026 audit cycle; the annual filing date moved to 31 March, and the NDPC extended the 2025 filing to 30 May 2026. | 9.2's thresholds are unreliable; D27's legal advice must settle the tier from the GAID text itself. Volunteers add a new class of data: dates of birth, emergency contacts and minors (7.4). |
+| Paystack `manual` settlement | Still documented only by third parties as needing Paystack to enable it; no published maximum hold. | Unchanged: confirm with Paystack in E0. |
+| Lagos safety | The 250-guest registration and Event Safety Permit, marshals above 500 and "two marshals per 500 guests" are repeated in current reporting; the Safety Commission announced tourism safety marshals for December 2025 events. No single current guideline document was found. | Unchanged: rules as data with a last-checked date (9.15); confirm with the Commission before encoding. |
 
 ---
 
@@ -1799,8 +2094,8 @@ before it lay down.
 | **1. Kernel and operating model** | Settings registry, Actor, Reporter, Http client, one rate limiter, one Twig factory. Then the operating model: process registry, work items, evidence, scopes and templates. Today's queues (nominations, claims, tickets, refunds, stands, moderation) move onto work items **behind their existing screens**. | 0 | Every queue is a view over work items, and every item has an owner and a due time. The §6.2 table is printed by the registry. |
 | **2. Forms and award profiles** | The one form engine and the award profile (§8): definitions and versions, field library, interpreter, rules into the registry, look presets, the Award setup screen, house form v1. | 1 | Today's form renders identically from its definition. A second award with a different form passes end to end. |
 | **3. Experience structure** | The IA registry, generated navigation, **My Africa GATES** as one home with role panels, the scoped Workspace, one design system in two densities, and `AssetBundle` served. | 1 | Every nav surface is generated. One home per person. The page-local component count is falling. |
-| **4. Volunteers** | §7.3 on work items, grants, evidence and forms: apply, screen, train, activate, shifts and tasks, hours, levels, certificates. | 1, 2, 3 | A volunteer can be recruited, trained, given a scoped grant, work a shift verified by scans, and see verified hours, all without staff doing anything by hand except the screening decision. |
-| **5. Africa GATES Events** | §9, award events first (§9.1), in six stages (§9.8), each opening only when the one before passes: E0 ready (backups, legal advice, retention, Paystack manual settlement, a load test of the host's ceiling); E1 award events in house (the award's timeline as the plan, mobilisation, ceremony cues, release at the cue, honours seating, capacity and permits); E2 the award bundle open to outside award organisers (verification, per-organiser settlement, integrity rules, per-edition billing); E3 the door and selling hardened (signed tickets, failover, virtual accounts, installments); E4 the free core open to anybody (reports, velocity limits, shifts, incidents, the evidence pack); E5 learn, then general tools on demand. Three pilots decide the openings (§9.7). Stands onto the ledger. | 0 (backups), 1, 4, and the ledger from 6 for E2 | Each stage's exit test in §9.8. The last: a post-event report with no manual figures. |
+| **4. Volunteers** | §7.3 on work items, grants, evidence and forms: apply, screen, train, activate, tasks and check-in, hours, levels, certificates. **Status 13 Nov 2026: mostly built ahead of phases 1–3 (§7.4)**; what remains is VO-1 to VO-13, safeguarding (D39, D12), the referee and guardian loops, training that gates a role, certificates, and a due date on every application and hours row. | 1, 2, 3 (built ahead of them on K1–K3, CONSOLES-V7-REVIEW §4) | A volunteer can be recruited, screened (a guardian confirming for a minor), trained, given a scoped grant, checked in by a lead (never themselves), and see verified hours, and can leave, all without staff doing anything by hand except the screening decision. |
+| **5. Africa GATES Events** | §9, award events first (§9.1), in six stages (§9.8), each opening only when the one before passes: E0 ready (backups, legal advice, retention, Paystack manual settlement, a load test of the host's ceiling); E1 award events in house (the award's timeline as the plan, mobilisation, ceremony cues, release at the cue, honours seating, capacity and permits); E2 the award bundle open to outside award organisers (verification, per-organiser settlement, integrity rules, per-edition billing); E3 the door and selling hardened (signed tickets, failover, virtual accounts, installments); E4 the free core open to anybody (reports, velocity limits, shifts, incidents, the evidence pack); E5 learn, then general tools on demand. Three pilots decide the openings (§9.7). Stands onto the ledger. | 0 (backups), 1, 4, and the ledger from 6 for E2 | Each stage's exit test in §9.8. The last: a post-event report with no manual figures. **Status and corrected order 13 Nov 2026: §9.24** — harden (EV/VO P0s), four resolvers, then the award layer; E0 not started, E1 partial. |
 | **6. Money and the market** | One payment ledger first (D8), bringing the wallet's streams onto it (Community Return, the member wallet and automatic withdrawals are **already built**, §10b); then highlights (no money); then sellers, listings, orders, reviews and disputes; then promotions and one code system (§10). | 1, 2, 3 | Every payment stream writes to the one ledger. A verified seller lists, sells, is paid out after the hold, and a dispute resolves through a work item. |
 | **7. Domains and data** | Continue moving code into `Domain/*`, thin the controllers, unify a person's identity (D6), one schema source, votes stop cascading on delete, scenario hardcodes move into data, dead paths removed. | all | The write-ownership and controller ratchets are at zero. Schema parity runs on every test run. |
 
@@ -1868,6 +2163,12 @@ with scenarios in the suite.
 | D33 | Retention windows: how long is each kind of personal data kept (nominations not taken forward, support tickets, OTPs, visit logs, interview recordings)? | Set them with the legal advice in D27. Once set, retention runs on the daily tick and erasure requests become a console task (§5.5). |
 | D34 | May an award hosted on Africa GATES charge a nominee to be nominated, shortlisted, to win or to receive their award? | **No** (§9.5). Tickets and votes may be sold; the honour may not. "Pay to be honoured" schemes exist and would carry the Africa GATES name. |
 | D35 | Lead Africa GATES Events with award events, and open the free core to every organiser only after pilots? | **Decided (18 Oct): yes.** Events that honour people first, general events second (§9.1); three pilots decide each opening (§9.7, §9.20). |
+| D36–D38 | Volunteer levels, who decides requests, who writes training. | See `CONSOLES-V7-REVIEW.md` §5; the code runs on the recommended defaults (`Volunteer\Rules`). |
+| D39 | Who may be invited to the volunteer WhatsApp community, and when? (§7.4 VO-4) | **Approved volunteers aged 18 or over only**, after approval, never on applying. No link in the code; blank in Settings means off. Under-18s get the platform's own messages only. Rotate the current link. |
+| D40 | Should every event name its organiser (Africa GATES, a centre, or a `PartnerOrg`)? | **Yes, now**: it is the precondition for per-organiser settlement (E2), for refusing a paid tier on an outside organiser's event until then (EV-18), and for an organiser's scope (§9.5). |
+| D41 | The default limit for an event's finance admin, and for a lead, and may one person hold both? | **A finance admin defaults to ₦1,000,000 per line and a lead to ₦200,000, both settable on `/admin/settings`; one person may never hold both at one event, and nobody approves their own line** (EV-1 to EV-5). Above the finance admin's limit is platform finance. |
+| D42 | Should the event plan's automations (`Rules`) stay switched off for every event until EV-7 is fixed? | **Yes.** Shadow mode is safe; active mode mails on every tick. |
+| D43 | A safeguarding policy for under-18 volunteers, with a named lead, before more recruitment? | **Yes**: a guardian confirms by their own email or phone, minors never enter group chats, their data is classed sensitive (D33). The organisation standard requires the named owner. |
 
 ---
 
@@ -1909,6 +2210,25 @@ with scenarios in the suite.
   ([mctaba.com](https://mctaba.com/learn/paystack/delayed-settlement-patterns-for-marketplaces));
   Paystack's API reference refused automated reading, so confirm with Paystack. Cloudflare
   Waiting Room plans: [Cloudflare docs](https://developers.cloudflare.com/waiting-room/plans).
+
+- **Refreshed 13 Nov 2026 (§9.26).** WhatsApp per-message pricing since 1 July 2025:
+  [Meta, pricing on the WhatsApp Business Platform](https://developers.facebook.com/docs/whatsapp/pricing),
+  [SleekFlow, per-message pricing](https://help.sleekflow.io/en_US/pricing),
+  [Chakra, July 2025 changes](https://chakrahq.com/article/pricing-updates-for-whatsapp-business-platform-effective-july-2025-onwards/),
+  [Salesforce rate card, Aug 2025](https://www.salesforce.com/en-us/wp-content/uploads/sites/4/assets/pdf/WhatsApp_Business-Messaging-Rate-Card-Aug-1-2025.pdf);
+  the report of service messages becoming chargeable from 1 Oct 2026
+  ([yournotify.com](https://yournotify.com/blog/whatsapp-pricing-update-2026/)) could not be
+  read from this session's network. GAID 2025:
+  [Mondaq, GAID questions answered](https://www.mondaq.com/nigeria/data-protection/1684204/unlocking-gaid-2025-answers-to-all-your-burning-questions),
+  [LegalBytes](https://legalbytes.substack.com/p/gaid-2025-what-nigerian-businesses),
+  [JD Supra](https://production.jdsupra.com/legalnews/nigeria-ndpc-issues-gaid-key-compliance-6645594),
+  [Mondaq, 2025 filing extended](https://www.mondaq.com/nigeria/privacy-protection/1770448/),
+  and the KPMG review above. Paystack:
+  [split payments](https://paystack.com/docs/payments/multi-split-payments/),
+  [delayed settlement patterns](https://mctaba.com/learn/paystack/delayed-settlement-patterns-for-marketplaces).
+  Lagos: [TheCable, events over 250](https://www.thecable.ng/?p=791282),
+  [Peoples Gazette, December 2025 protocols](https://gazettengr.com/?p=380147),
+  [Platform Times](https://platformtimes.com.ng/?p=62587).
 
 - **Award platforms.** Award Force configures an entry form per *season* (their word for an
   edition). Each field applies to all categories or only selected ones, and fields can be

@@ -107,6 +107,12 @@ not produce.
 
 ## 6. Progress
 
+*13 Nov 2026: the events and volunteer code described below was audited against the plan.
+The current state, the defects found (EV-1 to EV-20, VO-1 to VO-13) and the corrected order
+are in `AUDIT-AND-PLAN.md` §7.4 and §9 Part D, which take precedence over this log. One note
+below is stale: `/admin/volunteers` has mapped to its own `volunteers` section (superadmin
+and admin) since 31 Oct, not superadmin only.*
+
 ### V1 shipped (28 Oct 2026), on K1–K3
 
 - **The v7 shell** (`templates/shell/`, `public/assets/css/console/shell7.css`, `public/assets/js/shell7.js`):
