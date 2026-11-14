@@ -63,6 +63,12 @@ final class Hours
     {
         $reason = trim($reason);
         if (!$ok && $reason === '') return ['ok' => false, 'error' => 'Say why, so they can fix it.'];
+        // Nobody confirms their own hours, by any road in (AUDIT-AND-PLAN VO-10): a lead who
+        // also volunteers at the event used to verify themselves, with their own name as witness.
+        if ($byKind === 'member' && DB::table('gates_vol_hours as h')->join('gates_volunteers as v', 'v.id', '=', 'h.volunteer_id')
+                ->where('h.id', $hourId)->where('v.user_id', $byId)->exists()) {
+            return ['ok' => false, 'error' => 'Somebody else confirms your own hours.'];
+        }
         $n = DB::table('gates_vol_hours')->where('id', $hourId)->where('status', 'review')->update([
             'status' => $ok ? 'verified' : 'declined', 'confirmed_kind' => $byKind, 'confirmed_id' => $byId,
             'confirmed_name' => mb_substr($byName, 0, 190), 'confirmed_at' => date('Y-m-d H:i:s'),

@@ -303,16 +303,19 @@ final class VolunteerController
         // The confirmation, with the volunteers' WhatsApp community (owner, 13 Nov 2026). A
         // mail that fails costs nothing but the mail: the application is in either way, and the
         // workspace offers the same link.
+        // The link goes to adults only (Volunteers::communityFor, AUDIT-AND-PLAN VO-4).
+        $community = ($applied = DB::table('gates_volunteers')->where('id', (int) $r['id'])->first()) ? Volunteers::communityFor($applied) : null;
         try {
             \AfricaGates\Services\Mail\Emails::send($this->mailer ?? \AfricaGates\Services\OtpService::boot(), (string) $user->email, 'volunteer-applied', [
                 'first_name' => trim((string) strtok(trim((string) ($user->name ?? '')), ' ')) ?: 'there',
-                'community_url' => Volunteers::communityUrl(),
+                'community_url' => $community ?? '',
                 'action_url' => rtrim(\AfricaGates\Support\SiteUrl::base(), '/') . '/volunteer',
             ]);
         } catch (\Throwable $e) {
             error_log('[volunteer] application mail failed: ' . $e->getMessage());
         }
-        $_SESSION['vol_toast'] = 'Thank you. Your application is in; we’ve asked your referee. Join the volunteers’ WhatsApp community while you wait.';
+        $_SESSION['vol_toast'] = 'Thank you. Your application is in, and the volunteer team will contact your referee.'
+            . ($community !== null ? ' Join the volunteers’ WhatsApp community while you wait.' : '');
         return $this->to($res, '/volunteer');
     }
 
@@ -330,7 +333,11 @@ final class VolunteerController
 
         $r = match ((string) ($b['do'] ?? '')) {
             'arrive' => ($k = Attendance::arrive($v, (int) ($b['event'] ?? 0), Attendance::SELF, $name))['ok'] ? $ok('Checked in. Check out when you leave.') : $no((string) $k['error']),
-            'leave' => ($k = Attendance::leave($v, (int) ($b['event'] ?? 0), Attendance::SELF, $name))['ok']
+            // `checkout`, not `leave`: both arms were once spelled 'leave' in this match, PHP
+            // takes the first, and so "Leave for good" and "Withdraw my application" checked
+            // the person out of an event instead ("Not checked in.") and never ended a role
+            // (AUDIT-AND-PLAN VO-1).
+            'checkout' => ($k = Attendance::leave($v, (int) ($b['event'] ?? 0), Attendance::SELF, $name))['ok']
                 ? $ok('Checked out. ' . Level::h((float) $k['hours']) . ($k['review'] ? ' sent to a lead to confirm.' : ' added to your hours.')) : $no((string) $k['error']),
             'outreach_agree' => Outreach::agree($v, (int) ($b['cycle'] ?? 0)) ? $ok('Thanks. You can reach nominees on this award now.') : $no('That award isn’t one you reach nominees on.'),
             'outreach_log' => ($k = Outreach::log($v, (int) ($b['nominee'] ?? 0), $b))['ok'] ? $ok('Contact logged. Everybody on this award sees it on the nominee’s page; a follow-up date puts them under Follow up.') : $no((string) $k['error']),

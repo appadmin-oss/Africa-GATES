@@ -110,4 +110,21 @@ final class VolunteersAdminTest extends TestCase
             $this->assertStringContainsString('aria-current="page"', (string) $res->getBody(), $tab);
         }
     }
+
+    /**
+     * Vetting is not skipped from the staff screen either: no role for somebody not approved,
+     * and no event lead, owner or finance role from here, which by-passed the owner's approval
+     * those need (AUDIT-AND-PLAN VO-3).
+     */
+    public function test_a_role_is_given_only_to_an_approved_volunteer_and_only_a_volunteer_role(): void
+    {
+        $vid = $this->applicant();
+        $ev = (int) DB::table('gates_site_events')->insertGetId(['slug' => 'c-' . bin2hex(random_bytes(3)), 'title' => 'Ceremony',
+            'event_date' => date('Y-m-d', strtotime('+10 days')), 'status' => 'published', 'created_at' => date('Y-m-d H:i:s')]);
+        $until = date('Y-m-d', strtotime('+12 days'));
+        $this->assertStringContainsString('Approve them first', $this->post(['do' => 'grant', 'id' => $vid, 'capability' => 'vol.door', 'place' => 'event:' . $ev, 'expires_at' => $until, 'tab' => 'roster']));
+        $this->post(['do' => 'approve', 'id' => $vid, 'tab' => 'applications']);
+        $this->assertStringContainsString('volunteer roles only', $this->post(['do' => 'grant', 'id' => $vid, 'capability' => 'event.finance', 'place' => 'event:' . $ev, 'expires_at' => $until, 'tab' => 'roster']));
+        $this->assertSame(0, DB::table('gates_grants')->where('capability', 'event.finance')->count());
+    }
 }

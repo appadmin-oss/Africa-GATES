@@ -41,6 +41,10 @@ final class Plan
     public const RULES = [
         'lead_spend_limit_naira' => 200000,   // a lead approves one line up to this
         'lead_week_hours'        => 40,       // a person's week, for the load on People
+        // An event's finance admin approves one line up to this. It was "unset = no limit",
+        // read by its own copy of the lookup, with no field anywhere to set it, while the
+        // menu promised a ceiling (AUDIT-AND-PLAN EV-3). Settable on /admin/settings.
+        'event_finance_limit_naira' => 1000000,
     ];
 
     public const STATUSES = ['todo' => 'Not started', 'doing' => 'In progress', 'done' => 'Done'];
@@ -364,6 +368,12 @@ final class Plan
         if (!$l) return ['ok' => false, 'error' => 'That line is not there.'];
         if (!self::may($leadId, (int) $l->event_id, 'money.approve')) return ['ok' => false, 'error' => 'Only a lead of this event, or a team role that includes it, can approve its spend.'];
         if ($l->status !== 'proposed') return ['ok' => false, 'error' => 'That line has already been decided.'];
+        // The person who asks for money is never the one who approves it (39b34dd). Only the
+        // finance-admin path held that; a lead holds both money.plan and money.approve, so a
+        // lead approved the lines they had just added themselves (AUDIT-AND-PLAN EV-1).
+        if ((string) $l->proposed_kind === self::ACTOR && (int) $l->proposed_id === $leadId) {
+            return ['ok' => false, 'error' => 'You added this line, so somebody else approves it: another lead, the event’s finance admin, or finance.'];
+        }
         // The ACTOR's ceiling: the platform's limit for a lead, the role's (never above it) for a
         // custom role holding `money.approve`.
         $ceiling = EventPermissions::ceiling($leadId, (int) $l->event_id);
@@ -424,6 +434,12 @@ final class Plan
         $c = self::kobo($committed);
         $p = self::kobo($paid);
         if (($committed !== '' && $c === null) || ($paid !== '' && $p === null)) return ['ok' => false, 'error' => 'Give the figures in naira.'];
+        // What was approved is the ceiling. Without this a ₦50,000 approval could be recorded
+        // as ₦10m committed or paid with nobody deciding the difference (AUDIT-AND-PLAN EV-2).
+        $cap = (int) $l->estimate_minor;
+        if (($c ?? 0) > $cap || ($p ?? 0) > $cap) {
+            return ['ok' => false, 'error' => 'That is more than the ' . self::naira($cap) . ' approved for this line. Add a line for the difference so somebody approves it.'];
+        }
         DB::table('gates_event_budget')->where('id', $lineId)->update([
             'committed_minor' => $c ?? (int) $l->committed_minor, 'paid_minor' => $p ?? (int) $l->paid_minor, 'updated_at' => date('Y-m-d H:i:s'),
         ]);

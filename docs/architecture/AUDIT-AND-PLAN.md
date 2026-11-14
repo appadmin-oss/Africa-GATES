@@ -1641,6 +1641,36 @@ Reported figures, not confirmed with the companies or regulators. Sources in §1
 | Paystack `manual` settlement | Still documented only by third parties as needing Paystack to enable it; no published maximum hold. | Unchanged: confirm with Paystack in E0. |
 | Lagos safety | The 250-guest registration and Event Safety Permit, marshals above 500 and "two marshals per 500 guests" are repeated in current reporting; the Safety Commission announced tourism safety marshals for December 2025 events. No single current guideline document was found. | Unchanged: rules as data with a last-checked date (9.15); confirm with the Commission before encoding. |
 
+### 9.27 Fixed on 14 Nov 2026
+
+The first part of step H in 9.24. Each fix shipped with a test, and each of those tests was
+run against the code **before** the fix and failed there (fourteen tests, fourteen failures),
+then passed after it.
+
+| # | What changed | Test |
+|---|---|---|
+| EV-1 | Nobody approves a line they added (`Plan::approveLine`). The test that asserted a lead's self-approval now asserts the refusal. | `LeadConsoleTest::test_a_lead_approves_up_to_their_limit_and_asks_finance_above_it`, `EventTeamsTest::test_a_roles_money_ceiling_is_its_own_and_never_above_the_leads` |
+| EV-2 | Committed and paid can never exceed the approved estimate (`Plan::setSpend`); the difference is a new line somebody approves. | the `LeadConsoleTest` case above |
+| EV-3 | The finance admin's ceiling defaults to ₦1,000,000 instead of no limit, read through `Plan::rule()` (one resolver); all three event-plan limits have fields on `/admin/settings`. The default is the D41 recommendation and is a setting. | `EventFinanceAdminTest::test_a_spend_above_the_finance_limit_goes_to_platform_finance` |
+| EV-4 | A spend request is decided by its named finance admin only while their grant is live and the amount is within the finance limit; otherwise it falls to platform finance, which now sees it (`Requests::canDecide`, `waitingOn`). | `EventFinanceAdminTest::test_a_finance_admin_whose_role_ended_cannot_decide_and_finance_can` |
+| EV-5 | **Partly.** A person who holds `money.plan` at an event never gets the finance ceiling there (`EventPermissions::standing`). Refusing the second grant outright is still to do. | — |
+| EV-7 | The reminder and the digest are claimed in `gates_broadcast_log` before sending, once per item (or lead) per day. | `EventGoalsTest::test_a_reminder_is_sent_once_a_day_however_many_ticks_run`, `…test_the_digest_is_claimed_once_per_lead_per_day` |
+| EV-11 | **Partly.** `AFG-STAND-` references are `events` money, not `votes`; the webhook credits a stand payment after re-verifying it with the gateway, and a stand reversal alerts staff. The reconciler, `GatewayLedger` and `RefundService` still do not read stands (§2 fault 8's remainder). | `ShopEventPaymentCoverageTest::test_every_reference_this_platform_mints_maps_to_a_stream` |
+| EV-12 | One row per stand payment (`gates_stand_payments`, migration `2027_05_21_stand_payments.php`); a payment is credited once and **added**, and every reference ever minted stays matchable. | `StandFeeTest::test_a_deposit_and_then_the_balance_add_up_to_the_fee`, `…test_an_earlier_reference_paid_after_a_newer_one_was_minted_is_still_credited` |
+| EV-13 | A payment that lands after its hold lapsed is confirmed only if a seat is still free; otherwise no ticket, the money is recorded as owed back (`refund_status = pending`) and staff are alerted. | `EventTicketServiceTest::test_a_payment_after_the_hold_lapsed_does_not_oversell_a_resold_seat` (and its "seat still free" twin) |
+| EV-15 | The door remembers each offline scan's client id (`gates_door_sync_ids`, migration `2027_05_20_door_sync_ids.php`); a resent flush answers "Already recorded" and admits nobody. | `DoorOfflineTest::test_a_resent_flush_does_not_admit_more_of_a_party` |
+| EV-17 | The admission UPDATE also requires `status = 'confirmed'`; a cancel landing between read and write is refused as cancelled. | covered by the existing door suites; the race itself is not reproducible in SQLite |
+| VO-1 | Event check-out is its own verb, `checkout`; "Leave for good" and "Withdraw my application" reach `Volunteers::leave`. | `VolunteerWorkspaceTest::test_leaving_for_good_ends_every_volunteer_role` |
+| VO-3 | Staff give roles only to approved volunteers, and only `vol.*` roles. | `VolunteersAdminTest::test_a_role_is_given_only_to_an_approved_volunteer_and_only_a_volunteer_role` |
+| VO-4 | **Partly.** The community link goes only to applicants aged 18 or over (`Volunteers::communityFor`), in the email, the toast and the workspace; only `chat.whatsapp.com` links are accepted; the email no longer claims "we have asked your referee". The built-in default link and its timing (on applying) are the owner's choice and stay until D39 is decided; the link is in git history either way. | `VolunteerCommunityTest::test_the_link_goes_to_adults_only` and two more |
+| VO-10 | Nobody confirms their own hours, by any road (`Hours::confirm`), and a lead cannot check themselves in or accept their own task from the event console. | `VolunteersTest::test_nobody_confirms_their_own_hours` |
+| VO-11 | **Partly.** `Volunteers::age()` counts by the calendar and is used by applying and the community rule. `Meetings::adult` and the staff list still have their own. | `VolunteerCommunityTest::test_age_is_counted_by_the_calendar` |
+
+**Still open from 9.22 and 7.4:** EV-6, EV-8, EV-9, EV-10, EV-14, EV-16, EV-18 (needs D40),
+EV-19, EV-20; VO-2, VO-5 to VO-9, VO-12, VO-13; and §2 faults 4 and 5. Both new migrations
+are additive (two new tables, `SchemaIndex::ensure` only) and must be applied before the
+fixes they back take effect; until then both paths behave as before.
+
 ---
 
 ## 10. The market: buying, selling, highlights and promotions

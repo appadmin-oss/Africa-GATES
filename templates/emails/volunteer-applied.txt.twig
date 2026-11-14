@@ -1,11 +1,13 @@
 {#- Plain-text part for volunteer-applied.html.twig. -#}
 Thank you, {{ first_name }}
 
-Your application to volunteer is in. The volunteer team reads every one, and we have asked your referee. You will hear from us when it is decided.
+Your application to volunteer is in. The volunteer team reads every one and will contact your referee. You will hear from us when it is decided.
+{% if community_url %}
 
 Join our volunteers’ community
 Our volunteers talk on WhatsApp — news, calls for help, and each other. Join now; you do not need to wait for the decision.
 Join on WhatsApp: {{ community_url }}
+{% endif %}
 
 Your volunteer workspace shows where your application is: {{ action_url }}
 

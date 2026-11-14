@@ -107,7 +107,7 @@ final class WorkspacePages
                                          'cta' => ['label' => 'See tasks', 'href' => '/volunteer/tasks/library']];
 
         $side[] = self::guideCard();
-        $side[] = self::communityCard();
+        if ($c = self::communityCard($v)) $side[] = $c;
         return ['title' => 'Today', 'purpose' => self::homeLine($v, $lv), 'acts' => self::homeActs($v), 'secs' => $secs, 'side' => $side];
     }
 
@@ -129,12 +129,14 @@ final class WorkspacePages
      * equal buttons beside the title competed with the one thing Today is for, and "how to
      * use this" is a reference, not an action.
      */
-    /** The volunteers' WhatsApp community: offered from the day somebody applies. */
-    private static function communityCard(): array
+    /** The volunteers' WhatsApp community: offered from the day somebody applies, to adults (Volunteers::communityFor). */
+    private static function communityCard(object $v): ?array
     {
+        $url = Volunteers::communityFor($v);
+        if ($url === null) return null;
         return ['k' => 'note', 'h' => 'Join the volunteers’ community', 'tone' => 'info',
                 'text' => 'Our volunteers talk on WhatsApp: news, calls for help and each other. Join from your phone.',
-                'cta' => ['label' => 'Join on WhatsApp', 'href' => Volunteers::communityUrl()]];
+                'cta' => ['label' => 'Join on WhatsApp', 'href' => $url]];
     }
 
     private static function guideCard(): array
@@ -169,7 +171,7 @@ final class WorkspacePages
         }
         $secs[] = ['k' => 'note', 'text' => 'Do the training now and you can start the day you’re approved.', 'tone' => 'ok',
                    'cta' => ['label' => 'Start training', 'href' => '/volunteer/training']];
-        return ['title' => 'Application', 'acts' => [['label' => 'How to use this portal', 'href' => Workspace::GUIDE['href']]], 'purpose' => $asked ? 'Your application is with us. It moves on when your reference replies.' : 'Your application is with the volunteer team.', 'secs' => $secs, 'side' => [self::communityCard()]];
+        return ['title' => 'Application', 'acts' => [['label' => 'How to use this portal', 'href' => Workspace::GUIDE['href']]], 'purpose' => $asked ? 'Your application is with us. It moves on when your reference replies.' : 'Your application is with the volunteer team.', 'secs' => $secs, 'side' => array_values(array_filter([self::communityCard($v)]))];
     }
 
     private static function gettingStarted(object $v): array
@@ -190,7 +192,7 @@ final class WorkspacePages
         $secs[] = $rows ? ['k' => 'rows', 'h' => 'Good first tasks', 'items' => $rows]
                         : ['k' => 'note', 'text' => 'No tasks are open right now. We tell you when one is posted.', 'tone' => 'mute'];
         $secs[] = ['k' => 'note', 'text' => 'Nothing is expected of you until you pick something. Hours count from your first accepted task.', 'tone' => 'mute'];
-        return ['title' => 'Today', 'purpose' => 'Two steps to your first task. Most people finish in a day.', 'acts' => self::homeActs($v), 'secs' => $secs, 'side' => [self::guideCard(), self::communityCard()]];
+        return ['title' => 'Today', 'purpose' => 'Two steps to your first task. Most people finish in a day.', 'acts' => self::homeActs($v), 'secs' => $secs, 'side' => array_values(array_filter([self::guideCard(), self::communityCard($v)]))];
     }
 
 
@@ -749,7 +751,7 @@ final class WorkspacePages
             $visit = Attendance::open((int) $v->id, $id);
             if ($visit) {
                 $secs[0]['chips'][] = ['Checked in at ' . date('H:i', (int) strtotime((string) $visit->in_at)), 'ok'];
-                array_unshift($secs[0]['acts'], ['label' => 'Check out', 'post' => ['do' => 'leave', 'event' => $id], 'primary' => true]);
+                array_unshift($secs[0]['acts'], ['label' => 'Check out', 'post' => ['do' => 'checkout', 'event' => $id], 'primary' => true]);
                 $secs[0]['acts'][1]['primary'] = false;
             } elseif (Attendance::isOpenNow($id)) {
                 array_unshift($secs[0]['acts'], ['label' => 'Check in', 'post' => ['do' => 'arrive', 'event' => $id], 'primary' => true]);

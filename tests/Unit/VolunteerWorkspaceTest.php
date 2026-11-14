@@ -95,6 +95,27 @@ final class VolunteerWorkspaceTest extends TestCase
         return [$res->getStatusCode(), $res->getHeaderLine('Location'), $_SESSION['vol_toast'] ?? null, $_SESSION['vol_error'] ?? null];
     }
 
+    /**
+     * "Leave for good" and "Withdraw my application" both post do=leave. The controller's
+     * match had a second 'leave' arm (event check-out) ABOVE this one, PHP takes the first,
+     * and so stepping back answered "Not checked in." and ended no role (AUDIT-AND-PLAN VO-1).
+     */
+    public function test_leaving_for_good_ends_every_volunteer_role(): void
+    {
+        $uid = $this->member();
+        $vid = $this->applied($uid);
+        Volunteers::approve($vid, 1);
+        $ev = $this->event();
+        $this->role($uid, $ev);
+        $_SESSION['user_id'] = $uid;
+
+        [, , $ok, $err] = $this->post(['do' => 'leave', 'back' => '/volunteer/me/leave']);
+        $this->assertNull($err, (string) $err);
+        $this->assertStringContainsString('stepped back', (string) $ok);
+        $this->assertSame('left', (string) DB::table('gates_volunteers')->where('id', $vid)->value('status'));
+        $this->assertFalse(Grants::allows('member', $uid, 'vol.door', 'event', $ev), 'the role outlived the person leaving');
+    }
+
     public function test_a_member_who_has_not_applied_is_sent_to_the_application_and_it_states_the_age_rule(): void
     {
         $_SESSION['user_id'] = $this->member();

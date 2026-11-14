@@ -217,9 +217,17 @@ final class VolunteersController
 
     private function grant(array $b, int $adminId): array
     {
-        $uid = (int) DB::table('gates_volunteers')->where('id', (int) ($b['id'] ?? 0))->value('user_id');
+        $vol = DB::table('gates_volunteers')->where('id', (int) ($b['id'] ?? 0))->first(['user_id', 'status']);
+        $uid = (int) ($vol->user_id ?? 0);
         [$kind, $scope] = array_pad(explode(':', (string) ($b['place'] ?? '')), 2, '0');
         if (!$uid) return [false, 'Pick a volunteer.', 0];
+        // Vetting is not skipped from this screen either. It used to give any role to anybody
+        // with a volunteer row — a declined applicant, a current one, somebody who had left —
+        // and any capability Grants knows, event.lead, event.own and event.finance included,
+        // which by-passed the owner's approval those need (AUDIT-AND-PLAN VO-3). The same
+        // rule RoleInvites::eligible() keeps.
+        if (!in_array((string) $vol->status, ['active', 'paused'], true)) return [false, 'Only an approved volunteer can be given a role. Approve them first.', 0];
+        if (!str_starts_with((string) ($b['capability'] ?? ''), 'vol.')) return [false, 'This screen gives volunteer roles only. Event leads, owners and finance are given on the event’s Leads page.', 0];
         $r = Grants::grant('member', $uid, (string) ($b['capability'] ?? ''), $kind, (int) $scope, (string) ($b['expires_at'] ?? ''), $adminId, 'Given by staff');
         return [$r['ok'], $r['ok'] ? 'Given. It ends on its own on that date.' : (string) $r['error'], (int) ($r['id'] ?? 0)];
     }

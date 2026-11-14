@@ -172,6 +172,38 @@ final class StandFeeTest extends TestCase
     }
 
     /**
+     * The balance, after the deposit. confirm() used to SET paid_naira to the latest payment,
+     * so a ₦10,000 deposit then a ₦40,000 balance recorded ₦40,000 and asked for ₦10,000
+     * already paid (AUDIT-AND-PLAN EV-12). The test above stopped after the deposit.
+     */
+    public function test_a_deposit_and_then_the_balance_add_up_to_the_fee(): void
+    {
+        $f = $this->offered(50000, 10000);
+        StandApplication::accept($f['app_id'], $f['org_id']);
+        StandFee::beginPayment($f['app_id'], 'AFG-STAND-D1', 'paystack');
+        StandFee::confirm('AFG-STAND-D1', 10000, 'paystack');
+        StandFee::beginPayment($f['app_id'], 'AFG-STAND-B1', 'paystack');
+        StandFee::confirm('AFG-STAND-B1', 40000, 'paystack');
+        StandFee::confirm('AFG-STAND-B1', 40000, 'paystack');   // the webhook, reporting it again
+
+        $this->assertSame(50000, (int) $this->app($f['app_id'])->paid_naira);
+        $this->assertTrue(StandFee::owing($this->app($f['app_id']))['settled']);
+    }
+
+    /** Pay pressed in two tabs: the first tab's payment still belongs to the stand. */
+    public function test_an_earlier_reference_paid_after_a_newer_one_was_minted_is_still_credited(): void
+    {
+        $f = $this->offered(30000, 0);
+        StandApplication::accept($f['app_id'], $f['org_id']);
+        StandFee::beginPayment($f['app_id'], 'AFG-STAND-TAB1', 'paystack');
+        StandFee::beginPayment($f['app_id'], 'AFG-STAND-TAB2', 'paystack');
+        $r = StandFee::confirm('AFG-STAND-TAB1', 30000, 'paystack');
+
+        $this->assertTrue($r['ok'], (string) $r['message']);
+        $this->assertSame(30000, (int) $this->app($f['app_id'])->paid_naira);
+    }
+
+    /**
      * A free pitch is a real thing and must not render as an unpaid ₦0 invoice.
      *
      * A community market or a sponsored row genuinely charges nothing, and a Pay button

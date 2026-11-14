@@ -165,6 +165,38 @@ final class EventGoalsTest extends TestCase
         $this->assertSame(0, DB::table('gates_event_rules')->where('event_id', $this->ev)->where('mode', '!=', 'paused')->count(), 'one switch pauses every rule');
     }
 
+    /**
+     * The reminder rule's once-a-day promise. `said()` in run() skips only the LOG row, and a
+     * reminder changes neither of the two things heardOf() reads, so before the claim every
+     * tick re-sent it (96 a day per item). Two runs in one day must claim one send.
+     */
+    public function test_a_reminder_is_sent_once_a_day_however_many_ticks_run(): void
+    {
+        $now = strtotime(date('Y-m-d 09:00:00'));
+        DB::table('gates_event_work')->insert(['event_id' => $this->ev, 'title' => 'Book the hall', 'owner_kind' => 'member', 'owner_id' => $this->vol,
+            'due_at' => date('Y-m-d H:i:s', $now + 86400), 'status' => 'todo', 'created_at' => date('Y-m-d H:i:s', $now - 5 * 86400)]);
+        Rules::forEvent($this->ev);
+        Rules::setMode($this->ev, 'reminder', 'active', $this->lead);
+        Rules::run($this->ev, $now);
+        Rules::run($this->ev, $now + 900);
+        Rules::run($this->ev, $now + 1800);
+        $this->assertSame(1, DB::table('gates_broadcast_log')->where('campaign', 'like', 'evrule:rem:%')->count(), 'one send claimed for the day');
+        Rules::run($this->ev, $now + 2 * 86400);   // the next day the work is past due, so nothing more is sent
+        $this->assertSame(1, DB::table('gates_broadcast_log')->where('campaign', 'like', 'evrule:rem:%')->count());
+    }
+
+    public function test_the_digest_is_claimed_once_per_lead_per_day(): void
+    {
+        $this->goal();
+        Rules::forEvent($this->ev);
+        Rules::setMode($this->ev, 'digest', 'active', $this->lead);
+        $at = strtotime(date('Y-m-d 08:00:00'));
+        Rules::run($this->ev, $at);
+        DB::table('gates_event_rule_log')->delete();   // the race: a second tick that did not see the first's log row
+        Rules::run($this->ev, $at + 60);
+        $this->assertSame(1, DB::table('gates_broadcast_log')->where('campaign', 'like', 'evrule:dig:%')->count());
+    }
+
     public function test_setup_reads_a_plain_sentence_and_asks_only_what_it_could_not_find(): void
     {
         $r = Setup::read($this->ev, '₦15M from paid votes by 6 December at ₦200 a vote');

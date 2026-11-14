@@ -86,6 +86,44 @@ final class EventTicketServiceTest extends TestCase
         };
     }
 
+    /**
+     * A bank transfer that settles after its 30-minute hold lapsed, when the seat was sold to
+     * somebody else in the meantime. sold() stops counting a lapsed hold, so confirming it
+     * anyway put the tier over capacity (AUDIT-AND-PLAN EV-13).
+     */
+    public function test_a_payment_after_the_hold_lapsed_does_not_oversell_a_resold_seat(): void
+    {
+        $tier = $this->tier(['capacity' => 1]);
+        $a = T::reserve($this->eventId, $tier, $this->who('a@x.test'));
+        $this->assertTrue($a['ok']);
+        DB::table('gates_event_registrations')->where('reference', $a['reference'])
+            ->update(['hold_expires_at' => Carbon::now()->subMinutes(5)->toDateTimeString()]);
+
+        $b = T::reserve($this->eventId, $tier, $this->who('b@x.test'));
+        $this->assertTrue($b['ok'], 'the lapsed hold should have freed the seat');
+        $gw = $this->gateway([$a['reference'] => ['status' => 'success', 'amount' => 10000],
+                              $b['reference'] => ['status' => 'success', 'amount' => 10000]]);
+        $this->assertTrue(T::confirm($b['reference'], $gw)['ok']);
+
+        $late = T::confirm($a['reference'], $gw);
+        $this->assertFalse($late['ok'], 'a second ticket was issued for a one-seat tier');
+        $row = DB::table('gates_event_registrations')->where('reference', $a['reference'])->first();
+        $this->assertSame('cancelled', (string) $row->status);
+        $this->assertNull($row->ticket_code);
+        $this->assertSame('pending', (string) $row->refund_status, 'the money is recorded as owed back');
+        $this->assertSame(1, T::sold($tier));
+    }
+
+    public function test_a_payment_after_the_hold_lapsed_is_still_confirmed_when_a_seat_is_free(): void
+    {
+        $tier = $this->tier(['capacity' => 5]);
+        $a = T::reserve($this->eventId, $tier, $this->who('a@x.test'));
+        DB::table('gates_event_registrations')->where('reference', $a['reference'])
+            ->update(['hold_expires_at' => Carbon::now()->subMinutes(5)->toDateTimeString()]);
+        $r = T::confirm($a['reference'], $this->gateway([$a['reference'] => ['status' => 'success', 'amount' => 10000]]));
+        $this->assertTrue($r['ok'], 'a late payment with room left must still become a ticket');
+    }
+
     // ══ 1. each tier's limit is its own ══════════════════════════════════════
 
     /** THE test in this file. */

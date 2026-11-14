@@ -172,4 +172,25 @@ final class VolunteersTest extends TestCase
         $this->assertSame(1, Level::of($v)['level'], 'the threshold is a setting, read on every computation');
         $this->assertStringContainsString('8h more verified hours', implode(' ', Level::of($v)['next']['needs']));
     }
+
+    /**
+     * Nobody confirms their own hours, by any road in. A lead who also volunteered at the
+     * event checked themselves in and out, and the hours landed verified with their own name
+     * as witness (AUDIT-AND-PLAN VO-10). The rule is in Hours::confirm, so the team lead's
+     * page and the event console both meet it.
+     */
+    public function test_nobody_confirms_their_own_hours(): void
+    {
+        $v = $this->approved();
+        $r = Hours::log($v, date('Y-m-d', strtotime('-1 day')), 'Set up the hall', 3, '', '');
+        $this->assertTrue($r['ok'], (string) ($r['error'] ?? ''));
+        $hour = (int) DB::table('gates_vol_hours')->where('volunteer_id', $v->id)->max('id');
+
+        $self = Hours::confirm($hour, true, 'member', (int) $v->user_id, 'Myself');
+        $this->assertFalse($self['ok'], 'a person verified their own hours');
+        $this->assertSame('review', (string) DB::table('gates_vol_hours')->where('id', $hour)->value('status'));
+
+        $other = $this->member('Ngozi Eze');
+        $this->assertTrue(Hours::confirm($hour, true, 'member', $other, 'Ngozi Eze')['ok']);
+    }
 }

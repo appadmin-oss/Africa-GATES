@@ -1686,6 +1686,14 @@
         <div><label for="f-review_sla_hours">Nomination review SLA (hours)</label><input type="number" name="review_sla_hours" id="f-review_sla_hours" min="1" step="1" value="{{ values.review_sla_hours|default('48') }}"></div>
         <div><label for="f-nomination_seconds">Nomination time estimate (seconds)</label><input type="number" name="nomination_seconds" id="f-nomination_seconds" min="0" step="1" value="{{ values.nomination_seconds|default('90') }}"></div>
       </div>
+      {#- The event plan's limits (EventPlan\Plan::RULES): what one lead, or an event's
+          finance admin, may approve on a single budget line, and a person's working week.
+          They had no field, so the finance admin's ceiling could not be set from anywhere. -#}
+      <div class="row">
+        <div><label for="f-lead_spend_limit_naira">Event lead approves a line up to (₦)</label><input type="number" name="lead_spend_limit_naira" id="f-lead_spend_limit_naira" min="1" step="1" value="{{ values.lead_spend_limit_naira|default('200000') }}"></div>
+        <div><label for="f-event_finance_limit_naira">Event finance admin approves a line up to (₦)</label><input type="number" name="event_finance_limit_naira" id="f-event_finance_limit_naira" min="1" step="1" value="{{ values.event_finance_limit_naira|default('1000000') }}"></div>
+        <div><label for="f-lead_week_hours">An event team member’s week (hours)</label><input type="number" name="lead_week_hours" id="f-lead_week_hours" min="1" step="1" value="{{ values.lead_week_hours|default('40') }}"></div>
+      </div>
       <div class="row">
         <div><label for="f-otp_expiry_minutes">OTP code expiry (minutes)</label><input type="number" name="otp_expiry_minutes" id="f-otp_expiry_minutes" min="0" step="1" value="{{ values.otp_expiry_minutes|default('10') }}"></div>
         <div><label for="f-processing_fee_pct">Payment processing fee (%)</label><input type="number" name="processing_fee_pct" id="f-processing_fee_pct" min="0" step="0.1" value="{{ values.processing_fee_pct|default('1.5') }}"></div>

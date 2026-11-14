@@ -229,6 +229,14 @@ final class Requests
     /** May this person decide this request? */
     public static function canDecide(object $r, string $actorKind, int $actorId, ?string $adminRole = null): bool
     {
+        // An event's spend sent to its finance admin was decidable by that person for ever:
+        // the decider is fixed when the request is made and nothing re-checked the grant or
+        // the finance limit (AUDIT-AND-PLAN EV-4). Both are asked now, at decision time; when
+        // either fails, the request falls to the platform's finance team.
+        if (self::eventFinanceLapsed($r)) {
+            return $actorKind === 'admin' && $adminRole !== null
+                && in_array($adminRole, Permissions::MATRIX['finance'] ?? ['superadmin'], true);
+        }
         if ($r->decider_kind === 'member' || $r->decider_kind === 'admin') {
             return $r->decider_kind === $actorKind && (int) $r->decider_id === $actorId;
         }
@@ -238,6 +246,16 @@ final class Requests
             return in_array($adminRole, $roles, true);
         }
         return false;
+    }
+
+    /** A spend at an event, named to a member whose finance role has ended or whose limit it is over. */
+    private static function eventFinanceLapsed(object $r): bool
+    {
+        if ((string) ($r->type ?? '') !== 'spend' || (string) ($r->scope_kind ?? '') !== 'event' || (string) $r->decider_kind !== 'member') return false;
+        $event = (int) ($r->scope_id ?? 0);
+        if ($event < 1) return false;
+        if (!Grants::allows('member', (int) $r->decider_id, 'event.finance', 'event', $event)) return true;
+        return (int) ($r->amount_minor ?? 0) > \AfricaGates\Services\EventPlan\EventPermissions::financeCeiling();
     }
 
     /**
@@ -315,7 +333,12 @@ final class Requests
         $rows = DB::table('gates_requests')->where('status', 'waiting')
             ->where(static function ($w) use ($kind, $id, $adminRole) {
                 $w->where(static fn ($o) => $o->where('decider_kind', $kind)->where('decider_id', $id));
-                if ($kind === 'admin' && $adminRole !== null) $w->orWhere('decider_kind', 'role');
+                if ($kind === 'admin' && $adminRole !== null) {
+                    $w->orWhere('decider_kind', 'role');
+                    // An event's spend whose named finance admin has lapsed falls to finance
+                    // (canDecide), so finance has to SEE it here, or it waits for ever.
+                    $w->orWhere(static fn ($o) => $o->where('type', 'spend')->where('scope_kind', 'event')->where('decider_kind', 'member'));
+                }
             })->orderBy('id')->limit(200)->get()->all();
         return array_values(array_filter($rows, static fn ($r) => self::canDecide($r, $kind, $id, $adminRole)));
     }

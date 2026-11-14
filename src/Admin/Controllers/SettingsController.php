@@ -1096,7 +1096,7 @@ class SettingsController
             if ($url === '' || \AfricaGates\Services\Volunteer\Volunteers::validCommunityUrl($url)) {
                 $this->settings->set('volunteer_community_url', $url, $adminId);
             } else {
-                $_SESSION['flash_error'] = 'The volunteers’ community link was not saved — it has to be an https:// link, such as a WhatsApp invite. Everything else was saved.';
+                $_SESSION['flash_error'] = 'The volunteers’ community link was not saved — it has to be a WhatsApp invite link (https://chat.whatsapp.com/…). Everything else was saved.';
             }
         }
 
@@ -1326,6 +1326,12 @@ class SettingsController
                     ? (string) NominationFeedbackService::slaHours((string) $b[$k])
                     : (string) max(0, (int) $b[$k]);
                 $this->settings->set($k, $v, $adminId);
+            }
+            // The event plan's limits (EventPlan\Plan::RULES). Read by Plan::rule() and nowhere
+            // else; they had no field, so the finance admin's ceiling could not be set at all.
+            foreach (['lead_spend_limit_naira', 'event_finance_limit_naira', 'lead_week_hours'] as $k) {
+                if (!array_key_exists($k, $b) || trim((string) $b[$k]) === '') continue;
+                $this->settings->set($k, (string) max(1, (int) $b[$k]), $adminId);
             }
             if (array_key_exists('processing_fee_pct', $b)) {
                 $this->settings->set('processing_fee_pct', (string) max(0, (float) $b['processing_fee_pct']), $adminId);

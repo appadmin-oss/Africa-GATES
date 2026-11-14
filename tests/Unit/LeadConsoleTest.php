@@ -210,10 +210,23 @@ final class LeadConsoleTest extends TestCase
         $this->post(['do' => 'line_add', 'event' => $ev, 'title' => 'MC fee', 'estimate' => (string) ($limit / 100 + 250000)]);
         $small = (int) DB::table('gates_event_budget')->where('title', 'Volunteer transport')->value('id');
         $big = (int) DB::table('gates_event_budget')->where('title', 'MC fee')->value('id');
-        $this->assertStringContainsString('You can approve', $this->page('root', ['page' => 'approvals']));
+        // The person who asks is never the one who approves (AUDIT-AND-PLAN EV-1). This test
+        // used to assert the opposite: the lead approved the line they had just added.
+        $this->assertStringContainsString('somebody else approves it', $this->post(['do' => 'line_approve', 'line' => $small]));
+        $this->assertSame('proposed', DB::table('gates_event_budget')->where('id', $small)->value('status'));
 
+        // A second lead of the event approves it, up to the limit, and not above.
+        $second = $this->member('Ngozi Eze');
+        $this->lead($ev, $second);
+        $this->as($second);
+        $this->assertStringContainsString('You can approve', $this->page('root', ['page' => 'approvals']));
         $this->assertStringContainsString('Approved', $this->post(['do' => 'line_approve', 'line' => $small]));
         $this->assertStringContainsString('over your limit', $this->post(['do' => 'line_approve', 'line' => $big]));
+
+        // What was approved is the ceiling on what is committed and paid (EV-2).
+        $this->assertStringContainsString('more than the', $this->post(['do' => 'line_spend', 'line' => $small, 'committed' => '45,000', 'paid' => '9,000,000']));
+        $this->assertSame(0, (int) DB::table('gates_event_budget')->where('id', $small)->value('paid_minor'));
+        $this->as($this->lead);
         $this->assertSame('proposed', DB::table('gates_event_budget')->where('id', $big)->value('status'));
 
         $this->assertStringContainsString('Add what you need and why', $this->post(['do' => 'line_ask', 'line' => $big, 'why' => '']));

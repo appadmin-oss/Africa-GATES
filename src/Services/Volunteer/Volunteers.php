@@ -45,11 +45,45 @@ final class Volunteers
         return self::validCommunityUrl($v) ? $v : self::COMMUNITY_DEFAULT;
     }
 
-    /** An https link to a real host, nothing else — it is put in an email and on a button. */
+    /**
+     * The community link for THIS person, or null. Adults only (AUDIT-AND-PLAN VO-4): the link
+     * opens a group where people the platform has not vetted can see and message each other,
+     * and the platform's own rules keep under-18s out of exactly that — nothing for under-18s
+     * on the Afrovanguard list, and only a team lead may invite a minor to a meeting. Applicants
+     * are 16 and up, so without this a 16-year-old was sent into the group on applying.
+     */
+    public static function communityFor(object $v): ?string
+    {
+        $age = self::age(isset($v->dob) ? (string) $v->dob : null);
+        return $age !== null && $age >= 18 ? self::communityUrl() : null;
+    }
+
+    /**
+     * Whole years since a date of birth, by the calendar, or null. The one age resolver (plan
+     * §9.24 K4): applying used 365.25-day years, which can be a day out at a birthday — the
+     * very boundary of the minimum age.
+     */
+    public static function age(?string $dob, ?int $now = null): ?int
+    {
+        $t = $dob !== null && $dob !== '' ? strtotime($dob) : false;
+        if ($t === false) return null;
+        $now ??= time();
+        [$y, $md] = [(int) date('Y', $t), date('md', $t)];
+        $age = (int) date('Y', $now) - $y;
+        if (date('md', $now) < $md) $age--;
+        return max(0, $age);
+    }
+
+    /**
+     * A WhatsApp invite link and nothing else — it is put in an email and on a button headed
+     * "Join on WhatsApp". It accepted any https host, so a mistyped or hostile value in
+     * Settings would have been mailed to every applicant under that heading.
+     */
     public static function validCommunityUrl(string $url): bool
     {
         $p = $url !== '' ? parse_url($url) : false;
-        return is_array($p) && strtolower((string) ($p['scheme'] ?? '')) === 'https' && !empty($p['host']) && empty($p['user']);
+        return is_array($p) && strtolower((string) ($p['scheme'] ?? '')) === 'https' && empty($p['user'])
+            && strtolower((string) ($p['host'] ?? '')) === 'chat.whatsapp.com';
     }
 
     /** Roles an applicant can say they are interested in, with what each involves. */
@@ -163,7 +197,7 @@ final class Volunteers
         if ($dob === '' || strtotime($dob) === false) {
             $e[] = 'Add your date of birth.';
         } else {
-            $age = (int) floor((time() - (int) strtotime($dob)) / (365.25 * 86400));
+            $age = (int) self::age($dob);
             if ($age < Rules::get('vol_min_age')) $e[] = sprintf('Volunteers need to be %d or older.', Rules::get('vol_min_age'));
             elseif ($age < Rules::get('vol_guardian_under') && empty($f['guardian'])) {
                 $e[] = sprintf('Under %d, a parent or guardian needs to agree. Tick the box once they have.', Rules::get('vol_guardian_under'));

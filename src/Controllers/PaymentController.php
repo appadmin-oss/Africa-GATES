@@ -525,6 +525,14 @@ final class PaymentController
                     $amount = isset($o->subtotal_naira) ? (int) $o->subtotal_naira : null;
                     $did = \AfricaGates\Services\ShopOrderService::reverse($ref, $reversal, $this->log)
                         ? 'reversed' : ($o ? 'ignored' : 'unmatched');
+                } elseif ($stream === 'events' && \AfricaGates\Services\StandFee::isReference($ref)) {
+                    // A stand fee clawed back. Nothing here unwinds a stand automatically —
+                    // the pitch may already be built — so a person is told, with the reference.
+                    $did = 'alerted';
+                    try {
+                        \AfricaGates\Services\Notifier::adminAlert(null, 'A stand payment was reversed at the gateway',
+                            'Reference: ' . $ref . "\nEvent:     " . $reversal . "\n\nCheck the stand's payment and decide whether it keeps its place.");
+                    } catch (\Throwable) {}
                 } elseif ($stream === 'events') {
                     $r = \AfricaGates\Services\EventTicketService::byReference($ref);
                     $amount = isset($r->amount_naira) ? (int) $r->amount_naira : null;
@@ -587,6 +595,23 @@ final class PaymentController
                 $reference, $provider, $this->payments, $this->log);
             Log::record($provider, $event, $reference, $stream,
                         (string) $r['state'], (string) $r['message'], $domain);
+            return $ack();
+        }
+
+        if ($stream === 'events' && \AfricaGates\Services\StandFee::isReference($reference)) {
+            // A stand fee. The browser's return trip used to be the ONLY thing that credited
+            // one (StandOfferController::callback), so a vendor whose tab closed after paying
+            // stayed unpaid for good (AUDIT-AND-PLAN §2 fault 8). Re-verified server to
+            // server, never from the payload's amount, as the callback does.
+            $v = $this->payments->verify($provider, $reference);
+            if (!($v['ok'] ?? false) || (string) ($v['status'] ?? '') !== 'success') {
+                Log::record($provider, $event, $reference, $stream, 'mismatch', 'not successful on verification', $domain);
+                return $ack();
+            }
+            $r = \AfricaGates\Services\StandFee::confirm($reference, (int) ($v['amount'] ?? 0), $provider);
+            Log::record($provider, $event, $reference, $stream,
+                        ($r['ok'] ?? false) ? (((int) ($r['credited'] ?? 0)) > 0 ? 'confirmed' : 'already') : 'unmatched',
+                        (string) ($r['message'] ?? ''), $domain);
             return $ack();
         }
 

@@ -4,6 +4,7 @@ namespace AfricaGates\Services\EventPlan;
 
 use AfricaGates\Services\Mail\Emails;
 use AfricaGates\Services\OtpService;
+use AfricaGates\Support\BroadcastLog;
 use AfricaGates\Support\SiteUrl;
 use Illuminate\Database\Capsule\Manager as DB;
 
@@ -163,7 +164,11 @@ final class Rules
                     if (self::heardOf((int) $w->id, $now - 3 * 86400)) continue;
                     $who = DB::table('gates_users')->where('id', (int) $w->owner_id)->first(['name', 'email']);
                     if (!$who || !$who->email) continue;
-                    $sent = $act && self::mail((string) $who->email, (string) $who->name, $eventId, 'nudge', [[(string) $w->title, 'due ' . Goals::day((string) $w->due_at)]], []);
+                    // Claimed per work item per day BEFORE it is sent. `said()` in run() only
+                    // skips the LOG row, and a reminder changes neither of the things heardOf()
+                    // reads, so without the claim this mailed the owner on every tick (96 a day).
+                    if ($act && !self::claimOnce('rem:' . $w->id . ':' . date('Y-m-d', $now), (string) $who->email)) continue;
+                    $sent = $act && self::sendClaimed('rem:' . $w->id . ':' . date('Y-m-d', $now), (string) $who->email, (string) $who->name, $eventId, 'nudge', [[(string) $w->title, 'due ' . Goals::day((string) $w->due_at)]], []);
                     $out[] = ['work:' . $w->id, ($act ? ($sent ? 'Emailed ' : 'Could not email ') : 'email ') . $who->name . ' a private reminder about “' . $w->title . '”',
                               'Due ' . Goals::day((string) $w->due_at) . '; no report or progress in three days'];
                 }
@@ -219,7 +224,13 @@ final class Rules
                 $items = array_map(static fn ($d) => [(string) $d['work']->title, $d['why']], array_slice(TeamLoop::decisions($eventId), 0, TeamLoop::TOP));
                 $goals = array_map(static fn ($g) => [(string) $g->title, $g->words], Goals::forEvent($eventId));
                 $sent = 0;
-                foreach (Leads::of($eventId) as $l) if ($l->email && $act && self::mail((string) $l->email, (string) $l->name, $eventId, 'digest', $items, $goals)) $sent++;
+                // Claimed per lead per event per day: the log-row check above is read-then-write,
+                // so two overlapping ticks could both pass it and both send.
+                $key = 'dig:' . $eventId . ':' . date('Y-m-d', $now);
+                foreach (Leads::of($eventId) as $l) {
+                    if (!$l->email || !$act || !self::claimOnce($key, (string) $l->email)) continue;
+                    if (self::sendClaimed($key, (string) $l->email, (string) $l->name, $eventId, 'digest', $items, $goals)) $sent++;
+                }
                 $n = count(Leads::of($eventId));
                 $out[] = [$subject, $act ? 'Sent the digest to ' . $sent . ' ' . ($sent === 1 ? 'lead' : 'leads') : 'send the digest to ' . $n . ' ' . ($n === 1 ? 'lead' : 'leads'),
                           count($items) . ' to decide, ' . count($goals) . ' goals'];
@@ -245,6 +256,19 @@ final class Rules
             if ($nid = $q->value('id')) $out[] = [$c, (int) $nid];
         }
         return $out;
+    }
+
+    /** Own this address for this send, or learn another tick already does (BroadcastLog). */
+    private static function claimOnce(string $key, string $email): bool
+    {
+        return BroadcastLog::claim(mb_substr('evrule:' . $key, 0, 60), $email);
+    }
+
+    private static function sendClaimed(string $key, string $to, string $name, int $eventId, string $kind, array $items, array $goals): bool
+    {
+        $ok = self::mail($to, $name, $eventId, $kind, $items, $goals);
+        BroadcastLog::settle(mb_substr('evrule:' . $key, 0, 60), $to, $ok);
+        return $ok;
     }
 
     private static function heardOf(int $workId, int $since): bool
