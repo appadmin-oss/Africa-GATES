@@ -1666,10 +1666,42 @@ then passed after it.
 | VO-10 | Nobody confirms their own hours, by any road (`Hours::confirm`), and a lead cannot check themselves in or accept their own task from the event console. | `VolunteersTest::test_nobody_confirms_their_own_hours` |
 | VO-11 | **Partly.** `Volunteers::age()` counts by the calendar and is used by applying and the community rule. `Meetings::adult` and the staff list still have their own. | `VolunteerCommunityTest::test_age_is_counted_by_the_calendar` |
 
-**Still open from 9.22 and 7.4:** EV-6, EV-8, EV-9, EV-10, EV-14, EV-16, EV-18 (needs D40),
-EV-19, EV-20; VO-2, VO-5 to VO-9, VO-12, VO-13; and §2 faults 4 and 5. Both new migrations
-are additive (two new tables, `SchemaIndex::ensure` only) and must be applied before the
-fixes they back take effect; until then both paths behave as before.
+**The rest, fixed the same day** (three commits, each test again run against the code before
+its fix and seen to fail: nineteen more tests, nineteen failures):
+
+| # | What changed | Test |
+|---|---|---|
+| EV-5 (rest) | `Grants::grant` refuses an event's lead or owner role and its finance role in one person, in either order, on every road to a grant. | `EventPlanControlsTest` |
+| EV-6 | A lead withdraws only invitations a lead can make (volunteer, team role); ending a finance admin records `null`, not admin 0. | `EventPlanControlsTest` |
+| EV-8 | An assumption a money target rests on, and the budget, go through `Changes` as LARGE: an owner, or staff where there is none, decides. The series label still applies at once. | `EventPlanControlsTest`, `EventGoalsTest` (updated) |
+| EV-9 | Every lead-console write about a row of an event is filed against the event; the Audit tab lists staff's writes too. | `EventPlanControlsTest` |
+| EV-10 | Approving a change whose subject is gone closes it with that reason. | `EventPlanControlsTest` |
+| EV-11 (rest) | The reconciliation sweep credits a stand payment nobody reported and closes abandoned ones; `GatewayLedger` and the refund-status answer know stand fees. | `StandFeeTest::test_the_reconciliation_sweep_credits_a_stand_payment_nobody_reported` |
+| EV-14 | Superseded references are kept (`gates_event_ref_aliases`), so a payment under a restarted checkout or an expired offer still finds its row: honoured if a seat is free, else recorded as owed back and staff told. A payment for a cancelled booking is recorded as owed back. Waitlist promotion recounts after offering. | `EventTicketServiceTest` (two) |
+| EV-16 | A door link offline when it closed may deliver, for 12 hours, the scans it took while open. | `DoorOfflineTest::test_scans_taken_before_the_link_closed_still_land_after_it` |
+| EV-18 | Every event names its organiser (`organiser_org_id`, NULL = Africa GATES; a field on the event form). A partner's event sells no paid tickets until per-organiser settlement exists. This implements D40 as recommended. | `EventTicketServiceTest::test_a_partner_organisations_event_sells_no_paid_tickets_yet` |
+| EV-19 | Confirmed nominees include winners and runners-up; drafts are not submitted nominations. | `EventPlanControlsTest` |
+| EV-20 | One `Changes::isMoney()`; staff's `finance_decide` is scoped to its event; `review_at` is read. | `EventPlanControlsTest` (via EV-8's test) |
+| §2 fault 4 | `gates_donations.payment_ref` (and the stand applications') indexed through `SchemaIndex::ensure`. | the migration sweeps |
+| §2 fault 5 | The shop's stock draw-down and its record, and a reversal and its restock, are each one transaction; so is a stand credit and a volunteer task's acceptance. **Refunds and the reconciler are deliberately not wrapped**: a gateway call sits between their writes, and rolling back a recorded refund the gateway already sent invites a second refund. | existing shop and refund suites |
+| VO-2 | Staff accept a take only with 0–24 hours; closing it and writing its hours are one transaction. | `VolunteerControlsTest` |
+| VO-5 | Ended breaks end in the reminders sweep. | `VolunteerControlsTest` |
+| VO-6 | An approved hours correction writes verified hours; one with no figure cannot be approved; an approved role request records the next step. Time off and travel have nothing in the platform to change, and their approval is the answer. | `VolunteerControlsTest` |
+| VO-7 | Only approved volunteers log hours; at most 24 a day; proof is https. | `VolunteerControlsTest` |
+| VO-8 | A lead's team is volunteer roles only. | `VolunteerControlsTest` |
+| VO-9 | `Grants::live` is public and the only liveness clause, `starts_at` included, in Volunteer and EventPlan; a sweep fails on a new copy. | `VolunteerControlsTest::test_no_reader_spells_grant_liveness_by_hand` |
+| VO-11 (rest) | Meetings and the staff list use `Volunteers::age`. | — |
+| VO-12 | Leaving ends event team roles too; an event's lead, owner or finance role stays, since staff gave it, and the confirmation says exactly what ends. | `VolunteerControlsTest` |
+| VO-13 | Audit rows typed by what they point at; access notes corrected; meeting reminders skip meetings with nothing left. | — |
+
+**Still a decision, not a defect:** VO-4's remainder — whether the community link should stay
+built into the code and go out on applying (the owner's choice, 13 Nov) or only after approval
+(D39). The safeguarding half is done: nobody under 18 is sent it.
+
+Five migrations back these fixes, all additive (new tables, one nullable column, indexes
+through `SchemaIndex::ensure`): `2027_05_20_door_sync_ids`, `2027_05_21_stand_payments`,
+`2027_05_22_payment_ref_index`, `2027_05_23_event_ref_aliases`, `2027_05_24_event_organiser`.
+Until they are applied each path behaves as it did before.
 
 ---
 
@@ -2195,9 +2227,9 @@ with scenarios in the suite.
 | D35 | Lead Africa GATES Events with award events, and open the free core to every organiser only after pilots? | **Decided (18 Oct): yes.** Events that honour people first, general events second (§9.1); three pilots decide each opening (§9.7, §9.20). |
 | D36–D38 | Volunteer levels, who decides requests, who writes training. | See `CONSOLES-V7-REVIEW.md` §5; the code runs on the recommended defaults (`Volunteer\Rules`). |
 | D39 | Who may be invited to the volunteer WhatsApp community, and when? (§7.4 VO-4) | **Approved volunteers aged 18 or over only**, after approval, never on applying. No link in the code; blank in Settings means off. Under-18s get the platform's own messages only. Rotate the current link. |
-| D40 | Should every event name its organiser (Africa GATES, a centre, or a `PartnerOrg`)? | **Yes, now**: it is the precondition for per-organiser settlement (E2), for refusing a paid tier on an outside organiser's event until then (EV-18), and for an organiser's scope (§9.5). |
+| D40 | Should every event name its organiser (Africa GATES, a centre, or a `PartnerOrg`)? | **Built 14 Nov as recommended (§9.27); centres wait for D11.** **Yes, now**: it is the precondition for per-organiser settlement (E2), for refusing a paid tier on an outside organiser's event until then (EV-18), and for an organiser's scope (§9.5). |
 | D41 | The default limit for an event's finance admin, and for a lead, and may one person hold both? | **A finance admin defaults to ₦1,000,000 per line and a lead to ₦200,000, both settable on `/admin/settings`; one person may never hold both at one event, and nobody approves their own line** (EV-1 to EV-5). Above the finance admin's limit is platform finance. |
-| D42 | Should the event plan's automations (`Rules`) stay switched off for every event until EV-7 is fixed? | **Yes.** Shadow mode is safe; active mode mails on every tick. |
+| D42 | Should the event plan's automations (`Rules`) stay switched off for every event until EV-7 is fixed? | **Settled 14 Nov: EV-7 is fixed**, so a lead may switch them on; each send is claimed once a day. |
 | D43 | A safeguarding policy for under-18 volunteers, with a named lead, before more recruitment? | **Yes**: a guardian confirms by their own email or phone, minors never enter group chats, their data is classed sensitive (D33). The organisation standard requires the named owner. |
 
 ---
