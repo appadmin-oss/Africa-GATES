@@ -314,6 +314,27 @@ final class GatewayLedger
             }
         }
 
+        // Stand fees. They were in no ledger this screen read, so a stand Paystack had paid and
+        // the platform never credited could not be found here at all (AUDIT-AND-PLAN EV-11).
+        if ($schema->hasTable('gates_stand_payments')) {
+            $p = DB::table('gates_stand_payments as p')->leftJoin('gates_stand_applications as a', 'a.id', '=', 'p.application_id')
+                ->leftJoin('gates_partner_orgs as o', 'o.id', '=', 'a.org_id')
+                ->where('p.reference', $ref)->first(['p.id', 'p.status', 'p.amount_naira', 'p.created_at', 'o.name as contact_name', 'o.contact_email']);
+            if ($p) {
+                return [
+                    'ledger' => 'Stand fee', 'table' => 'gates_stand_payments',
+                    'id' => (int) $p->id, 'reference' => $ref,
+                    'amount' => (int) ($p->amount_naira ?? 0),
+                    'status' => (string) $p->status,
+                    'settled' => (string) $p->status === 'paid',
+                    'email' => (string) ($p->contact_email ?? ''),
+                    'name'  => (string) ($p->contact_name ?? ''),
+                    'created_at' => (string) ($p->created_at ?? ''),
+                    'note' => '',
+                ];
+            }
+        }
+
         return null;
     }
 

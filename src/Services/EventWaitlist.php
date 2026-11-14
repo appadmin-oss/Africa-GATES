@@ -217,6 +217,21 @@ final class EventWaitlist
 
             if ($changed === 0) continue;   // somebody else promoted them first
 
+            // Recounted AFTER the offer, as reserve() does: two promotions running at once
+            // (an admin's press and a self-cancel) each saw "1 left" above and each offered it,
+            // to two people (AUDIT-AND-PLAN EV-14). The loser takes its offer back, untold.
+            $capT = $tier->capacity !== null ? (int) $tier->capacity : null;
+            $overTier = $capT !== null && EventTicketService::sold($tierId) > $capT;
+            $overEvent = $eventCap !== null && EventTicketService::soldForEvent((int) $tier->event_id) > $eventCap;
+            if ($overTier || $overEvent) {
+                DB::table('gates_event_registrations')->where('id', (int) $next->id)->where('status', 'pending')->where('reference', $ref)
+                    ->update(OptionalColumn::filter('gates_event_registrations', [
+                        'status' => 'waitlisted', 'reference' => null, 'amount_naira' => 0,
+                        'offered_at' => null, 'offer_expires_at' => null, 'hold_expires_at' => null,
+                    ], ['status', 'offered_at', 'offer_expires_at', 'hold_expires_at']));
+                break;
+            }
+
             $offered++;
             $notified[] = (string) $next->email;
             self::tell($event, $tier, (object) array_merge((array) $next, ['reference' => $ref]), $price, $mailer);
@@ -252,6 +267,9 @@ final class EventWaitlist
         $n = 0;
         foreach ($rows as $r) {
             try {
+                // The offer's reference is cleared below, and a bank transfer begun against it
+                // may still be settling: kept, so the payment finds the row (AUDIT-AND-PLAN EV-14).
+                if ((int) ($r->amount_naira ?? 0) > 0) EventTicketService::keepAlias((int) $r->id, (string) ($r->reference ?? ''), 'waitlist offer expired');
                 $done = DB::table('gates_event_registrations')->where('id', (int) $r->id)
                     ->where('status', 'pending')
                     ->update(OptionalColumn::filter('gates_event_registrations', [

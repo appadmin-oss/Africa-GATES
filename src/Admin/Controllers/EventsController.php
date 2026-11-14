@@ -179,9 +179,12 @@ class EventsController
             // take an organiser's work and drop it silently on save.
             'extras_missing' => OptionalColumn::missing('gates_site_events', [
                 'waitlist_open', 'sales_close_at', 'attendee_note', 'refund_policy',
-                'organiser_email', 'organiser_phone',
+                'organiser_email', 'organiser_phone', 'organiser_org_id',
                 'livestream_url', 'recording_url', 'access_notes', 'cover_kind', 'spotlight_rank',
             ]),
+            // Whose event it is (AUDIT-AND-PLAN EV-18): Africa GATES, or a partner organisation.
+            'organiser_orgs' => \AfricaGates\Support\SchemaHas::table('gates_partner_orgs')
+                ? DB::table('gates_partner_orgs')->orderBy('name')->limit(500)->get(['id', 'name'])->all() : [],
             // The kinds an organiser may pick for the default cover (DEFAULT-GRAPHICS §4):
             // the list and its labels from the one resolver, never typed into the form.
             'cover_kinds'    => array_map(static fn ($k) => $k[0], \AfricaGates\Support\CoverKind::KINDS),
@@ -304,6 +307,8 @@ class EventsController
                 'refund_policy'   => mb_substr(trim((string) ($b['refund_policy'] ?? '')), 0, 1000) ?: null,
                 'organiser_email' => mb_substr(trim((string) ($b['organiser_email'] ?? '')), 0, 190) ?: null,
                 'organiser_phone' => mb_substr(trim((string) ($b['organiser_phone'] ?? '')), 0, 40) ?: null,
+                // Whose event: blank is Africa GATES. Only an organisation that exists.
+                'organiser_org_id' => ($o = (int) ($b['organiser_org_id'] ?? 0)) > 0 && DB::table('gates_partner_orgs')->where('id', $o)->exists() ? $o : null,
                 // Phase 7 (the public page's Livestream, Recording and Access sections). Links
                 // out, http(s) only — EventsFront::link() validates them again on the way out.
                 'livestream_url'  => \AfricaGates\Services\EventsFront::link(mb_substr(trim((string) ($b['livestream_url'] ?? '')), 0, 500)) ?: null,
@@ -339,7 +344,7 @@ class EventsController
         // between would look like the editor breaking rather than a step being outstanding.
         $data = OptionalColumn::filter('gates_site_events', $data, [
             'waitlist_open', 'sales_close_at', 'attendee_note', 'refund_policy',
-            'organiser_email', 'organiser_phone',
+            'organiser_email', 'organiser_phone', 'organiser_org_id',
             'livestream_url', 'recording_url', 'access_notes', 'cover_kind', 'spotlight_rank',
             'self_cancel', 'refund_mode', 'refund_percent', 'refund_cutoff_hours',
         ]);
@@ -353,6 +358,11 @@ class EventsController
         if (!empty($b['ticket_design_posted'])) {
             $data = array_merge($data, EventTicketDesign::fromForm($b));
             $data = array_merge($data, $this->ticketArtwork($req, $b, $id));
+        }
+        if (array_key_exists('organiser_org_id', $data) && (int) $data['organiser_org_id'] > 0) {
+            // Said at the moment it matters, beside the save: paid tiers will not sell.
+            $paid = array_filter((array) ($b['tier_price'] ?? []), static fn ($p) => (int) $p > 0);
+            if ($paid) $_SESSION['flash_error'] = trim(($_SESSION['flash_error'] ?? '') . ' This event belongs to a partner organisation, so its paid tickets will not go on sale until its money can settle to the organisation’s own account. Free tickets work.');
         }
         if ($data['title'] === '' || $data['slug'] === '') {
             $_SESSION['flash_error'] = 'Title and slug are required.';

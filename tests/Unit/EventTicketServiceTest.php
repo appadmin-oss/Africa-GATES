@@ -124,6 +124,47 @@ final class EventTicketServiceTest extends TestCase
         $this->assertTrue($r['ok'], 'a late payment with room left must still become a ticket');
     }
 
+    /**
+     * A checkout restarted at the gateway re-minted the reference, so a transfer begun under
+     * the first one arrived to "unmatched": money taken, no ticket (AUDIT-AND-PLAN EV-14).
+     */
+    public function test_a_payment_under_a_restarted_checkouts_first_reference_still_issues_the_ticket(): void
+    {
+        $tier = $this->tier(['capacity' => 5]);
+        $a = T::reserve($this->eventId, $tier, $this->who('a@x.test'));
+        $first = (string) $a['reference'];
+        $second = T::rotateReference((int) $a['id']);
+        $this->assertNotSame('', $second);
+        $r = T::confirm($first, $this->gateway([$first => ['status' => 'success', 'amount' => 10000]]));
+        $this->assertTrue($r['ok'], (string) ($r['message'] ?? ''));
+        $this->assertSame('confirmed', (string) DB::table('gates_event_registrations')->where('id', $a['id'])->value('status'));
+    }
+
+    public function test_a_payment_for_a_cancelled_booking_is_recorded_as_owed_back(): void
+    {
+        $tier = $this->tier(['capacity' => 5]);
+        $a = T::reserve($this->eventId, $tier, $this->who('a@x.test'));
+        DB::table('gates_event_registrations')->where('id', $a['id'])->update(['status' => 'cancelled']);
+        $r = T::confirm($a['reference'], $this->gateway([$a['reference'] => ['status' => 'success', 'amount' => 10000]]));
+        $this->assertFalse($r['ok']);
+        $this->assertSame('pending', (string) DB::table('gates_event_registrations')->where('id', $a['id'])->value('refund_status'),
+            'money that arrived for a cancelled booking was recorded nowhere');
+    }
+
+    /**
+     * An event belongs to Africa GATES or to a partner organisation. A partner's paid tickets
+     * would settle into Africa GATES's account — holding a client's money — so they do not
+     * sell until per-organiser settlement exists (AUDIT-AND-PLAN EV-18, D29). Free still works.
+     */
+    public function test_a_partner_organisations_event_sells_no_paid_tickets_yet(): void
+    {
+        DB::table('gates_site_events')->where('id', $this->eventId)->update(['organiser_org_id' => 7]);
+        $paid = $this->tier(['slug' => 'paid', 'price_naira' => 5000]);
+        $free = $this->tier(['slug' => 'free', 'price_naira' => 0]);
+        $this->assertFalse(T::reserve($this->eventId, $paid, $this->who('a@x.test'))['ok'], 'a partner’s ticket money would land in our account');
+        $this->assertTrue(T::reserve($this->eventId, $free, $this->who('b@x.test'))['ok']);
+    }
+
     // ══ 1. each tier's limit is its own ══════════════════════════════════════
 
     /** THE test in this file. */

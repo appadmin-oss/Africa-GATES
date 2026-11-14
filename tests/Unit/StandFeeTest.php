@@ -190,6 +190,30 @@ final class StandFeeTest extends TestCase
         $this->assertTrue(StandFee::owing($this->app($f['app_id']))['settled']);
     }
 
+    /**
+     * The browser never came back and the webhook never arrived: the reconciliation sweep is
+     * the backstop, as it is for tickets and donations. Stands were in no sweep at all
+     * (AUDIT-AND-PLAN §2 fault 8, EV-11).
+     */
+    public function test_the_reconciliation_sweep_credits_a_stand_payment_nobody_reported(): void
+    {
+        $f = $this->offered(30000, 0);
+        StandApplication::accept($f['app_id'], $f['org_id']);
+        StandFee::beginPayment($f['app_id'], 'AFG-STAND-SWEEP', 'paystack');
+        DB::table('gates_stand_payments')->update(['created_at' => date('Y-m-d H:i:s', strtotime('-1 hour'))]);
+        $gw = new class extends \AfricaGates\Services\PaymentService {
+            public function __construct() {}
+            public function enabledProviderIds(): array { return ['paystack']; }
+            public function verify(string $p, string $ref): array
+            {
+                return $ref === 'AFG-STAND-SWEEP' ? ['ok' => true, 'status' => 'success', 'amount' => 30000, 'currency' => 'NGN'] : ['ok' => false];
+            }
+        };
+        $out = (new \AfricaGates\Services\PaymentReconciler($gw))->run(true, 15, 50);
+        $this->assertSame(30000, (int) $this->app($f['app_id'])->paid_naira, 'nothing swept stand payments');
+        $this->assertContains('stand', array_column($out['items'], 'kind'));
+    }
+
     /** Pay pressed in two tabs: the first tab's payment still belongs to the stand. */
     public function test_an_earlier_reference_paid_after_a_newer_one_was_minted_is_still_credited(): void
     {

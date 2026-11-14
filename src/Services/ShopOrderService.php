@@ -210,14 +210,24 @@ final class ShopOrderService
         if (!$order) return;
 
         $lines = json_decode((string) $order->items_json, true) ?: [];
-        $short = self::drawDownStock($lines);
 
         // What was actually taken is written back onto the lines, so a later refund returns
-        // THAT and not the quantity ordered. See returnStock().
+        // THAT and not the quantity ordered. See returnStock(). The draw-down and that record
+        // are ONE transaction: stock taken with the lines unrecorded meant a later refund put
+        // back the full quantity and created units nobody had (AUDIT-AND-PLAN §2 fault 5).
+        $short = [];
         try {
-            DB::table('gates_orders')->where('id', $orderId)
-                ->update(['items_json' => json_encode($lines, JSON_UNESCAPED_UNICODE)]);
-        } catch (\Throwable) {}
+            $short = DB::connection()->transaction(static function () use (&$lines, $orderId): array {
+                $s = self::drawDownStock($lines);
+                DB::table('gates_orders')->where('id', $orderId)
+                    ->update(['items_json' => json_encode($lines, JSON_UNESCAPED_UNICODE)]);
+                return $s;
+            });
+        } catch (\Throwable $e) {
+            $log?->error('[shop] stock was not drawn down for a paid order', ['order' => $orderId, 'err' => $e->getMessage()]);
+            Notifier::adminAlert(null, 'Shop stock not drawn down for a paid order',
+                'Order #' . $orderId . ' (' . (string) $order->reference . ') is paid, but its stock could not be taken. Adjust stock by hand.');
+        }
 
         // ── A SHORTFALL IS RECORDED, NOT FLOORED ─────────────────────────────
         //
@@ -372,19 +382,22 @@ final class ShopOrderService
         $order = DB::table('gates_orders')->where('reference', trim($reference))->first();
         if (!$order || (string) ($order->status ?? '') !== 'paid') return false;
 
-        $changed = DB::table('gates_orders')->where('id', (int) $order->id)->where('status', 'paid')
-            ->update(OptionalColumn::filter('gates_orders', [
-                'status'      => 'refunded',
-                'refunded_at' => Carbon::now()->toDateTimeString(),
-                'refund_note' => mb_substr($why, 0, 300),
-            ], ['refunded_at', 'refund_note']));
-        if ($changed === 0) return false;
-
         $lines     = json_decode((string) $order->items_json, true) ?: [];
         $unshipped = (string) ($order->fulfilment ?? 'unfulfilled') !== 'fulfilled';
-        if ($unshipped) {
-            self::returnStock($lines);
-        }
+        // The status change and the stock coming back are ONE transaction: refunded with the
+        // stock never returned, or returned on an order a crash left `paid`, are both a
+        // count that no longer matches the shelf (AUDIT-AND-PLAN §2 fault 5).
+        $changed = DB::connection()->transaction(static function () use ($order, $why, $lines, $unshipped): int {
+            $n = DB::table('gates_orders')->where('id', (int) $order->id)->where('status', 'paid')
+                ->update(OptionalColumn::filter('gates_orders', [
+                    'status'      => 'refunded',
+                    'refunded_at' => Carbon::now()->toDateTimeString(),
+                    'refund_note' => mb_substr($why, 0, 300),
+                ], ['refunded_at', 'refund_note']));
+            if ($n > 0 && $unshipped) self::returnStock($lines);
+            return $n;
+        });
+        if ($changed === 0) return false;
 
         // And the referrer's commission on it. Same reasoning as the points: the purchase
         // that earned it no longer exists. Never throws — see ReferralService::reverseSale().

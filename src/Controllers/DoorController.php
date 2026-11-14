@@ -74,6 +74,8 @@ final class DoorController
      * while it is working, so a queue this long means something other than a busy evening.
      */
     private const SYNC_MAX = 200;
+    /** How long after its link closes a gate may still deliver the scans it took while open (EV-16). */
+    private const SYNC_GRACE_HOURS = 12;
 
     public function __construct(
         private readonly Twig $view,
@@ -477,6 +479,18 @@ final class DoorController
     public function sync(Request $req, Response $res, array $args): Response
     {
         $r = EventScanPass::resolve((string) ($args['token'] ?? ''));
+        // ── A GATE THAT WAS OFFLINE WHEN ITS LINK CLOSED ────────────────────────
+        //
+        // Every flush after the close was a 403, and the phone kept its queue for good, so
+        // the arrivals of the last offline stretch were never recorded (AUDIT-AND-PLAN EV-16).
+        // A closed (never revoked) link may still deliver, for SYNC_GRACE_HOURS, the scans it
+        // took WHILE it was open; anything stamped after the close is refused item by item.
+        $closedAt = null;
+        if (!$r['ok'] && ($r['reason'] ?? '') === 'expired' && isset($r['pass']) && ($r['pass']->revoked_at ?? null) === null
+            && time() <= (int) strtotime((string) $r['pass']->closes_at) + self::SYNC_GRACE_HOURS * 3600) {
+            $closedAt = (string) $r['pass']->closes_at;
+            $r = ['ok' => true, 'pass' => $r['pass']];
+        }
         if (!$r['ok']) {
             return $this->json($res, ['ok' => false, 'reason' => $r['reason'],
                                       'detail' => $r['message']], 403);
@@ -513,6 +527,13 @@ final class DoorController
             // half-succeeds or is retried after a timeout cannot record the same person
             // twice") and nothing kept it: on a four-seat ticket a resent flush admitted the
             // same party again. See 2027_05_20_door_sync_ids.php.
+            if ($closedAt !== null) {
+                $at = trim((string) ($item['at'] ?? ''));
+                if ($at === '' || strtotime($at) === false || strtotime($at) > strtotime($closedAt)) {
+                    $out[] = ['id' => $id, 'code' => $code, 'verdict' => 'refuse', 'title' => 'Scanned after this link closed', 'name' => ''];
+                    continue;
+                }
+            }
             $seen = self::claimScan((int) $pass->id, $id);
             if ($seen !== null) {
                 $out[] = ['id' => $id, 'code' => $code] + $seen;

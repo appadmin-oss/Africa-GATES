@@ -101,6 +101,21 @@
           </p>
         </div>
       {% endif %}
+      {% if 'organiser_org_id' not in extras_missing %}
+      {#- Whose event (AUDIT-AND-PLAN EV-18). A partner's paid tickets do not sell until its
+          money can settle to its own account; the platform must not hold a client's funds. -#}
+      <div class="row">
+        <label>Organiser
+          <select name="organiser_org_id">
+            <option value="">Africa GATES</option>
+            {% for o in organiser_orgs %}
+            <option value="{{ o.id }}"{% if row.organiser_org_id|default(0) == o.id %} selected{% endif %}>{{ o.name }}</option>
+            {% endfor %}
+          </select>
+          <span class="af-opt">A partner organisation’s event registers people for free tickets only, until its ticket money can go to its own account.</span>
+        </label>
+      </div>
+      {% endif %}
       <div class="row">
         {% if 'organiser_email' not in extras_missing %}
         <label>Organiser email <span class="af-opt">for questions</span>
