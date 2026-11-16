@@ -563,6 +563,18 @@ class VoteController {
         $castAt = (int) ($_SESSION['vote_cast'][$id] ?? 0);
         if (isset($_SESSION['vote_cast'][$id])) unset($_SESSION['vote_cast'][$id]);
         $voteConfirmed = $castAt > 0 && (time() - $castAt) < 900;
+        // The moment right after a vote is when a person should feel it mattered: how many
+        // people are celebrating this community's own with them (SupporterSpotlight), counted
+        // fresh — they have just joined, and a cached count would leave them out.
+        $cheer = null;
+        if ($voteConfirmed) {
+            try {
+                $cheer = ['people' => (int) \AfricaGates\Services\SupporterSpotlight::build((int) $nom->cycle_id)['people'],
+                          'place'  => \AfricaGates\Support\AwardCampaign::forProgramme((int) $nom->programme_id)['community']];
+            } catch (\Throwable) {
+                $cheer = null;
+            }
+        }
 
         // "Bring your people" (VoteRecruit). Arriving through somebody's link keeps their code
         // for this browser until a vote spends it; having voted here, this browser holds its
@@ -607,6 +619,7 @@ class VoteController {
             'terms'            => \AfricaGates\Services\AwardTerms::current((int) $nom->programme_id),
             'paid_sentence'    => \AfricaGates\Services\PaidVoteCopy::sentence((int) $nom->programme_id, (int) $nom->cycle_id),
             'vote_confirmed'   => $voteConfirmed,
+            'cheer'            => $cheer,
             'recruit'          => $recruit,
             'evidence'         => $evidence,
             // Every photograph, the portrait first: the page used to draw photo_path alone.

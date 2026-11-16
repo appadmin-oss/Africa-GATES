@@ -342,6 +342,8 @@ final class VolunteerController
             'outreach_agree' => Outreach::agree($v, (int) ($b['cycle'] ?? 0)) ? $ok('Thanks. You can reach nominees on this award now.') : $no('That award isn’t one you reach nominees on.'),
             'outreach_log' => ($k = Outreach::log($v, (int) ($b['nominee'] ?? 0), $b))['ok'] ? $ok('Contact logged. Everybody on this award sees it on the nominee’s page; a follow-up date puts them under Follow up.') : $no((string) $k['error']),
             'outreach_email' => ($k = Outreach::email($v, (int) ($b['nominee'] ?? 0), $b, $this->mailer))['ok'] ? $ok('Sent and logged.') : $no((string) $k['error']),
+            'status_update' => ($k = \AfricaGates\Services\Volunteer\NomineeStatus::record($v, (int) ($b['nominee'] ?? 0), $b))['ok'] ? $ok('Update sent. Your lead and the team see it on the nominee’s page and in Status updates.') : $no((string) $k['error']),
+            'status_request' => ($k = \AfricaGates\Services\Volunteer\NomineeStatus::request($v, (int) ($b['cycle'] ?? 0), (string) ($b['message'] ?? ''), (string) ($b['due_on'] ?? '')))['ok'] ? $ok('Asked. Everybody reaching nominees on this award sees it on Today, with each nominee still to update marked.') : $no((string) $k['error']),
             'meet' => $active ? (($k = Meetings::schedule($v, $b, $this->mailer))['ok'] ? $ok('Scheduled. ' . ($k['invited'] === 1 ? 'One person is' : $k['invited'] . ' people are') . ' invited by email.') : $no((string) $k['error'])) : $no('Meetings open once you’re approved.'),
             'meet_answer' => Meetings::answer($v, (int) ($b['meeting'] ?? 0), (string) ($b['answer'] ?? '')) ? $ok(($b['answer'] ?? '') === 'yes' ? 'Thanks. They know you’re going.' : 'Thanks. They know you can’t come.') : $no('That meeting can’t be answered now.'),
             'meet_notes' => ($k = Meetings::notes($v, (int) ($b['meeting'] ?? 0), (string) ($b['notes'] ?? '')))['ok'] ? $ok('Notes saved. Everybody invited can read them.') : $no((string) $k['error']),
@@ -402,6 +404,28 @@ final class VolunteerController
             $next = $cycle ? Outreach::next($v, $cycle, $nid) : null;
             $back = '/volunteer/cycle/' . $cycle . '/nominees' . ($next ? '?n=' . $next->id : '');
             $_SESSION['vol_toast'] = $r['msg'] . ($next ? ' Next: ' . $next->name . '.' : ' Nobody else is waiting to be reached.');
+        }
+        // A status update: refused, it comes back with the answers chosen; sent, it opens the next
+        // nominee on the award still owed an update, so a volunteer answers a lead's request in
+        // one pass instead of going back to the list each time.
+        if (($b['do'] ?? '') === 'status_update') {
+            $nid = (int) ($b['nominee'] ?? 0);
+            $cycle = (int) (DB::table('gates_nominees as n')->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')->where('n.id', $nid)->value('c.cycle_id') ?? 0);
+            if (!$r['ok']) {
+                $_SESSION['vol_old'] = array_intersect_key($b, array_flip(['portal', 'publicity', 'mobilising', 'status_note']));
+                $back = '/volunteer/cycle/' . $cycle . '/nominees?n=' . $nid . '#status';
+            } elseif ($cycle) {
+                $rq = \AfricaGates\Services\Volunteer\NomineeStatus::open($cycle);
+                $list = array_values(array_filter(Outreach::nominees($v, $cycle), static fn ($n) => !$n->stopped && (int) $n->id !== $nid));
+                $latest = \AfricaGates\Services\Volunteer\NomineeStatus::latest(array_map(static fn ($n) => (int) $n->id, $list));
+                $next = null;
+                foreach ($list as $n) {
+                    $st = $latest[(int) $n->id] ?? null;
+                    if ($rq ? !\AfricaGates\Services\Volunteer\NomineeStatus::answered($rq, $st) : $st === null) { $next = $n; break; }
+                }
+                $back = '/volunteer/cycle/' . $cycle . '/nominees' . ($next ? '?n=' . $next->id . '#status' : '/update');
+                $_SESSION['vol_toast'] = $r['msg'] . ($next ? ' Next to update: ' . $next->name . '.' : ' Every nominee you reach has an update now.');
+            }
         }
         // A sent check opens the next one waiting (a HubSpot-style queue), so a checker works
         // through them without returning to the list each time; the list when none is left.

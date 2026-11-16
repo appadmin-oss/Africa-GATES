@@ -48,6 +48,8 @@ use Illuminate\Support\Carbon;
 final class SupporterSpotlight
 {
     public const TOP = 5;
+    /** Everybody backing their own, drawn as a wall — the first this many, then "and N more". */
+    public const WALL = 60;
     public const ZONE = 'Africa/Lagos';
     public const CHUNK = 5000;
 
@@ -61,13 +63,14 @@ final class SupporterSpotlight
      */
     public static function forCycle(int $cycleId, ?Carbon $now = null): array
     {
-        $empty = ['champion' => null, 'top' => [], 'mobiliser' => null, 'people' => 0, 'votes' => 0, 'paid' => 0];
+        $empty = ['champion' => null, 'top' => [], 'mobiliser' => null, 'wall' => [], 'people' => 0, 'votes' => 0, 'paid' => 0];
         if ($cycleId < 1) return $empty;
         // The page never needs an address, so none is cached or handed to a template:
         // only SpotlightMail, which calls build() itself, ever holds one.
         $public = static function (array $s): array {
             foreach (['champion', 'mobiliser'] as $k) if (is_array($s[$k] ?? null)) unset($s[$k]['email']);
             foreach ($s['top'] as $i => $t) unset($s['top'][$i]['email']);
+            foreach ($s['wall'] ?? [] as $i => $t) unset($s['wall'][$i]['email']);
             return $s;
         };
         if (self::$ttl < 1 || $now !== null) return $public(self::build($cycleId, $now));
@@ -94,6 +97,37 @@ final class SupporterSpotlight
             if ($key === $me) $total += max(1, (int) ($r->weight ?? 1));
         });
         return $total;
+    }
+
+    /**
+     * Where ONE supporter stands in the edition — for the moment right after they vote, which
+     * is when being told "you are the 3rd biggest supporter of 25" means most. Ranked by the
+     * same rule as the board: votes, then whoever got there first.
+     *
+     * @return array{votes:int, rank:int, people:int}
+     */
+    public static function standingOf(int $cycleId, string $email): array
+    {
+        $out = ['votes' => 0, 'rank' => 0, 'people' => 0];
+        $email = trim($email);
+        if ($cycleId < 1 || $email === '') return $out;
+        $me = VoteService::voterHash($email);
+        $tot = []; $last = [];
+        self::scan($cycleId, null, static function (string $key, object $r) use (&$tot, &$last): void {
+            $tot[$key] = ($tot[$key] ?? 0) + max(1, (int) ($r->weight ?? 1));
+            $at = (string) ($r->voted_at ?? '');
+            if ($at > ($last[$key] ?? '')) $last[$key] = $at;
+        });
+        $out['people'] = count($tot);
+        if (!isset($tot[$me])) return $out;
+        $out['votes'] = $tot[$me];
+        $ahead = 0;
+        foreach ($tot as $k => $n) {
+            if ($k === $me) continue;
+            if ($n > $tot[$me] || ($n === $tot[$me] && $last[$k] < $last[$me])) $ahead++;
+        }
+        $out['rank'] = $ahead + 1;
+        return $out;
     }
 
     /** @return array{champion:?array, top:list<array>, mobiliser:?array, people:int, votes:int} */
@@ -149,13 +183,14 @@ final class SupporterSpotlight
         $ranked = $all;
         uasort($ranked, $order);
         $topKeys = array_map('strval', array_keys(array_slice($ranked, 0, self::TOP, true)));
+        $wallKeys = array_map('strval', array_keys(array_slice($ranked, 0, self::WALL, true)));
         uasort($today, $order);
         $champKey = array_key_first($today);
         $mob = self::mobiliser($cycleId, $weekStart, $upTo);
 
         // Who each person on the board IS — an account, a hidden request, a consented name —
         // resolved for the handful drawn, never for the whole edition.
-        $who = self::identities(array_values(array_unique(array_filter(array_merge($topKeys, [(string) $champKey, (string) ($mob['key'] ?? '')])))), $all);
+        $who = self::identities(array_values(array_unique(array_filter(array_merge($wallKeys, [(string) $champKey, (string) ($mob['key'] ?? '')])))), $all);
 
         $card = static function (string $key, int $n) use (&$all, $names, $who): array {
             $p = $all[$key] ?? ['by' => []];
@@ -168,10 +203,18 @@ final class SupporterSpotlight
 
         $top = [];
         foreach ($topKeys as $i => $k) $top[] = $card($k, (int) $ranked[$k]['votes']) + ['rank' => $i + 1];
+        // The wall: EVERYBODY, not only the top — a celebration of supporters that celebrates
+        // five of them tells the other thousand they did not count (owner: "this feels a bit
+        // petty. The voters need to really feel good about themselves").
+        $wall = [];
+        foreach ($wallKeys as $k) {
+            $c = $card($k, (int) $ranked[$k]['votes']);
+            $wall[] = ['key' => $c['key'], 'name' => $c['name'], 'photo' => $c['photo'], 'uid' => $c['uid'], 'votes' => $c['votes']];
+        }
         $champion = $champKey !== null ? $card((string) $champKey, $today[$champKey]['votes']) : null;
         $mobiliser = $mob ? ['people' => $mob['people']] + $card($mob['key'], 0) : null;
 
-        return ['champion' => $champion, 'top' => $top, 'mobiliser' => $mobiliser,
+        return ['champion' => $champion, 'top' => $top, 'mobiliser' => $mobiliser, 'wall' => $wall,
                 'people' => count($all), 'votes' => $votes, 'paid' => $paid];
     }
 

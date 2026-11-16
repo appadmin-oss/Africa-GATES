@@ -105,8 +105,8 @@
           <p class="hint" id="f-c-share-h">The vote page then says, for example, "Of every ₦200 vote, ₦60 goes to …". Only this share is stated; say what the rest covers above, in your words.</p>
         </div>
         <div>
-          <label><input type="checkbox" name="campaign[spotlight]" value="1"{% if campaign.spotlight %} checked{% endif %}> Show the Supporter Spotlight on the vote page</label>
-          <p class="hint">Champion of the day, the edition's top supporters and the mobiliser of the week, each emailed when they are celebrated. Verified votes only. Members appear with their own account name and photo by default and can take themselves off in one tap; anybody else is named only if they ticked "show my name".</p>
+          <label><input type="checkbox" name="campaign[spotlight_off]" value="1"{% if not campaign.spotlight %} checked{% endif %}> Hide the Supporter Spotlight on this award</label>
+          <p class="hint">It is on for every award by default: Champion of the day, the edition's top supporters, the mobiliser of the week and a wall of everybody backing their own, each emailed when celebrated. Verified votes only. Members appear with their own account name and photo and can take themselves off in one tap; anybody else is named only if they ticked "show my name".</p>
         </div>
         <fieldset class="pg-faq">
           <legend>What votes unlock <span class="hint">(up to {{ ladder_max }}; counted per person across the edition; a blank row is dropped)</span></legend>

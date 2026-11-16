@@ -135,12 +135,12 @@
   {% set _c = campaign %}
   {% set _place = _c.community %}
   {% set _first_rung = _c.ladder|first %}
-  {% if _c.rally or _c.promise or impact or raised > 0 %}
+  {% if _c.rally or _c.promise or impact or raised > 0 or supporters > 0 %}
   <section class="vp-why" aria-labelledby="vp-why-h">
     <div class="vp-why__in">
       <p class="vp-why__kicker"><span class="vp-why__dot" aria-hidden="true"></span>{{ _place ? '%place% is celebrating its own'|trans({'%place%': _place}) : 'Celebrate your own'|trans }}</p>
       <h2 class="vp-why__h" id="vp-why-h">{{ _c.rally ?: 'Celebrate your own'|trans }}</h2>
-      {% if _c.promise %}<p class="vp-why__sub">{{ _c.promise }}</p>{% endif %}
+      <p class="vp-why__sub">{{ _c.promise ?: 'Every vote here is somebody backing one of their own, and every one of them is celebrated.'|trans }}</p>
 
       {% if raised > 0 or supporters > 0 or champion %}
       <ul class="vp-why__stats">
@@ -148,23 +148,30 @@
         {% if supporters > 0 %}<li class="vp-why__stat"><b>{{ supporters|number_format }}</b><span>{{ supporters == 1 ? 'person backing their own'|trans : 'people backing their own'|trans }}</span></li>{% endif %}
         {% if champion %}
         <li class="vp-why__stat vp-why__stat--who">
-          {% include 'partials/avatar.twig' with {name: champion.name ?: 'Anonymous supporter'|trans, id: champion.uid ?: null, src: champion.photo|default(''), size: 44, named: true} only %}
-          <span class="vp-why__who"><b>{{ champion.name ?: 'Anonymous supporter'|trans }}</b><span>{{ 'Today’s champion · %n%'|trans({'%n%': champion.votes == 1 ? '1 vote'|trans : '%n% votes'|trans({'%n%': champion.votes|number_format})}) }}</span></span>
+          {% include 'partials/avatar.twig' with {name: champion.name ?: 'A proud supporter'|trans, id: champion.uid ?: null, src: champion.photo|default(''), size: 44, named: true} only %}
+          <span class="vp-why__who"><b>{{ champion.name ?: 'A proud supporter'|trans }}</b><span>{{ 'Today’s champion · %n%'|trans({'%n%': champion.votes == 1 ? '1 vote'|trans : '%n% votes'|trans({'%n%': champion.votes|number_format})}) }}</span></span>
         </li>
         {% endif %}
       </ul>
       {% endif %}
 
-      {# The nudge: one concrete thing a vote does next. A crown that is within reach is the
-         strongest reason there is; failing that, the first thing a vote unlocks. #}
+      {# The invitation: join the people already celebrating, and what even one vote does.
+         It used to dangle the champion's crown ("61 votes would make you today's champion"),
+         which made backing your own a contest with your neighbour — the owner called it
+         petty. Everybody who votes is on the wall below. #}
       {% if _f.open %}
-        {% if champion and vote_price > 0 %}
-          <p class="vp-why__nudge">{{ '%n% votes would make you today’s champion.'|trans({'%n%': (champion.votes + 1)|number_format}) }}{% if _first_rung %} {{ _first_rung.votes == 1 ? 'One vote unlocks %b%.'|trans({'%b%': _first_rung.benefit|lower}) : '%n% votes unlock %b%.'|trans({'%n%': _first_rung.votes|number_format, '%b%': _first_rung.benefit|lower}) }}{% endif %}</p>
-        {% elseif _first_rung %}
-          <p class="vp-why__nudge">{{ _first_rung.votes == 1 ? 'One vote unlocks %b%.'|trans({'%b%': _first_rung.benefit|lower}) : '%n% votes unlock %b%.'|trans({'%n%': _first_rung.votes|number_format, '%b%': _first_rung.benefit|lower}) }}</p>
-        {% elseif not champion and spotlight %}
-          <p class="vp-why__nudge">{{ 'Nobody has voted today yet. Your vote makes you today’s champion.'|trans }}</p>
-        {% endif %}
+        <p class="vp-why__nudge">
+          {%- if supporters > 0 -%}
+            {%- if supporters == 1 -%}
+              {{ _place ? 'Join the first person celebrating %place%’s own. Every vote puts you on the wall.'|trans({'%place%': _place}) : 'Join the first person backing their own here. Every vote puts you on the wall.'|trans }}
+            {%- else -%}
+              {{ _place ? 'Join %n% people celebrating %place%’s own. Every vote puts you on the wall.'|trans({'%n%': supporters|number_format, '%place%': _place}) : 'Join %n% people backing their own. Every vote puts you on the wall.'|trans({'%n%': supporters|number_format}) }}
+            {%- endif -%}
+          {%- else -%}
+            {{ 'Be the first to back your own here. Every vote puts you on the wall.'|trans }}
+          {%- endif -%}
+          {% if _first_rung %} {{ _first_rung.votes == 1 ? 'One vote unlocks %b%.'|trans({'%b%': _first_rung.benefit|lower}) : '%n% votes unlock %b%.'|trans({'%n%': _first_rung.votes|number_format, '%b%': _first_rung.benefit|lower}) }}{% endif %}
+        </p>
         <div class="vp-why__do">
           <a class="ag-btn ag-btn--primary ag-btn--pill" href="#vp-race">{{ 'Choose who to back'|trans }}</a>
           {% if spotlight and spotlight.people > 0 %}<a class="ag-btn ag-btn--secondary ag-btn--pill" href="#vp-spot-h">{{ 'See the Spotlight'|trans }}</a>{% endif %}
@@ -238,7 +245,7 @@
          signed in, and in every message the Spotlight sends); anybody else is named only
          where they ticked "show my name". An unnamed champion is still the champion. #}
       {% if spotlight and spotlight.people > 0 %}
-      {% set _anon = 'Anonymous supporter'|trans %}
+      {% set _anon = 'A proud supporter'|trans %}
       <section class="vp-spot" aria-labelledby="vp-spot-h">
         <div class="vp-spot__head">
           <h2 class="vp-spot__h" id="vp-spot-h">{{ 'Supporter spotlight'|trans }}</h2>
@@ -285,6 +292,18 @@
           </li>
           {% endfor %}
         </ol>
+        {% endif %}
+        {% if spotlight.wall|length %}
+        <h3 class="vp-spot__t">{{ 'Everybody backing their own'|trans }}</h3>
+        <ul class="vp-wall">
+          {% for w in spotlight.wall %}
+          <li class="vp-wall__p">
+            {% include 'partials/avatar.twig' with {name: w.name ?: _anon, id: w.uid ?: null, src: w.photo|default(''), size: 44, named: true} only %}
+            <span class="vp-wall__n">{{ w.name ? w.name|split(' ')|first : _anon }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% if spotlight.people > spotlight.wall|length %}<p class="vp-spot__sub">{{ 'And %n% more people. Thank you, every one of you.'|trans({'%n%': (spotlight.people - spotlight.wall|length)|number_format}) }}</p>{% else %}<p class="vp-spot__sub">{{ 'Thank you, every one of you.'|trans }}</p>{% endif %}
         {% endif %}
         <p class="vp-note">{{ 'Verified votes only, counted per person. Members appear with their own name and photo and can take themselves off; anybody else is named only if they asked. Ties go to whoever got there first.'|trans }}</p>
       </section>

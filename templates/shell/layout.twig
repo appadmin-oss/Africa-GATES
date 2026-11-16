@@ -137,7 +137,9 @@
       {% if sh.bell is defined and sh.bell %}
         {# Updates (§2.4): grouped by what they ask of the person, each derived from a record. #}
         <details class="sh7-bellbox">
-          <summary class="sh7-bell" aria-label="Updates{{ sh.bell.n ? ', ' ~ sh.bell.n ~ ' need you' }}">{{ S.icon('bell') }}{% if sh.bell.n %}<span class="sh7-bell__n" aria-hidden="true">{{ sh.bell.n }}</span>{% endif %}</summary>
+          {# Named by its own text, not aria-label on the summary: screen readers announced the
+             disclosure as an unnamed group (volunteer report, 16 Nov 2026). #}
+          <summary class="sh7-bell">{{ S.icon('bell') }}<span class="sh7-sr">Updates{{ sh.bell.n ? ', ' ~ sh.bell.n ~ ' need you' }}</span>{% if sh.bell.n %}<span class="sh7-bell__n" aria-hidden="true">{{ sh.bell.n }}</span>{% endif %}</summary>
           <div class="sh7-bellpanel" role="dialog" aria-label="Updates">
             {% for g in sh.bell.groups %}
               <p class="sh7-bellpanel__h sh7-bellpanel__h--{{ g.tone }}">{{ g.h }}</p>

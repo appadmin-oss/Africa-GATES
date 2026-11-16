@@ -109,8 +109,14 @@
        it is drawn without a second card's border and tint (ballot.css, .vb-done). #}
     {% if ctx.free and ctx.confirmed %}
         <div class="vb-done" data-vb-done>
+          {# The voter, first: they just did something good, and they are one of a crowd. #}
+          {% set _ch = ctx.cheer %}
           {% include 'partials/celebration.twig' with {kind: 'vote', size: 'inline', first: first,
-              sub: '%first% moved up the race. Share the link to win more support.'|trans({'%first%': first}),
+              title: 'Thank you for backing %first%'|trans({'%first%': first}),
+              sub: (_ch and _ch.people > 1
+                     ? (_ch.place ? 'You are one of %n% people celebrating %place%’s own. Share %first%’s link and bring yours.'|trans({'%n%': _ch.people|number_format, '%place%': _ch.place, '%first%': first})
+                                  : 'You are one of %n% people backing their own. Share %first%’s link and bring yours.'|trans({'%n%': _ch.people|number_format, '%first%': first}))
+                     : '%first% moved up the race. Share the link to win more support.'|trans({'%first%': first})),
               context: {moment: 'vote_cast', confirmed: true, edition: n.programme_slug ~ '-' ~ n.year, subject: n.id ~ '-' ~ n.category_id},
               primary: {label: 'Share %first%’s voting link'|trans({'%first%': first})},
               secondary: {label: 'Vote in another category'|trans, href: '/vote/' ~ n.programme_slug}} only %}
@@ -297,7 +303,7 @@
 {% set _bctx = {n: n, first: first, open: voting_open, phase: phase, paid_notice: paid_notice, can_redeem: can_redeem,
    member_points: member_points, points_per_vote: points_per_vote, member_logged_in: member_logged_in, points_enabled: points_enabled,
    paid: _paid, paid_sentence: paid_sentence, vote_price: vote_price, max_qty: max_qty, vote_tiers: vote_tiers, tiers: tier_prices,
-   retry: paid_retry, member: member, providers: pay_providers, wallet: wallet_sources|default([]), msg_max: msg_max, terms: terms, free: _free, confirmed: vote_confirmed, recruit: recruit,
+   retry: paid_retry, member: member, providers: pay_providers, wallet: wallet_sources|default([]), msg_max: msg_max, terms: terms, free: _free, confirmed: vote_confirmed, recruit: recruit, cheer: cheer,
    ts: _ts, ts_key: turnstile_site_key, url: '/vote/' ~ n.programme_slug ~ '/' ~ n.id} %}
 
 {% block content %}

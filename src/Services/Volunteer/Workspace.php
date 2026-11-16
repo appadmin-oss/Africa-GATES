@@ -74,7 +74,7 @@ final class Workspace
         'hours'    => ['summary' => 'Summary', 'review' => 'In review', 'log' => 'Log hours'],
         'training' => ['next' => 'Next for you', 'passed' => 'Passed'],
         'record'   => ['overview' => 'Overview', 'rewards' => 'Rewards', 'badges' => 'Badges', 'refs' => 'Reference letters'],
-        'team'     => ['roster' => 'Roster', 'approvals' => 'To confirm', 'reports' => 'Contact reports', 'requests' => 'Requests'],
+        'team'     => ['roster' => 'Roster', 'approvals' => 'To confirm', 'reports' => 'Contact reports', 'updates' => 'Status updates', 'requests' => 'Requests'],
         'requests' => ['open' => 'Open', 'decided' => 'Decided'],
         'meetings' => ['coming' => 'Coming up', 'new' => 'Schedule', 'past' => 'Past'],
     ];
@@ -138,7 +138,7 @@ final class Workspace
     /** Tabs on a place's pages (nav-volunteer.json). */
     public const SCOPE_TABS = [
         'queue'    => ['check' => 'To check', 'done' => 'Done', 'agree' => 'Agreement'],
-        'nominees' => ['all' => 'All', 'due' => self::REPORT['due'], 'new' => 'Not reached yet'],
+        'nominees' => ['all' => 'All', 'due' => self::REPORT['due'], 'new' => 'Not reached yet', 'update' => 'Status updates'],
     ];
 
     /** A place's rail groups, with the award work its grants carry. */

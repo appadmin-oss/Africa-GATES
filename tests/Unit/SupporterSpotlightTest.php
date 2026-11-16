@@ -196,23 +196,51 @@ final class SupporterSpotlightTest extends TestCase
     }
 
     /** The page: nothing drawn for a blank campaign; everything drawn once it is set. */
-    public function test_the_vote_page_celebrates_only_once_the_host_has_said_what_to_celebrate(): void
+    /**
+     * The Spotlight is on for EVERY award (owner: "do not restrict the scope"), with no
+     * campaign typed at all, and a host may switch it off. Nothing typed means no typed claim:
+     * no rally line of anybody's, no beneficiary, no ladder — only the people and their votes.
+     */
+    public function test_every_award_celebrates_its_supporters_unless_the_host_turns_it_off(): void
     {
         $at = Carbon::now()->toDateTimeString();
         $this->order('adaeze@example.test', 12, self::A, $at, 'Adaeze Okafor', true);
+        $this->free('free@example.test', self::B, $at, '', false);
 
         $blank = $this->page();
-        $this->assertStringNotContainsString('class="vp-why"', $blank);
-        $this->assertStringNotContainsString('class="vp-spot"', $blank);
+        $this->assertStringContainsString('class="vp-why"', $blank, 'an award with no campaign typed does not celebrate anybody');
+        $this->assertStringContainsString('class="vp-spot"', $blank);
+        $this->assertStringContainsString('Join 2 people backing their own.', $blank);
+        $this->assertStringNotContainsString('would make you today’s champion', $blank, 'the contest with your neighbour is back');
+        $this->assertStringNotContainsString('for CACENTRE', $blank, 'a beneficiary nobody named');
+        // The wall is everybody — the unnamed free voter too.
+        $this->assertSame(2, substr_count($blank, 'class="vp-wall__p"'), 'somebody who voted is missing from the wall');
+        $this->assertStringContainsString('A proud supporter', $blank);
         $this->assertStringContainsString('vp-body vp-body--one', $blank, 'one category fell into the category rail’s column on a desktop');
 
         $this->assertNull(AwardCampaign::save(self::P, ['community' => 'Alimosho', 'rally' => 'Who will celebrate our own, if not us?',
-            'spotlight' => '1', 'ladder_votes' => ['5'], 'ladder_benefit' => ['A learning resource']]));
+            'ladder_votes' => ['5'], 'ladder_benefit' => ['A learning resource']]));
         $html = $this->page();
         $this->assertStringContainsString('Who will celebrate our own, if not us?', $html);
         $this->assertStringContainsString('Alimosho is celebrating its own', $html);
+        $this->assertStringContainsString('Join 2 people celebrating Alimosho’s own.', $html);
         $this->assertMatchesRegularExpression('~Champion of the day</span>\s*<b class="vp-hon__n">Adaeze Okafor</b>~', $html);
         $this->assertStringContainsString('A learning resource', $html);
+
+        $this->assertNull(AwardCampaign::save(self::P, ['community' => 'Alimosho', 'spotlight_off' => '1']));
+        $this->assertStringNotContainsString('class="vp-spot"', $this->page(), 'the host could not switch the Spotlight off');
+    }
+
+    /** Right after giving, where they stand: their place among everybody, by the board's rule. */
+    public function test_a_supporter_is_told_where_they_stand(): void
+    {
+        $at = Carbon::now()->toDateTimeString();
+        $this->order('big@example.test', 50, self::A, $at, 'Big', true);
+        $this->order('me@example.test', 20, self::A, $at, 'Me', true);
+        $this->free('me@example.test', self::A, $at, 'Me', true);
+        $this->free('small@example.test', self::B, $at);
+        $this->assertSame(['votes' => 21, 'rank' => 2, 'people' => 3], SupporterSpotlight::standingOf(self::Y, 'me@example.test'));
+        $this->assertSame(['votes' => 0, 'rank' => 0, 'people' => 3], SupporterSpotlight::standingOf(self::Y, 'nobody@example.test'));
     }
 
     private function page(): string
@@ -333,7 +361,9 @@ final class SupporterSpotlightTest extends TestCase
             'beneficiary' => 'CACENTRE', 'share_pct' => '30', 'spotlight' => '1']));
         $html = $this->page();
         $this->assertStringContainsString('<b>₦1,500</b><span>for CACENTRE so far</span>', $html, '25 settled votes × ₦60 — a refunded order was counted, or the figure is not the ledger’s');
-        $this->assertStringContainsString('26 votes would make you today’s champion.', $html);
+        // One settled supporter (the refunded order is nobody): an invitation, never a contest.
+        $this->assertStringContainsString('Join the first person celebrating Alimosho’s own.', $html);
+        $this->assertStringNotContainsString('would make you today’s champion', $html);
         $this->assertStringContainsString('href="#vp-race"', $html);
     }
 }

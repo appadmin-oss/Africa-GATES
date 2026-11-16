@@ -449,12 +449,15 @@ final class PaidVoteController
                 $price    = PaidVoteService::pricePerVote();
                 $share    = $campaign['beneficiary'] !== '' && $campaign['share_pct'] > 0
                     ? (int) $don->bonus_votes * intdiv($price * $campaign['share_pct'], 100) : 0;
-                $total    = $campaign['ladder'] !== [] ? \AfricaGates\Services\SupporterSpotlight::votesBy($cycleId, (string) $don->donor_email) : 0;
-                if ($share > 0 || $total > 0) {
-                    $own = ['share' => $share, 'beneficiary' => $campaign['beneficiary'], 'total' => $total,
-                            'standing' => \AfricaGates\Support\AwardCampaign::standing($campaign, $total),
-                            'note' => $campaign['ladder_note']];
-                }
+                // Where they now stand among everybody backing their own in this edition — the
+                // thing a supporter most wants to hear right after giving, and true: the same
+                // count of people, the same order, the board uses.
+                $me       = \AfricaGates\Services\SupporterSpotlight::standingOf($cycleId, (string) $don->donor_email);
+                $total    = $me['votes'];
+                $own = ['share' => $share, 'beneficiary' => $campaign['beneficiary'], 'total' => $total,
+                        'rank' => $me['rank'], 'people' => $me['people'], 'place' => $campaign['community'],
+                        'standing' => \AfricaGates\Support\AwardCampaign::standing($campaign, $total),
+                        'ladder' => $campaign['ladder'] !== [], 'note' => $campaign['ladder_note']];
             } catch (\Throwable) {
                 $own = null;
             }

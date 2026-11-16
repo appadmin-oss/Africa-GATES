@@ -75,7 +75,10 @@ final class AwardCampaign
             $out[$k] = Brand::normalise(mb_substr(strip_tags($v), 0, $f['max']));
         }
         $out['share_pct'] = max(0, min(100, (int) ($doc['share_pct'] ?? 0)));
-        $out['spotlight'] = !empty($doc['spotlight']);
+        // ON for every award unless the host turns it off (owner, 16 Nov 2026: "do not restrict
+        // the scope … the voters need to really feel good about themselves"). A document saved
+        // when the Spotlight was opt-in is read the same way: only an explicit "off" hides it.
+        $out['spotlight'] = empty($doc['spotlight_off']);
         $out['ladder']    = self::ladder($doc['ladder'] ?? []);
         return $out;
     }
@@ -160,7 +163,7 @@ final class AwardCampaign
                 $doc['share_pct'] = (int) $pct;
             }
         }
-        if (!empty($input['spotlight'])) $doc['spotlight'] = true;
+        if (!empty($input['spotlight_off'])) $doc['spotlight_off'] = true;
 
         $vs = (array) ($input['ladder_votes'] ?? []);
         $bs = (array) ($input['ladder_benefit'] ?? []);
