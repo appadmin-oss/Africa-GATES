@@ -22,7 +22,18 @@
 
    ── LIVE TALLIES ───────────────────────────────────────────────────────────────
    /vote/{slug}/tallies (cached server-side for 5s) every 10s while the tab is visible,
-   patching numbers the page already rendered — never re-deriving ranks here.
+   patching numbers the page already rendered — never re-deriving ranks here. The gap
+   ("14 behind #2") is patched with them: it used to stay as drawn while the votes and
+   the rank beside it moved, so a row could say #1 and "14 behind #1" at once.
+
+   ── FIND, MOVEMENT, YOUR PICK (owner, 16 Nov 2026: "brainstorm … short UX-optimised
+      feature … beautiful") ─────────────────────────────────────────────────────────
+   Most people arrive to back ONE nominee. So: a box that finds them across every
+   category in place; on a return visit, what moved since ("Up 2 · +48 votes since your
+   last visit"), from a snapshot this device keeps under `ag-vote:seen:{programmeId}`;
+   and under the nominee this device backed, the gap to the place above and a button to
+   share their link — the one next step that closes it without spending anything.
+   Every word is the template's (data-w-*), translated there.
    ══════════════════════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
@@ -105,6 +116,138 @@
     });
   }
 
+  /* ── find your nominee ─────────────────────────────────────────────────────
+     Filters the rows already on the page. Searches the All list where there is one (every
+     nominee once, named with their category), else the one category; restores the view the
+     person was on when the box is emptied. Esc empties it. */
+  function fold(t) {
+    t = String(t || '').toLowerCase();
+    try { t = t.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch (e) {}
+    return t;
+  }
+  function finder(root) {
+    var box = $('[data-find]', root), q = box && $('[data-find-q]', box);
+    if (!q) return;
+    box.hidden = false;
+    var panes = $$('[data-view]', root), target = $('[data-view="all"]', root) || panes[0];
+    var none = $('[data-find-none]', root), noneT = none && $('[data-find-none-t]', none), said = $('[data-find-said]', box);
+    var before = null;
+    var rows = $$('.vp-race > li', target).map(function (li) { return { li: li, hay: fold(li.textContent) }; });
+    var run = function () {
+      var v = fold(q.value).trim(), words = v ? v.split(/\s+/) : [];
+      if (!words.length) {
+        rows.forEach(function (r) { r.li.hidden = false; });
+        if (before) { panes.forEach(function (p) { p.hidden = p !== before; }); before = null; }
+        if (none) none.hidden = true;
+        if (said) said.textContent = '';
+        return;
+      }
+      if (!before) before = panes.filter(function (p) { return !p.hidden; })[0] || target;
+      panes.forEach(function (p) { p.hidden = p !== target; });
+      var n = 0;
+      rows.forEach(function (r) {
+        var hit = words.every(function (w) { return r.hay.indexOf(w) > -1; });
+        r.li.hidden = !hit; if (hit) n++;
+      });
+      target.hidden = n === 0;
+      if (none) { none.hidden = n > 0; if (noneT) noneT.textContent = fill(noneT.getAttribute('data-t'), { q: q.value.trim() }); }
+      if (said) said.textContent = n === 1 ? root.getAttribute('data-w-found1') : fill(root.getAttribute('data-w-found'), { n: fmt(n) });
+    };
+    q.addEventListener('input', run);
+    q.addEventListener('keydown', function (e) { if (e.key === 'Escape' && q.value) { e.preventDefault(); q.value = ''; run(); } });
+    var clear = none && $('[data-find-clear]', none);
+    if (clear) clear.addEventListener('click', function () { q.value = ''; run(); q.focus(); });
+  }
+
+  /* ── since your last visit ─────────────────────────────────────────────────
+     A visit is a session of looking: a snapshot older than half an hour becomes "last
+     visit", and the rows that moved against it say so. Reloading inside a visit keeps the
+     same comparison, so the chips do not vanish on a refresh. A first visit draws nothing. */
+  var VISIT = 30 * 60 * 1000;
+  function snapshot(root) {
+    var out = {};
+    $$('[data-race]', root).forEach(function (ol) {
+      var race = {};
+      $$('[data-nominee]', ol).forEach(function (a) {
+        var r = $('[data-rank]', a), v = $('[data-votes]', a);
+        race[a.getAttribute('data-nominee')] = [parseInt(String(r ? r.textContent : '').replace(/\D/g, ''), 10) || 0, parseInt(String(v ? v.textContent : '').replace(/\D/g, ''), 10) || 0];
+      });
+      out[ol.getAttribute('data-race')] = race;
+    });
+    return out;
+  }
+  function movement(root, pid) {
+    var now = Date.now(), seen = {};
+    try { seen = JSON.parse(get('seen:' + pid) || '{}') || {}; } catch (e) { seen = {}; }
+    var cur = snapshot(root);
+    if (!seen.cur || !seen.at || now - seen.at > VISIT) { seen.prev = seen.cur || null; seen.at = now; }
+    seen.cur = cur;
+    put('seen:' + pid, JSON.stringify(seen));
+    if (!seen.prev) return;
+    $$('[data-race]', root).forEach(function (ol) {
+      var was = seen.prev[ol.getAttribute('data-race')] || {};
+      $$('[data-nominee]', ol).forEach(function (a) {
+        var id = a.getAttribute('data-nominee'), then = was[id], now2 = (cur[ol.getAttribute('data-race')] || {})[id];
+        if (!then || !now2) return;
+        var up = then[0] - now2[0], more = now2[1] - then[1], bits = [];
+        if (up > 0) bits.push(fill(root.getAttribute('data-w-up'), { n: up }));
+        if (up < 0) bits.push(fill(root.getAttribute('data-w-down'), { n: -up }));
+        if (more > 0) bits.push(more === 1 ? root.getAttribute('data-w-plus1') : fill(root.getAttribute('data-w-plus'), { n: fmt(more) }));
+        if (!bits.length) return;
+        var chip = document.createElement('span');
+        chip.className = 'vp-row__moved' + (up > 0 ? ' is-up' : (up < 0 ? ' is-down' : ''));
+        // The mark is for a change of PLACE only; "+12 votes" already says its own direction.
+        if (up !== 0) {
+          var mark = document.createElement('span'); mark.setAttribute('aria-hidden', 'true'); mark.className = 'vp-row__moved-m';
+          mark.textContent = up > 0 ? '▲' : '▼';
+          chip.appendChild(mark);
+        }
+        chip.appendChild(document.createTextNode(fill(root.getAttribute('data-w-since'), { what: bits.join(' · ') })));
+        var main = $('.vp-row__main', a), figs = main && $('.vp-row__figs--in', main);
+        if (main) main.insertBefore(chip, figs || null);
+      });
+    });
+  }
+
+  /* ── your pick ─────────────────────────────────────────────────────────────
+     Under the nominee this device backed: how far behind the place above they are, and a
+     button to share their link — navigator.share where the phone has it, a copy where it
+     does not. Kept in step with the live tallies by gapLine(). */
+  // The gap itself is on the row beside it, so this says what to DO about it, not the number again.
+  function gapLine(root, n, r, lead) {
+    return lead ? root.getAttribute('data-w-pick-lead') : fill(root.getAttribute('data-w-pick-behind'), { r: r });
+  }
+  function picks(root, pid) {
+    var b = ballot(pid), open = root.hasAttribute('data-open');
+    Object.keys(b).forEach(function (cid) {
+      var e = b[cid] || {}; if (!e.n) return;
+      $$('[data-nominee="' + e.n + '"]', root).forEach(function (a) {
+        var li = a.parentNode; if (!li || $('.vp-mine', li)) return;
+        li.classList.add('is-mine');
+        var name = $('.vp-row__name', a);
+        if (name) { var tag = document.createElement('span'); tag.className = 'vp-row__pick'; tag.textContent = root.getAttribute('data-w-pick'); name.appendChild(tag); }
+        if (!open) return;
+        var gap = $('[data-gap]', a); if (!gap) return;
+        var box = document.createElement('div'); box.className = 'vp-mine';
+        var t = document.createElement('p'); t.className = 'vp-mine__t'; t.setAttribute('data-mine-t', '');
+        var g = gap.getAttribute('data-gap-n');
+        t.textContent = gapLine(root, parseInt(g, 10) || 0, gap.getAttribute('data-gap-r'), g === '');
+        var btn = document.createElement('button'); btn.type = 'button'; btn.className = 'ag-btn ag-btn--secondary ag-btn--pill vp-mine__go';
+        btn.textContent = root.getAttribute('data-w-share');
+        btn.addEventListener('click', function () {
+          var url = new URL(a.getAttribute('href'), location.href).href;
+          var nm = $('.vp-row__n', a) ? $('.vp-row__n', a).textContent : '';
+          var text = fill(root.getAttribute('data-w-share-text'), { name: nm, award: root.getAttribute('data-award') });
+          var done = function () { var was = root.getAttribute('data-w-share'); btn.textContent = root.getAttribute('data-w-copied'); setTimeout(function () { btn.textContent = was; }, 1800); };
+          if (navigator.share) { navigator.share({ title: text, text: text, url: url }).catch(function () {}); return; }
+          try { navigator.clipboard.writeText(url).then(done, function () {}); } catch (err) {}
+        });
+        box.appendChild(t); box.appendChild(btn);
+        li.appendChild(box);
+      });
+    });
+  }
+
   /* ── an edition's vote page ──────────────────────────────────────────────── */
   function votePage(root) {
     var pid = root.getAttribute('data-programme'), cats = parseInt(root.getAttribute('data-categories'), 10) || 0;
@@ -113,6 +256,9 @@
       var t = $('.vp-done', a); if (t) t.hidden = !b[a.getAttribute('data-cat-link')];
     });
     views(root);
+    finder(root);
+    movement(root, pid);
+    picks(root, pid);
     $$('[data-ballot-fill]').forEach(function (f) { f.style.width = pct + '%'; });
     $$('[data-ballot-ratio]').forEach(function (r) { r.textContent = n + '/' + cats; });
     var bar = $('[data-ballot-bar]'); if (bar) bar.setAttribute('aria-valuenow', String(n));
@@ -155,6 +301,14 @@
               $$('[data-votes]', row).forEach(function (v) { v.textContent = fmt(x.votes); });
               var r = $('[data-rank]', row); if (r) r.textContent = '#' + x.rank;
               var bb = $('[data-bar]', row); if (bb) bb.style.width = x.pct + '%';
+              var lead = x.gap === null || x.gap === undefined;
+              $$('[data-gap]', row).forEach(function (gp) {
+                gp.textContent = lead ? root.getAttribute('data-w-lead') : fill(root.getAttribute('data-w-behind'), { n: fmt(x.gap), r: x.next });
+                gp.classList.toggle('is-lead', lead);
+                gp.setAttribute('data-gap-n', lead ? '' : String(x.gap)); gp.setAttribute('data-gap-r', lead ? '' : String(x.next));
+              });
+              var mt = row.parentNode && $('[data-mine-t]', row.parentNode);
+              if (mt) mt.textContent = gapLine(root, x.gap || 0, x.next, lead);
             });
           };
           d.categories.forEach(function (c) { patch($('[data-race="' + c.category_id + '"]'), c.nominees); });

@@ -66,12 +66,12 @@
         {% if n.field > 1 %}<span class="vp-row__bar" role="img" aria-label="{{ '%n%% of the leader’s total'|trans({'%n%': n.pct}) }}"><span aria-hidden="true" data-bar style="width:{{ n.pct }}%" class="{{ n.is_leader ? 'is-lead' }}"></span><span class="ag-sr">{{ '%n%% of the leader’s total'|trans({'%n%': n.pct}) }}</span></span>{% endif %}
         <span class="vp-row__figs vp-row__figs--in">
           <span class="vp-row__tally"><b data-votes>{{ n.vote_count|number_format }}</b> {{ n.vote_count == 1 ? 'vote'|trans : 'votes'|trans }}</span>
-          {% if n.field > 1 %}<span class="vp-row__gap{{ n.is_leader ? ' is-lead' }}" data-gap>{{ n.is_leader ? 'Leading'|trans : '%n% behind #%r%'|trans({'%n%': n.gap|number_format, '%r%': n.next_rank}) }}</span>{% endif %}
+          {% if n.field > 1 %}<span class="vp-row__gap{{ n.is_leader ? ' is-lead' }}" data-gap data-gap-n="{{ n.gap ?? '' }}" data-gap-r="{{ n.next_rank ?? '' }}">{{ n.is_leader ? 'Leading'|trans : '%n% behind #%r%'|trans({'%n%': n.gap|number_format, '%r%': n.next_rank}) }}</span>{% endif %}
         </span>
       </span>
       <span class="vp-row__figs vp-row__figs--side">
         <b><span data-votes>{{ n.vote_count|number_format }}</span> {{ n.vote_count == 1 ? 'vote'|trans : 'votes'|trans }}</b>
-        {% if n.field > 1 %}<span class="vp-row__gap{{ n.is_leader ? ' is-lead' }}" data-gap>{{ n.is_leader ? 'Leading'|trans : '%n% behind #%r%'|trans({'%n%': n.gap|number_format, '%r%': n.next_rank}) }}</span>{% endif %}
+        {% if n.field > 1 %}<span class="vp-row__gap{{ n.is_leader ? ' is-lead' }}" data-gap data-gap-n="{{ n.gap ?? '' }}" data-gap-r="{{ n.next_rank ?? '' }}">{{ n.is_leader ? 'Leading'|trans : '%n% behind #%r%'|trans({'%n%': n.gap|number_format, '%r%': n.next_rank}) }}</span>{% endif %}
       </span>
       <span class="vp-row__go{{ open ? '' : ' vp-row__go--view' }}" aria-hidden="true">{{ open ? 'Vote'|trans : 'View'|trans }}</span>
     </a>
@@ -90,8 +90,16 @@
 {% import _self as m %}
 
 {% block content %}
+{# The words the script writes, translated here (vote.js reads them; it types no copy). #}
 <div class="vp" data-vote-page data-programme="{{ _p.id }}" data-slug="{{ _p.slug }}" data-categories="{{ _f.categories }}"
-     {% if _f.open %}data-tallies="{{ _base }}/tallies"{% endif %}>
+     {% if _f.open %}data-tallies="{{ _base }}/tallies" data-open{% endif %} data-award="{{ _p.title }}"
+     data-w-lead="{{ 'Leading'|trans }}" data-w-behind="{{ '%n% behind #%r%'|trans }}"
+     data-w-up="{{ 'Up %n%'|trans }}" data-w-down="{{ 'Down %n%'|trans }}" data-w-plus="{{ '+%n% votes'|trans }}" data-w-plus1="{{ '+1 vote'|trans }}"
+     data-w-since="{{ '%what% since your last visit'|trans }}"
+     data-w-pick="{{ 'Your pick'|trans }}" data-w-pick-lead="{{ 'They’re leading. Share their link to keep them there.'|trans }}"
+     data-w-pick-behind="{{ 'Help them reach #%r%: share their link with people who’d back them.'|trans }}"
+     data-w-share="{{ 'Share their link'|trans }}" data-w-copied="{{ 'Link copied'|trans }}" data-w-share-text="{{ 'Vote for %name% in %award%'|trans }}"
+     data-w-found="{{ '%n% nominees match'|trans }}" data-w-found1="{{ '1 nominee matches'|trans }}">
 
   {# ── The hero: light on a phone, the dark band from 600px ─────────────────── #}
   <div class="vp-hero">
@@ -218,6 +226,23 @@
     {% endif %}
 
     <div class="vp-race-wrap" id="vp-race">
+      {% set _count = 0 %}{% for c in categories %}{% set _count = _count + c.nominees|length %}{% endfor %}
+      {% if _count >= 6 %}
+      {# Find your nominee: most people arrive to back ONE person, and with several categories
+         finding them was a scan of every list. Drawn hidden and revealed by vote.js, which
+         filters the rows already here; with no script the full list is the answer. #}
+      <div class="vp-find" data-find hidden>
+        <label class="ag-sr" for="vpFindQ">{{ 'Find a nominee'|trans }}</label>
+        <svg class="vp-find__ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input class="vp-find__q" id="vpFindQ" type="search" placeholder="{{ 'Find a nominee by name'|trans }}" autocomplete="off" enterkeyhint="search" data-find-q>
+        <p class="ag-sr" role="status" aria-live="polite" data-find-said></p>
+      </div>
+      <div class="vp-find__none" data-find-none hidden>
+        <p class="vp-find__none-t" data-find-none-t data-t="{{ 'No nominee matches “%q%”.'|trans }}"></p>
+        <p class="vp-find__none-s">{{ 'Check the spelling, or try part of the name.'|trans }}</p>
+        <button class="ag-btn ag-btn--secondary ag-btn--pill" type="button" data-find-clear>{{ 'Clear the search'|trans }}</button>
+      </div>
+      {% endif %}
       {% if categories|length %}
       {% if _many %}
       <section class="vp-view" data-view="all" aria-labelledby="view-all-t"{% if _view != 'all' %} hidden{% endif %}>

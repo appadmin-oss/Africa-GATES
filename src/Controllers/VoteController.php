@@ -311,6 +311,7 @@ class VoteController {
                         'votes' => (int) $n['vote_count'],
                         'rank'  => (int) $n['rank'],
                         'gap'   => $n['gap'],
+                        'next'  => $n['next_rank'] ?? null,
                         'pct'   => (int) $n['pct'],
                     ], $ranked),
                 ];
@@ -320,7 +321,7 @@ class VoteController {
             $overall = [];
             if (count($byCat) > 1) {
                 foreach (\AfricaGates\Services\RaceService::annotate(array_merge(...array_values($byCat))) as $n) {
-                    $overall[] = ['id' => (int) $n['id'], 'votes' => (int) $n['vote_count'], 'rank' => (int) $n['rank'], 'gap' => $n['gap'], 'pct' => (int) $n['pct']];
+                    $overall[] = ['id' => (int) $n['id'], 'votes' => (int) $n['vote_count'], 'rank' => (int) $n['rank'], 'gap' => $n['gap'], 'next' => $n['next_rank'] ?? null, 'pct' => (int) $n['pct']];
                 }
             }
             return ['ok' => true, 'at' => date('c'), 'categories' => $out, 'overall' => $overall];
