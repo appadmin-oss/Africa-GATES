@@ -87,7 +87,6 @@
   </div>
 {% endmacro %}
 {# "That's you": a signed-in member's own entry on the Spotlight, with the one tap off it. #}
-{% macro me(keys, s) %}{% if s.key in keys %}<span class="vp-spot__me">{{ 'That’s you'|trans }} · <a href="/spotlight/hide">{{ 'Take me off'|trans }}</a></span>{% endif %}{% endmacro %}
 {% import _self as m %}
 
 {% block content %}
@@ -174,7 +173,7 @@
         </p>
         <div class="vp-why__do">
           <a class="ag-btn ag-btn--primary ag-btn--pill" href="#vp-race">{{ 'Choose who to back'|trans }}</a>
-          {% if spotlight and spotlight.people > 0 %}<a class="ag-btn ag-btn--secondary ag-btn--pill" href="#vp-spot-h">{{ 'See the Spotlight'|trans }}</a>{% endif %}
+          {% if spotlight and spotlight.people > 0 %}<a class="ag-btn ag-btn--secondary ag-btn--pill" href="{{ _base }}/spotlight">{{ 'See the Spotlight'|trans }}</a>{% endif %}
         </div>
       {% endif %}
 
@@ -239,75 +238,9 @@
       {% endfor %}
       <p class="vp-note">{{ 'Public votes are one part of the score; the judges decide the rest.'|trans }}</p>
 
-      {# ── THE SUPPORTER SPOTLIGHT (Services\SupporterSpotlight) ───────────────────
-         The people behind the nominees. Ranked over everybody; an account holder appears
-         with their own name and photo, and can take themselves off in one tap (here when
-         signed in, and in every message the Spotlight sends); anybody else is named only
-         where they ticked "show my name". An unnamed champion is still the champion. #}
-      {% if spotlight and spotlight.people > 0 %}
-      {% set _anon = 'A proud supporter'|trans %}
-      <section class="vp-spot" aria-labelledby="vp-spot-h">
-        <div class="vp-spot__head">
-          <h2 class="vp-spot__h" id="vp-spot-h">{{ 'Supporter spotlight'|trans }}</h2>
-          <p class="vp-spot__sub">{{ spotlight.people == 1 ? '1 person has backed their own in this edition.'|trans : '%n% people have backed their own in this edition.'|trans({'%n%': spotlight.people|number_format}) }}</p>
-        </div>
-        <div class="vp-spot__honours">
-          <div class="vp-hon">
-            {% set _ch = spotlight.champion %}
-            {% include 'partials/avatar.twig' with {name: _ch ? (_ch.name ?: _anon) : 'Champion'|trans, id: _ch.uid|default(null) ?: null, src: _ch.photo|default(''), size: 56, named: true} only %}
-            <span class="vp-hon__t">
-              <span class="vp-hon__k">{{ 'Champion of the day'|trans }}</span>
-              {% if _ch %}
-                <b class="vp-hon__n">{{ _ch.name ?: _anon }}</b>
-                <span class="vp-hon__d">{{ _ch.votes == 1 ? '1 vote today'|trans : '%n% votes today'|trans({'%n%': _ch.votes|number_format}) }}{% if _ch.for %} · {{ 'for %name%'|trans({'%name%': _ch.for}) }}{% endif %}</span>
-                {{ m.me(my_keys, _ch) }}
-              {% else %}
-                <b class="vp-hon__n">{{ 'Still open today'|trans }}</b>
-                <span class="vp-hon__d">{{ 'The most votes from one person today, West Africa Time, takes it.'|trans }}</span>
-              {% endif %}
-            </span>
-          </div>
-          {% if spotlight.mobiliser %}
-          {% set _mo = spotlight.mobiliser %}
-          <div class="vp-hon">
-            {% include 'partials/avatar.twig' with {name: _mo.name ?: _anon, id: _mo.uid ?: null, src: _mo.photo|default(''), size: 56, named: true} only %}
-            <span class="vp-hon__t">
-              <span class="vp-hon__k">{{ 'Mobiliser of the week'|trans }}</span>
-              <b class="vp-hon__n">{{ _mo.name ?: _anon }}</b>
-              <span class="vp-hon__d">{{ _mo.people == 1 ? 'Brought 1 person to vote this week'|trans : 'Brought %n% people to vote this week'|trans({'%n%': _mo.people|number_format}) }}</span>
-              {{ m.me(my_keys, _mo) }}
-            </span>
-          </div>
-          {% endif %}
-        </div>
-        {% if spotlight.top|length %}
-        <h3 class="vp-spot__t">{{ 'Top supporters this edition'|trans }}</h3>
-        <ol class="vp-spot__list">
-          {% for s in spotlight.top %}
-          <li class="vp-spot__row">
-            <span class="vp-spot__r">{{ loop.index }}</span>
-            {% include 'partials/avatar.twig' with {name: s.name ?: _anon, id: s.uid ?: null, src: s.photo|default(''), size: 44, named: true} only %}
-            <span class="vp-spot__who"><b>{{ s.name ?: _anon }}</b>{% if s.for %}<span>{{ 'Backing %name%'|trans({'%name%': s.for}) }}</span>{% endif %}{{ m.me(my_keys, s) }}</span>
-            <span class="vp-spot__v">{{ s.votes == 1 ? '1 vote'|trans : '%n% votes'|trans({'%n%': s.votes|number_format}) }}</span>
-          </li>
-          {% endfor %}
-        </ol>
-        {% endif %}
-        {% if spotlight.wall|length %}
-        <h3 class="vp-spot__t">{{ 'Everybody backing their own'|trans }}</h3>
-        <ul class="vp-wall">
-          {% for w in spotlight.wall %}
-          <li class="vp-wall__p">
-            {% include 'partials/avatar.twig' with {name: w.name ?: _anon, id: w.uid ?: null, src: w.photo|default(''), size: 44, named: true} only %}
-            <span class="vp-wall__n">{{ w.name ? w.name|split(' ')|first : _anon }}</span>
-          </li>
-          {% endfor %}
-        </ul>
-        {% if spotlight.people > spotlight.wall|length %}<p class="vp-spot__sub">{{ 'And %n% more people. Thank you, every one of you.'|trans({'%n%': (spotlight.people - spotlight.wall|length)|number_format}) }}</p>{% else %}<p class="vp-spot__sub">{{ 'Thank you, every one of you.'|trans }}</p>{% endif %}
-        {% endif %}
-        <p class="vp-note">{{ 'Verified votes only, counted per person. Members appear with their own name and photo and can take themselves off; anybody else is named only if they asked. Ties go to whoever got there first.'|trans }}</p>
-      </section>
-      {% endif %}
+      {# The Supporter Spotlight has its own page since 16 Nov 2026 (VoteController::spotlight,
+         pages/vote-spotlight.twig): a section here at the foot of every race was the "terrible"
+         part. The campaign card above links to it. #}
 
       {# ── What a supporter's votes unlock — the host's own ladder, never a default ── #}
       {% if _c.ladder|length %}

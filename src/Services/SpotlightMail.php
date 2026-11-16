@@ -120,7 +120,7 @@ final class SpotlightMail
         $place = $c['community'] !== '' ? $c['community'] : $title;
         $votes = (int) ($who['votes'] ?? 0);
         $for = (string) ($who['for'] ?? '');
-        $board = $site . '/vote/' . rawurlencode((string) $prog->slug);
+        $board = $site . '/vote/' . rawurlencode((string) $prog->slug) . '/spotlight';
         $off = self::hideUrl($site, (string) $who['key']);
         $named = ($who['name'] ?? null) !== null;
 

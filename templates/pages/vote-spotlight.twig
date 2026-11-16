@@ -1,0 +1,144 @@
+{% extends 'layout/shell.twig' %}
+{#
+  /vote/{programme}/spotlight — THE SUPPORTER SPOTLIGHT, ITS OWN PAGE (VoteController::spotlight).
+
+  Owner, 16 Nov 2026: "create a page for the supporter spotlight instead. UX is terrible there.
+  SPA, no full reload". It was a section at the foot of the ballot; now it has an address that a
+  Spotlight email, a share and the campaign card all open, and two tabs:
+
+    Honours     today's champion, the mobiliser of the week, the top supporters this edition
+    Everybody   everybody who has backed somebody, ranked, the unnamed included
+
+  A signed-in supporter is told their own place first — the thing they most want to know — by
+  the board's own rule (SupporterSpotlight::standingOf), and what their votes have unlocked.
+
+  No page script: the tabs are links in `data-tabs`, so site-nav fetches them ahead and swaps
+  them in place, and the page needs nothing to run again on a swap.
+  Colour: one green action (the ballot); gold only as line and ink — the rings, the ranks.
+#}
+{% set colour_tier = '2' %}
+{% set _p = programme %}
+{% set _c = campaign %}
+{% set _s = spotlight %}
+{% set _base = '/vote/' ~ _p.slug %}
+{% set _here = _base ~ '/spotlight' %}
+{% set _anon = 'A proud supporter'|trans %}
+{% set app_bar = {variant: 'child', title: 'Supporter spotlight'|trans, sub: _p.title, back: _base, share: true} %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/vote.css') }}">{% endblock %}
+
+{% macro me(keys, s) %}{% if s.key in keys %}<span class="vp-spot__me">{{ 'That’s you'|trans }} · <a href="/spotlight/hide">{{ 'Take me off'|trans }}</a></span>{% endif %}{% endmacro %}
+{% import _self as m %}
+
+{% block content %}
+<div class="sp">
+  <header class="sp-head">
+    {% if _c.community %}<p class="vp-why__kicker"><span class="vp-why__dot" aria-hidden="true"></span>{{ '%place% is celebrating its own'|trans({'%place%': _c.community}) }}</p>{% endif %}
+    <h1 class="sp-head__h">{{ 'Supporter spotlight'|trans }}</h1>
+    <p class="sp-head__lede">
+      {% if _s.people == 0 %}
+        {{ 'Nobody has backed a nominee in %award% yet. The first vote puts you here.'|trans({'%award%': _p.title}) }}
+      {% elseif _s.people == 1 %}
+        {{ 'One person has backed their own in %award%. Thank you.'|trans({'%award%': _p.title}) }}
+      {% else %}
+        {{ '%n% people have backed their own in %award%. Thank you, every one of you.'|trans({'%n%': _s.people|number_format, '%award%': _p.title}) }}
+      {% endif %}
+    </p>
+    <div class="sp-head__acts"><a class="ag-btn ag-btn--primary ag-btn--pill" href="{{ _base }}#vp-race">{{ me ? 'Back someone again'|trans : 'Back someone'|trans }}</a></div>
+  </header>
+
+  {# The signed-in supporter's own place: by the board's rule, with what it has unlocked. #}
+  {% if me %}
+  <section class="sp-you" aria-labelledby="sp-you-h">
+    <h2 class="sp-you__h" id="sp-you-h">{{ 'You’re number %r% of %n% supporters'|trans({'%r%': me.rank, '%n%': me.people|number_format}) }}</h2>
+    <p class="sp-you__d">
+      {{- me.votes == 1 ? 'One vote from you in this edition.'|trans : '%n% votes from you in this edition.'|trans({'%n%': me.votes|number_format}) -}}
+      {%- if me.standing.have|length %} {{ 'Unlocked: %b%.'|trans({'%b%': (me.standing.have|last).benefit}) }}{% endif -%}
+      {%- if me.standing.next %} {{ (me.standing.next.more == 1 ? 'One more vote unlocks %b%.' : '%n% more votes unlock %b%.')|trans({'%n%': me.standing.next.more|number_format, '%b%': me.standing.next.benefit}) }}{% endif -%}
+    </p>
+  </section>
+  {% endif %}
+
+  <nav class="vp-tabs sp-tabs" aria-label="{{ 'Spotlight sections'|trans }}" data-tabs="spotlight">
+    <div class="vp-tabs__in">
+      <a class="vp-tab" href="{{ _here }}"{% if tab == 'honours' %} aria-current="page"{% endif %}>{{ 'Honours'|trans }}</a>
+      <a class="vp-tab" href="{{ _here }}?tab=everybody"{% if tab == 'everybody' %} aria-current="page"{% endif %}>{{ 'Everybody'|trans }}{% if _s.people %} <span class="sp-tab__n">{{ _s.people|number_format }}</span>{% endif %}</a>
+    </div>
+  </nav>
+
+  {% if tab == 'honours' %}
+  <section class="vp-spot sp-sec" aria-labelledby="sp-hon-h">
+    {# Named for a screen reader only: the tab above already says Honours to the eye. #}
+    <h2 class="ag-sr" id="sp-hon-h">{{ 'Honours'|trans }}</h2>
+    <div class="vp-spot__honours">
+      <div class="vp-hon">
+        {% set _ch = _s.champion %}
+        {% include 'partials/avatar.twig' with {name: _ch ? (_ch.name ?: _anon) : 'Champion'|trans, id: _ch.uid|default(null) ?: null, src: _ch.photo|default(''), size: 56, named: true} only %}
+        <span class="vp-hon__t">
+          <span class="vp-hon__k">{{ 'Champion of the day'|trans }}</span>
+          {% if _ch %}
+            <b class="vp-hon__n">{{ _ch.name ?: _anon }}</b>
+            <span class="vp-hon__d">{{ _ch.votes == 1 ? '1 vote today'|trans : '%n% votes today'|trans({'%n%': _ch.votes|number_format}) }}{% if _ch.for %} · {{ 'for %name%'|trans({'%name%': _ch.for}) }}{% endif %}</span>
+            {{ m.me(my_keys, _ch) }}
+          {% else %}
+            <b class="vp-hon__n">{{ 'Still open today'|trans }}</b>
+            <span class="vp-hon__d">{{ 'The most votes from one person today, West Africa Time, takes it.'|trans }}</span>
+          {% endif %}
+        </span>
+      </div>
+      <div class="vp-hon">
+        {% set _mo = _s.mobiliser %}
+        {% include 'partials/avatar.twig' with {name: _mo ? (_mo.name ?: _anon) : 'Mobiliser'|trans, id: _mo.uid|default(null) ?: null, src: _mo.photo|default(''), size: 56, named: true} only %}
+        <span class="vp-hon__t">
+          <span class="vp-hon__k">{{ 'Mobiliser of the week'|trans }}</span>
+          {% if _mo %}
+            <b class="vp-hon__n">{{ _mo.name ?: _anon }}</b>
+            <span class="vp-hon__d">{{ _mo.people == 1 ? 'Brought 1 person to vote this week'|trans : 'Brought %n% people to vote this week'|trans({'%n%': _mo.people|number_format}) }}</span>
+            {{ m.me(my_keys, _mo) }}
+          {% else %}
+            <b class="vp-hon__n">{{ 'Still open this week'|trans }}</b>
+            <span class="vp-hon__d">{{ 'Whoever brings the most people to vote through their own link this week takes it.'|trans }}</span>
+          {% endif %}
+        </span>
+      </div>
+    </div>
+
+    {% if _s.top|length %}
+    <h3 class="vp-spot__t">{{ 'Top supporters this edition'|trans }}</h3>
+    <ol class="vp-spot__list">
+      {% for s in _s.top %}
+      <li class="vp-spot__row">
+        <span class="vp-spot__r">{{ loop.index }}</span>
+        {% include 'partials/avatar.twig' with {name: s.name ?: _anon, id: s.uid ?: null, src: s.photo|default(''), size: 44, named: true} only %}
+        <span class="vp-spot__who"><b>{{ s.name ?: _anon }}</b>{% if s.for %}<span>{{ 'Backing %name%'|trans({'%name%': s.for}) }}</span>{% endif %}{{ m.me(my_keys, s) }}</span>
+        <span class="vp-spot__v">{{ s.votes == 1 ? '1 vote'|trans : '%n% votes'|trans({'%n%': s.votes|number_format}) }}</span>
+      </li>
+      {% endfor %}
+    </ol>
+    {% if _s.people > _s.top|length %}<a class="sp-more" href="{{ _here }}?tab=everybody">{{ 'See everybody backing their own'|trans }}</a>{% endif %}
+    {% endif %}
+  </section>
+
+  {% else %}
+  <section class="vp-spot sp-sec" aria-labelledby="sp-all-h">
+    <h2 class="vp-spot__h" id="sp-all-h">{{ 'Everybody backing their own'|trans }}</h2>
+    {% if _s.wall|length %}
+      <p class="vp-spot__sub">{{ 'In order of votes. Every one of them counted.'|trans }}</p>
+      <ol class="sp-wall">
+        {% for w in _s.wall %}
+        <li class="sp-wall__p">
+          <span class="sp-wall__r">{{ loop.index }}</span>
+          {% include 'partials/avatar.twig' with {name: w.name ?: _anon, id: w.uid ?: null, src: w.photo|default(''), size: 44, named: true} only %}
+          <span class="sp-wall__t"><b>{{ w.name ?: _anon }}</b><span>{{ w.votes == 1 ? '1 vote'|trans : '%n% votes'|trans({'%n%': w.votes|number_format}) }}</span>{{ m.me(my_keys, w) }}</span>
+        </li>
+        {% endfor %}
+      </ol>
+      {% if _s.people > _s.wall|length %}<p class="vp-spot__sub">{{ 'And %n% more people. Thank you, every one of you.'|trans({'%n%': (_s.people - _s.wall|length)|number_format}) }}</p>{% endif %}
+    {% else %}
+      <p class="vp-spot__sub">{{ 'Nobody yet. The first vote puts you here.'|trans }}</p>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  <p class="vp-note sp-rules">{{ 'Verified votes only, counted per person. Members appear with their own name and photo and can take themselves off; anybody else is named only if they asked. Ties go to whoever got there first.'|trans }}</p>
+</div>
+{% endblock %}

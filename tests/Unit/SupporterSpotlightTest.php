@@ -209,14 +209,21 @@ final class SupporterSpotlightTest extends TestCase
 
         $blank = $this->page();
         $this->assertStringContainsString('class="vp-why"', $blank, 'an award with no campaign typed does not celebrate anybody');
-        $this->assertStringContainsString('class="vp-spot"', $blank);
+        // The Spotlight is its own page (owner: "create a page for the supporter spotlight
+        // instead"), linked from the card, and no longer a section at the foot of the ballot.
+        $this->assertStringContainsString('href="/vote/spot-award/spotlight">See the Spotlight</a>', $blank);
+        $this->assertStringNotContainsString('class="vp-spot"', $blank, 'the Spotlight is still drawn under the ballot');
         $this->assertStringContainsString('Join 2 people backing their own.', $blank);
         $this->assertStringNotContainsString('would make you today’s champion', $blank, 'the contest with your neighbour is back');
         $this->assertStringNotContainsString('for CACENTRE', $blank, 'a beneficiary nobody named');
-        // The wall is everybody — the unnamed free voter too.
-        $this->assertSame(2, substr_count($blank, 'class="vp-wall__p"'), 'somebody who voted is missing from the wall');
-        $this->assertStringContainsString('A proud supporter', $blank);
         $this->assertStringContainsString('vp-body vp-body--one', $blank, 'one category fell into the category rail’s column on a desktop');
+        // The wall is everybody — the unnamed free voter too — in order of votes.
+        $all = $this->spot('everybody');
+        $this->assertSame(2, substr_count($all, 'class="sp-wall__p"'), 'somebody who voted is missing from the wall');
+        $this->assertStringContainsString('A proud supporter', $all);
+        $this->assertLessThan(strpos($all, 'A proud supporter</b>'), strpos($all, 'Adaeze Okafor</b>'), 'not in order of votes');
+        $this->assertStringContainsString('2 people have backed their own in Spot Award', $all);
+        $this->assertMatchesRegularExpression('~href="/vote/spot-award/spotlight\?tab=everybody" aria-current="page"~', $all);
 
         $this->assertNull(AwardCampaign::save(self::P, ['community' => 'Alimosho', 'rally' => 'Who will celebrate our own, if not us?',
             'ladder_votes' => ['5'], 'ladder_benefit' => ['A learning resource']]));
@@ -224,11 +231,60 @@ final class SupporterSpotlightTest extends TestCase
         $this->assertStringContainsString('Who will celebrate our own, if not us?', $html);
         $this->assertStringContainsString('Alimosho is celebrating its own', $html);
         $this->assertStringContainsString('Join 2 people celebrating Alimosho’s own.', $html);
-        $this->assertMatchesRegularExpression('~Champion of the day</span>\s*<b class="vp-hon__n">Adaeze Okafor</b>~', $html);
         $this->assertStringContainsString('A learning resource', $html);
+        $hon = $this->spot();
+        $this->assertMatchesRegularExpression('~Champion of the day</span>\s*<b class="vp-hon__n">Adaeze Okafor</b>~', $hon);
+        $this->assertStringContainsString('Alimosho is celebrating its own', $hon);
+        $this->assertStringNotContainsString('<h2 class="vp-spot__h" id="sp-hon-h">', $hon, 'the tab’s name drawn again as a heading under it');
 
         $this->assertNull(AwardCampaign::save(self::P, ['community' => 'Alimosho', 'spotlight_off' => '1']));
-        $this->assertStringNotContainsString('class="vp-spot"', $this->page(), 'the host could not switch the Spotlight off');
+        $this->assertStringNotContainsString('See the Spotlight', $this->page(), 'the host could not switch the Spotlight off');
+        $this->assertSame('/vote/spot-award', $this->spotResponse()->getHeaderLine('Location'), 'a Spotlight link from before it was switched off is a dead end');
+    }
+
+    /** A signed-in supporter is told their own place first, and what it has unlocked. */
+    public function test_the_spotlight_page_tells_a_member_where_they_stand(): void
+    {
+        $at = Carbon::now()->toDateTimeString();
+        $this->order('big@example.test', 50, self::A, $at, 'Big', true);
+        $this->order('me@example.test', 7, self::A, $at, 'Me', true);
+        $this->assertNull(AwardCampaign::save(self::P, ['ladder_votes' => ['5', '10'], 'ladder_benefit' => ['A thank-you card', 'A learning resource']]));
+        $this->assertStringNotContainsString('class="sp-you"', $this->spot(), 'a visitor nobody knows was given a place');
+        foreach ([[$this->member('novote@example.test', 'No Votes'), 'somebody who has given nothing was given a place'],
+                  [$this->member('big@example.test', 'Not Big', null, 0), 'an unverified account was handed somebody else’s place']] as [$uid, $why]) {
+            $_SESSION['user_id'] = $uid;
+            try { $this->assertStringNotContainsString('class="sp-you"', $this->spot(), $why); } finally { unset($_SESSION['user_id']); }
+        }
+        $_SESSION['user_id'] = $this->member('me@example.test', 'Me Myself');
+        try {
+            $html = $this->spot();
+        } finally {
+            unset($_SESSION['user_id']);
+        }
+        $this->assertStringContainsString('You’re number 2 of 2 supporters', $html);
+        $this->assertStringContainsString('7 votes from you in this edition. Unlocked: A thank-you card. 3 more votes unlock A learning resource.', $html);
+        $this->assertStringContainsString('Back someone again', $html);
+
+        // Through the real router: the page answers at its address, and the nominee route's
+        // {slug} placeholder does not swallow it.
+        $routed = \Tests\Support\ChromeRender::page('/vote/spot-award/spotlight');
+        $this->assertSame(200, $routed->getStatusCode());
+        $this->assertStringContainsString('<h1 class="sp-head__h">Supporter spotlight</h1>', (string) $routed->getBody(), 'the address is answered by another route');
+    }
+
+    private function spotResponse(string $tab = ''): \Psr\Http\Message\ResponseInterface
+    {
+        $b = new \DI\ContainerBuilder();
+        $b->addDefinitions(require dirname(__DIR__, 2) . '/config/container.php');
+        $req = (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET', '/vote/spot-award/spotlight')->withQueryParams($tab ? ['tab' => $tab] : []);
+        return $b->build()->get(\AfricaGates\Controllers\VoteController::class)->spotlight($req, new \Slim\Psr7\Response(), ['program' => 'spot-award']);
+    }
+
+    private function spot(string $tab = ''): string
+    {
+        $res = $this->spotResponse($tab);
+        $this->assertSame(200, $res->getStatusCode());
+        return (string) $res->getBody();
     }
 
     /** Right after giving, where they stand: their place among everybody, by the board's rule. */

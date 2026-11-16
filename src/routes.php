@@ -2330,6 +2330,8 @@ return function(App $app) {
         // the slug route requires a leading digit, but the ordering is what the rest of
         // this block already relies on and it should not be the one exception.
         $g->get('/vote/{program}/tallies', VoteController::class.':tallies');
+        // Before /vote/{program}/{slug}, which would otherwise answer it as a nominee.
+        $g->get('/vote/{program}/spotlight', VoteController::class.':spotlight');
         // The flier routes go BEFORE /vote/{program}/{slug}: FastRoute matches in
         // declaration order for same-length paths, and `{slug}` would otherwise
         // swallow nothing here — but `{slug}/flier` is longer, so order is not

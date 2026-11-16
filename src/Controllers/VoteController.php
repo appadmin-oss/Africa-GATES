@@ -196,8 +196,6 @@ class VoteController {
             'raised'           => $raised,
             'supporters'       => $spotlight ? (int) $spotlight['people'] : 0,
             'champion'         => $spotlight['champion'] ?? null,
-            // Whose row is "you", so a signed-in member can take themselves off in one tap.
-            'my_keys'          => \AfricaGates\Services\SupporterSpotlight::keysForUser((int) ($_SESSION['user_id'] ?? 0)),
             'vote_price'       => $price,
             'paid_only'        => PaidVoteService::freeVotingDisabled(),
             'page_title'       => $p['title'] . ' — Vote — Africa GATES',
@@ -213,6 +211,57 @@ class VoteController {
                 ['label' => 'Vote',      'url' => '/vote'],
                 ['label' => $p['title'], 'url' => null],
             ],
+        ]);
+    }
+
+    /**
+     * /vote/{program}/spotlight — THE SUPPORTER SPOTLIGHT, ON ITS OWN PAGE (owner, 16 Nov 2026:
+     * "create a page for the supporter spotlight instead. UX is terrible there. SPA, no full
+     * reload").
+     *
+     * It was a section at the foot of the ballot, under every category's race: a wall of sixty
+     * faces, two honours and a top five that a voter scrolled through to reach the questions,
+     * and that nobody arriving from a Spotlight email could land on. Here it is a page with an
+     * address, two tabs (?tab=everybody is the wall, ranked) and the person's own place when
+     * they are signed in. It is an ordinary public page, so site-nav swaps it in place.
+     *
+     * A host who switched the Spotlight off gets the ballot, not a 404: the link may be in an
+     * email from before they did.
+     */
+    public function spotlight(Request $req, Response $res, array $args): Response {
+        $p = $this->awards->getProgrammeBySlug((string) ($args['program'] ?? ''));
+        if (!$p) return $res->withHeader('Location', '/vote')->withStatus(302);
+        $base = '/vote/' . $p['slug'];
+        $campaign = \AfricaGates\Support\AwardCampaign::forProgramme((int) $p['id']);
+        $cycleId  = (int) (($p['cycle']['id'] ?? null) ?: ($p['cycle_id'] ?? 0));
+        if (!$campaign['spotlight'] || $cycleId < 1) return $res->withHeader('Location', $base)->withStatus(302);
+        $tab = ($req->getQueryParams()['tab'] ?? '') === 'everybody' ? 'everybody' : 'honours';
+        $spot = \AfricaGates\Services\SupporterSpotlight::forCycle($cycleId);
+
+        // The signed-in supporter's own place, by the board's own rule — the thing they most
+        // want to know, and true: SupporterSpotlight::standingOf counts as the board counts.
+        $uid = (int) ($_SESSION['user_id'] ?? 0);
+        $me = null;
+        if ($uid > 0) {
+            $email = (string) (DB::table('gates_users')->where('id', $uid)->where('email_verified', 1)->value('email') ?? '');
+            if ($email !== '') {
+                $st = \AfricaGates\Services\SupporterSpotlight::standingOf($cycleId, $email);
+                if ($st['votes'] > 0) $me = $st + ['standing' => \AfricaGates\Support\AwardCampaign::standing($campaign, $st['votes'])];
+            }
+        }
+        $edition = $p['cycle'] ? \AfricaGates\Support\EditionName::label((object) $p['cycle']) : '';
+
+        return $this->view->render($res, 'pages/vote-spotlight.twig', [
+            'programme'        => $p,
+            'campaign'         => $campaign,
+            'spotlight'        => $spot,
+            'tab'              => $tab,
+            'me'               => $me,
+            'edition'          => $edition,
+            'my_keys'          => \AfricaGates\Services\SupporterSpotlight::keysForUser($uid),
+            'page_title'       => 'Supporter spotlight — ' . $p['title'] . ' — Africa GATES',
+            'meta_description' => 'The people backing their own in ' . $p['title'] . ': today’s champion, the mobiliser of the week, the top supporters and everybody else.',
+            'gates_page'       => 'awards',
         ]);
     }
 
