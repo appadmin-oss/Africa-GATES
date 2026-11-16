@@ -162,6 +162,9 @@
 .vb-tier:has(input:focus-visible){ outline:3px solid var(--ag-green); outline-offset:2px }
 .vb-tier__q{ font-weight:700; font-size:var(--ag-fs-15); font-variant-numeric:tabular-nums }
 .vb-tier__p{ font-size:var(--ag-fs-11-5); color:var(--ag-soft) }
+/* `soft` is 4.80:1 on the ground and 4.38 on `tint` (Accent::words leaves tint out of its row),
+   so the chosen tier's price, drawn on tint, takes ink-2. */
+.vb-tier:has(input:checked) .vb-tier__p{ color:var(--ag-ink-2) }
 .vb-field{ display:flex; flex-direction:column; gap:5px }
 .vb-label{ font-weight:600; font-size:var(--ag-fs-13); color:var(--ag-ink) }
 .vb-label__o{ font-weight:400; color:var(--ag-soft) }

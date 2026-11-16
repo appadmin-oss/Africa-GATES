@@ -86,6 +86,8 @@
     </div>
   </div>
 {% endmacro %}
+{# "That's you": a signed-in member's own entry on the Spotlight, with the one tap off it. #}
+{% macro me(keys, s) %}{% if s.key in keys %}<span class="vp-spot__me">{{ 'That’s you'|trans }} · <a href="/spotlight/hide">{{ 'Take me off'|trans }}</a></span>{% endif %}{% endmacro %}
 {% import _self as m %}
 
 {% block content %}
@@ -124,22 +126,52 @@
     <p class="vp-hero__line">{{ _f.meta }}</p>
   </div>
 
-  {# ── Why vote: the award's own campaign (Support\AwardCampaign) ─────────────────
-     The host's rally line, promise and the share of each vote a named beneficiary
-     receives. Nothing here is a default claim: a blank campaign draws nothing. #}
+  {# ── WHY VOTE: the award's campaign, as a celebration card (Support\AwardCampaign) ──
+     The handoff's celebration card (Celebration.dc.html, `win`: gold wash, the white kicker
+     pill, the Playfair title, white stat tiles) carrying what is TRUE right now — what the
+     named beneficiary has received from verified votes, how many people have backed their
+     own, who is today's champion — then the one nudge that turns reading into voting, and
+     the next step. Every figure comes off the ledger; nothing here is a default claim. #}
   {% set _c = campaign %}
-  {% if _c.rally or _c.promise or impact %}
-  <section class="vp-rally" aria-labelledby="vp-rally-h">
-    <div class="vp-rally__in">
-      {% if _c.community %}<p class="vp-rally__k">{{ '%place% celebrates its own'|trans({'%place%': _c.community}) }}</p>{% endif %}
-      <h2 class="vp-rally__h" id="vp-rally-h">{{ _c.rally ?: 'Celebrate your own'|trans }}</h2>
-      {% if _c.promise %}<p class="vp-rally__p">{{ _c.promise }}</p>{% endif %}
-      {% if impact %}
-      <p class="vp-rally__impact">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-4.4-9.3-9A5.2 5.2 0 0 1 12 6.1 5.2 5.2 0 0 1 21.3 12C19 16.6 12 21 12 21z"/></svg>
-        <span>{{ impact }}{% if _c.remainder_note %} {{ _c.remainder_note }}{% endif %}</span>
-      </p>
+  {% set _place = _c.community %}
+  {% set _first_rung = _c.ladder|first %}
+  {% if _c.rally or _c.promise or impact or raised > 0 %}
+  <section class="vp-why" aria-labelledby="vp-why-h">
+    <div class="vp-why__in">
+      <p class="vp-why__kicker"><span class="vp-why__dot" aria-hidden="true"></span>{{ _place ? '%place% is celebrating its own'|trans({'%place%': _place}) : 'Celebrate your own'|trans }}</p>
+      <h2 class="vp-why__h" id="vp-why-h">{{ _c.rally ?: 'Celebrate your own'|trans }}</h2>
+      {% if _c.promise %}<p class="vp-why__sub">{{ _c.promise }}</p>{% endif %}
+
+      {% if raised > 0 or supporters > 0 or champion %}
+      <ul class="vp-why__stats">
+        {% if raised > 0 %}<li class="vp-why__stat"><b>₦{{ raised|number_format }}</b><span>{{ 'for %who% so far'|trans({'%who%': _c.beneficiary}) }}</span></li>{% endif %}
+        {% if supporters > 0 %}<li class="vp-why__stat"><b>{{ supporters|number_format }}</b><span>{{ supporters == 1 ? 'person backing their own'|trans : 'people backing their own'|trans }}</span></li>{% endif %}
+        {% if champion %}
+        <li class="vp-why__stat vp-why__stat--who">
+          {% include 'partials/avatar.twig' with {name: champion.name ?: 'Anonymous supporter'|trans, id: champion.uid ?: null, src: champion.photo|default(''), size: 44, named: true} only %}
+          <span class="vp-why__who"><b>{{ champion.name ?: 'Anonymous supporter'|trans }}</b><span>{{ 'Today’s champion · %n%'|trans({'%n%': champion.votes == 1 ? '1 vote'|trans : '%n% votes'|trans({'%n%': champion.votes|number_format})}) }}</span></span>
+        </li>
+        {% endif %}
+      </ul>
       {% endif %}
+
+      {# The nudge: one concrete thing a vote does next. A crown that is within reach is the
+         strongest reason there is; failing that, the first thing a vote unlocks. #}
+      {% if _f.open %}
+        {% if champion and vote_price > 0 %}
+          <p class="vp-why__nudge">{{ '%n% votes would make you today’s champion.'|trans({'%n%': (champion.votes + 1)|number_format}) }}{% if _first_rung %} {{ _first_rung.votes == 1 ? 'One vote unlocks %b%.'|trans({'%b%': _first_rung.benefit|lower}) : '%n% votes unlock %b%.'|trans({'%n%': _first_rung.votes|number_format, '%b%': _first_rung.benefit|lower}) }}{% endif %}</p>
+        {% elseif _first_rung %}
+          <p class="vp-why__nudge">{{ _first_rung.votes == 1 ? 'One vote unlocks %b%.'|trans({'%b%': _first_rung.benefit|lower}) : '%n% votes unlock %b%.'|trans({'%n%': _first_rung.votes|number_format, '%b%': _first_rung.benefit|lower}) }}</p>
+        {% elseif not champion and spotlight %}
+          <p class="vp-why__nudge">{{ 'Nobody has voted today yet. Your vote makes you today’s champion.'|trans }}</p>
+        {% endif %}
+        <div class="vp-why__do">
+          <a class="ag-btn ag-btn--primary ag-btn--pill" href="#vp-race">{{ 'Choose who to back'|trans }}</a>
+          {% if spotlight and spotlight.people > 0 %}<a class="ag-btn ag-btn--secondary ag-btn--pill" href="#vp-spot-h">{{ 'See the Spotlight'|trans }}</a>{% endif %}
+        </div>
+      {% endif %}
+
+      {% if impact %}<p class="vp-why__impact">{{ impact }}{% if _c.remainder_note %} {{ _c.remainder_note }}{% endif %}</p>{% endif %}
     </div>
   </section>
   {% endif %}
@@ -179,7 +211,7 @@
     </div>
     {% endif %}
 
-    <div class="vp-race-wrap">
+    <div class="vp-race-wrap" id="vp-race">
       {% if categories|length %}
       {% if _many %}
       <section class="vp-view" data-view="all" aria-labelledby="view-all-t"{% if _view != 'all' %} hidden{% endif %}>
@@ -200,9 +232,11 @@
       {% endfor %}
       <p class="vp-note">{{ 'Public votes are one part of the score; the judges decide the rest.'|trans }}</p>
 
-      {# ── The Supporter Spotlight (Services\SupporterSpotlight) ────────────────────
-         The people behind the nominees. Ranked over everybody, NAMED only where somebody
-         ticked "show my name" — an unnamed champion is still the champion. #}
+      {# ── THE SUPPORTER SPOTLIGHT (Services\SupporterSpotlight) ───────────────────
+         The people behind the nominees. Ranked over everybody; an account holder appears
+         with their own name and photo, and can take themselves off in one tap (here when
+         signed in, and in every message the Spotlight sends); anybody else is named only
+         where they ticked "show my name". An unnamed champion is still the champion. #}
       {% if spotlight and spotlight.people > 0 %}
       {% set _anon = 'Anonymous supporter'|trans %}
       <section class="vp-spot" aria-labelledby="vp-spot-h">
@@ -212,22 +246,30 @@
         </div>
         <div class="vp-spot__honours">
           <div class="vp-hon">
-            <span class="vp-hon__i" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="6"/><path d="m8.5 14-1.5 7 5-2.5 5 2.5-1.5-7"/></svg></span>
-            <span class="vp-hon__k">{{ 'Champion of the day'|trans }}</span>
-            {% if spotlight.champion %}
-              <b class="vp-hon__n">{{ spotlight.champion.name ?: _anon }}</b>
-              <span class="vp-hon__d">{{ spotlight.champion.votes == 1 ? '1 vote today'|trans : '%n% votes today'|trans({'%n%': spotlight.champion.votes|number_format}) }}{% if spotlight.champion.for %} · {{ 'for %name%'|trans({'%name%': spotlight.champion.for}) }}{% endif %}</span>
-            {% else %}
-              <b class="vp-hon__n">{{ 'Still open today'|trans }}</b>
-              <span class="vp-hon__d">{{ 'The most votes from one person today, West Africa Time, takes it.'|trans }}</span>
-            {% endif %}
+            {% set _ch = spotlight.champion %}
+            {% include 'partials/avatar.twig' with {name: _ch ? (_ch.name ?: _anon) : 'Champion'|trans, id: _ch.uid|default(null) ?: null, src: _ch.photo|default(''), size: 56, named: true} only %}
+            <span class="vp-hon__t">
+              <span class="vp-hon__k">{{ 'Champion of the day'|trans }}</span>
+              {% if _ch %}
+                <b class="vp-hon__n">{{ _ch.name ?: _anon }}</b>
+                <span class="vp-hon__d">{{ _ch.votes == 1 ? '1 vote today'|trans : '%n% votes today'|trans({'%n%': _ch.votes|number_format}) }}{% if _ch.for %} · {{ 'for %name%'|trans({'%name%': _ch.for}) }}{% endif %}</span>
+                {{ m.me(my_keys, _ch) }}
+              {% else %}
+                <b class="vp-hon__n">{{ 'Still open today'|trans }}</b>
+                <span class="vp-hon__d">{{ 'The most votes from one person today, West Africa Time, takes it.'|trans }}</span>
+              {% endif %}
+            </span>
           </div>
           {% if spotlight.mobiliser %}
+          {% set _mo = spotlight.mobiliser %}
           <div class="vp-hon">
-            <span class="vp-hon__i" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18.5 20a6.5 6.5 0 0 0-3-5.5"/></svg></span>
-            <span class="vp-hon__k">{{ 'Mobiliser of the week'|trans }}</span>
-            <b class="vp-hon__n">{{ spotlight.mobiliser.name ?: _anon }}</b>
-            <span class="vp-hon__d">{{ spotlight.mobiliser.people == 1 ? 'Brought 1 person to vote this week'|trans : 'Brought %n% people to vote this week'|trans({'%n%': spotlight.mobiliser.people|number_format}) }}</span>
+            {% include 'partials/avatar.twig' with {name: _mo.name ?: _anon, id: _mo.uid ?: null, src: _mo.photo|default(''), size: 56, named: true} only %}
+            <span class="vp-hon__t">
+              <span class="vp-hon__k">{{ 'Mobiliser of the week'|trans }}</span>
+              <b class="vp-hon__n">{{ _mo.name ?: _anon }}</b>
+              <span class="vp-hon__d">{{ _mo.people == 1 ? 'Brought 1 person to vote this week'|trans : 'Brought %n% people to vote this week'|trans({'%n%': _mo.people|number_format}) }}</span>
+              {{ m.me(my_keys, _mo) }}
+            </span>
           </div>
           {% endif %}
         </div>
@@ -237,13 +279,14 @@
           {% for s in spotlight.top %}
           <li class="vp-spot__row">
             <span class="vp-spot__r">{{ loop.index }}</span>
-            <span class="vp-spot__who"><b>{{ s.name ?: _anon }}</b>{% if s.for %}<span>{{ 'Backing %name%'|trans({'%name%': s.for}) }}</span>{% endif %}</span>
+            {% include 'partials/avatar.twig' with {name: s.name ?: _anon, id: s.uid ?: null, src: s.photo|default(''), size: 44, named: true} only %}
+            <span class="vp-spot__who"><b>{{ s.name ?: _anon }}</b>{% if s.for %}<span>{{ 'Backing %name%'|trans({'%name%': s.for}) }}</span>{% endif %}{{ m.me(my_keys, s) }}</span>
             <span class="vp-spot__v">{{ s.votes == 1 ? '1 vote'|trans : '%n% votes'|trans({'%n%': s.votes|number_format}) }}</span>
           </li>
           {% endfor %}
         </ol>
         {% endif %}
-        <p class="vp-note">{{ 'Verified votes only, counted per person. Names appear only for supporters who chose to be shown. Ties go to whoever got there first.'|trans }}</p>
+        <p class="vp-note">{{ 'Verified votes only, counted per person. Members appear with their own name and photo and can take themselves off; anybody else is named only if they asked. Ties go to whoever got there first.'|trans }}</p>
       </section>
       {% endif %}
 

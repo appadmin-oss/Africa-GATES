@@ -202,6 +202,11 @@ final class Maintenance
             // ticket alerts beside it, and each row is CLAIMED before it is sent (AwardAlert).
             $ran[] = ['award-alerts', $this->task('award-alerts',
                 fn() => \AfricaGates\Services\AwardAlert::sweep($this->mailer()))];
+            // The Supporter Spotlight's messages (SpotlightMail): yesterday's Champion of the Day
+            // once the Lagos day is over, last week's Mobiliser on Monday, and a first place in
+            // the top supporters. Every tick, cheap when nothing is new; each is CLAIMED first.
+            $ran[] = ['spotlight-mail', $this->task('spotlight-mail',
+                fn() => \AfricaGates\Services\SpotlightMail::sweep($this->mailer()))];
             // Volunteers' reminders (Volunteer\Reminders): the day before a meeting, training
             // about to lapse. Every tick; each message is claimed before it is sent, so
             // overlapping ticks never send one twice.

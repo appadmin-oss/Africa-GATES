@@ -181,14 +181,24 @@ class VoteController {
         // Supporter Spotlight for this edition. Both draw nothing until an operator says so.
         $campaign  = \AfricaGates\Support\AwardCampaign::forProgramme((int) $p['id']);
         $cycleId   = (int) (($p['cycle']['id'] ?? null) ?: ($p['cycle_id'] ?? 0));
-        $spotlight = $campaign['spotlight'] && $cycleId > 0 && $tab === 'vote'
+        $price     = PaidVoteService::enabled() ? PaidVoteService::pricePerVote() : 0;
+        $sharePer  = $campaign['beneficiary'] !== '' && $campaign['share_pct'] > 0 ? intdiv($price * $campaign['share_pct'], 100) : 0;
+        $spotlight = ($campaign['spotlight'] || $sharePer > 0) && $cycleId > 0 && $tab === 'vote'
             ? \AfricaGates\Services\SupporterSpotlight::forCycle($cycleId) : null;
+        // What the band can say that is TRUE: the beneficiary's share of every verified,
+        // settled contributed vote so far — counted from the ledger, never an estimate.
+        $raised    = $spotlight ? (int) $spotlight['paid'] * $sharePer : 0;
 
         return $this->view->render($res, 'pages/vote-program.twig', [
             'campaign'         => $campaign,
             'impact'           => \AfricaGates\Support\AwardCampaign::impact($campaign),
-            'spotlight'        => $spotlight,
-            'vote_price'       => PaidVoteService::enabled() ? PaidVoteService::pricePerVote() : 0,
+            'spotlight'        => $campaign['spotlight'] ? $spotlight : null,
+            'raised'           => $raised,
+            'supporters'       => $spotlight ? (int) $spotlight['people'] : 0,
+            'champion'         => $spotlight['champion'] ?? null,
+            // Whose row is "you", so a signed-in member can take themselves off in one tap.
+            'my_keys'          => \AfricaGates\Services\SupporterSpotlight::keysForUser((int) ($_SESSION['user_id'] ?? 0)),
+            'vote_price'       => $price,
             'paid_only'        => PaidVoteService::freeVotingDisabled(),
             'page_title'       => $p['title'] . ' — Vote — Africa GATES',
             'meta_description' => 'Vote in ' . $p['title'] . ' — browse the nominees by category and back the African excellence you believe deserves continental recognition.',

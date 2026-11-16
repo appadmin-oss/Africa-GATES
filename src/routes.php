@@ -3572,6 +3572,11 @@ return function(App $app) {
         $g->get('/email/confirm',  \AfricaGates\Controllers\NewsletterController::class . ':confirmShow');
         $g->post('/email/confirm', \AfricaGates\Controllers\NewsletterController::class . ':confirm');
 
+        // The way off the Supporter Spotlight: GET shows, POST hides, for the same mail-scanner
+        // reason as the confirmation above. See SpotlightController.
+        $g->get('/spotlight/hide',  \AfricaGates\Controllers\SpotlightController::class . ':show');
+        $g->post('/spotlight/hide', \AfricaGates\Controllers\SpotlightController::class . ':hide');
+
         // SEO: robots.txt + sitemap.xml
         $g->get('/robots.txt', function($req, $res) {
             $scheme = $req->getUri()->getScheme();

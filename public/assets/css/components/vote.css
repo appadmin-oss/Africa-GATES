@@ -330,48 +330,82 @@
   .vp-card__a:hover{ color:var(--ag-green-deep); text-decoration:underline; text-underline-offset:3px }
 }
 
-/* ══ WHY VOTE: the award's campaign and the Supporter Spotlight (16 Nov 2026) ═══════
-   Celebratory by TYPE and by people, not by paint: the page is a transactional tier-2
-   page with two colour events already spent, so the honours are white cards on the
-   ground with a gold spine and gold ink — structure and words, never a gold field. */
-.vp-rally{ padding:0 var(--ag-gutter) }
-.vp-rally__in{ max-width:1180px; margin:0 auto; padding:22px 20px; display:flex; flex-direction:column; gap:8px;
-  background:var(--ag-surface); border:1px solid var(--ag-line); border-inline-start:4px solid var(--ag-gold); border-radius:var(--ag-r-20) }
-.vp-rally__k{ margin:0; font-size:var(--ag-fs-13-5); font-weight:700; color:var(--ag-gold-ink) }
-.vp-rally__h{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-26); line-height:1.15; color:var(--ag-ink); text-wrap:balance }
-.vp-rally__p{ margin:0; font-size:var(--ag-fs-16); line-height:1.5; color:var(--ag-ink-2) }
-.vp-rally__impact{ margin:4px 0 0; display:flex; gap:10px; align-items:flex-start; padding-top:12px; border-top:1px solid var(--ag-line);
-  font-size:var(--ag-fs-14-5); line-height:1.5; color:var(--ag-ink) }
-.vp-rally__impact svg{ flex:none; margin-top:2px; color:var(--ag-green) }
+/* ══ WHY VOTE: the campaign card and the Supporter Spotlight (16 Nov 2026) ═════════
+   The handoff's celebration card, `win` kind (Celebration.dc.html; celebration-card.css
+   carries the same values): the white kicker pill with the gold dot, the Playfair title, and
+   white stat tiles 14 round with a hairline. One accent per block (§6.1): gold here.
+   WITHOUT the card's gold wash, deliberately: this is a tier-2 page (ColourBudgetTest) whose
+   two colour fields are already the page's green action and its live chip, so gold is drawn
+   only as LINE and INK — the card's top edge, the dot as a ring, the rings round the
+   champions — never as a fill. Sizes from the ladder; display sizes fixed per breakpoint. */
+.vp-why{ padding:0 var(--ag-gutter); margin-top:16px }
+.vp-why__in{
+  max-width:1176px; margin:0 auto; padding:20px 18px 22px; box-sizing:border-box;
+  display:flex; flex-direction:column; align-items:flex-start; gap:12px;
+  background:var(--ag-surface);
+  border:1px solid var(--ag-line); border-top:4px solid var(--ag-gold); border-radius:var(--ag-r-24);
+}
+.vp-why__kicker{
+  margin:0; display:inline-flex; align-items:center; gap:8px; min-height:32px; padding:0 12px;
+  border-radius:var(--ag-r-pill); background:var(--ag-surface); border:1px solid var(--ag-line);
+  font-size:var(--ag-fs-13-5); font-weight:600; color:var(--ag-gold-ink);
+}
+.vp-why__dot{ width:9px; height:9px; border-radius:50%; border:3px solid var(--ag-gold); box-sizing:border-box }
+.vp-why__h{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-28); line-height:1.08; letter-spacing:-.015em; color:var(--ag-ink); text-wrap:balance }
+.vp-why__sub{ margin:0; max-width:44ch; font-size:var(--ag-fs-16); line-height:1.55; color:var(--ag-ink-2); text-wrap:pretty }
+.vp-why__stats{ margin:4px 0 0; padding:0; list-style:none; display:flex; flex-wrap:wrap; gap:8px; width:100% }
+.vp-why__stat{
+  flex:1 1 130px; min-width:130px; display:flex; flex-direction:column; gap:3px;
+  padding:12px 16px; border-radius:var(--ag-r-14); background:var(--ag-surface); border:1px solid var(--ag-line);
+}
+.vp-why__stat > b{ font-size:var(--ag-fs-20); font-weight:700; line-height:1; letter-spacing:-.01em; color:var(--ag-ink); font-variant-numeric:tabular-nums }
+.vp-why__stat > span{ font-size:var(--ag-fs-13); line-height:1.4; color:var(--ag-soft) }
+.vp-why__stat--who{ flex-direction:row; align-items:center; gap:12px; flex-basis:220px }
+.vp-why__who{ display:flex; flex-direction:column; gap:3px; min-width:0 }
+.vp-why__who > b{ font-size:var(--ag-fs-15); font-weight:700; line-height:1.25; color:var(--ag-ink); overflow-wrap:anywhere }
+.vp-why__who > span{ font-size:var(--ag-fs-13); color:var(--ag-soft) }
+.vp-why__nudge{ margin:2px 0 0; font-size:var(--ag-fs-16); font-weight:600; line-height:1.5; color:var(--ag-ink); text-wrap:pretty }
+.vp-why__do{ display:grid; grid-template-columns:minmax(0,1fr); gap:8px; width:100% }
+.vp-why__impact{ margin:2px 0 0; padding-top:12px; border-top:1px solid var(--ag-line); width:100%;
+  font-size:var(--ag-fs-13-5); line-height:1.55; color:var(--ag-ink-2) }
+@media (min-width:600px){
+  .vp-why{ margin-top:20px }
+  .vp-why__in{ padding:28px 32px }
+  .vp-why__h{ font-size:var(--ag-fs-34) }
+  .vp-why__stat > b{ font-size:var(--ag-fs-24) }
+  .vp-why__do{ grid-template-columns:auto auto; justify-content:start }
+}
+@media (min-width:1024px){
+  .vp-why__in{ padding:32px 40px }
+}
 
+/* The Spotlight and the ladder: white cards, section heading per §6.2 (DM Sans 700, 19). */
 .vp-spot, .vp-ladder{ display:flex; flex-direction:column; gap:14px; margin-top:8px; padding:20px;
   background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-20) }
 .vp-spot__head{ display:flex; flex-direction:column; gap:4px }
-.vp-spot__h{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-22); line-height:1.2; color:var(--ag-ink) }
-.vp-spot__sub{ margin:0; font-size:var(--ag-fs-14); color:var(--ag-ink-2) }
-.vp-spot__honours{ display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap:12px }
-.vp-hon{ display:flex; flex-direction:column; gap:4px; padding:16px; border:1px solid var(--ag-line); border-inline-start:4px solid var(--ag-gold); border-radius:var(--ag-r-16) }
-.vp-hon__i{ display:flex; color:var(--ag-gold-ink); margin-bottom:2px }
-.vp-hon__k{ font-size:var(--ag-fs-13); font-weight:700; color:var(--ag-gold-ink) }
-.vp-hon__n{ font-family:var(--ag-font-display); font-size:var(--ag-fs-20); line-height:1.25; color:var(--ag-ink); overflow-wrap:anywhere }
+.vp-spot__h{ margin:0; font-size:var(--ag-fs-19); font-weight:700; line-height:1.3; color:var(--ag-ink) }
+.vp-spot__sub{ margin:0; font-size:var(--ag-fs-14-5); line-height:1.5; color:var(--ag-ink-2) }
+.vp-spot__honours{ display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap:12px }
+.vp-hon{ display:flex; align-items:center; gap:14px; padding:16px; border:1px solid var(--ag-line); border-radius:var(--ag-r-16) }
+.vp-hon .ag-avatar{ flex:none; border-radius:50%; box-shadow:0 0 0 2px var(--ag-surface), 0 0 0 4px var(--ag-gold) }
+.vp-hon .ag-avatar img{ border-radius:50% }
+.vp-hon__t{ display:flex; flex-direction:column; gap:3px; min-width:0 }
+.vp-hon__k{ font-size:var(--ag-fs-13); font-weight:600; color:var(--ag-gold-ink) }
+.vp-hon__n{ font-size:var(--ag-fs-17); font-weight:700; line-height:1.25; color:var(--ag-ink); overflow-wrap:anywhere }
 .vp-hon__d{ font-size:var(--ag-fs-13-5); line-height:1.45; color:var(--ag-ink-2) }
-.vp-spot__t{ margin:4px 0 0; font-size:var(--ag-fs-15); font-weight:700; color:var(--ag-ink) }
+.vp-spot__t{ margin:4px 0 0; font-size:var(--ag-fs-16); font-weight:700; color:var(--ag-ink) }
 .vp-spot__list, .vp-ladder__list{ margin:0; padding:0; list-style:none; display:flex; flex-direction:column }
-.vp-spot__row{ display:grid; grid-template-columns:28px minmax(0, 1fr) auto; gap:12px; align-items:center; min-height:52px; padding:8px 0; border-top:1px solid var(--ag-line) }
+.vp-spot__row{ display:grid; grid-template-columns:28px 44px minmax(0, 1fr) auto; gap:12px; align-items:center; min-height:64px; padding:10px 0; border-top:1px solid var(--ag-line) }
 .vp-spot__r{ font-weight:700; font-variant-numeric:tabular-nums; color:var(--ag-gold-ink); text-align:center }
-.vp-spot__who{ display:flex; flex-direction:column; min-width:0 }
+.vp-spot__row:nth-child(-n+3) .vp-spot__r{ display:grid; place-items:center; width:28px; height:28px; border:2px solid var(--ag-gold); border-radius:50% }
+.vp-spot__who{ display:flex; flex-direction:column; gap:2px; min-width:0 }
 .vp-spot__who b{ font-size:var(--ag-fs-15); color:var(--ag-ink); overflow-wrap:anywhere }
-.vp-spot__who span{ font-size:var(--ag-fs-13); color:var(--ag-ink-2) }
+.vp-spot__who > span{ font-size:var(--ag-fs-13); color:var(--ag-ink-2) }
+.vp-spot__me{ font-size:var(--ag-fs-13); color:var(--ag-ink-2) }
+.vp-spot__me a{ display:inline-flex; align-items:center; min-height:24px; color:var(--ag-ink); text-decoration:underline; text-underline-offset:3px }
 .vp-spot__v{ font-weight:700; font-size:var(--ag-fs-14-5); font-variant-numeric:tabular-nums; color:var(--ag-ink); white-space:nowrap }
 .vp-ladder__row{ display:grid; grid-template-columns:minmax(88px, auto) minmax(0, 1fr); gap:14px; align-items:baseline; padding:12px 0; border-top:1px solid var(--ag-line) }
 .vp-ladder__at{ display:flex; flex-direction:column }
 .vp-ladder__at b{ font-size:var(--ag-fs-15); color:var(--ag-ink); font-variant-numeric:tabular-nums }
 .vp-ladder__at span{ font-size:var(--ag-fs-13); color:var(--ag-ink-2); font-variant-numeric:tabular-nums }
 .vp-ladder__b{ font-size:var(--ag-fs-15); line-height:1.45; color:var(--ag-ink) }
-@media (min-width:600px){
-  .vp-rally{ margin-top:20px }
-  .vp-rally__in{ padding:28px 32px }
-  .vp-rally__h{ font-size:var(--ag-fs-32) }
-}
-/* The first three wear a ring: a medal drawn in line, so it is structure, not a field. */
-.vp-spot__row:nth-child(-n+3) .vp-spot__r{ display:grid; place-items:center; width:28px; height:28px; border:2px solid var(--ag-gold); border-radius:50% }

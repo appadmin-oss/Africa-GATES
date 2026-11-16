@@ -202,7 +202,7 @@ final class SupporterSpotlightTest extends TestCase
         $this->order('adaeze@example.test', 12, self::A, $at, 'Adaeze Okafor', true);
 
         $blank = $this->page();
-        $this->assertStringNotContainsString('class="vp-rally"', $blank);
+        $this->assertStringNotContainsString('class="vp-why"', $blank);
         $this->assertStringNotContainsString('class="vp-spot"', $blank);
         $this->assertStringContainsString('vp-body vp-body--one', $blank, 'one category fell into the category rail’s column on a desktop');
 
@@ -210,7 +210,7 @@ final class SupporterSpotlightTest extends TestCase
             'spotlight' => '1', 'ladder_votes' => ['5'], 'ladder_benefit' => ['A learning resource']]));
         $html = $this->page();
         $this->assertStringContainsString('Who will celebrate our own, if not us?', $html);
-        $this->assertStringContainsString('Alimosho celebrates its own', $html);
+        $this->assertStringContainsString('Alimosho is celebrating its own', $html);
         $this->assertMatchesRegularExpression('~Champion of the day</span>\s*<b class="vp-hon__n">Adaeze Okafor</b>~', $html);
         $this->assertStringContainsString('A learning resource', $html);
     }
@@ -223,5 +223,117 @@ final class SupporterSpotlightTest extends TestCase
         $res = $b->build()->get(\AfricaGates\Controllers\VoteController::class)->program($req, new \Slim\Psr7\Response(), ['program' => 'spot-award']);
         $this->assertSame(200, $res->getStatusCode());
         return (string) $res->getBody();
+    }
+
+    // ── accounts, taking down, and the messages (owner, 16 Nov 2026, second pass) ─
+
+    private function member(string $email, string $name, ?string $photo = '/assets/img/honour/teacher-480.webp', int $verified = 1): int
+    {
+        return (int) DB::table('gates_users')->insertGetId(['name' => $name, 'email' => $email, 'status' => 'active',
+            'email_verified' => $verified, 'points' => 0, 'created_at' => Carbon::now()->toDateTimeString(), 'photo_path' => $photo]);
+    }
+
+    /**
+     * An account holder is shown with their own name and photo by default — even with
+     * "show my name" unticked — and is anonymous everywhere once they ask. Somebody without a
+     * VERIFIED account is still named only by consent: an unverified address proves nothing.
+     */
+    public function test_an_account_holder_is_shown_by_default_and_can_take_it_down(): void
+    {
+        $now = $this->now(); $at = $now->toDateTimeString();
+        $uid = $this->member('adaeze@example.test', 'Adaeze Okafor');
+        $this->member('claims@example.test', 'Not Theirs', null, 0);
+        $this->order('adaeze@example.test', 40, self::A, $at, 'typed at checkout', false);
+        $this->free('free@example.test', self::B, $at, '', false);
+        $this->member('free@example.test', 'Free Member', '/assets/img/honour/nurse-480.webp');
+        $this->order('claims@example.test', 30, self::B, $at, '', false);
+
+        $top = SupporterSpotlight::forCycle(self::Y, $now)['top'];
+        $this->assertSame('Adaeze Okafor', $top[0]['name'], 'an account holder was not shown');
+        $this->assertSame('/assets/img/honour/teacher-480.webp', $top[0]['photo']);
+        $this->assertSame($uid, $top[0]['uid']);
+        $this->assertArrayNotHasKey('email', $top[0], 'an address reached the page');
+        $this->assertNull($top[1]['name'], 'an UNVERIFIED account was used to name somebody');
+        $this->assertSame('Free Member', $top[2]['name'], 'a free voter’s account was not recognised by its address');
+
+        $this->assertTrue(SupporterSpotlight::hide(VoteService::voterHash('adaeze@example.test')));
+        $top = SupporterSpotlight::forCycle(self::Y, $now)['top'];
+        $this->assertNull($top[0]['name'], 'a take-down did not take');
+        $this->assertNull($top[0]['photo']);
+        $this->assertSame(40, $top[0]['votes'], 'taking yourself down took your votes with you');
+    }
+
+    /** One tap off: a forged link is refused, a signed one or a signed-in member is obeyed. */
+    public function test_taking_yourself_off_needs_the_signed_link_or_your_own_session(): void
+    {
+        $key = VoteService::voterHash('adaeze@example.test');
+        $url = \AfricaGates\Services\SpotlightMail::hideUrl('https://site.test', $key);
+        parse_str((string) parse_url($url, PHP_URL_QUERY), $q);
+        $this->assertSame($key, $q['k']);
+
+        $forged = \Tests\Support\ChromeRender::page('/spotlight/hide', [], [], 'POST', ['_token' => 'test-token', 'k' => VoteService::voterHash('someone@example.test'), 't' => $q['t']]);
+        $this->assertSame(403, $forged->getStatusCode(), 'somebody else was taken off with my link');
+
+        $show = \Tests\Support\ChromeRender::html('/spotlight/hide?k=' . rawurlencode($key) . '&t=' . $q['t']);
+        $this->assertStringContainsString('Take me off', $show);
+        $this->assertFalse(DB::table('gates_spotlight_hidden')->where('person_key', $key)->exists(), 'OPENING the link took them down — a mail scanner would');
+        $ok = \Tests\Support\ChromeRender::page('/spotlight/hide', [], [], 'POST', ['_token' => 'test-token', 'k' => $key, 't' => $q['t']]);
+        $this->assertSame(200, $ok->getStatusCode());
+        $this->assertTrue(DB::table('gates_spotlight_hidden')->where('person_key', $key)->exists());
+
+        $uid = $this->member('ngozi@example.test', 'Ngozi Eze');
+        \Tests\Support\ChromeRender::page('/spotlight/hide', ['user_id' => $uid], [], 'POST', ['_token' => 'test-token']);
+        $this->assertTrue(DB::table('gates_spotlight_hidden')->where('person_key', VoteService::voterHash('ngozi@example.test'))->exists(), 'a signed-in member could not take themselves off');
+    }
+
+    /**
+     * The messages: yesterday's champion once the Lagos day is over, the top supporters on
+     * arrival — each once, each with the way off, never to somebody who asked to be off,
+     * and never computed with votes cast after the day it is about.
+     */
+    public function test_the_people_celebrated_are_told_once_with_the_way_off(): void
+    {
+        $this->assertNull(AwardCampaign::save(self::P, ['community' => 'Alimosho', 'spotlight' => '1']));
+        $lagosMidnight = Carbon::now('Africa/Lagos')->startOfDay()->setTimezone(date_default_timezone_get());
+        $yesterday = $lagosMidnight->copy()->subHours(6)->toDateTimeString();
+        $this->order('adaeze@example.test', 20, self::A, $yesterday, 'Adaeze Okafor', true);
+        // Bigger, but cast TODAY: it must not crown anybody for yesterday.
+        $this->order('tunde@example.test', 50, self::B, $lagosMidnight->copy()->addHours(1)->toDateTimeString(), 'Tunde Bakare', true);
+        $this->order('quiet@example.test', 5, self::B, $yesterday, '', false);
+        SupporterSpotlight::hide(VoteService::voterHash('quiet@example.test'));
+
+        $mailer = new class extends \AfricaGates\Services\OtpService {
+            public array $sent = [];
+            public function __construct() {}
+            public function sendBranded(...$a): array { $this->sent[] = $a; return ['success' => true]; }
+        };
+        $now = $lagosMidnight->copy()->addHours(3);
+        $n = \AfricaGates\Services\SpotlightMail::sweep($mailer, $now, 'https://site.test');
+        $to = array_map(static fn ($m) => $m[0] . ' | ' . $m[1], $mailer->sent);
+        $this->assertContains('adaeze@example.test | You were Alimosho’s Champion of the Day', $to, 'yesterday’s champion was not told, or today’s votes decided yesterday');
+        $this->assertNotContains('tunde@example.test | You were Alimosho’s Champion of the Day', $to);
+        $this->assertContains('tunde@example.test | You’re in the Supporter Spotlight for Spot Award', $to);
+        foreach ($mailer->sent as $m) {
+            $this->assertNotSame('quiet@example.test', $m[0], 'somebody who asked to be off was written to');
+            $this->assertStringContainsString('/spotlight/hide?k=', $m[3], 'a message without the way off');
+        }
+        $this->assertSame(0, \AfricaGates\Services\SpotlightMail::sweep($mailer, $now, 'https://site.test'), 'told twice');
+        $this->assertSame($n, count($mailer->sent));
+    }
+
+    /** The band says what the beneficiary has received from verified votes, and the nudge. */
+    public function test_the_campaign_card_reports_real_progress_and_a_next_step(): void
+    {
+        DB::table('gates_settings')->updateOrInsert(['key_name' => 'paid_voting_enabled'], ['value' => '1']);
+        DB::table('gates_settings')->updateOrInsert(['key_name' => 'vote_price_naira'], ['value' => '200']);
+        $at = Carbon::now()->toDateTimeString();
+        $this->order('adaeze@example.test', 25, self::A, $at, 'Adaeze Okafor', true);
+        $this->order('refund@example.test', 100, self::A, $at, 'Refunded', true, ['refunded_at' => $at]);
+        $this->assertNull(AwardCampaign::save(self::P, ['community' => 'Alimosho', 'rally' => 'Who will celebrate our own, if not us?',
+            'beneficiary' => 'CACENTRE', 'share_pct' => '30', 'spotlight' => '1']));
+        $html = $this->page();
+        $this->assertStringContainsString('<b>₦1,500</b><span>for CACENTRE so far</span>', $html, '25 settled votes × ₦60 — a refunded order was counted, or the figure is not the ledger’s');
+        $this->assertStringContainsString('26 votes would make you today’s champion.', $html);
+        $this->assertStringContainsString('href="#vp-race"', $html);
     }
 }
