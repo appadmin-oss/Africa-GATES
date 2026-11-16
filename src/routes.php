@@ -2353,6 +2353,8 @@ return function(App $app) {
         $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/milestone/{kind:[a-z0-9]+}-{value:[0-9]+}.png', VoteController::class.':milestoneCard');
         // A printable A4 poster with the QR code to vote, for a church, a market, a school.
         $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/poster', VoteController::class.':poster');
+        // The nominee's voice thank-you (NomineeVoice), with byte ranges so Safari plays it.
+        $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/voice', VoteController::class.':voice');
         // "Tell me when they reach a milestone" — only for an address that backed them.
         $g->post('/vote/follow', VoteController::class.':follow');
         // The 9:16 share video (ShareVideoController). Beside card.png, before /{slug}.

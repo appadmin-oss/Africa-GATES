@@ -25,6 +25,7 @@
 <link rel="stylesheet" href="{{ asset('/assets/css/console/apply.css') }}">
 <link rel="stylesheet" href="{{ asset('/assets/css/console/nominee.css') }}">
 {% include 'partials/csrf-fresh.twig' %}
+{% if voice_on|default(false) %}<script src="{{ asset('/assets/js/nominee-voice.js') }}" defer data-nav="reload"></script>{% endif %}
 </head>
 <body class="ap">
 <div class="ap-wrap">
@@ -196,6 +197,134 @@
         </form>
       {% endif %}
     </section>
+
+    {# ── Who's behind you (Services\NomineeBackers) — once approved. The numbers by the board's
+       own person rule; the milestones with their cards; the poster; and the people whose own
+       links brought others to vote, each of whom can be thanked personally, once. ── #}
+    {% if backing|default(null) %}
+    <section class="nm-card" id="nm-backing" aria-labelledby="nm-backing-h">
+      <div class="nm-card__top"><h2 class="nm-card__h" id="nm-backing-h">Who’s behind you</h2></div>
+      <dl class="nm-stats">
+        <div><dt>{{ backing.people == 1 ? 'supporter' : 'supporters' }}</dt><dd class="nm-stats__num">{{ backing.people|number_format }}</dd></div>
+        <div><dt>{{ backing.votes == 1 ? 'vote' : 'votes' }}</dt><dd class="nm-stats__num">{{ backing.votes|number_format }}</dd></div>
+        <div><dt>new this week</dt><dd class="nm-stats__num">{{ backing.week|number_format }}</dd></div>
+      </dl>
+      <p class="nm-hint">
+        {%- if backing.people == 0 -%}Nobody has voted for you yet. Share your page: the first supporters are the ones people remember.
+        {%- elseif backing.week > backing.last_week -%}{{ backing.week|number_format }} new this week against {{ backing.last_week|number_format }} the week before. Keep sharing.
+        {%- elseif backing.week == 0 -%}Nobody new this week. A poster or a message to one group can change that.
+        {%- else -%}{{ backing.last_week|number_format }} new supporters the week before.{%- endif -%}
+      </p>
+      <p class="nm-links"><a href="{{ backing.page }}">Your vote page</a><a href="{{ backing.poster }}">Print a poster</a></p>
+      {% if backing.milestones|length %}
+        <h3 class="nm-sub">Milestones</h3>
+        <ul class="nm-rows">
+          {% for m in backing.milestones %}
+            <li><span class="nm-rows__t">{{ m.words }}<span>{{ m.at|date('j M Y') }}</span></span><a href="{{ m.card }}" download>Get the card</a></li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+      <h3 class="nm-sub">People who brought others to vote for you</h3>
+      {% if backing.mobilisers|length %}
+        <ul class="nm-rows">
+          {% for p in backing.mobilisers %}
+            <li>
+              <span class="nm-rows__t">{{ p.name }}<span>Brought {{ p.people == 1 ? 'one person' : p.people|number_format ~ ' people' }}</span></span>
+              {% if p.thanked %}<span class="nm-chip nm-chip--ok">Thanked</span>
+              {% elseif not p.reachable %}<span class="nm-chip nm-chip--todo">No email to reach them</span>
+              {% else %}
+                <details class="nm-edit"{{ open == 'backing' ? ' open' }}>
+                  <summary>Thank {{ p.name == 'A supporter' ? 'them' : p.name|split(' ')|first }}</summary>
+                  <form method="post" action="{{ base }}" class="nm-form">
+                    <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="do" value="thank"><input type="hidden" name="recruit" value="{{ p.id }}">
+                    <label class="ap-f" for="nmNote{{ p.id }}"><span class="ap-f__l">A line from you (optional)</span><span class="ap-f__h">We email them that you saw what they did and said thank you. They are told how many people they brought; never anybody’s address. Up to {{ note_max }} characters.</span>
+                      <textarea class="ap-in" id="nmNote{{ p.id }}" name="note" rows="3" maxlength="{{ note_max }}"></textarea></label>
+                    <button class="ap-btn ap-btn--go" type="submit">Send my thanks</button>
+                  </form>
+                </details>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="nm-text">When somebody shares their own link and people vote through it, they appear here, and you can thank them yourself.</p>
+      {% endif %}
+    </section>
+    {% endif %}
+
+    {# ── Updates to the people following you (Services\NomineeUpdates). ── #}
+    {% if backing|default(null) and updates_on|default(false) %}
+    <section class="nm-card" id="nm-update" aria-labelledby="nm-update-h">
+      <div class="nm-card__top"><h2 class="nm-card__h" id="nm-update-h">Updates to your supporters</h2></div>
+      <p class="nm-hint">
+        {{- followers == 0 ? 'Nobody has asked for your updates yet; they still show on your vote page. ' : (followers == 1 ? 'One supporter' : followers|number_format ~ ' supporters') ~ ' asked to hear how you are doing. ' -}}
+        {{- followers ? 'An update goes to them by email and shows on your vote page. ' : '' -}}
+        One every {{ update_rules.days }} days, so people keep reading them.
+      </p>
+      {% for u in updates %}
+        <div class="nm-form">
+          <blockquote class="nm-quote">{{ u.body }}</blockquote>
+          <p class="nm-hint">{{ u.created_at|date('j M Y, H:i') }} · {{ u.sent_at ? (u.reached ? 'Sent to ' ~ (u.reached == 1 ? 'one supporter' : u.reached|number_format ~ ' supporters') : 'On your vote page') : (u.editable ? 'Goes out ' ~ update_rules.grace ~ ' minutes after you posted it; you can change it until then.' : 'On its way.') }}</p>
+          {% if u.editable %}
+            <details class="nm-edit"{{ open == 'update' ? ' open' }}>
+              <summary>Change it before it goes</summary>
+              <form method="post" action="{{ base }}" class="nm-form">
+                <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="do" value="update"><input type="hidden" name="update" value="{{ u.id }}">
+                <label class="ap-f" for="nmUpd{{ u.id }}"><span class="ap-f__l">Your update</span>
+                  <textarea class="ap-in" id="nmUpd{{ u.id }}" name="body" rows="4" minlength="{{ update_rules.min }}" maxlength="{{ update_rules.max }}" required>{{ u.body }}</textarea></label>
+                <button class="ap-btn ap-btn--go" type="submit">Save the change</button>
+              </form>
+            </details>
+          {% endif %}
+          <form method="post" action="{{ base }}">
+            <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="do" value="update_remove"><input type="hidden" name="update" value="{{ u.id }}">
+            <button class="nm-x" type="submit">Take it down</button>
+          </form>
+        </div>
+      {% endfor %}
+      {% if update_next %}
+        <p class="nm-text">You can post your next update from {{ update_next|date('j M, H:i') }}.</p>
+      {% else %}
+        <details class="nm-edit"{{ open == 'update' or not updates ? ' open' }}>
+          <summary>Write an update</summary>
+          <form method="post" action="{{ base }}" class="nm-form">
+            <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="do" value="update">
+            <label class="ap-f" for="nmUpdNew"><span class="ap-f__l">Your update</span><span class="ap-f__h">What has happened, what is next, or a thank-you for a moment that mattered. {{ update_rules.min }} to {{ update_rules.max }} characters.</span>
+              <textarea class="ap-in" id="nmUpdNew" name="body" rows="4" minlength="{{ update_rules.min }}" maxlength="{{ update_rules.max }}" required></textarea></label>
+            <button class="ap-btn ap-btn--go" type="submit">Post it</button>
+          </form>
+        </details>
+      {% endif %}
+    </section>
+    {% endif %}
+
+    {# ── A voice thank-you (Services\NomineeVoice). The form is a plain upload; nominee-voice.js
+       adds Record / Stop with a count to the limit and a play-back before anything is sent. ── #}
+    {% if backing|default(null) and voice_on|default(false) %}
+    <section class="nm-card nm-voice" id="nm-voice" aria-labelledby="nm-voice-h">
+      <div class="nm-card__top"><h2 class="nm-card__h" id="nm-voice-h">Say thank you in your own voice</h2>{% if voice %}<span class="nm-chip nm-chip--ok">On your page</span>{% endif %}</div>
+      <p class="nm-hint">Up to {{ voice_max }} seconds. Everybody who opens your vote page can play it.</p>
+      {% if voice %}
+        <audio controls preload="none" src="{{ voice_url }}"></audio>
+        <form method="post" action="{{ base }}">
+          <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="do" value="voice_remove">
+          <button class="nm-x" type="submit">Take it down</button>
+        </form>
+      {% endif %}
+      <details class="nm-edit"{{ open == 'voice' or not voice ? ' open' }}>
+        <summary>{{ voice ? 'Record it again' : 'Record your thank-you' }}</summary>
+        <form method="post" action="{{ base }}" class="nm-form" enctype="multipart/form-data" data-voice data-max="{{ voice_max }}">
+          <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="do" value="voice"><input type="hidden" name="seconds" value="0">
+          <button class="ap-btn nm-rec" type="button" data-voice-rec aria-pressed="false" hidden>Record</button>
+          <p class="nm-say" data-voice-say role="status" aria-live="polite"></p>
+          <audio controls data-voice-take hidden></audio>
+          <label class="nm-drop"><span class="nm-drop__t">Or choose a recording</span><span class="nm-drop__s">On a phone this can open your voice recorder. Up to {{ voice_max }} seconds.</span>
+            <input type="file" name="voice" accept="audio/*" capture></label>
+          <button class="ap-btn ap-btn--go" type="submit" data-voice-save>Save it to my page</button>
+        </form>
+      </details>
+    </section>
+    {% endif %}
 
     {# ── Thank your supporters (Services\NomineeThanks) — once approved. One message, sent once
        to everybody who backed them and can be reached; changeable for half an hour first. ── #}

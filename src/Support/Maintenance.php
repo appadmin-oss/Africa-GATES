@@ -219,6 +219,10 @@ final class Maintenance
             // backers who asked — at most three an edition each (NomineeMilestones).
             $ran[] = ['nominee-milestones', $this->task('nominee-milestones',
                 fn() => \AfricaGates\Services\NomineeMilestones::sweep($this->mailer()))];
+            // A nominee's own updates, once their fifteen minutes to change them are over, to the
+            // backers who asked to hear how they are doing (NomineeUpdates). Claimed per address.
+            $ran[] = ['nominee-updates', $this->task('nominee-updates',
+                fn() => \AfricaGates\Services\NomineeUpdates::sweep($this->mailer()))];
             // Volunteers' reminders (Volunteer\Reminders): the day before a meeting, training
             // about to lapse. Every tick; each message is claimed before it is sent, so
             // overlapping ticks never send one twice.

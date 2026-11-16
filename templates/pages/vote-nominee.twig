@@ -158,8 +158,8 @@
         {% if ctx.open %}
         <form class="vb-card vb-follow" id="{{ ctx.pre }}follow" method="post" action="/vote/follow" aria-labelledby="{{ ctx.pre }}vb-follow-h">
           <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="nominee" value="{{ ctx.n.id }}">
-          <h3 class="vb-bring__h" id="{{ ctx.pre }}vb-follow-h">{{ 'Hear when %first% reaches a milestone'|trans({'%first%': first}) }}</h3>
-          <p class="vb-hint" id="{{ ctx.pre }}vb-follow-d">{{ 'A new supporter count, the top 3, the lead or the shortlist: at most three short emails this edition. Use the address you voted with.'|trans }}</p>
+          <h3 class="vb-bring__h" id="{{ ctx.pre }}vb-follow-h">{{ 'Hear how %first% is doing'|trans({'%first%': first}) }}</h3>
+          <p class="vb-hint" id="{{ ctx.pre }}vb-follow-d">{{ 'Their milestones (at most three short emails this edition) and the updates they write to their supporters (at most one every three days). Use the address you voted with.'|trans }}</p>
           {% if ctx.follow %}<p class="vb-follow__msg{{ ctx.follow.ok ? '' : ' is-bad' }}" role="{{ ctx.follow.ok ? 'status' : 'alert' }}">{{ ctx.follow.msg }}</p>{% endif %}
           <label class="vb-label" for="{{ ctx.pre }}vbFollow">{{ 'Your email'|trans }}</label>
           <input class="vb-input" id="{{ ctx.pre }}vbFollow" type="email" name="email" autocomplete="email" inputmode="email" required aria-describedby="{{ ctx.pre }}vb-follow-d" value="{{ ctx.member.email|default('') }}">
@@ -407,6 +407,28 @@
       <h2 class="vn-sec__t" id="vn-thanks-h">{{ 'A thank-you from %first%'|trans({'%first%': first}) }}</h2>
       <blockquote class="vn-thanks__q">{{ thanks.message }}</blockquote>
       <p class="vn-sec__p">{{ 'To everybody who backed them.'|trans }}</p>
+    </section>
+    {% endif %}
+
+    {# Their voice thank-you (Services\NomineeVoice): played only when somebody presses play —
+       `preload="none"`, so the page costs nothing extra on a slow connection. #}
+    {% if voice|default(null) %}
+    <section class="vn-sec vn-voice" aria-labelledby="vn-voice-h">
+      <h2 class="vn-sec__t" id="vn-voice-h">{{ 'Hear %first% say thank you'|trans({'%first%': first}) }}</h2>
+      <audio class="vn-voice__a" controls preload="none" src="{{ voice_url }}?v={{ voice.created_at|date('U') }}"></audio>
+      <p class="vn-sec__p">{{ voice.seconds ? '%n% seconds, in their own voice.'|trans({'%n%': voice.seconds}) : 'In their own voice.'|trans }}</p>
+    </section>
+    {% endif %}
+
+    {# Their own updates to the people backing them (Services\NomineeUpdates), newest first. #}
+    {% if updates|default([])|length %}
+    <section class="vn-sec vn-upd" aria-labelledby="vn-upd-h">
+      <h2 class="vn-sec__t" id="vn-upd-h">{{ 'From %first%'|trans({'%first%': first}) }}</h2>
+      <ol class="vn-upd__l">
+        {% for u in updates %}
+        <li class="vn-upd__i"><time class="vn-upd__d" datetime="{{ u.created_at|date('c') }}">{{ u.created_at|date('j M Y') }}</time><p class="vn-upd__b">{{ u.body }}</p></li>
+        {% endfor %}
+      </ol>
     </section>
     {% endif %}
 

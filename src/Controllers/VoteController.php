@@ -305,6 +305,21 @@ class VoteController {
     }
 
     /**
+     * /vote/{program}/{id-slug}/voice — the nominee's voice thank-you (NomineeVoice). Served by
+     * PHP from outside the web root, so taking it down takes it off the internet at once; only
+     * for a nominee on a live award, never the sandbox.
+     */
+    public function voice(Request $req, Response $res, array $args): Response {
+        $nid = (int) (string) ($args['slug'] ?? '0');
+        $live = $nid > 0 && \AfricaGates\Services\DemoSeeder::liveAwardOnly(DB::table('gates_nominees')->where('gates_nominees.id', $nid))->exists();
+        $v = $live ? \AfricaGates\Services\NomineeVoice::forNominee($nid) : null;
+        $f = $v ? \AfricaGates\Services\NomineeVoice::fileFor($v) : null;
+        if ($f === null) throw new \Slim\Exception\HttpNotFoundException($req);
+        return \AfricaGates\Support\RangeFile::respond($req, $res, $f, \AfricaGates\Services\NomineeVoice::mimeFor($f), 'public, max-age=300')
+            ->withHeader('X-Robots-Tag', 'noindex');
+    }
+
+    /**
      * /vote/{program}/{id-slug}/poster — an A4 poster to print: the nominee, the award and a QR
      * code to their ballot, for the places a campaign actually happens here — a church, a market,
      * a school notice board. The flier already carries a QR, but no page printed on A4.
@@ -743,6 +758,9 @@ class VoteController {
                 $t = \AfricaGates\Services\NomineeThanks::forNominee($id);
                 return $t && !\AfricaGates\Services\NomineeThanks::editable($t) ? $t : null;
             })((int) $nom->id),
+            // Their voice thank-you and their own updates (NomineeVoice, NomineeUpdates).
+            'voice'            => \AfricaGates\Services\NomineeVoice::forNominee((int) $nom->id),
+            'updates'          => \AfricaGates\Services\NomineeUpdates::shown((int) $nom->id),
             'evidence'         => $evidence,
             // Every photograph, the portrait first: the page used to draw photo_path alone.
             'photos'           => \AfricaGates\Services\NomineePortrait::gallery((int) $nom->id, (string) ($nom->photo_path ?? '')),
@@ -891,7 +909,8 @@ class VoteController {
             'messages'           => \AfricaGates\Services\VoteMessageService::wall((int) $nom->id, 6),
             'first_backers'      => \AfricaGates\Services\SupporterSpotlight::firstBackers((int) $nom->id),
             'poster_url'         => $nomPath . '/poster',
-            // The answer to "tell me when they reach a milestone" (NomineeMilestones::follow).
+            'voice_url'          => $nomPath . '/voice',
+            // The answer to "hear how they are doing" (NomineeMilestones::follow).
             'follow_msg'         => (static function () { $f = $_SESSION['vote_follow'] ?? null; unset($_SESSION['vote_follow']); return $f; })(),
             'message_count'      => \AfricaGates\Services\VoteMessageService::countForNominee((int) $nom->id),
             'messages_url'       => $nomPath . '/messages',

@@ -150,11 +150,18 @@ final class SupporterSpotlight
         $all = [];
         self::scan($cycleId, null, static function (string $key, object $r) use (&$all): void {
             $w = max(1, (int) ($r->weight ?? 1));
-            $p = $all[$key] ?? ['by' => [], 'votes' => 0, 'email' => '', 'name' => null, 'uid' => 0];
+            $p = $all[$key] ?? ['by' => [], 'votes' => 0, 'email' => '', 'name' => null, 'uid' => 0, 'nameId' => 0];
             if ($p['email'] === '' && ($r->_email ?? '') !== '') $p['email'] = (string) $r->_email;
             $nid = (int) $r->nominee_id;
             $p['by'][$nid] = ($p['by'][$nid] ?? 0) + $w;
             $p['votes'] += $w;
+            // The newest name they ASKED to be shown under — the board's rule (forCycle), so a
+            // non-member who ticked "show my name" is named here exactly as on the board.
+            $name = trim((string) ($r->voter_name ?? ''));
+            if ((int) ($r->show_name ?? 0) === 1 && $name !== '' && strcasecmp($name, 'Supporter') !== 0 && (int) $r->id > $p['nameId']) {
+                $p['name'] = mb_substr($name, 0, 60);
+                $p['nameId'] = (int) $r->id;
+            }
             $all[$key] = $p;
         });
         if ($all === []) return [];
@@ -163,8 +170,44 @@ final class SupporterSpotlight
             $all[$k]['email'] = (string) ($who[(string) $k]['email'] ?? $p['email']);
             $all[$k]['name'] = $who[(string) $k]['name'] ?? null;
             $all[$k]['uid'] = (int) ($who[(string) $k]['uid'] ?? 0);
+            unset($all[$k]['nameId']);
         }
         return $all;
+    }
+
+    /**
+     * ONE NOMINEE'S BACKING, for their own page: how many people, how many votes, and how many
+     * of those people came this week and last — counted by the board's person rule, so the
+     * nominee's "412 people" is the board's 412. Each person counted in the week of their FIRST
+     * vote for this nominee, so a supporter voting every day is one new supporter, once.
+     *
+     * @return array{people:int, votes:int, week:int, last_week:int}
+     */
+    public static function growthOf(int $nomineeId, ?\Illuminate\Support\Carbon $now = null): array
+    {
+        $out = ['people' => 0, 'votes' => 0, 'week' => 0, 'last_week' => 0];
+        if ($nomineeId < 1) return $out;
+        try {
+            $cycle = (int) (DB::table('gates_nominees as n')->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')->where('n.id', $nomineeId)->value('c.cycle_id') ?? 0);
+        } catch (\Throwable) {
+            return $out;
+        }
+        $now ??= \Illuminate\Support\Carbon::now();
+        $week = $now->copy()->subDays(7)->toDateTimeString();
+        $fortnight = $now->copy()->subDays(14)->toDateTimeString();
+        $first = []; $votes = [];
+        self::scan($cycle, null, static function (string $key, object $r) use (&$first, &$votes): void {
+            $at = (string) ($r->voted_at ?? '');
+            if (!isset($first[$key]) || $at < $first[$key]) $first[$key] = $at;
+            $votes[$key] = ($votes[$key] ?? 0) + max(1, (int) ($r->weight ?? 1));
+        }, $nomineeId);
+        foreach ($first as $at) {
+            if ($at >= $week) $out['week']++;
+            elseif ($at >= $fortnight) $out['last_week']++;
+        }
+        $out['people'] = count($first);
+        $out['votes'] = array_sum($votes);
+        return $out;
     }
 
     /** How many of a nominee's earliest backers are "the first supporters". */
