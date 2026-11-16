@@ -313,14 +313,27 @@
       {% endif %}
       <details class="nm-edit"{{ open == 'voice' or not voice ? ' open' }}>
         <summary>{{ voice ? 'Record it again' : 'Record your thank-you' }}</summary>
-        <form method="post" action="{{ base }}" class="nm-form" enctype="multipart/form-data" data-voice data-max="{{ voice_max }}">
+        <form method="post" action="{{ base }}" class="nm-form nm-vr" enctype="multipart/form-data" data-voice data-max="{{ voice_max }}">
           <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="do" value="voice"><input type="hidden" name="seconds" value="0">
-          <button class="ap-btn nm-rec" type="button" data-voice-rec aria-pressed="false" hidden>Record</button>
+          {# The recorder: drawn by nominee-voice.js only where the browser can record. #}
+          <div class="nm-vr__rec" data-voice-panel hidden>
+            <button class="nm-vr__btn" type="button" data-voice-rec aria-pressed="false" aria-label="Record">
+              <svg class="nm-vr__ic nm-vr__ic--mic" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM19 11a7 7 0 0 1-14 0M12 18v3"/></svg>
+              <svg class="nm-vr__ic nm-vr__ic--stop" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>
+            </button>
+            <div class="nm-vr__meta">
+              <p class="nm-vr__state" data-voice-state>Tap to record</p>
+              <p class="nm-vr__time"><span data-voice-time>0:00</span> of 0:{{ '%02d'|format(voice_max) }}</p>
+              <div class="nm-vr__bar" aria-hidden="true"><span data-voice-bar></span></div>
+            </div>
+          </div>
+          <audio class="nm-vr__take" controls data-voice-take hidden></audio>
           <p class="nm-say" data-voice-say role="status" aria-live="polite"></p>
-          <audio controls data-voice-take hidden></audio>
-          <label class="nm-drop"><span class="nm-drop__t">Or choose a recording</span><span class="nm-drop__s">On a phone this can open your voice recorder. Up to {{ voice_max }} seconds.</span>
-            <input type="file" name="voice" accept="audio/*" capture></label>
           <button class="ap-btn ap-btn--go" type="submit" data-voice-save>Save it to my page</button>
+          <label class="nm-vr__up" data-voice-up>
+            <input class="nm-vr__file" type="file" name="voice" accept="audio/*" capture>
+            <span class="nm-vr__up-t" data-voice-up-t>Upload a recording ({{ voice_max }} seconds at most)</span>
+          </label>
         </form>
       </details>
     </section>

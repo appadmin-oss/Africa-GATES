@@ -1,10 +1,10 @@
 /* The nominee's voice thank-you (templates/nominee/profile.twig, Services\NomineeVoice).
  *
- * The form works without this: a file input that takes an audio file (on a phone, `capture`
- * opens the recorder). Where the browser can record, this adds Record / Stop with a visible
- * count to 30 seconds, plays the take back before anything is sent, and puts it in the form's
- * own file input — so Save is the same plain POST either way, and a refused microphone leaves
- * the upload exactly where it was.
+ * Without this the form works on its own: an upload control and Save. Where the browser can
+ * record, this draws the recorder — one round button, a count to the limit and a bar — plays
+ * the take back before anything is sent, and puts it in the form's own file input, so Save is
+ * the same plain POST either way. Save is offered only once there is something to save. A
+ * refused microphone leaves the upload exactly where it was, and says so.
  *
  * A page of its own, outside the shell: site-nav never swaps it, so this runs once per load. */
 (function () {
@@ -12,22 +12,44 @@
   var box = document.querySelector('[data-voice]');
   if (!box) return;
   var MAX = parseInt(box.getAttribute('data-max'), 10) || 30;
-  var input = box.querySelector('input[type=file]');
-  var secs = box.querySelector('input[name=seconds]');
-  var btn = box.querySelector('[data-voice-rec]');
-  var out = box.querySelector('[data-voice-say]');
-  var play = box.querySelector('[data-voice-take]');
-  var save = box.querySelector('[data-voice-save]');
-  var can = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder && window.DataTransfer);
-  if (!can || !btn || !input) return;
-  btn.hidden = false;
-  var rec = null, timer = 0, t0 = 0, url = '';
+  var q = function (s) { return box.querySelector(s); };
+  var input = q('input[type=file]'), secs = q('input[name=seconds]'), panel = q('[data-voice-panel]');
+  var btn = q('[data-voice-rec]'), state = q('[data-voice-state]'), time = q('[data-voice-time]'), bar = q('[data-voice-bar]');
+  var take = q('[data-voice-take]'), save = q('[data-voice-save]'), say = q('[data-voice-say]'), upT = q('[data-voice-up-t]');
+  var upWords = upT ? upT.textContent : '';
 
-  function say(s) { if (out) out.textContent = s; }
+  function ready(on) { if (save) save.hidden = !on; }
+  function clock(n) { return Math.floor(n / 60) + ':' + ('0' + (n % 60)).slice(-2); }
+  function tell(s) { if (say) say.textContent = s; }
+
+  // A file chosen by hand is ready to save, and says which file it is.
+  if (input) input.addEventListener('change', function () {
+    var f = input.files && input.files[0];
+    if (!f) return;
+    if (take) { take.hidden = true; take.removeAttribute('src'); }
+    if (upT) upT.textContent = 'Chosen: ' + f.name + ' · choose another';
+    if (secs) secs.value = '0';
+    tell('');
+    ready(true);
+  });
+
+  // With script running, Save waits for something to save — a take or a chosen file.
+  ready(false);
+  var can = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder && window.DataTransfer);
+  if (!can || !panel || !btn) return;
+  panel.hidden = false;
+  box.classList.add('nm-vr--live');
+  if (upT) { upWords = 'Or upload a recording you already have'; upT.textContent = upWords; }
+
+  var rec = null, timer = 0, t0 = 0, url = '';
   function pick() {
     var types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'];
     for (var i = 0; i < types.length; i++) if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(types[i])) return types[i];
     return '';
+  }
+  function show(n) {
+    if (time) time.textContent = clock(Math.min(n, MAX));
+    if (bar) bar.style.transform = 'scaleX(' + Math.min(1, n / MAX) + ')';
   }
   function stop() { if (rec && rec.state === 'recording') rec.stop(); }
 
@@ -50,25 +72,33 @@
         if (secs) secs.value = String(n);
         if (url) URL.revokeObjectURL(url);
         url = URL.createObjectURL(blob);
-        if (play) { play.src = url; play.hidden = false; }
-        btn.textContent = 'Record again';
+        if (take) { take.src = url; take.hidden = false; }
+        if (upT) upT.textContent = upWords;
         btn.setAttribute('aria-pressed', 'false');
-        if (save) save.hidden = false;
-        say('Recorded ' + n + ' seconds. Play it back, then save it — or record again.');
+        btn.setAttribute('aria-label', 'Record again');
+        box.classList.remove('nm-vr--rec');
+        if (state) state.textContent = 'Listen back, then save it — or tap to record again';
+        show(n);
+        tell(n < 2 ? 'That was very short. Record again if it was cut off.' : '');
+        ready(true);
       };
-      chunks = [];
       t0 = Date.now();
       rec.start();
-      btn.textContent = 'Stop';
       btn.setAttribute('aria-pressed', 'true');
-      say('Recording… 0 of ' + MAX + ' seconds.');
+      btn.setAttribute('aria-label', 'Stop recording');
+      box.classList.add('nm-vr--rec');
+      if (state) state.textContent = 'Recording… tap to stop';
+      if (take) take.hidden = true;
+      ready(false);
+      tell('');
+      show(0);
       timer = setInterval(function () {
         var n = Math.round((Date.now() - t0) / 1000);
-        say('Recording… ' + Math.min(n, MAX) + ' of ' + MAX + ' seconds.');
+        show(n);
         if (n >= MAX) stop();
-      }, 1000);
+      }, 250);
     }).catch(function () {
-      say('Your browser did not let this page use the microphone. Allow it in the address bar, or choose a recording from your phone below.');
+      tell('This page was not allowed to use the microphone. Allow it from the padlock beside the address, or upload a recording instead.');
     });
   });
 })();
