@@ -42,6 +42,8 @@
 .nm-quote { margin: 0; padding: 14px 16px; border-left: 3px solid var(--cn-green); background: var(--cn-ground); border-radius: 0 var(--cn-r-12) var(--cn-r-12) 0;
   font-size: var(--cn-fs-15); line-height: 1.6; color: var(--cn-ink); white-space: pre-line; }
 .nm-text { margin: 0; font-size: var(--cn-fs-15); line-height: 1.6; color: var(--cn-ink); white-space: pre-line; }
+/* The nominee's thank-you as their supporters will read it: their words, set off by a rule. */
+.nm-quote { margin: 0; padding: 4px 0 4px 16px; border-left: 3px solid var(--cn-line); font-size: var(--cn-fs-16); line-height: 1.6; color: var(--cn-ink); white-space: pre-line; overflow-wrap: anywhere; }
 .nm-hint { margin: 0; font-size: var(--cn-fs-13); color: var(--cn-ink-3); }
 
 .nm-facts { margin: 0; display: grid; gap: 8px; }

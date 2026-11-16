@@ -266,6 +266,30 @@ class VoteController {
     }
 
     /**
+     * /vote/{program}/{id-slug}/backed.png — "I backed …", the supporter's card (BackedCard).
+     * Cached ten minutes, as the nominee's own card is: long enough to make a shared link
+     * cheap to preview, short enough that the count on it is not yesterday's.
+     */
+    public function backed(Request $req, Response $res, array $args): Response {
+        $nid = (int) (string) ($args['slug'] ?? '0');
+        $f = \AfricaGates\Services\BackedCard::facts($nid);
+        if ($f === null) throw new \Slim\Exception\HttpNotFoundException($req);
+        $b64 = '';
+        try {
+            $b64 = (string) (new CacheService())->remember('backed-card:' . $nid, 600,
+                static fn () => base64_encode((string) ((new \AfricaGates\Services\BackedCard())->png($f) ?? '')), ['nominees']);
+        } catch (\Throwable) {
+            $b64 = base64_encode((string) ((new \AfricaGates\Services\BackedCard())->png($f) ?? ''));
+        }
+        $png = (string) base64_decode($b64, true);
+        if ($png === '') return $res->withHeader('Location', \AfricaGates\Support\NomineeUrl::path($nid) . '/card.png')->withStatus(302);
+        $res->getBody()->write($png);
+        return $res->withHeader('Content-Type', 'image/png')->withHeader('Content-Length', (string) strlen($png))
+            ->withHeader('Cache-Control', 'public, max-age=600, stale-while-revalidate=1800')->withHeader('X-Content-Type-Options', 'nosniff')
+            ->withHeader('Content-Disposition', 'inline; filename="i-backed-' . (\AfricaGates\Support\Slug::make((string) $f['name'], 48) ?: 'nominee') . '.png"');
+    }
+
+    /**
      * /vote/{program}/tallies — the live figures, as JSON.
      *
      * ── WHY POLLING AND NOT A SOCKET ─────────────────────────────────────────
@@ -671,6 +695,12 @@ class VoteController {
             'vote_confirmed'   => $voteConfirmed,
             'cheer'            => $cheer,
             'recruit'          => $recruit,
+            // The nominee's thank-you to their backers, once it is final (sent, or past its
+            // edit window): a draft is theirs until then (Services\NomineeThanks).
+            'thanks'           => (static function (int $id) {
+                $t = \AfricaGates\Services\NomineeThanks::forNominee($id);
+                return $t && !\AfricaGates\Services\NomineeThanks::editable($t) ? $t : null;
+            })((int) $nom->id),
             'evidence'         => $evidence,
             // Every photograph, the portrait first: the page used to draw photo_path alone.
             'photos'           => \AfricaGates\Services\NomineePortrait::gallery((int) $nom->id, (string) ($nom->photo_path ?? '')),

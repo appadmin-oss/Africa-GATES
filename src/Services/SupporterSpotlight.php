@@ -131,6 +131,38 @@ final class SupporterSpotlight
     }
 
     /** @return array{champion:?array, top:list<array>, mobiliser:?array, people:int, votes:int} */
+    /**
+     * EVERYBODY WHO BACKED SOMEBODY in the edition, as a person, with who they backed and how
+     * they can be reached — for the messages that honour them after the fact (ResultsDayMail,
+     * NomineeThanks). The same scan and the same person rule as the board, so "you were one of
+     * 412" here is the board's 412. An address is a checkout's, or a member account's VERIFIED
+     * one; a free voter with no account is a hash only, deliberately, and has none.
+     * Never cached, never handed to a template: it holds addresses.
+     *
+     * @return array<string,array{by:array<int,int>, votes:int, email:string, name:?string, uid:int}>
+     */
+    public static function backers(int $cycleId): array
+    {
+        $all = [];
+        self::scan($cycleId, null, static function (string $key, object $r) use (&$all): void {
+            $w = max(1, (int) ($r->weight ?? 1));
+            $p = $all[$key] ?? ['by' => [], 'votes' => 0, 'email' => '', 'name' => null, 'uid' => 0];
+            if ($p['email'] === '' && ($r->_email ?? '') !== '') $p['email'] = (string) $r->_email;
+            $nid = (int) $r->nominee_id;
+            $p['by'][$nid] = ($p['by'][$nid] ?? 0) + $w;
+            $p['votes'] += $w;
+            $all[$key] = $p;
+        });
+        if ($all === []) return [];
+        $who = self::identities(array_map('strval', array_keys($all)), $all);
+        foreach ($all as $k => $p) {
+            $all[$k]['email'] = (string) ($who[(string) $k]['email'] ?? $p['email']);
+            $all[$k]['name'] = $who[(string) $k]['name'] ?? null;
+            $all[$k]['uid'] = (int) ($who[(string) $k]['uid'] ?? 0);
+        }
+        return $all;
+    }
+
     public static function build(int $cycleId, ?Carbon $now = null): array
     {
         $now ??= Carbon::now();

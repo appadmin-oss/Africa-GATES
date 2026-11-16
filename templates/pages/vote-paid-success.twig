@@ -124,6 +124,17 @@
                 aria-label="{{ 'Share the ballot'|trans }}" data-ag-copied="{{ 'Link copied'|trans }}">{{ 'Share the ballot'|trans }}</button>
       </div>
     </section>
+
+    {# "I backed …" (Services\BackedCard): the supporter's own card about this vote. It names
+       nobody but the nominee, so there is nothing to consent to. #}
+    {% if _who and card_url|default('') %}
+    <section class="rc__card" aria-labelledby="rcCard">
+      <h2 class="rc__h2" id="rcCard">{{ 'Your “I backed” card'|trans }}</h2>
+      <img class="rc__card-img" src="{{ card_url }}" width="600" height="315" loading="lazy" decoding="async" alt="{{ 'I backed %who%.'|trans({'%who%': _who}) }}">
+      <p class="rc__p">{{ 'Post it where your people will see it. It says who you stand with, not who you are.'|trans }}</p>
+      <div class="rc__do"><a class="ag-btn ag-btn--secondary" href="{{ card_url }}" download="i-backed.png">{{ 'Download the card'|trans }}</a></div>
+    </section>
+    {% endif %}
   {% elseif confirmed %}
     <section class="rc__card" aria-labelledby="rcH">
       <div class="rc__verdict rc__verdict--wait" role="status">

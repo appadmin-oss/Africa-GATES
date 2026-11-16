@@ -474,6 +474,10 @@ final class PaidVoteController
             'amount_naira'     => $don ? (int)$don->amount_naira : 0,
             'nominee_name'     => $nominee ? (string)$nominee->name : '',
             'ballot_url'       => $this->ballotUrl($nominee, $req),
+            // The supporter's "I backed" card (Services\BackedCard), as a PATH: the ballot URL is
+            // absolute on the configured site address, which an image on this page must not
+            // depend on (it drew broken wherever the two differ).
+            'card_url'         => $nominee && $minted ? \AfricaGates\Support\NomineeUrl::path((int) $nominee->id) . '/backed.png' : '',
             'reference'        => $reference,
             // The jury share, read from the engine rather than typed into the
             // template. This page is the first thing a supporter sees after paying,

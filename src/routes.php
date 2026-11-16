@@ -2347,6 +2347,8 @@ return function(App $app) {
         // og:image to. The 4:5 flier lost its bottom third — the vote URL and the rally
         // copy — in every preview. See FlierService::ogCard().
         $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/card.png',   FlierController::class.':card');
+        // "I backed …": the SUPPORTER's card about their own vote (Services\BackedCard).
+        $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/backed.png', VoteController::class.':backed');
         // The 9:16 share video (ShareVideoController). Beside card.png, before /{slug}.
         $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/video', \AfricaGates\Controllers\ShareVideoController::class.':nominee');
         // Every message of support for one nominee, paginated. Before /{slug} for the

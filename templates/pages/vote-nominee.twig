@@ -141,6 +141,17 @@
           </div>
           <p class="vb-bring__n">{% if ctx.recruit.brought == 0 %}{{ 'Nobody yet. Send it to three people.'|trans }}{% elseif ctx.recruit.brought == 1 %}{{ 'You’ve brought 1 person.'|trans }}{% else %}{{ 'You’ve brought %n% people.'|trans({'%n%': ctx.recruit.brought|number_format}) }}{% endif %}</p>
         </section>
+
+        {# "I backed …" (Services\BackedCard): the supporter's own card about their vote, to be
+           proud to post. It names nobody but the nominee, so it is offered to whoever has voted
+           here, free or paid, with nothing to consent to. #}
+        <section class="vb-card" aria-labelledby="{{ ctx.pre }}vb-card-h">
+          <h3 class="vb-bring__h" id="{{ ctx.pre }}vb-card-h">{{ 'Your “I backed” card'|trans }}</h3>
+          <img class="vb-card__img" src="{{ ctx.url }}/backed.png" width="600" height="315" loading="lazy" decoding="async"
+               alt="{{ 'I backed %name%. %award%.'|trans({'%name%': ctx.n.name, '%award%': ctx.n.programme_title}) }}">
+          <p class="vb-hint">{{ 'Post it where your people will see it. It says who you stand with, not who you are.'|trans }}</p>
+          <a class="vb-btn vb-btn--line" href="{{ ctx.url }}/backed.png" download="i-backed-{{ ctx.n.id }}.png">{{ 'Download the card'|trans }}</a>
+        </section>
         {% endif %}
 
     {# ── Points ── #}
@@ -374,6 +385,16 @@
       </div>
     </header>
     </div>
+
+    {# The nominee's own thank-you to everybody who backed them (Services\NomineeThanks),
+       once it is final: their words, for the people who stood with them. #}
+    {% if thanks|default(null) %}
+    <section class="vn-sec vn-thanks" aria-labelledby="vn-thanks-h">
+      <h2 class="vn-sec__t" id="vn-thanks-h">{{ 'A thank-you from %first%'|trans({'%first%': first}) }}</h2>
+      <blockquote class="vn-thanks__q">{{ thanks.message }}</blockquote>
+      <p class="vn-sec__p">{{ 'To everybody who backed them.'|trans }}</p>
+    </section>
+    {% endif %}
 
     {% if _placed %}
       {% if _won %}

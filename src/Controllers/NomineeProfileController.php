@@ -109,7 +109,14 @@ final class NomineeProfileController
                 'photos' => NomineeDetails::filesOf($d, 'photo'), 'evidence' => NomineeDetails::filesOf($d, 'evidence'),
                 'reason' => $nom ? '' : NomineeDetails::reason($d), 'terms_url' => $terms,
                 'max' => ['phones' => NomineeDetails::MAX_PHONES, 'emails' => NomineeDetails::MAX_EMAILS, 'photos' => NomineeDetails::MAX_PHOTOS,
-                          'evidence' => NomineeDetails::MAX_EVIDENCE, 'bio' => NomineeDetails::BIO_MAX]];
+                          'evidence' => NomineeDetails::MAX_EVIDENCE, 'bio' => NomineeDetails::BIO_MAX, 'thanks' => \AfricaGates\Services\NomineeThanks::MAX]];
+            // Thanking supporters, once the nomination is a nominee (NomineeThanks).
+            if (!$nom && $d->nominee_id && \AfricaGates\Services\NomineeThanks::ready()) {
+                $t = \AfricaGates\Services\NomineeThanks::forNominee((int) $d->nominee_id);
+                $ctx += ['thanks_on' => true, 'thanks' => $t, 'thanks_editable' => \AfricaGates\Services\NomineeThanks::editable($t),
+                         'audience' => \AfricaGates\Services\NomineeThanks::audience((int) $d->nominee_id),
+                         'grace' => \AfricaGates\Services\NomineeThanks::GRACE_MINUTES, 'min' => ['thanks' => \AfricaGates\Services\NomineeThanks::MIN]];
+            }
         }
         return $this->view->render($res, 'nominee/profile.twig', $ctx);
     }
@@ -137,10 +144,13 @@ final class NomineeProfileController
                 ? NomineeDetails::addPhoto($d, $files['photo'], (string) ($b['label'] ?? '')) : ['ok' => false, 'error' => 'Choose a photograph first.'],
             'evidence' => NomineeDetails::addEvidence($d, $files['file'] ?? null, (string) ($b['url'] ?? ''), (string) ($b['label'] ?? '')),
             'remove' => NomineeDetails::remove($d, (int) ($b['file'] ?? 0)) ? ['ok' => true] : ['ok' => false, 'error' => 'That was already removed.'],
+            'thanks' => $d->nominee_id ? \AfricaGates\Services\NomineeThanks::save((int) $d->nominee_id, (int) $user->id, (string) ($b['message'] ?? ''))
+                                       : ['ok' => false, 'error' => 'You can thank your supporters once your nomination is approved.'],
             default => ['ok' => false, 'error' => 'That isn’t something this page can do.'],
         };
         $section = in_array($do, ['remove'], true) ? (string) ($b['section'] ?? '') : $do;
-        $_SESSION[$r['ok'] ? 'nominee_ok' : 'nominee_error'] = $r['ok'] ? match ($do) { 'remove' => 'Removed.', 'terms' => 'Accepted. Thank you.', default => 'Saved.' } : (string) $r['error'];
+        $_SESSION[$r['ok'] ? 'nominee_ok' : 'nominee_error'] = $r['ok'] ? match ($do) { 'remove' => 'Removed.', 'terms' => 'Accepted. Thank you.',
+            'thanks' => 'Saved. It goes to your supporters in ' . \AfricaGates\Services\NomineeThanks::GRACE_MINUTES . ' minutes; you can change it until then.', default => 'Saved.' } : (string) $r['error'];
         if (!$r['ok']) $_SESSION['nominee_open'] = $section;
         return $res->withHeader('Location', $back . ($section !== '' ? '#nm-' . $section : ''))->withStatus(303);
     }

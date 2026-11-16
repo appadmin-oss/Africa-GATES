@@ -207,6 +207,14 @@ final class Maintenance
             // the top supporters. Every tick, cheap when nothing is new; each is CLAIMED first.
             $ran[] = ['spotlight-mail', $this->task('spotlight-mail',
                 fn() => \AfricaGates\Services\SpotlightMail::sweep($this->mailer()))];
+            // Honouring the people who voted (16 Nov 2026): on results day, every backer told
+            // what became of the nominee they backed and that they were one of the people behind
+            // them (ResultsDayMail, only for an ANNOUNCED release); and a nominee's own thank-you,
+            // once its edit window is over (NomineeThanks). Both claim each address first.
+            $ran[] = ['results-day-mail', $this->task('results-day-mail',
+                fn() => \AfricaGates\Services\ResultsDayMail::sweep($this->mailer()))];
+            $ran[] = ['nominee-thanks', $this->task('nominee-thanks',
+                fn() => \AfricaGates\Services\NomineeThanks::sweep($this->mailer()))];
             // Volunteers' reminders (Volunteer\Reminders): the day before a meeting, training
             // about to lapse. Every tick; each message is claimed before it is sent, so
             // overlapping ticks never send one twice.

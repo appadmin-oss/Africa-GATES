@@ -196,6 +196,39 @@
         </form>
       {% endif %}
     </section>
+
+    {# ── Thank your supporters (Services\NomineeThanks) — once approved. One message, sent once
+       to everybody who backed them and can be reached; changeable for half an hour first. ── #}
+    {% if thanks_on|default(false) %}
+    <section class="nm-card" id="nm-thanks" aria-labelledby="nm-thanks-h">
+      <div class="nm-card__top"><h2 class="nm-card__h" id="nm-thanks-h">Thank your supporters</h2>{% if thanks and thanks.sent_at %}<span class="nm-chip nm-chip--ok">Sent</span>{% endif %}</div>
+      <p class="nm-hint">
+        {%- if audience.people == 0 -%}
+          Nobody has voted for you yet. When they do, you can thank every one of them here.
+        {%- else -%}
+          {{ audience.people == 1 ? 'One person has' : audience.people|number_format ~ ' people have' }} backed you.
+          {{ audience.reach == audience.people ? (audience.people == 1 ? 'Your message reaches them by email.' : 'Your message reaches all of them by email.')
+             : (audience.reach == 0 ? 'None of them can be reached by email yet; your message still shows on your vote page.' : audience.reach|number_format ~ ' of them can be reached by email; everybody sees it on your vote page.') }}
+        {%- endif -%}
+      </p>
+      {% if thanks %}<blockquote class="nm-quote">{{ thanks.message }}</blockquote>{% endif %}
+      {% if thanks and thanks.sent_at %}
+        <p class="nm-text">Sent {{ thanks.sent_at|date('j M Y') }}{% if thanks.reached %} to {{ thanks.reached == 1 ? 'one supporter' : thanks.reached|number_format ~ ' supporters' }}{% endif %}. It stays on your vote page.</p>
+      {% elseif thanks_editable %}
+        <details class="nm-edit"{{ not thanks or open == 'thanks' ? ' open' }}>
+          <summary>{{ thanks ? 'Change it before it goes' : 'Write your thank-you' }}</summary>
+          <form method="post" action="{{ base }}" class="nm-form">
+            <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="do" value="thanks">
+            <label class="ap-f" for="nmThanks"><span class="ap-f__l">Your message</span><span class="ap-f__h">In your own words, to the people who voted for you. It goes out once, {{ grace }} minutes after you first save it, and you can change it until then. Up to {{ max.thanks }} characters.</span>
+              <textarea class="ap-in" id="nmThanks" name="message" rows="5" minlength="{{ min.thanks }}" maxlength="{{ max.thanks }}" required>{{ thanks.message|default('') }}</textarea></label>
+            <button class="ap-btn ap-btn--go" type="submit">{{ thanks ? 'Save the change' : 'Save my thank-you' }}</button>
+          </form>
+        </details>
+      {% else %}
+        <p class="nm-text">It is on its way to your supporters now.</p>
+      {% endif %}
+    </section>
+    {% endif %}
   {% endif %}
   </main>
 </div>
