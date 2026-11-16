@@ -88,6 +88,9 @@
   width:14px; height:14px; border-radius:50%;
   background:var(--ag-gold); border:2px solid var(--ag-ink);
 }
+/* Pulse and the support desk keep Gee in the page, hidden, so their shell matches every other
+   page's and site-nav can swap them in place (layout/shell.twig says why). */
+.gee[data-gee-away]{ display:none }
 .gee[data-mode="support"] .gee__g-dot{ display:block }
 
 /* While the panel is open the launcher is not drawn (the DC's `closed`). Reads the

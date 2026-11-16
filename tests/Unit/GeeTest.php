@@ -114,17 +114,28 @@ final class GeeTest extends TestCase
      * §7.7: every page except Pulse. The desk's own pages and a page without chrome keep
      * the old layout's reasons. Asked of the layout itself, rendered by the app's own Twig.
      */
-    public function test_gee_is_not_mounted_on_pulse_the_support_pages_or_a_chromeless_page(): void
+    /**
+     * Gee is not OFFERED on Pulse or the support pages — but it is in them, hidden
+     * (`data-gee-away`), so their shell matches every other page's and site-nav can swap into
+     * and out of them (owner, 16 Nov 2026: "fix the full reload issues"; FullReloadTest).
+     * A chromeless page has no shell to share, and still mounts nothing.
+     */
+    public function test_gee_is_away_on_pulse_and_the_support_pages_and_absent_from_a_chromeless_page(): void
     {
         $twig = $this->appTwig();
         $render = static fn (array $vars): string => $twig->createTemplate("{% extends 'layout/shell.twig' %}")->render($vars);
 
-        $this->assertStringContainsString('data-gee', $render(['page_title' => 'Any page']));
-        foreach ([['gates_page' => 'pulse'], ['tab' => 'pulse'], ['gates_page' => 'support'], ['hide_chrome' => true]] as $v) {
+        $any = $render(['page_title' => 'Any page']);
+        $this->assertStringContainsString('data-gee', $any);
+        $this->assertDoesNotMatchRegularExpression('~\sdata-gee-away[\s>]~', $any, 'Gee hidden on an ordinary page');
+        foreach ([['gates_page' => 'pulse'], ['tab' => 'pulse'], ['gates_page' => 'support']] as $v) {
             $html = $render($v + ['page_title' => 'X']);
-            $this->assertStringNotContainsString('data-gee', $html, 'Gee mounted with ' . json_encode($v));
-            $this->assertStringNotContainsString('/assets/js/gee.js', $html, 'gee.js loaded with ' . json_encode($v));
+            $this->assertMatchesRegularExpression('~<div class="gee" data-gee [^>]*\sdata-gee-away\s~', $html, 'Gee not marked away with ' . json_encode($v));
+            $this->assertStringContainsString('/assets/js/gee.js', $html, 'the shell differs without gee.js with ' . json_encode($v));
         }
+        $bare = $render(['hide_chrome' => true, 'page_title' => 'X']);
+        $this->assertStringNotContainsString('data-gee', $bare);
+        $this->assertStringNotContainsString('/assets/js/gee.js', $bare);
     }
 
     private function appTwig(): \Twig\Environment

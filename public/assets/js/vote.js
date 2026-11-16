@@ -448,9 +448,10 @@
           .then(function (d) {
             if (d && d.success) {
               record(pid, cid, entry);
-              // Reload, so the confirmation is drawn by the server from its own record.
-              location.href = location.pathname + '#ballot';
-              location.reload();
+              // Reload, so the confirmation is drawn by the server from its own record — in
+              // place (site-nav), so the moment somebody voted is not a white page.
+              if (window.agNav && window.agNav.reload) window.agNav.reload('#ballot');
+              else { location.href = location.pathname + '#ballot'; location.reload(); }
             } else { busy(confirm, false); refuse(errOtp, (d && d.message) || 'Could not record your vote.', 'otp'); }
           }).catch(function () { busy(confirm, false); say(errOtp, W('confirm-net', 'We couldn’t confirm the response. Try again to check whether your vote counted.')); });
       }

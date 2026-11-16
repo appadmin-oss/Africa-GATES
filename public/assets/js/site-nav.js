@@ -248,7 +248,8 @@
     if (ctrl) ctrl.abort();
     ctrl = window.AbortController ? new AbortController() : null;
     busy(true);
-    var used = cached(key(u));
+    // A reload asks the server again: a page from the cache is the page before the action.
+    var used = o.fresh ? null : cached(key(u));
     var p = used ? used.p : request(u.href, { signal: ctrl ? ctrl.signal : undefined });
     p.then(function (page) {
       if (mine !== seq) return;
@@ -281,11 +282,12 @@
     }
     var samePath = final.pathname === location.pathname;
     return styles(doc).then(function (drop) {
-      if (!o.pop) saveScroll();
+      if (!o.pop && !o.replace) saveScroll();
       var run = function () { return swap(doc).then(drop); };
       var done = function () {
         var hash = final.hash || u.hash;
-        if (!o.pop) history.pushState({ ag: 1, y: 0 }, '', final.pathname + final.search + hash);
+        if (o.replace) { try { history.replaceState({ ag: 1, y: main.scrollTop }, '', final.pathname + final.search + hash); } catch (_) {} }
+        else if (!o.pop) history.pushState({ ag: 1, y: 0 }, '', final.pathname + final.search + hash);
         shown = here();
         var target = hash && document.getElementById(decodeURIComponent(hash.slice(1)));
         if (target) target.scrollIntoView();
@@ -523,5 +525,11 @@
 
   warmSoon();
 
-  window.agNav = { go: function (href) { go(href); }, prefetch: function (href) { prefetch(new URL(href, location.href)); } };
+  /* `reload(hash)`: this page again, fresh from the server, swapped in place — for a script
+     whose action changed what the page shows (a vote confirmed, a ticket claimed). It used
+     to be location.reload(): a white page and every shared script parsed again, after the
+     one moment somebody had just done something. The history entry is replaced, not added,
+     and the reader stays where they were unless a hash says where to go. */
+  window.agNav = { go: function (href) { go(href); }, prefetch: function (href) { prefetch(new URL(href, location.href)); },
+                   reload: function (hash) { go(location.pathname + location.search + (hash || ''), { replace: true, fresh: true, keep: true }); } };
 })();

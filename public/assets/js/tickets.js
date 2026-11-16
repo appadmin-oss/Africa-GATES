@@ -55,7 +55,7 @@
         .then(function (d) {
           if (note) { note.textContent = d.message || ''; note.classList.toggle('st-note--err', !d.ok); }
           if (d.code === 'SIGN_IN' && d.login_url) { setTimeout(function () { location.href = d.login_url; }, 1400); return; }
-          if (d.ok) setTimeout(function () { location.reload(); }, 900);
+          if (d.ok) setTimeout(function () { if (window.agNav && window.agNav.reload) window.agNav.reload(); else location.reload(); }, 900);
         })
         .catch(function () { if (note) { note.textContent = note.getAttribute('data-offline') || 'No connection. Your words are still in the box — try again in a moment.'; note.classList.add('st-note--err'); } })
         .then(function () { if (btn) btn.removeAttribute('aria-busy'); });

@@ -59,9 +59,13 @@
    brain is a choice nobody can make (the old layout's reason, still true) — nor on a page
    that hides the chrome. Hoisted to template scope: it is read by the head, the `gee`
    block and the scripts. #}
-{% set _gee_off = hide_chrome|default(false)
-                  or gates_page|default('') in ['pulse', 'support']
-                  or tab|default('') == 'pulse' %}
+{#
+   And it is IN the page on Pulse and the support desk, only hidden there (`gee_away`): a page
+   without it had a different shell, so site-nav could not swap into or out of it, and every
+   visit to Pulse or the help desk was a full reload (owner, 16 Nov 2026: "fix the full reload
+   issues"). The kept launcher follows each page's `data-gee-away` (data-nav-sync). #}
+{% set _gee_off = hide_chrome|default(false) %}
+{% set gee_away = gates_page|default('') in ['pulse', 'support'] or tab|default('') == 'pulse' %}
 <!doctype html>
 <html lang="{{ lang() }}" dir="{{ lang_dir() }}" class="ag-shelled"
       data-ag-easy-font="{{ asset('/assets/css/fonts-easy.css') }}"
