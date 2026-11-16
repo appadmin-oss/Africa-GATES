@@ -336,14 +336,15 @@
    white stat tiles 14 round with a hairline. One accent per block (§6.1): gold here.
    WITHOUT the card's gold wash, deliberately: this is a tier-2 page (ColourBudgetTest) whose
    two colour fields are already the page's green action and its live chip, so gold is drawn
-   only as LINE and INK — the card's top edge, the dot as a ring, the rings round the
-   champions — never as a fill. Sizes from the ladder; display sizes fixed per breakpoint. */
+   only as LINE and INK — the dot as a ring, the rings round the champions — never as a
+   fill. The card itself is a plain hairline card (owner, 16 Nov 2026: "I do not like that
+   yellow line border"); the kicker's ring carries the accent. Sizes from the ladder; display sizes fixed per breakpoint. */
 .vp-why{ padding:0 var(--ag-gutter); margin-top:16px }
 .vp-why__in{
   max-width:1176px; margin:0 auto; padding:20px 18px 22px; box-sizing:border-box;
   display:flex; flex-direction:column; align-items:flex-start; gap:12px;
   background:var(--ag-surface);
-  border:1px solid var(--ag-line); border-top:4px solid var(--ag-gold); border-radius:var(--ag-r-24);
+  border:1px solid var(--ag-line); border-radius:var(--ag-r-24);
 }
 .vp-why__kicker{
   margin:0; display:inline-flex; align-items:center; gap:8px; min-height:32px; padding:0 12px;

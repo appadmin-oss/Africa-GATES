@@ -163,7 +163,7 @@ final class VolunteerStatusUpdatesTest extends TestCase
         $this->assertStringContainsString('0 of 2 updated so far', $list);
 
         // A refused update keeps its answers; a sent one opens the next nominee owed one.
-        $this->assertFalse(NomineeStatus::record($v, $a, ['portal' => 'helping', 'publicity' => 'nonsense', 'mobilising' => 'none'])['ok']);
+        $this->assertFalse(NomineeStatus::record($v, $a, ['portal' => 'helping', 'mobilising' => 'nonsense'])['ok']);
         $res = $this->act(['do' => 'status_update', 'nominee' => (string) $a, 'portal' => 'helping', 'publicity' => 'flier', 'mobilising' => 'started', 'status_note' => 'Sharing in her church group']);
         $this->assertStringContainsString('?n=' . $b . '#status', $res->getHeaderLine('Location'), 'the next nominee owed an update did not open');
         $this->assertStringContainsString('Next to update: Bayo Adisa', (string) $_SESSION['vol_toast']);
@@ -195,5 +195,113 @@ final class VolunteerStatusUpdatesTest extends TestCase
         $other = $this->volunteer('Not Outreach', ['vol.nomination_check']);
         $this->assertFalse(NomineeStatus::record($other, $n, ['portal' => 'none', 'publicity' => 'none', 'mobilising' => 'none'])['ok']);
         $this->assertSame([], NomineeStatus::latest([$n]));
+    }
+
+    // ── any time, broader, and emailed (owner, 16 Nov 2026: "can also do it without the asks.
+    //    Also please broaden"; "email volunteers on requests") ─────────────────────────────
+
+    /**
+     * An update says more than three things, and keeps what it said: the reach, what the profile
+     * still needs, where they were shared, who is mobilising, what would help and the next step.
+     * Words outside each list are dropped, never stored. Publicity is read off the channels.
+     */
+    public function test_an_update_carries_the_broader_answers_and_only_known_words(): void
+    {
+        $n = $this->nominee('Halima Bello');
+        $v = $this->volunteer('Chika Nwosu', [Outreach::CAPABILITY]);
+        $this->assertTrue(NomineeStatus::record($v, $n, ['reach' => 'reached', 'portal' => 'helping', 'missing' => ['photo', 'made-up'],
+            'channels' => ['whatsapp', 'community'], 'mobilising' => 'started', 'backers' => ['family'], 'needs' => ['graphics'],
+            'next_step' => 'Call her on Friday about the photo'])['ok']);
+        $st = NomineeStatus::latest([$n])[$n];
+        $this->assertSame('reached', $st->reach);
+        $this->assertSame('["photo"]', $st->missing, 'a word outside the list was stored');
+        $this->assertSame(['whatsapp', 'community'], NomineeStatus::list($st, 'channels'));
+        $this->assertSame('groups', $st->publicity, 'publicity is not read off where they were shared');
+        $this->assertSame('Call her on Friday about the photo', $st->next_step);
+        $this->assertStringContainsString('Shared: WhatsApp status or groups, church, mosque, school or community groups', NomineeStatus::words($st));
+
+        // Nothing shared yet is "not yet", not a refusal.
+        $this->assertTrue(NomineeStatus::record($v, $n, ['portal' => 'none', 'mobilising' => 'none'])['ok']);
+        $this->assertSame('none', NomineeStatus::latest([$n])[$n]->publicity);
+
+        // The form starts from the last update's answers, so an update is what changed.
+        $page = $this->place('', ['n' => (string) $n]);
+        $this->assertMatchesRegularExpression('~name="needs\[\]" value="graphics"(?! checked)~', $page, 'the newest update (no needs) was not the starting point');
+        $this->assertStringContainsString('name="next_step"', $page);
+        $this->assertStringContainsString('>Where they’ve been shared<', $page);
+    }
+
+    /** Without a request, the Status updates tab is every nominee, stalest first — an update never waits to be asked. */
+    public function test_updates_can_be_sent_without_being_asked(): void
+    {
+        $a = $this->nominee('Ada Obi');
+        $b = $this->nominee('Bayo Adisa');
+        $c = $this->nominee('Chiamaka Eze');
+        $v = $this->volunteer('Chika Nwosu', [Outreach::CAPABILITY]);
+        $this->assertNull(NomineeStatus::open($this->cycle));
+        foreach ([$a => '-1 day', $b => '-5 days'] as $id => $when) {
+            $this->assertTrue(NomineeStatus::record($v, $id, ['portal' => 'none', 'mobilising' => 'none'])['ok']);
+            DB::table('gates_vol_nominee_status')->where('nominee_id', $id)->update(['created_at' => date('Y-m-d H:i:s', strtotime($when))]);
+        }
+        $tab = $this->place('update');
+        $tab = substr($tab, (int) strpos($tab, '<main'));
+        $this->assertStringContainsString('You don’t need to wait to be asked', $tab);
+        $order = array_map(static fn ($name) => strpos($tab, '>' . $name . '<'), ['Chiamaka Eze', 'Bayo Adisa', 'Ada Obi']);
+        $this->assertNotContains(false, $order, 'a nominee with an update dropped off the tab');
+        $sorted = $order;
+        sort($sorted);
+        $this->assertSame($sorted, $order, 'not stalest first: no update, then the oldest');
+    }
+
+    /** What would help leads the lead's view: on the row, and in the order. */
+    public function test_the_lead_reads_what_would_help_first(): void
+    {
+        $a = $this->nominee('Ada Obi');
+        $z = $this->nominee('Zainab Lawal');
+        $v = $this->volunteer('Chika Nwosu', [Outreach::CAPABILITY]);
+        $this->assertTrue(NomineeStatus::record($v, $z, ['portal' => 'none', 'mobilising' => 'none', 'needs' => ['call', 'data']])['ok']);
+        $this->assertTrue(NomineeStatus::record($v, $a, ['portal' => 'done', 'mobilising' => 'active'])['ok']);
+        $lead = $this->volunteer('Amaka Okonkwo', ['vol.team_lead']);
+        $req = (new ServerRequestFactory())->createServerRequest('GET', '/volunteer/team/updates');
+        $html = (string) $this->ctrl()->root($req, new Response(), ['page' => 'team', 'tab' => 'updates'])->getBody();
+        $html = substr($html, (int) strpos($html, '<main'));
+        $this->assertStringContainsString('Would help: a call from a lead, airtime or data', $html);
+        $this->assertStringContainsString('>Needs help<', $html);
+        $this->assertLessThan(strpos($html, '>Ada Obi<'), strpos($html, '>Zainab Lawal<'), 'the nominee who needs help is not first');
+    }
+
+    /**
+     * Asking emails everybody who reaches nominees on the award — once, never the lead, never
+     * somebody without the role — and links them to the nominees still to update.
+     */
+    public function test_a_request_is_emailed_once_to_the_team(): void
+    {
+        $this->nominee('Ada Obi');
+        $this->nominee('Bayo Adisa');
+        $chika = $this->volunteer('Chika Nwosu', [Outreach::CAPABILITY]);
+        $tunde = $this->volunteer('Tunde Bello', [Outreach::CAPABILITY]);
+        $this->volunteer('Not Outreach', ['vol.nomination_check']);
+        $lead = $this->volunteer('Amaka Okonkwo', [Outreach::CAPABILITY, 'vol.team_lead']);
+        $sent = [];
+        $send = static function (string $to, string $subject, string $html, string $plain) use (&$sent): bool { $sent[] = [$to, $subject, $plain]; return true; };
+        $r = NomineeStatus::request($lead, $this->cycle, 'Please update your nominees today.', date('Y-m-d', strtotime('+1 day')), null, $send);
+        $this->assertTrue($r['ok']);
+        $this->assertSame(2, $r['emailed']);
+        $to = array_column($sent, 0);
+        $emails = fn (object $v) => (string) DB::table('gates_users')->where('id', $v->user_id)->value('email');
+        sort($to);
+        $want = [$emails($chika), $emails($tunde)];
+        sort($want);
+        $this->assertSame($want, $to, 'the wrong people were emailed (the lead, or somebody without the role)');
+        $this->assertSame('Amaka Okonkwo asked for an update on your nominees', $sent[0][1]);
+        $this->assertStringContainsString('“Please update your nominees today.”', $sent[0][2]);
+        $this->assertStringContainsString('/volunteer/cycle/' . $this->cycle . '/nominees/update', $sent[0][2]);
+        $this->assertStringContainsString('2 nominees still to update', $sent[0][2]);
+
+        // The same request is never mailed twice, whatever retries it.
+        $req = NomineeStatus::open($this->cycle);
+        $again = (new \ReflectionMethod(NomineeStatus::class, 'emailRequest'));
+        $this->assertSame(0, $again->invoke(null, (int) $req->id, $lead, $this->cycle, 'x', date('Y-m-d', strtotime('+1 day')), null, $send));
+        $this->assertCount(2, $sent);
     }
 }

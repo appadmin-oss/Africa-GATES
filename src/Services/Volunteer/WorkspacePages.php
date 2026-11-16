@@ -34,8 +34,39 @@ final class WorkspacePages
             'record'   => self::record($v, $tab),
             'team'     => self::team($v, $tab),
             'requests' => self::requests($v, $tab, $q),
+            'nominees' => self::nomineeAwards($v),
             default    => ['title' => 'Today', 'secs' => []],
         };
+    }
+
+    // ── Nominees, on several awards ───────────────────────────────────────────────────────
+
+    /**
+     * Nominees for somebody who reaches them on more than one award (with one award, Nominees
+     * opens that award's list directly). Each award says what is waiting on it, the award with
+     * the most waiting first, so the page answers "where do I start".
+     */
+    private static function nomineeAwards(object $v): array
+    {
+        $rows = [];
+        foreach (Outreach::awards($v) as $cid => $award) {
+            $all = Outreach::nominees($v, (int) $cid);
+            $due = count(Outreach::nominees($v, (int) $cid, '', 'due'));
+            $waiting = Workspace::nomineesWaiting($v, (int) $cid);
+            $req = NomineeStatus::open((int) $cid);
+            $bits = [count($all) === 1 ? 'One nominee' : count($all) . ' nominees'];
+            if ($due) $bits[] = ($due === 1 ? 'one follow-up' : $due . ' follow-ups') . ' due';
+            if ($req) {
+                $pr = NomineeStatus::progress($req, array_map(static fn ($r) => (int) $r->id, $all));
+                $bits[] = $pr['done'] . ' of ' . $pr['total'] . ' updated for ' . $req->by;
+            }
+            $rows[] = ['w' => $waiting, 'row' => ['t' => (string) $award, 'sub' => implode(' · ', $bits), 'dot' => $waiting ? 'warn' : 'mute',
+                       'chip' => $waiting ? [$waiting . ' waiting', 'warn'] : null,
+                       'cta' => ['label' => 'Open the nominees', 'href' => '/volunteer/cycle/' . $cid . '/nominees']]];
+        }
+        usort($rows, static fn ($a, $b) => $b['w'] <=> $a['w']);
+        return ['title' => 'Nominees', 'purpose' => 'The awards you reach nominees on. Open one to see its nominees, log a contact or send an update.',
+                'secs' => [['k' => 'rows', 'h' => 'Your awards', 'items' => array_map(static fn ($r) => array_filter($r['row'], static fn ($x) => $x !== null), $rows)]]];
     }
 
     // ── Today ─────────────────────────────────────────────────────────────────────────────
@@ -554,19 +585,26 @@ final class WorkspacePages
                     'v' => $pg['done'] . ' of ' . $pg['total'], 'pct' => $pg['total'] ? (int) round(100 * $pg['done'] / $pg['total']) : 0,
                     's' => 'Due ' . Workspace::day((string) $req->due_on) . ', asked by ' . $req->by]]];
             }
+            // What would help comes first, on the row and in the order: it is the one answer a lead
+            // acts on, and a nominee whose volunteer asked for a flier should not sit at the bottom.
             $rows = [];
             foreach ($noms as $n) {
                 $st = $latest[(int) $n->id] ?? null;
-                $rows[] = ['t' => (string) $n->name, 'ini' => Workspace::initials((string) $n->name),
+                $help = $st ? NomineeStatus::listWords($st, 'needs') : '';
+                $rows[] = ['h' => $help !== '' ? 1 : 0, 'row' => ['t' => (string) $n->name, 'ini' => Workspace::initials((string) $n->name),
                            'href' => '/volunteer/cycle/' . $cid . '/nominees?n=' . $n->id . '#status',
-                           'sub' => $n->category . ' · ' . ($st ? NomineeStatus::words($st) . ' · ' . $st->by . ', ' . Workspace::day((string) $st->created_at)
+                           'sub' => $n->category . ' · ' . ($st ? ($help !== '' ? 'Would help: ' . $help . ' · ' : '') . NomineeStatus::words($st)
+                                                                  . ($st->next_step ?? null ? ' · Next: ' . $st->next_step : '')
+                                                                  . ' · ' . $st->by . ', ' . Workspace::day((string) $st->created_at)
                                                                   . ($st->note ? ' · ' . mb_strimwidth((string) $st->note, 0, 120, '…') : '') : 'No update yet'),
-                           'chip' => $req ? (NomineeStatus::answered($req, $st) ? ['Updated', 'ok'] : ['Update due', 'warn']) : ($st ? null : ['No update yet', 'mute'])];
+                           'chip' => $help !== '' ? ['Needs help', 'warn'] : ($req ? (NomineeStatus::answered($req, $st) ? ['Updated', 'ok'] : ['Update due', 'warn']) : ($st ? null : ['No update yet', 'mute']))]];
             }
+            usort($rows, static fn ($a, $b) => $b['h'] <=> $a['h']);
+            $rows = array_column($rows, 'row');
             $secs[] = $rows ? ['k' => 'rows', 'h' => $title . ': where every nominee stands', 'items' => $rows]
                             : ['k' => 'note', 'text' => 'No approved nominees on ' . $title . ' yet.', 'tone' => 'mute'];
             $secs[] = ['k' => 'form', 'h' => 'Ask the team for an update · ' . $title, 'do' => 'status_request', 'hidden' => ['cycle' => $cid], 'submit' => 'Ask the team',
-                       'route' => 'Everybody reaching nominees on this award sees it on Today and on their nominee list, with each nominee still to update marked.',
+                       'route' => 'Everybody reaching nominees on this award is emailed your message, and sees it on Today and on their nominee list, with each nominee still to update marked.',
                        'groups' => [
                            ['label' => 'Your message', 'fields' => [['name' => 'message', 'label' => 'Your message', 'type' => 'textarea', 'value' => NomineeStatus::ASK]]],
                            ['label' => 'Due by', 'fields' => [['name' => 'due_on', 'label' => 'Due by', 'type' => 'date', 'required' => true, 'min' => date('Y-m-d'),
@@ -929,17 +967,27 @@ final class WorkspacePages
         foreach ($list as $n) {
             $st = $latest[(int) $n->id] ?? null;
             $owed = !$n->stopped && ($req ? !NomineeStatus::answered($req, $st) : $st === null);
-            if ($updates && !$owed) continue;
+            // With a request open, the tab is who is still owed one. Without one it is EVERY
+            // nominee, the stalest first: an update never waits to be asked.
+            if ($updates && ($req ? !$owed : $n->stopped)) continue;
             $last = $n->last;
             $sub = $n->category . ' · ' . ($last ? (Outreach::OUTCOMES[$last->outcome] ?? '') . ', ' . Workspace::day((string) $last->created_at)
                 . ($last->follow_up_on && !$n->stopped ? ' · follow up ' . Workspace::day((string) $last->follow_up_on) : '') : 'nobody has reached them yet')
                 . ($n->stopped ? '' : ' · ' . self::profileWords($n))
                 . ($st ? ' · last update ' . Workspace::day((string) $st->created_at) . ': ' . NomineeStatus::words($st) : '');
-            $rows[] = ['t' => (string) $n->name, 'sub' => $sub, 'href' => $base . '?n=' . $n->id . ($updates ? '#status' : ''),
-                       'chip' => $n->stopped ? ['Asked not to be contacted', 'mute'] : (($req && $owed) ? ['Update due', 'warn'] : ($n->due ? ['Follow up', 'warn']
-                           : ($n->recent ? ['Reached ' . Workspace::day((string) $last->created_at), 'ok'] : ($last ? null : ['Not reached yet', 'info']))))];
+            $rows[] = ['_at' => $st ? (string) $st->created_at : '', 't' => (string) $n->name, 'sub' => $sub, 'href' => $base . '?n=' . $n->id . ($updates ? '#status' : ''),
+                       'chip' => $n->stopped ? ['Asked not to be contacted', 'mute'] : (($req && $owed) ? ['Update due', 'warn'] : (($updates && !$st) ? ['No update yet', 'info'] : ($updates ? ['Updated ' . Workspace::day((string) $st->created_at), 'ok'] : ($n->due ? ['Follow up', 'warn']
+                           : ($n->recent ? ['Reached ' . Workspace::day((string) $last->created_at), 'ok'] : ($last ? null : ['Not reached yet', 'info']))))))];
         }
+        if ($updates && !$req) {
+            usort($rows, static fn ($a, $b) => ($a['_at'] ?? '') <=> ($b['_at'] ?? ''));
+        }
+        foreach ($rows as &$r) unset($r['_at']);
+        unset($r);
         $secs = [];
+        if ($updates && !$req && Outreach::agreed($v, $id)) {
+            $secs[] = ['k' => 'note', 'tone' => 'info', 'text' => 'You don’t need to wait to be asked: send an update whenever something changes. The ones with no update, or the oldest, come first. Your lead and the team see each one.'];
+        }
         if ($req && Outreach::agreed($v, $id)) {
             $pg = NomineeStatus::progress($req, array_map(static fn ($n) => (int) $n->id, array_filter($list, static fn ($n) => !$n->stopped)));
             $secs[] = ['k' => 'note', 'tone' => $pg['done'] >= $pg['total'] ? 'ok' : 'warn',
@@ -1077,6 +1125,8 @@ final class WorkspacePages
         }
 
         $o = static fn (string $k, string $d = ''): string => mb_substr((string) ($old[$k] ?? $d), 0, 3000);
+        // A list answer: what was just posted (a refused form keeps it), else the last update's.
+        $ol = static fn (string $k, ?object $st): array => isset($old[$k]) ? array_map('strval', (array) $old[$k]) : ($st ? NomineeStatus::list($st, $k) : []);
         if (!$n->stopped) {
             if ($n->phones) {
                 // After a call, the two commonest answers in one tap each; the form has the rest.
@@ -1106,13 +1156,25 @@ final class WorkspacePages
             $secs[] = ['k' => 'form', 'h' => 'Status update', 'anchor' => 'status', 'do' => 'status_update', 'hidden' => ['nominee' => $n->id], 'submit' => 'Send my update',
                        'route' => $st ? 'Last update: ' . $st->by . ', ' . Workspace::day((string) $st->created_at) . '. ' . NomineeStatus::words($st) . '. Your lead and the team see each one.'
                                       : 'Nobody has sent an update on them yet. Your lead and the team see each one.',
+                       // The last update's answers are the starting point, so an update is what CHANGED,
+                       // not the whole form again. Two answers are required; the rest is optional.
                        'groups' => [
+                           ['label' => 'Have you reached them?', 'help' => 'Optional.', 'fields' => [['name' => 'reach', 'label' => 'Have you reached them?', 'type' => 'radio',
+                                                                     'options' => NomineeStatus::REACH, 'value' => $o('reach', (string) ($st->reach ?? ''))]]],
                            ['label' => 'Their profile on the portal', 'fields' => [['name' => 'portal', 'label' => 'Their profile on the portal', 'type' => 'radio', 'required' => true,
                                                                                     'options' => NomineeStatus::PORTAL, 'value' => $o('portal', $portal0)]]],
-                           ['label' => 'Publicity', 'fields' => [['name' => 'publicity', 'label' => 'Publicity', 'type' => 'radio', 'required' => true,
-                                                                  'options' => NomineeStatus::PUBLICITY, 'value' => $o('publicity', (string) ($st->publicity ?? 'none'))]]],
+                           ['label' => 'What their profile still needs', 'help' => 'Tick any that apply.', 'fields' => [['name' => 'missing', 'label' => 'What their profile still needs', 'type' => 'checks',
+                                                                     'options' => NomineeStatus::MISSING, 'value' => $ol('missing', $st)]]],
+                           ['label' => 'Where they’ve been shared', 'help' => 'Tick all that apply. Leave it empty if nothing yet.', 'fields' => [['name' => 'channels', 'label' => 'Where they’ve been shared', 'type' => 'checks',
+                                                                     'options' => NomineeStatus::CHANNELS, 'value' => $ol('channels', $st)]]],
                            ['label' => 'Voting mobilisation', 'fields' => [['name' => 'mobilising', 'label' => 'Voting mobilisation', 'type' => 'radio', 'required' => true,
                                                                             'options' => NomineeStatus::MOBILISING, 'value' => $o('mobilising', (string) ($st->mobilising ?? 'none'))]]],
+                           ['label' => 'Who is mobilising voters', 'help' => 'Tick any that apply.', 'fields' => [['name' => 'backers', 'label' => 'Who is mobilising voters', 'type' => 'checks',
+                                                                     'options' => NomineeStatus::BACKERS, 'value' => $ol('backers', $st)]]],
+                           ['label' => 'What would help', 'help' => 'Your lead sees this first.', 'fields' => [['name' => 'needs', 'label' => 'What would help', 'type' => 'checks',
+                                                                     'options' => NomineeStatus::HELP, 'value' => $ol('needs', $st)]]],
+                           ['label' => 'Next step', 'help' => 'Optional. For example: “Call her on Friday about the photo.”', 'fields' => [['name' => 'next_step', 'label' => 'Next step', 'type' => 'text', 'autocomplete' => 'off',
+                                                                     'value' => $o('next_step', (string) ($st->next_step ?? ''))]]],
                            ['label' => 'Anything else', 'help' => 'What is going well, or what they need. Optional.',
                             'fields' => [['name' => 'status_note', 'label' => 'Anything else', 'type' => 'textarea', 'value' => $o('status_note')]]],
                        ]];

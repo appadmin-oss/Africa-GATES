@@ -365,5 +365,17 @@ final class SupporterSpotlightTest extends TestCase
         $this->assertStringContainsString('Join the first person celebrating Alimosho’s own.', $html);
         $this->assertStringNotContainsString('would make you today’s champion', $html);
         $this->assertStringContainsString('href="#vp-race"', $html);
+        // "Where does the money go?" gives the award's own split, and nothing about the rest
+        // the host did not write (AwardCampaign: only the beneficiary's share is stated).
+        $money = function (): string {
+            $f = \AfricaGates\Services\VoteFront::programme(['id' => self::P, 'cycle' => null, 'phase' => []], [], null);
+            foreach ($f['faq'] as [$q, $a]) if ($q === 'Where does the money go?') return $a;
+            $this->fail('the question is gone from a paid award');
+        };
+        $this->assertStringStartsWith('Of every ₦200 vote, ₦60 goes to CACENTRE. What every nominee received in contributed votes', $money());
+        $this->assertNull(AwardCampaign::save(self::P, ['beneficiary' => 'CACENTRE', 'share_pct' => '30', 'remainder_note' => 'The rest funds the concert and the prizes.']));
+        $this->assertStringStartsWith('Of every ₦200 vote, ₦60 goes to CACENTRE. The rest funds the concert and the prizes. What every nominee', $money());
+        $this->assertNull(AwardCampaign::save(self::P, []));
+        $this->assertStringStartsWith('It funds the awards. What every nominee', $money(), 'a split stated for an award that named no beneficiary');
     }
 }

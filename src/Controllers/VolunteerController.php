@@ -51,6 +51,13 @@ final class VolunteerController
         $page = (string) ($args['page'] ?? 'home');
         if (!isset(Workspace::ROOT[$page]) || ($page === 'team' && $role !== 'lead')
             || ($role === 'applicant' && !in_array($page, ['home', 'training'], true))) throw new HttpNotFoundException($req);
+        // Nominees is one entry for the work, wherever it is: straight to the award's list when
+        // there is one award, the list of awards when there are several, nothing without the role.
+        if ($page === 'nominees') {
+            $to = Workspace::nomineesHref($v);
+            if ($to === null) throw new HttpNotFoundException($req);
+            if ($to !== '/volunteer/nominees') return $this->to($res, $to);
+        }
         $tabs = Workspace::TABS[$page] ?? [];
         $tab = (string) ($args['tab'] ?? array_key_first($tabs) ?? '');
         if ($tabs && !isset($tabs[$tab])) throw new HttpNotFoundException($req);
@@ -175,13 +182,17 @@ final class VolunteerController
         $toCheck = $kind === 'cycle' && in_array(NominationChecks::CAPABILITY, $p['caps'], true) ? count(NominationChecks::queue($v, (int) $p['id'])) : 0;
         $due = $kind === 'cycle' && in_array(Outreach::CAPABILITY, $p['caps'], true) ? count(Outreach::nominees($v, (int) $p['id'], '', 'due')) : 0;
         $base = $p['href'] . '/' . $page;
+        // The same menu as every other page, with this place open in it (Workspace::RAIL says why).
+        $here = ['kind' => $kind, 'id' => (int) $p['id'], 'page' => $page, 'counts' => array_filter(['queue' => $toCheck ? ['n' => $toCheck, 'tone' => 'warn'] : null])];
+        $nomsHome = Workspace::nomineesHref($v);
+        $back = $page === $first ? ['label' => 'My volunteering', 'href' => '/volunteer']
+              : ($kind === 'cycle' && $page === 'nominees'
+                  ? ($nomsHome === '/volunteer/nominees' ? ['label' => 'Nominees', 'href' => $nomsHome] : ['label' => 'My volunteering', 'href' => '/volunteer'])
+                  : ['label' => $p['name'], 'href' => $p['href']]);
         return $this->render($res, $user, $v, $role, [
-            'scope' => $kind, 'nav' => Workspace::scopeNav($kind, (int) $p['id'], $page, $p['caps'], array_filter([
-                'queue' => $toCheck ? ['n' => $toCheck, 'tone' => 'warn'] : null, 'nominees' => $due ? ['n' => $due, 'tone' => 'warn'] : null])),
+            'scope' => $kind, 'nav' => Workspace::rootNav($v, $role, '', Workspace::counts($v, $role), $here),
             'tabs' => $tabs ? Workspace::tabs($base, $tabs, $tab, ['check' => $toCheck, 'due' => $due]) : [],
-            'instance' => ['name' => $p['name'], 'sub' => implode(', ', $p['roles']), 'ini' => Workspace::initials($p['name']), 'tone' => $kind === 'event' ? 'ok' : 'info'],
-            'siblings' => Workspace::siblings($v, $kind, (int) $p['id'], $page),
-            'back' => ['label' => 'Back to my volunteering', 'href' => '/volunteer'],
+            'back' => $back,
             'crumbs' => array_values(array_filter([['label' => 'My volunteering', 'href' => '/volunteer'], ['label' => $p['name'], 'href' => $p['href']],
                         $page === $first ? null : ($tabs ? ['label' => $valid[$page][0], 'href' => $base] : ['label' => $valid[$page][0]]),
                         $tabs && $tab !== array_key_first($tabs) ? ['label' => $tabs[$tab]] : null])),
@@ -198,8 +209,8 @@ final class VolunteerController
         $page = (string) ($args['page'] ?? 'profile');
         if (!isset(Workspace::ME[$page])) throw new HttpNotFoundException($req);
         $role = $this->role($v);
-        return $this->render($res, $user, $v, $role, ['scope' => 'me', 'nav' => Workspace::scopeNav('me', 0, $page),
-            'back' => ['label' => 'Back to my volunteering', 'href' => '/volunteer'],
+        return $this->render($res, $user, $v, $role, ['scope' => 'me', 'nav' => Workspace::rootNav($v, $role, '', Workspace::counts($v, $role), ['kind' => 'me', 'page' => $page]),
+            'back' => ['label' => 'My volunteering', 'href' => '/volunteer'],
             'crumbs' => [['label' => 'Profile and access', 'href' => '/volunteer/me'], ['label' => Workspace::ME[$page][0]]], 'purposeKey' => 'me.' . $page]
             + WorkspacePages::me($v, $user, $page));
     }
@@ -343,7 +354,8 @@ final class VolunteerController
             'outreach_log' => ($k = Outreach::log($v, (int) ($b['nominee'] ?? 0), $b))['ok'] ? $ok('Contact logged. Everybody on this award sees it on the nominee’s page; a follow-up date puts them under Follow up.') : $no((string) $k['error']),
             'outreach_email' => ($k = Outreach::email($v, (int) ($b['nominee'] ?? 0), $b, $this->mailer))['ok'] ? $ok('Sent and logged.') : $no((string) $k['error']),
             'status_update' => ($k = \AfricaGates\Services\Volunteer\NomineeStatus::record($v, (int) ($b['nominee'] ?? 0), $b))['ok'] ? $ok('Update sent. Your lead and the team see it on the nominee’s page and in Status updates.') : $no((string) $k['error']),
-            'status_request' => ($k = \AfricaGates\Services\Volunteer\NomineeStatus::request($v, (int) ($b['cycle'] ?? 0), (string) ($b['message'] ?? ''), (string) ($b['due_on'] ?? '')))['ok'] ? $ok('Asked. Everybody reaching nominees on this award sees it on Today, with each nominee still to update marked.') : $no((string) $k['error']),
+            'status_request' => ($k = \AfricaGates\Services\Volunteer\NomineeStatus::request($v, (int) ($b['cycle'] ?? 0), (string) ($b['message'] ?? ''), (string) ($b['due_on'] ?? ''), $this->mailer))['ok']
+                ? $ok('Asked. ' . (($k['emailed'] ?? 0) > 0 ? (($k['emailed'] === 1 ? 'One person was' : $k['emailed'] . ' people were') . ' emailed, and everybody') : 'Everybody') . ' reaching nominees on this award sees it on Today, with each nominee still to update marked.') : $no((string) $k['error']),
             'meet' => $active ? (($k = Meetings::schedule($v, $b, $this->mailer))['ok'] ? $ok('Scheduled. ' . ($k['invited'] === 1 ? 'One person is' : $k['invited'] . ' people are') . ' invited by email.') : $no((string) $k['error'])) : $no('Meetings open once you’re approved.'),
             'meet_answer' => Meetings::answer($v, (int) ($b['meeting'] ?? 0), (string) ($b['answer'] ?? '')) ? $ok(($b['answer'] ?? '') === 'yes' ? 'Thanks. They know you’re going.' : 'Thanks. They know you can’t come.') : $no('That meeting can’t be answered now.'),
             'meet_notes' => ($k = Meetings::notes($v, (int) ($b['meeting'] ?? 0), (string) ($b['notes'] ?? '')))['ok'] ? $ok('Notes saved. Everybody invited can read them.') : $no((string) $k['error']),
@@ -412,7 +424,7 @@ final class VolunteerController
             $nid = (int) ($b['nominee'] ?? 0);
             $cycle = (int) (DB::table('gates_nominees as n')->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')->where('n.id', $nid)->value('c.cycle_id') ?? 0);
             if (!$r['ok']) {
-                $_SESSION['vol_old'] = array_intersect_key($b, array_flip(['portal', 'publicity', 'mobilising', 'status_note']));
+                $_SESSION['vol_old'] = array_intersect_key($b, array_flip(['reach', 'portal', 'missing', 'channels', 'mobilising', 'backers', 'needs', 'next_step', 'status_note']));
                 $back = '/volunteer/cycle/' . $cycle . '/nominees?n=' . $nid . '#status';
             } elseif ($cycle) {
                 $rq = \AfricaGates\Services\Volunteer\NomineeStatus::open($cycle);

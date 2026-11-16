@@ -231,6 +231,7 @@ final class VolunteerMeetingsTest extends TestCase
         $this->assertStringContainsString('Bola Ade (you)', $page);
         $list = (string) $this->ctrl()->root((new ServerRequestFactory())->createServerRequest('GET', '/volunteer/meetings'), new Response(), ['page' => 'meetings'])->getBody();
         $this->assertStringContainsString('Can you come?', $list);
-        $this->assertMatchesRegularExpression('~>Meetings</span><span class="sh7-badge sh7-badge--warn" aria-hidden="true">1</span><span class="sh7-sr">, 1 waiting</span>~', $list, 'the rail counts the invitation waiting for an answer');
+        $this->assertMatchesRegularExpression('~>Meetings</span>\s*<span class="sh7-badge sh7-badge--warn" aria-hidden="true">1</span><span class="sh7-sr">, 1 waiting</span>~', $list, 'the rail counts the invitation waiting for an answer');
+        $this->assertStringContainsString('<span>Meetings<span class="sh7-sr">, 1 waiting</span></span>', $list, 'and so does the phone’s tab, in words');
     }
 }
