@@ -1641,6 +1641,57 @@ class AccountController
         ]);
     }
 
+    /**
+     * GET /account/supporting — "My support" (SupporterRecord): everybody this member has
+     * backed, edition by edition, how each turned out, the "I backed" card for each, the
+     * badges it earned, and a certificate where an edition earned one.
+     */
+    public function supporting(Request $req, Response $res): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        $rec = \AfricaGates\Services\SupporterRecord::forMember((int) $user->id, (string) $user->email);
+
+        return $this->view->render($res, 'pages/account/supporting.twig', $this->railFor($user, 'supporting') + [
+            'page_title' => 'My support — Africa GATES', 'gates_page' => 'account', 'record' => $rec,
+        ]);
+    }
+
+    /**
+     * GET /account/supporting/certificate/{cycle} — the member's certificate of community
+     * recognition for one edition, to print. Only where the edition earned one; anything else
+     * goes back to the record rather than printing a certificate for nothing.
+     */
+    public function certificate(Request $req, Response $res, array $args): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        $c = \AfricaGates\Services\SupporterRecord::certificateFor((int) $user->id, (int) ($args['cycle'] ?? 0));
+        if ($c === null) return $res->withHeader('Location', '/account/supporting')->withStatus(302);
+        $check = \AfricaGates\Support\SiteUrl::base($req) . '/certificates/' . $c['code'];
+
+        return $this->view->render($res, 'pages/account/certificate.twig', [
+            'page_title' => 'Certificate of community recognition — Africa GATES', 'c' => $c,
+            'check' => $check, 'qr' => \AfricaGates\Support\Qr::svgBytes($check, 4),
+        ])->withHeader('X-Robots-Tag', 'noindex');
+    }
+
+    /**
+     * GET /certificates/{code} — anybody checking a certificate: genuine, and what it says, or
+     * not one we issued. The code is a signature over the member and the edition, so it cannot
+     * be guessed; and the answer is worked out again now, so a certificate whose edition was
+     * withdrawn (or whose holder closed their account) stops checking out.
+     */
+    public function certificateCheck(Request $req, Response $res, array $args): Response
+    {
+        $ids = \AfricaGates\Services\SupporterRecord::verify((string) ($args['code'] ?? ''));
+        $c = $ids ? \AfricaGates\Services\SupporterRecord::certificateFor($ids[0], $ids[1]) : null;
+
+        return $this->view->render($res->withStatus($c ? 200 : 404), 'pages/certificate-check.twig', [
+            'page_title' => 'Check a certificate — Africa GATES', 'c' => $c,
+        ]);
+    }
+
     /** POST /account/notifications/read — everything up to now, read. A form, no script. */
     public function notificationsRead(Request $req, Response $res): Response
     {

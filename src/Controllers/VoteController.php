@@ -247,7 +247,7 @@ class VoteController {
         if ($uid > 0) {
             $email = (string) (DB::table('gates_users')->where('id', $uid)->where('email_verified', 1)->value('email') ?? '');
             if ($email !== '') {
-                $st = \AfricaGates\Services\SupporterSpotlight::standingOf($cycleId, $email);
+                $st = \AfricaGates\Services\SupporterSpotlight::standingOf($cycleId, $email, $uid);
                 if ($st['votes'] > 0) $me = $st + ['standing' => \AfricaGates\Support\AwardCampaign::standing($campaign, $st['votes'])];
             }
         }

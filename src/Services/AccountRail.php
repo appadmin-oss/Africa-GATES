@@ -31,6 +31,9 @@ final class AccountRail
         'challenges' => ['Challenges', '/account?tab=challenges',  'M6 4h12v4a6 6 0 0 1-12 0zM9 20h6M12 14v6M6 6H3v1a4 4 0 0 0 4 4M18 6h3v1a4 4 0 0 1-4 4', 'gold'],
         'purchases'  => ['Purchases',  '/account?tab=purchases',   'M5.5 8h13l-1 12h-11zM9 8V7a3 3 0 0 1 6 0v1', 'info'],
         'activity'   => ['Activity',   '/account/notifications',   'M3 12h4l3-7 4 14 3-7h4', 'green'],
+        // Everybody this member has backed, how it turned out, and what it earned them
+        // (SupporterRecord) — a vote as a record that builds, not a one-off.
+        'supporting' => ['My support', '/account/supporting',      'M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.2a4.3 4.3 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20z', 'live'],
         // The Ads Manager (Services\Ads). It was reachable from its own pages only, so an
         // advertiser who left it had no way back.
         'ads'        => ['Ads',        '/account/ads',             'M3 10v4h3l6 5V5L6 10zM16 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12', 'info'],
@@ -56,7 +59,7 @@ final class AccountRail
     public const GROUPS = [
         ''            => ['overview'],
         'Money'       => ['wallet', 'referral', 'purchases', 'ads'],
-        'Taking part' => ['challenges', 'activity', 'saved'],
+        'Taking part' => ['supporting', 'challenges', 'activity', 'saved'],
         'You'         => ['profile', 'security', 'settings'],
     ];
 
@@ -80,6 +83,7 @@ final class AccountRail
         'challenges' => 'The challenges you have entered, and how far each has got.',
         'purchases'  => 'Tickets and orders, with where each one is up to.',
         'activity'   => 'What has happened to the things you nominated, voted for and bought.',
+        'supporting' => 'Everybody you have backed, how they did, and what your support has earned you.',
         'saved'      => 'Conversations you saved to come back to.',
         'profile'    => 'Your details, and the roles you hold here: nominee, volunteer, event lead.',
         'security'   => 'How you sign in, and the devices that can.',

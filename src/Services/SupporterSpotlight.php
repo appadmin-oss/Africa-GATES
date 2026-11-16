@@ -104,9 +104,12 @@ final class SupporterSpotlight
      * is when being told "you are the 3rd biggest supporter of 25" means most. Ranked by the
      * same rule as the board: votes, then whoever got there first.
      *
+     * A member's points and wallet votes are their own person key (`points:<id>`, VoterReach),
+     * so with a `$userId` the stronger of their two keys is the one they are ranked by.
+     *
      * @return array{votes:int, rank:int, people:int}
      */
-    public static function standingOf(int $cycleId, string $email): array
+    public static function standingOf(int $cycleId, string $email, ?int $userId = null): array
     {
         $out = ['votes' => 0, 'rank' => 0, 'people' => 0];
         $email = trim($email);
@@ -119,6 +122,7 @@ final class SupporterSpotlight
             if ($at > ($last[$key] ?? '')) $last[$key] = $at;
         });
         $out['people'] = count($tot);
+        if ($userId !== null && $userId > 0 && ($tot['points:' . $userId] ?? 0) > ($tot[$me] ?? 0)) $me = 'points:' . $userId;
         if (!isset($tot[$me])) return $out;
         $out['votes'] = $tot[$me];
         $ahead = 0;

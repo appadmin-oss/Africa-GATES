@@ -56,6 +56,7 @@
       {%- if me.standing.have|length %} {{ 'Unlocked: %b%.'|trans({'%b%': (me.standing.have|last).benefit}) }}{% endif -%}
       {%- if me.standing.next %} {{ (me.standing.next.more == 1 ? 'One more vote unlocks %b%.' : '%n% more votes unlock %b%.')|trans({'%n%': me.standing.next.more|number_format, '%b%': me.standing.next.benefit}) }}{% endif -%}
     </p>
+    <a class="sp-you__more" href="/account/supporting">{{ 'Your badges and everybody you have backed'|trans }}</a>
   </section>
   {% endif %}
 

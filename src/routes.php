@@ -3585,6 +3585,8 @@ return function(App $app) {
         // The way off the Supporter Spotlight: GET shows, POST hides, for the same mail-scanner
         // reason as the confirmation above. See SpotlightController.
         $g->get('/spotlight/hide',  \AfricaGates\Controllers\SpotlightController::class . ':show');
+        // Anybody checking a supporter's certificate of community recognition (SupporterRecord).
+        $g->get('/certificates/{code:[0-9]+-[0-9]+-[a-f0-9]{12}}', \AfricaGates\Controllers\AccountController::class . ':certificateCheck');
         $g->post('/spotlight/hide', \AfricaGates\Controllers\SpotlightController::class . ':hide');
 
         // SEO: robots.txt + sitemap.xml
@@ -3922,6 +3924,8 @@ return function(App $app) {
         $a->get('/interests',          AccountController::class.':interests');
         $a->post('/interests',         AccountController::class.':interestsSave');
         $a->get('/notifications',      AccountController::class.':notifications');
+        $a->get('/supporting',         AccountController::class.':supporting');
+        $a->get('/supporting/certificate/{cycle:[0-9]+}', AccountController::class.':certificate');
         $a->post('/notifications/read', AccountController::class.':notificationsRead');
         $a->get('/points',             AccountController::class.':points');
         // One account, one login, roles given (owner, 29 Oct 2026; plan §7.1). No roles page
