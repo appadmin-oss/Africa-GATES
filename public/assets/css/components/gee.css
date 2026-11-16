@@ -53,6 +53,9 @@
 /* Reading down the page: out of the way (gee.js). Off the edge, not display:none, so it
    slides back rather than popping, and it stays in the tab order. */
 .gee__fab[data-tuck]{ transform:translateX(calc(100% + 24px)); opacity:0; pointer-events:none }
+/* Tucked away while the page scrolls, but still in the tab order — so a keyboard landed on
+   a button nobody could see (WCAG 2.4.7). Focus brings it back. */
+.gee__fab[data-tuck]:focus-visible{ transform:none; opacity:1; pointer-events:auto }
 [dir="rtl"] .gee__fab[data-tuck]{ transform:translateX(calc(-100% - 24px)) }
 .gee__fab[hidden]{ display:none }
 .gee__fab-t{ display:none }

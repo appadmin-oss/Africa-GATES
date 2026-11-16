@@ -54,6 +54,10 @@
     <a class="vp-row" href="{{ n.url }}" data-nominee="{{ n.id }}">
       <span class="vp-row__av">{% include 'partials/photo.twig' with {kind: 'person', src: n.photo_path, name: n.name} only %}</span>
       <span class="vp-row__main">
+        {# The row is one link, and its visible "Vote" pill is decorative, so the action is
+           said FIRST for a screen reader: without it the link read "#1 Funmilayo Adebayo 230
+           votes Leading" and never what pressing it does. #}
+        <span class="ag-sr">{{ open ? 'Vote for'|trans : 'See'|trans }} </span>
         <span class="vp-row__name"><span class="vp-row__rank" data-rank>#{{ n.rank }}</span><span class="vp-row__n">{{ n.name }}</span></span>
         <span class="vp-row__meta">
           {{- in_all ? n.category_title : (n.tagline ?: n.organisation) -}}

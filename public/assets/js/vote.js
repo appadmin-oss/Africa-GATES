@@ -220,7 +220,17 @@
         say(box, msg);
         unmark();
         var el = name && form.elements[name];
-        if (el && el.focus) { el.setAttribute('aria-invalid', 'true'); marked = el; el.focus(); }
+        if (el && el.focus) {
+          el.setAttribute('aria-invalid', 'true'); marked = el;
+          // The sentence is the field's description too, beside its hint, so it is heard
+          // with the field and not only as an alert at the foot of the form.
+          if (box) {
+            if (!box.id) box.id = (el.id || 'vb') + '-err';
+            var by = (el.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
+            if (by.indexOf(box.id) < 0) { by.push(box.id); el.setAttribute('aria-describedby', by.join(' ')); }
+          }
+          el.focus();
+        }
       }
       ['name', 'phone', 'email', 'otp'].forEach(function (n) {
         var el = form.elements[n];

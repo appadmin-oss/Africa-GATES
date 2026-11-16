@@ -180,4 +180,80 @@ final class ScreenReaderFixesTest extends TestCase
         $this->assertStringNotContainsString('alt="{{ t.alt }}"', $home);
         $this->assertStringContainsString('<h2 class="hm-ctr__h">', $home);
     }
+
+    // ── the second pass (16 Nov 2026): "accessibility still terrible" ──────────
+
+    /**
+     * The scroller was <main> itself, so the footer — which scrolls with the page — was
+     * inside the main landmark, and a screen reader heard the site's footer navigation as
+     * part of every page. The scroller is a div now; <main> is the content, the footer its
+     * sibling. Asserted on a rendered page, because that is what a reader gets.
+     */
+    public function test_the_footer_is_not_part_of_the_page_content(): void
+    {
+        $html = ChromeRender::html('/privacy');
+        $this->assertSame(1, preg_match_all('/<main\b/', $html));
+        $end = strpos($html, '</main>');
+        $foot = strpos($html, 'class="ag-foot"');
+        $this->assertNotFalse($foot, 'no footer drawn');
+        $this->assertGreaterThan($end, $foot, 'the footer is inside <main>');
+        $this->assertMatchesRegularExpression('/<a class="ag-skip" href="#content"/', $html, 'the skip link names a target that is not the landmark');
+    }
+
+    /**
+     * A page that draws its own phone bar in place of the shell's must give it a landmark
+     * too, or its title is unreachable by landmark (axe "region" on /shop). Swept over every
+     * template that overrides the bar and puts a heading in it.
+     */
+    public function test_a_page_heading_in_a_replaced_bar_is_inside_a_banner(): void
+    {
+        $bad = [];
+        foreach (self::templates() as $file => $src) {
+            if (!preg_match('/\{%\s*block app_bar\s*%\}(.*?)\{%\s*endblock\s*%\}/s', $src, $m)) continue;
+            if (preg_match('/<h1\b/', $m[1]) && !preg_match('/<header\b/', $m[1])) $bad[] = $file;
+        }
+        $this->assertSame([], $bad);
+    }
+
+    /**
+     * Each nominee row is one link, and its "Vote" pill is decorative — so the link read
+     * "#1 Funmilayo Adebayo 230 votes Leading" and never said what it does.
+     */
+    public function test_a_row_that_is_a_vote_says_so(): void
+    {
+        $this->assertMatchesRegularExpression("/<span class=\"ag-sr\">\{\{ open \? 'Vote for'\|trans/", ChromeRender::code('templates/pages/vote-program.twig'));
+        $this->assertMatchesRegularExpression("/<span class=\"ag-sr\">\{\{ p\.open \? 'Vote in'\|trans/", ChromeRender::code('templates/pages/vote.twig'));
+    }
+
+    /**
+     * WCAG 1.4.4: at the largest text setting a fixed-height, one-line button ran its label
+     * off the side of a phone. The shared button has a floor, not a height, and may wrap.
+     */
+    public function test_the_shared_button_grows_with_its_text(): void
+    {
+        $css = ChromeRender::code('public/assets/css/components.css');
+        $this->assertMatchesRegularExpression('/\.ag-btn\{(.*?)\}/s', $css);
+        preg_match('/\.ag-btn\{(.*?)\}/s', $css, $m);
+        $base = (string) preg_replace('~/\*.*?\*/~s', '', $m[1]);
+        $this->assertDoesNotMatchRegularExpression('/(?<![-\w])height\s*:/', $base, 'a fixed height clips a wrapped label');
+        $this->assertStringNotContainsString('nowrap', $base, 'a label that cannot wrap runs off the screen');
+        $this->assertStringContainsString('min-height:52px', $base);
+    }
+
+    /** Touch targets and focus in the chrome every page shares. */
+    public function test_the_shared_chrome_is_big_enough_to_press_and_visible_when_focused(): void
+    {
+        $this->assertMatchesRegularExpression('/@media \(pointer:coarse\)\{\s*\.ag-foot__legal a\{ display:inline-flex; align-items:center; min-height:44px/', ChromeRender::code('public/assets/css/components/footer.css'), 'footer links 25px tall to a finger');
+        $gee = ChromeRender::code('public/assets/css/components/gee.css');
+        $this->assertStringContainsString('.gee__fab[data-tuck]:focus-visible{ transform:none; opacity:1', $gee, 'a tucked launcher takes focus while invisible');
+    }
+
+    /** An empty support message was refused by moving focus and saying nothing. */
+    public function test_an_empty_support_message_is_refused_out_loud(): void
+    {
+        $js = ChromeRender::code('public/assets/js/tickets.js');
+        $this->assertMatchesRegularExpression("/note\.textContent = note\.getAttribute\('data-empty'\)/", $js);
+        $this->assertStringContainsString("body.setAttribute('aria-invalid', 'true')", $js);
+        $this->assertStringContainsString('data-empty=', ChromeRender::code('templates/pages/support-tickets.twig'));
+    }
 }

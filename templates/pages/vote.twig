@@ -67,7 +67,7 @@
             <span class="vh-row__thumb">{% include 'partials/photo.twig' with {identity: p.id|default(null), kind: 'thing', subject: 'award', src: p.cover, name: p.title} only %}</span>
             <span class="vh-row__text">
               <span class="vh-row__top">
-                <span class="vh-row__t">{{ p.title }}</span>
+                <span class="vh-row__t"><span class="ag-sr">{{ p.open ? 'Vote in'|trans : 'See'|trans }} </span>{{ p.title }}</span>
                 {% if p.left %}<span class="vh-row__left">{{ p.left }}</span>{% endif %}
               </span>
               {% if p.meta %}<span class="vh-row__meta">{{ p.meta }}</span>{% endif %}

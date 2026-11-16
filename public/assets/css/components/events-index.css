@@ -28,7 +28,9 @@
 /* ── buttons ── */
 .ei-btn{
   display:inline-flex; align-items:center; justify-content:center; min-height:50px; padding:0 22px;
-  border-radius:var(--ag-r-pill); font-size:var(--ag-fs-15-5); font-weight:700; text-decoration:none; white-space:nowrap;
+  border-radius:var(--ag-r-pill); font-size:var(--ag-fs-15-5); font-weight:700; text-decoration:none;
+  /* Wraps rather than runs off the screen at the largest text setting (WCAG 1.4.4). */
+  text-align:center; padding-block:8px;
 }
 .ei-btn--go{ background:var(--ag-green); color:var(--ag-surface) }
 .ei-btn--line{ padding:0 20px; border:1px solid var(--ag-ink); color:var(--ag-ink); font-size:var(--ag-fs-15); font-weight:600; background:transparent }

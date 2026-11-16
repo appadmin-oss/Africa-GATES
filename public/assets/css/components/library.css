@@ -214,7 +214,9 @@
 .ag-faq__i > p { margin: 0 0 var(--ag-sp-14); font: 400 var(--ag-fs-14-5)/1.6 var(--ag-font-ui); color: var(--ag-ink-2); }
 
 /* ── a small button, and the phone's fixed action bar ────────────────────── */
-.ag-btn--sm { min-height: 36px; padding: 0 14px; font-size: var(--ag-fs-13-5); }
+/* 44, never 36: a fixed 52px height used to overrule this, so it was never small; once the
+   shared button became a floor it would have been a 36px target. */
+.ag-btn--sm { min-height: 44px; padding: 0 14px; font-size: var(--ag-fs-13-5); }
 
 /* ── THE PAGE'S OWN BOTTOM BAR, THE WAY THIS SHELL DOES THEM ───────────────
    Three things, and none is optional:
