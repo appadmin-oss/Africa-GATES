@@ -55,6 +55,20 @@
       {% endif %}
       <p class="rc__p">{{ 'Your ₦%amt% was verified and the votes are tallied. Paid votes never affect the jury score (%pct%%).'|trans({'%amt%': amount_naira|number_format, '%pct%': judge_pct|default(55)}) }}</p>
       <dl class="rc__ref"><dt>{{ 'Reference'|trans }}</dt><dd>{{ reference }}</dd></dl>
+      {# What this did, and what it unlocked — the award's own campaign, never a default. #}
+      {% if own %}
+        {% if own.share > 0 %}
+          <p class="rc__p"><b>{{ 'Your votes put ₦%n% towards %who%.'|trans({'%n%': own.share|number_format, '%who%': own.beneficiary}) }}</b></p>
+        {% endif %}
+        {% if own.total > 0 %}
+          <h2 class="rc__h2">{{ 'You have given %n% votes in this edition'|trans({'%n%': own.total|number_format}) }}</h2>
+          <ul class="rc__rows">
+            {% for s in own.standing.have %}<li class="rc__row"><span class="rc__row-k">{{ 'Unlocked: %b%'|trans({'%b%': s.benefit}) }}</span></li>{% endfor %}
+            {% if own.standing.next %}<li class="rc__row"><span class="rc__row-k">{{ own.standing.next.more == 1 ? '1 more vote unlocks: %b%'|trans({'%b%': own.standing.next.benefit}) : '%n% more votes unlock: %b%'|trans({'%n%': own.standing.next.more|number_format, '%b%': own.standing.next.benefit}) }}</span></li>{% endif %}
+          </ul>
+          {% if own.note %}<p class="rc__p">{{ own.note }}</p>{% endif %}
+        {% endif %}
+      {% endif %}
       <h2 class="rc__h2" id="rcNext">{{ 'What happens next'|trans }}</h2>
       <ul class="rc__rows">
         <li class="rc__row"><span class="rc__row-k">{{ 'The public tally updates immediately; leaderboards refresh every few minutes.'|trans }}</span></li>

@@ -177,7 +177,18 @@ class VoteController {
         $catView = null;
         foreach ($cats as $c) { if ($catId !== null && (int) $c['category']['id'] === $catId) { $catView = $catId; break; } }
 
+        // The award's campaign (Support\AwardCampaign) and, where the host turned it on, the
+        // Supporter Spotlight for this edition. Both draw nothing until an operator says so.
+        $campaign  = \AfricaGates\Support\AwardCampaign::forProgramme((int) $p['id']);
+        $cycleId   = (int) (($p['cycle']['id'] ?? null) ?: ($p['cycle_id'] ?? 0));
+        $spotlight = $campaign['spotlight'] && $cycleId > 0 && $tab === 'vote'
+            ? \AfricaGates\Services\SupporterSpotlight::forCycle($cycleId) : null;
+
         return $this->view->render($res, 'pages/vote-program.twig', [
+            'campaign'         => $campaign,
+            'impact'           => \AfricaGates\Support\AwardCampaign::impact($campaign),
+            'spotlight'        => $spotlight,
+            'vote_price'       => PaidVoteService::enabled() ? PaidVoteService::pricePerVote() : 0,
             'paid_only'        => PaidVoteService::freeVotingDisabled(),
             'page_title'       => $p['title'] . ' — Vote — Africa GATES',
             'meta_description' => 'Vote in ' . $p['title'] . ' — browse the nominees by category and back the African excellence you believe deserves continental recognition.',
@@ -560,7 +571,8 @@ class VoteController {
                 // same kit every nominee gets (ShareKit), carrying this voter's link instead.
                 $link = \AfricaGates\Support\SiteUrl::base($req) . '/vote/' . $nom->programme_slug . '/' . (int) $nom->id . '?via=' . rawurlencode($myCode);
                 $kit  = \AfricaGates\Services\ShareKit::for(['name' => (string) $nom->name, 'category' => (string) $nom->category,
-                    'programme' => (string) $nom->programme_title, 'url' => $link], $link);
+                    'programme' => (string) $nom->programme_title, 'url' => $link,
+                    'community' => \AfricaGates\Support\AwardCampaign::forProgramme((int) $nom->programme_id)['community']], $link);
                 $recruit = ['code' => $myCode, 'brought' => $brought, 'link' => $link, 'links' => array_slice($kit['links'], 0, 3)];
             }
         }
@@ -594,8 +606,11 @@ class VoteController {
             'tier_prices'      => array_map(static fn (array $t): array => $t + ['price' => PaidVoteService::price((int) $t['qty'])],
                                             array_values(array_filter(PaidVoteService::tiers(), static fn (array $t): bool => (int) $t['qty'] <= PaidVoteService::maxQtyForOrder()))),
             'edition_label'    => \AfricaGates\Support\EditionName::label(DB::table('gates_award_cycles')->where('id', (int) $nom->cycle_id)->first() ?? []),
-            'page_title'       => 'Vote for ' . $nom->name . ' — Africa GATES',
-            'meta_description' => 'Cast your verified vote for ' . $nom->name . ' in ' . $nom->category . ' — Africa GATES, the continental Cultural Power Index.',
+            // A link pasted into WhatsApp previews this title and description. Where the award
+            // has named its community, both lead with it (Support\AwardCampaign).
+            'page_title'       => (($own = \AfricaGates\Support\AwardCampaign::celebrating(\AfricaGates\Support\AwardCampaign::forProgramme((int) $nom->programme_id), (string) $nom->name)) !== ''
+                                    ? $own : 'Vote for ' . $nom->name) . ' — Africa GATES',
+            'meta_description' => ($own !== '' ? $own . '. ' : '') . 'Cast your verified vote for ' . $nom->name . ' in ' . $nom->category . ' — Africa GATES, the continental Cultural Power Index.',
             'gates_page'       => 'awards',
             'nominee'          => $nom,
             'profile'          => $profile,

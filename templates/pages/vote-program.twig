@@ -124,6 +124,26 @@
     <p class="vp-hero__line">{{ _f.meta }}</p>
   </div>
 
+  {# ── Why vote: the award's own campaign (Support\AwardCampaign) ─────────────────
+     The host's rally line, promise and the share of each vote a named beneficiary
+     receives. Nothing here is a default claim: a blank campaign draws nothing. #}
+  {% set _c = campaign %}
+  {% if _c.rally or _c.promise or impact %}
+  <section class="vp-rally" aria-labelledby="vp-rally-h">
+    <div class="vp-rally__in">
+      {% if _c.community %}<p class="vp-rally__k">{{ '%place% celebrates its own'|trans({'%place%': _c.community}) }}</p>{% endif %}
+      <h2 class="vp-rally__h" id="vp-rally-h">{{ _c.rally ?: 'Celebrate your own'|trans }}</h2>
+      {% if _c.promise %}<p class="vp-rally__p">{{ _c.promise }}</p>{% endif %}
+      {% if impact %}
+      <p class="vp-rally__impact">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-4.4-9.3-9A5.2 5.2 0 0 1 12 6.1 5.2 5.2 0 0 1 21.3 12C19 16.6 12 21 12 21z"/></svg>
+        <span>{{ impact }}{% if _c.remainder_note %} {{ _c.remainder_note }}{% endif %}</span>
+      </p>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
+
   <nav class="vp-tabs" aria-label="{{ 'Vote sections'|trans }}" data-tabs="vote">
     <div class="vp-tabs__in">
       <a class="vp-tab" href="{{ _base }}"{% if tab == 'vote' %} aria-current="page"{% endif %}>{{ 'Vote'|trans }}</a>
@@ -132,7 +152,10 @@
   </nav>
 
   {% if tab == 'vote' %}
-  <div class="vp-body">
+  {# One category draws no category rail, and the desktop grid's first column is the rail's
+     200px: the whole race fell into it, a 200px column of names beside an empty page.
+     `vp-body--one` drops the rail's column. #}
+  <div class="vp-body{{ categories|length <= 1 ? ' vp-body--one' }}">
     {% set _many = overall is not null %}
     {% set _view = cat_view ?: (_many ? 'all' : (categories|length ? (categories|first).category.id : null)) %}
     {% if categories|length > 1 %}
@@ -176,6 +199,70 @@
       </section>
       {% endfor %}
       <p class="vp-note">{{ 'Public votes are one part of the score; the judges decide the rest.'|trans }}</p>
+
+      {# ── The Supporter Spotlight (Services\SupporterSpotlight) ────────────────────
+         The people behind the nominees. Ranked over everybody, NAMED only where somebody
+         ticked "show my name" — an unnamed champion is still the champion. #}
+      {% if spotlight and spotlight.people > 0 %}
+      {% set _anon = 'Anonymous supporter'|trans %}
+      <section class="vp-spot" aria-labelledby="vp-spot-h">
+        <div class="vp-spot__head">
+          <h2 class="vp-spot__h" id="vp-spot-h">{{ 'Supporter spotlight'|trans }}</h2>
+          <p class="vp-spot__sub">{{ spotlight.people == 1 ? '1 person has backed their own in this edition.'|trans : '%n% people have backed their own in this edition.'|trans({'%n%': spotlight.people|number_format}) }}</p>
+        </div>
+        <div class="vp-spot__honours">
+          <div class="vp-hon">
+            <span class="vp-hon__i" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="6"/><path d="m8.5 14-1.5 7 5-2.5 5 2.5-1.5-7"/></svg></span>
+            <span class="vp-hon__k">{{ 'Champion of the day'|trans }}</span>
+            {% if spotlight.champion %}
+              <b class="vp-hon__n">{{ spotlight.champion.name ?: _anon }}</b>
+              <span class="vp-hon__d">{{ spotlight.champion.votes == 1 ? '1 vote today'|trans : '%n% votes today'|trans({'%n%': spotlight.champion.votes|number_format}) }}{% if spotlight.champion.for %} · {{ 'for %name%'|trans({'%name%': spotlight.champion.for}) }}{% endif %}</span>
+            {% else %}
+              <b class="vp-hon__n">{{ 'Still open today'|trans }}</b>
+              <span class="vp-hon__d">{{ 'The most votes from one person today, West Africa Time, takes it.'|trans }}</span>
+            {% endif %}
+          </div>
+          {% if spotlight.mobiliser %}
+          <div class="vp-hon">
+            <span class="vp-hon__i" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18.5 20a6.5 6.5 0 0 0-3-5.5"/></svg></span>
+            <span class="vp-hon__k">{{ 'Mobiliser of the week'|trans }}</span>
+            <b class="vp-hon__n">{{ spotlight.mobiliser.name ?: _anon }}</b>
+            <span class="vp-hon__d">{{ spotlight.mobiliser.people == 1 ? 'Brought 1 person to vote this week'|trans : 'Brought %n% people to vote this week'|trans({'%n%': spotlight.mobiliser.people|number_format}) }}</span>
+          </div>
+          {% endif %}
+        </div>
+        {% if spotlight.top|length %}
+        <h3 class="vp-spot__t">{{ 'Top supporters this edition'|trans }}</h3>
+        <ol class="vp-spot__list">
+          {% for s in spotlight.top %}
+          <li class="vp-spot__row">
+            <span class="vp-spot__r">{{ loop.index }}</span>
+            <span class="vp-spot__who"><b>{{ s.name ?: _anon }}</b>{% if s.for %}<span>{{ 'Backing %name%'|trans({'%name%': s.for}) }}</span>{% endif %}</span>
+            <span class="vp-spot__v">{{ s.votes == 1 ? '1 vote'|trans : '%n% votes'|trans({'%n%': s.votes|number_format}) }}</span>
+          </li>
+          {% endfor %}
+        </ol>
+        {% endif %}
+        <p class="vp-note">{{ 'Verified votes only, counted per person. Names appear only for supporters who chose to be shown. Ties go to whoever got there first.'|trans }}</p>
+      </section>
+      {% endif %}
+
+      {# ── What a supporter's votes unlock — the host's own ladder, never a default ── #}
+      {% if _c.ladder|length %}
+      <section class="vp-ladder" aria-labelledby="vp-ladder-h">
+        <h2 class="vp-spot__h" id="vp-ladder-h">{{ 'What your votes unlock'|trans }}</h2>
+        <p class="vp-spot__sub">{{ 'Counted across everything you give in this edition.'|trans }}</p>
+        <ol class="vp-ladder__list">
+          {% for s in _c.ladder %}
+          <li class="vp-ladder__row">
+            <span class="vp-ladder__at"><b>{{ s.votes == 1 ? '1 vote'|trans : '%n% votes'|trans({'%n%': s.votes|number_format}) }}</b>{% if vote_price > 0 %}<span>₦{{ (s.votes * vote_price)|number_format }}</span>{% endif %}</span>
+            <span class="vp-ladder__b">{{ s.benefit }}</span>
+          </li>
+          {% endfor %}
+        </ol>
+        {% if _c.ladder_note %}<p class="vp-note">{{ _c.ladder_note }}</p>{% endif %}
+      </section>
+      {% endif %}
       {% else %}
       <div class="vp-empty">
         <h2 class="vp-race__t">{{ 'Nominees coming soon'|trans }}</h2>

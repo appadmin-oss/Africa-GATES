@@ -436,7 +436,32 @@ final class PaidVoteController
             if ($mine && isset($_SESSION) && is_array($_SESSION)) $_SESSION['vote_recruit'][(int)$nominee->id] = $mine['code'];
         }
 
+        // A reason to have voted, and to vote again: what THIS order did for the award's named
+        // beneficiary, and where this person now stands on the award's own benefits ladder
+        // (Support\AwardCampaign). Both only where the host has set them, and only once the
+        // votes have landed — a ladder read against an unminted order counts money that may
+        // be refunded.
+        $own = null;
+        if ($minted && $nominee && trim((string) ($don->donor_email ?? '')) !== '') {
+            try {
+                $campaign = \AfricaGates\Support\AwardCampaign::forProgramme($this->programmeIdFor($nominee));
+                $cycleId  = (int) DB::table('gates_award_categories')->where('id', (int) $nominee->category_id)->value('cycle_id');
+                $price    = PaidVoteService::pricePerVote();
+                $share    = $campaign['beneficiary'] !== '' && $campaign['share_pct'] > 0
+                    ? (int) $don->bonus_votes * intdiv($price * $campaign['share_pct'], 100) : 0;
+                $total    = $campaign['ladder'] !== [] ? \AfricaGates\Services\SupporterSpotlight::votesBy($cycleId, (string) $don->donor_email) : 0;
+                if ($share > 0 || $total > 0) {
+                    $own = ['share' => $share, 'beneficiary' => $campaign['beneficiary'], 'total' => $total,
+                            'standing' => \AfricaGates\Support\AwardCampaign::standing($campaign, $total),
+                            'note' => $campaign['ladder_note']];
+                }
+            } catch (\Throwable) {
+                $own = null;
+            }
+        }
+
         return $this->view->render($res, 'pages/vote-paid-success.twig', [
+            'own'              => $own,
             'page_title'       => $minted ? 'Votes confirmed — Africa GATES' : 'Payment received — Africa GATES',
             'meta_description' => 'Your paid votes have been recorded — thank you for backing African excellence.',
             'gates_page'       => 'awards',
