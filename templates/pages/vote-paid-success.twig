@@ -104,7 +104,7 @@
       it without script would land somebody on raw JSON.
     #}
     <section class="rc__card" aria-labelledby="rcMsg" data-rc-msg data-ref="{{ reference }}" data-max="{{ msg_max|default(400) }}" data-open="{{ 'Open your message'|trans }}"{% if msg_posted|default(false) %} data-sent{% endif %} hidden>
-      <h2 class="rc__h2" id="rcMsg">{{ 'Say something about %who%'|trans({'%who%': _who ?: 'them'|trans}) }}</h2>
+      <h2 class="rc__h2" id="rcMsg">{{ 'Why do you back %who%?'|trans({'%who%': _who ?: 'them'|trans}) }}</h2>
       <div data-rc-msg-form{% if msg_posted|default(false) %} hidden{% endif %}>
         <p class="rc__p">{{ 'Optional. Shown on their page once checked. No links or phone numbers.'|trans }}</p>
         <label class="ag-label" for="rcMsgBody">{{ 'Your message'|trans }}</label>

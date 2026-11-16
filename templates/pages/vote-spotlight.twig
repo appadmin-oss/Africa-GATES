@@ -43,6 +43,7 @@
         {{ '%n% people have backed their own in %award%. Thank you, every one of you.'|trans({'%n%': _s.people|number_format, '%award%': _p.title}) }}
       {% endif %}
     </p>
+    {% if community_place and community_place.of > 1 %}<p class="sp-head__place">{{ '%place% is number %r% of %n% communities celebrating their own this season.'|trans({'%place%': _c.community ?: _p.title, '%r%': community_place.rank, '%n%': community_place.of}) }}</p>{% endif %}
     <div class="sp-head__acts"><a class="ag-btn ag-btn--primary ag-btn--pill" href="{{ _base }}#vp-race">{{ me ? 'Back someone again'|trans : 'Back someone'|trans }}</a></div>
   </header>
 

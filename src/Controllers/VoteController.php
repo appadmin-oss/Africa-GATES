@@ -80,6 +80,8 @@ class VoteController {
             'gates_page'       => 'awards',
             'front'            => $front,
             'split'            => $this->splitPct(),
+            // The community pride board (CommunityBoard): the places backing their own, by people.
+            'communities'      => array_slice(\AfricaGates\Services\CommunityBoard::current(), 0, 6),
             // The vote hub's one ad (Services\Ads). Picked per request, never cached with the
             // hub: frequency, pacing and the nominee rule are all decided now.
             'ad'               => \AfricaGates\Services\Ads\AdDelivery::forRequest('vote_hub', $req),
@@ -259,6 +261,7 @@ class VoteController {
             'me'               => $me,
             'edition'          => $edition,
             'my_keys'          => \AfricaGates\Services\SupporterSpotlight::keysForUser($uid),
+            'community_place'  => \AfricaGates\Services\CommunityBoard::placeOf((int) $p['id']),
             'page_title'       => 'Supporter spotlight — ' . $p['title'] . ' — Africa GATES',
             'meta_description' => 'The people backing their own in ' . $p['title'] . ': today’s champion, the mobiliser of the week, the top supporters and everybody else.',
             'gates_page'       => 'awards',
@@ -287,6 +290,45 @@ class VoteController {
         return $res->withHeader('Content-Type', 'image/png')->withHeader('Content-Length', (string) strlen($png))
             ->withHeader('Cache-Control', 'public, max-age=600, stale-while-revalidate=1800')->withHeader('X-Content-Type-Options', 'nosniff')
             ->withHeader('Content-Disposition', 'inline; filename="i-backed-' . (\AfricaGates\Support\Slug::make((string) $f['name'], 48) ?: 'nominee') . '.png"');
+    }
+
+    /** /vote/{program}/{id-slug}/milestone/{kind}-{value}.png — a milestone the nominee reached, as their card (MilestoneCard). */
+    public function milestoneCard(Request $req, Response $res, array $args): Response {
+        $nid = (int) (string) ($args['slug'] ?? '0');
+        $kind = (string) ($args['kind'] ?? ''); $value = (int) ($args['value'] ?? 0);
+        $png = \AfricaGates\Services\MilestoneCard::png($nid, $kind, $value);
+        if ($png === null || $png === '') throw new \Slim\Exception\HttpNotFoundException($req);
+        $res->getBody()->write($png);
+        return $res->withHeader('Content-Type', 'image/png')->withHeader('Content-Length', (string) strlen($png))
+            ->withHeader('Cache-Control', 'public, max-age=3600')->withHeader('X-Content-Type-Options', 'nosniff')
+            ->withHeader('Content-Disposition', 'inline; filename="milestone-' . $kind . '-' . $value . '.png"');
+    }
+
+    /**
+     * /vote/{program}/{id-slug}/poster — an A4 poster to print: the nominee, the award and a QR
+     * code to their ballot, for the places a campaign actually happens here — a church, a market,
+     * a school notice board. The flier already carries a QR, but no page printed on A4.
+     */
+    public function poster(Request $req, Response $res, array $args): Response {
+        $nid = (int) (string) ($args['slug'] ?? '0');
+        $f = \AfricaGates\Services\BackedCard::facts($nid);
+        if ($f === null) throw new \Slim\Exception\HttpNotFoundException($req);
+        $path = \AfricaGates\Support\NomineeUrl::path($nid);
+        $link = \AfricaGates\Support\SiteUrl::base($req) . $path;
+        return $this->view->render($res, 'pages/vote-poster.twig', [
+            'f' => $f, 'link' => $link, 'path' => $path, 'qr' => \AfricaGates\Support\Qr::svgBytes($link, 8),
+            'page_title' => 'Poster — ' . $f['name'] . ' — Africa GATES',
+        ])->withHeader('X-Robots-Tag', 'noindex');
+    }
+
+    /** POST /vote/follow — "tell me when they reach a milestone" (NomineeMilestones::follow). */
+    public function follow(Request $req, Response $res): Response {
+        $b = (array) $req->getParsedBody();
+        $nid = (int) ($b['nominee'] ?? 0);
+        $r = \AfricaGates\Services\NomineeMilestones::follow($nid, (string) ($b['email'] ?? ''));
+        $_SESSION['vote_follow'] = $r['ok'] ? ['ok' => true, 'msg' => 'Done. We will tell you when they reach a milestone, at most three times this edition.']
+                                            : ['ok' => false, 'msg' => (string) $r['error']];
+        return $res->withHeader('Location', \AfricaGates\Support\NomineeUrl::path($nid) . '#follow')->withStatus(303);
     }
 
     /**
@@ -847,6 +889,10 @@ class VoteController {
             // becomes a scroll between the reader and the ballot they came for. The
             // rest live at their own URL.
             'messages'           => \AfricaGates\Services\VoteMessageService::wall((int) $nom->id, 6),
+            'first_backers'      => \AfricaGates\Services\SupporterSpotlight::firstBackers((int) $nom->id),
+            'poster_url'         => $nomPath . '/poster',
+            // The answer to "tell me when they reach a milestone" (NomineeMilestones::follow).
+            'follow_msg'         => (static function () { $f = $_SESSION['vote_follow'] ?? null; unset($_SESSION['vote_follow']); return $f; })(),
             'message_count'      => \AfricaGates\Services\VoteMessageService::countForNominee((int) $nom->id),
             'messages_url'       => $nomPath . '/messages',
             // "and 40 more" used to lead nowhere. Every one of those people ticked a

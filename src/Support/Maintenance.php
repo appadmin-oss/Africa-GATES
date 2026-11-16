@@ -215,6 +215,10 @@ final class Maintenance
                 fn() => \AfricaGates\Services\ResultsDayMail::sweep($this->mailer()))];
             $ran[] = ['nominee-thanks', $this->task('nominee-thanks',
                 fn() => \AfricaGates\Services\NomineeThanks::sweep($this->mailer()))];
+            // "Your vote is working": milestones in each live race recorded, and told to the
+            // backers who asked — at most three an edition each (NomineeMilestones).
+            $ran[] = ['nominee-milestones', $this->task('nominee-milestones',
+                fn() => \AfricaGates\Services\NomineeMilestones::sweep($this->mailer()))];
             // Volunteers' reminders (Volunteer\Reminders): the day before a meeting, training
             // about to lapse. Every tick; each message is claimed before it is sent, so
             // overlapping ticks never send one twice.

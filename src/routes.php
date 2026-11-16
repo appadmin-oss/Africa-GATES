@@ -2349,6 +2349,12 @@ return function(App $app) {
         $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/card.png',   FlierController::class.':card');
         // "I backed …": the SUPPORTER's card about their own vote (Services\BackedCard).
         $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/backed.png', VoteController::class.':backed');
+        // A milestone the nominee reached, as the card they post (Services\MilestoneCard).
+        $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/milestone/{kind:[a-z0-9]+}-{value:[0-9]+}.png', VoteController::class.':milestoneCard');
+        // A printable A4 poster with the QR code to vote, for a church, a market, a school.
+        $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/poster', VoteController::class.':poster');
+        // "Tell me when they reach a milestone" — only for an address that backed them.
+        $g->post('/vote/follow', VoteController::class.':follow');
         // The 9:16 share video (ShareVideoController). Beside card.png, before /{slug}.
         $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/video', \AfricaGates\Controllers\ShareVideoController::class.':nominee');
         // Every message of support for one nominee, paginated. Before /{slug} for the

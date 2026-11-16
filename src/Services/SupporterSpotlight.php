@@ -163,6 +163,53 @@ final class SupporterSpotlight
         return $all;
     }
 
+    /** How many of a nominee's earliest backers are "the first supporters". */
+    public const FIRST = 50;
+
+    /**
+     * THE FIRST SUPPORTERS of one nominee: the first FIRST people, by their first counted vote,
+     * named where the board's own rule names them (an account, unless taken down; anybody else
+     * only by consent). Rewards spotting somebody early, which money cannot buy: a person is in
+     * by WHEN they first backed, never by how much. Cached five minutes.
+     *
+     * @return array{named:list<array{name:string,photo:?string,uid:int}>, count:int}
+     */
+    public static function firstBackers(int $nomineeId): array
+    {
+        $empty = ['named' => [], 'count' => 0];
+        if ($nomineeId < 1) return $empty;
+        $calc = static function () use ($nomineeId, $empty): array {
+            try {
+                $cycle = (int) (DB::table('gates_nominees as n')->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')->where('n.id', $nomineeId)->value('c.cycle_id') ?? 0);
+            } catch (\Throwable) {
+                return $empty;
+            }
+            $order = [];
+            $people = [];
+            // Rows come in id order, so the first time a person is seen is their first vote.
+            self::scan($cycle, null, static function (string $key, object $r) use (&$order, &$people): void {
+                if (isset($people[$key]) || count($order) >= self::FIRST) return;
+                $people[$key] = ['by' => [], 'email' => (string) ($r->_email ?? ''), 'name' => (int) ($r->show_name ?? 0) === 1 && trim((string) ($r->voter_name ?? '')) !== ''
+                    && strcasecmp(trim((string) $r->voter_name), 'Supporter') !== 0 ? mb_substr(trim((string) $r->voter_name), 0, 60) : null];
+                $order[] = $key;
+            }, $nomineeId);
+            if ($order === []) return $empty;
+            $who = self::identities($order, $people);
+            $named = [];
+            foreach ($order as $k) {
+                $w = $who[$k] ?? null;
+                if ($w && ($w['name'] ?? null) !== null) $named[] = ['name' => (string) $w['name'], 'photo' => $w['photo'] ?? null, 'uid' => (int) ($w['uid'] ?? 0)];
+            }
+            return ['named' => $named, 'count' => count($order)];
+        };
+        if (self::$ttl < 1) return $calc();
+        try {
+            return (array) (new CacheService())->remember('spotlight:first:' . $nomineeId, 300, $calc, ['spotlight']);
+        } catch (\Throwable) {
+            return $calc();
+        }
+    }
+
     public static function build(int $cycleId, ?Carbon $now = null): array
     {
         $now ??= Carbon::now();
@@ -375,7 +422,7 @@ final class SupporterSpotlight
      *
      * @param callable(string, object): void $each
      */
-    private static function scan(int $cycleId, ?string $since, callable $each): void
+    private static function scan(int $cycleId, ?string $since, callable $each, ?int $nomineeId = null): void
     {
         try {
             $cats = DB::table('gates_award_categories')->where('cycle_id', $cycleId)->pluck('id')->map(fn ($v) => (int) $v)->all();
@@ -388,6 +435,7 @@ final class SupporterSpotlight
         try {
             $q = DB::table('gates_votes')->whereIn('category_id', $cats);
             if ($since !== null) $q->where('voted_at', '>=', $since);
+            if ($nomineeId !== null) $q->where('nominee_id', $nomineeId);
             $q->orderBy('id')->select($cols)->chunk(self::CHUNK, static function ($rows) use ($each): void {
                 $buyers = VoterReach::buyerHashes($rows);
                 [$void, $emails] = self::unsettled($rows);
