@@ -3,17 +3,23 @@
    ONE SLIM ROW EACH, the height of a button. Two full cards took a phone's whole first
    screen before the page began (owner, 11 Nov 2026: "UX is a no no"). A row is: a small
    mark, the sentence (its kind in words first), one action, hide. Planned work opens in
-   place for its window and note. The announcement sits on the green wash with its link in
+   place for its window and note. The announcement is a white card with its mark and link in
    green; planned work on white with the info mark; under way and closed turn to the live
    family with a breathing dot. Words carry the state; colour repeats it. */
 .ag-notices{ display:flex; flex-direction:column; gap:8px; padding:12px var(--ag-gutter) 12px }
+/* The strip takes the page's own ground (owner, 17 Nov 2026: "it does not flow … it should be
+   the same as the main page content"). Most pages sit on the body ground, which the strip
+   already shows; a document page (the Integrity Centre, the legal pages) is white from the
+   header down, so its strip is white too, and the announcement is a white card with a
+   hairline rather than a green band — its green is the mark and the link, nothing more. */
+main:has(> .ag-doc) > .ag-notices{ background:var(--ag-surface) }
 
 .ag-notice{
   display:flex; align-items:flex-start;
   background:var(--ag-surface); color:var(--ag-ink);
   border:1px solid var(--ag-line); border-radius:var(--ag-r-14);
 }
-.ag-notice--announce{ background:var(--ag-green-wash); border-color:var(--ag-green-edge) }
+.ag-notice--announce{ background:var(--ag-surface); border-color:var(--ag-line) }
 .ag-notice--closed{ background:var(--ag-live-wash); border-color:var(--ag-live) }
 
 .ag-notice__row{ flex:1; min-width:0; display:flex; align-items:center; gap:10px; min-height:44px; padding:4px 4px 4px 12px; box-sizing:border-box }
