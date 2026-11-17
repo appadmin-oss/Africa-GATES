@@ -86,7 +86,16 @@ final class CyclePolicy
         }
 
         // Latest window first; the first satisfied boundary wins.
-        if ($results   && $now->gte($results))   return CyclePhase::Results;
+        //
+        // The results date publishes on its own ONLY in automatic release mode. By default
+        // a release is an act ({@see ResultReleaseMode}): past the date the windows still
+        // say Judging, the public sees a "result is late" notice, and phaseFor() reports
+        // Results once an operator has released (stored status = results). This is the
+        // one setting this otherwise pure function reads, cached per process.
+        if ($results   && $now->gte($results)) {
+            return \AfricaGates\Support\ResultReleaseMode::isAuto()
+                ? CyclePhase::Results : CyclePhase::Judging;
+        }
         if ($voteClose && $now->gte($voteClose)) return CyclePhase::Judging;
         if ($voteOpen  && $now->gte($voteOpen))  return CyclePhase::Voting;
 
@@ -229,6 +238,9 @@ final class CyclePolicy
             return $closesAt ? 'Voting opens ' . $day($closesAt) : 'Voting dates to be announced.';
         }
         if ($phase === CyclePhase::Judging) {
+            // Past the results date and not yet released (manual release mode): say so,
+            // rather than "Results 1 Dec" about a day that has gone.
+            if ($closesAt && $secondsLeft === 0) return 'Results are being finalised.';
             return $closesAt ? 'Results ' . $day($closesAt) : 'Results date to be announced.';
         }
 

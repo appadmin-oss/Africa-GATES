@@ -87,3 +87,29 @@ html.ag-rm .ag-notice__k::before{ animation:none }
   background:var(--ag-live-wash); color:var(--ag-live-ink); border-bottom:1px solid var(--ag-live);
   font-size:var(--ag-fs-14); font-weight:600; text-align:center;
 }
+
+/* ── The pop-up card (SiteNotice::popup) ───────────────────────────────────────
+   An overlay the way a payments app greets you with news: dimmed page, one rounded card,
+   the picture on top, a title, a few lines, one button. CSS only; Close / Not now are
+   posting forms (partials/site-notice.twig). Theme tokens carry dark and sepia. */
+.ag-pop{ position:fixed; inset:0; z-index:var(--ag-z-sheet,1000); display:flex; align-items:center; justify-content:center;
+  padding:16px; background:rgba(10,12,16,.55); animation:ag-pop-fade .2s ease-out }
+.ag-pop__card{ position:relative; width:100%; max-width:380px; max-height:calc(100dvh - 32px); overflow:auto;
+  background:var(--ag-surface); color:var(--ag-ink); border-radius:20px;
+  box-shadow:0 24px 60px rgba(0,0,0,.28); animation:ag-pop-rise .28s var(--ag-ease-pop,cubic-bezier(.2,.8,.2,1)) }
+.ag-pop__img{ display:block; width:100%; height:auto; border-radius:20px 20px 0 0; background:var(--ag-green-wash) }
+.ag-pop__body{ padding:20px 22px 22px; text-align:center }
+.ag-pop__t{ margin:0 0 8px; font-family:var(--ag-font-display,inherit); font-size:1.25rem; line-height:1.3; font-weight:700 }
+.ag-pop__p{ margin:0 0 10px; font-size:.95rem; line-height:1.55; color:var(--ag-ink-soft) }
+.ag-pop__acts{ display:flex; flex-direction:column; gap:6px; margin:16px 0 0 }
+.ag-pop__cta{ display:block; box-sizing:border-box; width:100%; min-height:48px; padding:12px 18px; border:0; border-radius:var(--ag-r-pill,999px);
+  background:var(--ag-green); color:var(--ag-surface); font:inherit; font-weight:700; text-align:center; text-decoration:none; cursor:pointer }
+.ag-pop__later{ min-height:44px; border:0; background:none; color:var(--ag-ink-soft); font:inherit; cursor:pointer; text-decoration:underline }
+.ag-pop__x{ position:absolute; top:10px; right:10px; margin:0 }
+.ag-pop__close{ display:grid; place-items:center; width:40px; height:40px; border:0; border-radius:50%;
+  background:var(--ag-surface); color:var(--ag-ink); cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,.2) }
+.ag-pop__cta:focus-visible, .ag-pop__later:focus-visible, .ag-pop__close:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
+@keyframes ag-pop-fade{ from{ opacity:0 } to{ opacity:1 } }
+@keyframes ag-pop-rise{ from{ opacity:0; transform:translateY(16px) scale(.97) } to{ opacity:1; transform:none } }
+@media (prefers-reduced-motion:reduce){ .ag-pop, .ag-pop__card{ animation:none } }
+@media print{ .ag-pop{ display:none } }

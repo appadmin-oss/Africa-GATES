@@ -81,6 +81,10 @@ final class SiteNotice
         if (!$flow) {
             $a = self::announcement($settings);
             if ($a !== null && !in_array($a['id'], $hidden, true)) $out[] = $a;
+            // The pop-up card, once per visitor per message. Its own id, so closing the card
+            // leaves the slim row as the reminder, and the row can still be hidden on its own.
+            $m = self::popup($settings);
+            if ($m !== null && !in_array($m['id'], $hidden, true)) $out[] = $m;
         }
         return $out;
     }
@@ -142,6 +146,47 @@ final class SiteNotice
         ];
     }
 
+    /** Longest pop-up body. A card, read in one breath on a phone. */
+    public const MAX_POPUP_BODY = 600;
+
+    /** The pop-up card's settings. */
+    public const POPUP_KEYS = ['on' => 'announce_popup', 'title' => 'announce_title',
+                               'body' => 'announce_body', 'image' => 'announce_image',
+                               'alt' => 'announce_image_alt'];
+
+    /**
+     * The announcement as a pop-up card (an image or GIF, a title, a few lines, the button), or
+     * null. Shown on top of the page the first time a visitor arrives, once per message, never
+     * on a flow page (a ballot, a checkout). Needs the switch on, the banner text (the card
+     * lives and ends with the announcement) and a title.
+     *
+     * @param array<string,string>|null $settings
+     * @return array<string,mixed>|null
+     */
+    public static function popup(?array $settings = null): ?array
+    {
+        $s = $settings ?? self::settings();
+        if (trim((string) ($s[self::POPUP_KEYS['on']] ?? '')) !== '1') return null;
+        $a = self::announcement($s);
+        if ($a === null) return null;
+        $title = trim((string) ($s[self::POPUP_KEYS['title']] ?? ''));
+        if ($title === '') return null;
+        $body  = trim((string) ($s[self::POPUP_KEYS['body']] ?? ''));
+        $body  = mb_substr(str_replace("\r\n", "\n", $body), 0, self::MAX_POPUP_BODY);
+        $image = self::safeUrl((string) ($s[self::POPUP_KEYS['image']] ?? ''));
+        $alt   = mb_substr(trim((string) ($s[self::POPUP_KEYS['alt']] ?? '')), 0, 200);
+        $title = mb_substr($title, 0, 90);
+        return [
+            'kind'  => 'popup', 'dismiss' => true,
+            'id'    => 'm' . substr(sha1($title . '|' . $body . '|' . (string) $image . '|' . $a['id']), 0, 12),
+            'title' => $title,
+            // Paragraphs split on blank lines; printed escaped, never as HTML.
+            'paras' => array_values(array_filter(array_map('trim', preg_split('/\n\s*\n/', $body) ?: []), 'strlen')),
+            'image' => $image, 'alt' => $alt,
+            'url'   => $a['url'], 'cta' => $a['url'] === null ? '' : $a['cta'],
+        ];
+    }
+
     /**
      * A link an operator typed, or null when it is not one this page will print: a path on
      * this site, or an https address. Never `javascript:`, never protocol-relative `//`,
@@ -161,7 +206,7 @@ final class SiteNotice
     /** Remember that this visitor hid a notice. Kept short: an id is twelve characters. */
     public static function hide(string $id): void
     {
-        if (!preg_match('/^[ap][a-f0-9]{12}$/', $id) || session_status() === PHP_SESSION_DISABLED) return;
+        if (!preg_match('/^[apm][a-f0-9]{12}$/', $id) || session_status() === PHP_SESSION_DISABLED) return;
         $list = self::hidden();
         if (!in_array($id, $list, true)) $list[] = $id;
         $_SESSION[self::SESSION] = array_slice($list, -20);

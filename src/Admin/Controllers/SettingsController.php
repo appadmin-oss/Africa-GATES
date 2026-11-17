@@ -594,7 +594,10 @@ class SettingsController
         $adminId = (int)$_SESSION['admin_id'];
 
         // Core site settings + email sender identity (gates_settings table)
-        foreach (['announce_text','announce_url','announce_cta','site_title','contact_email',
+        foreach (['announce_text','announce_url','announce_cta',
+                  // The pop-up card (SiteNotice::popup): title, a few lines, an image or GIF.
+                  'announce_title','announce_body','announce_image','announce_image_alt',
+                  'site_title','contact_email',
                   'mail_from_name','mail_from_address','mail_reply_to','admin_alert_email',
                   // The postal address every bulk mail's footer prints. It was .env only,
                   // read by six senders, on a host with no shell. See MailConfig::postal().
@@ -702,6 +705,20 @@ class SettingsController
                 // The zone is cached per request; this request has already read it.
                 \AfricaGates\Support\DisplayTime::forget();
             }
+        }
+
+        // The pop-up switch is a checkbox: absent means off, but only when the Public site
+        // card was the form posted (announce_text is always in it).
+        if (array_key_exists('announce_text', $b)) {
+            $this->settings->set('announce_popup', !empty($b['announce_popup']) ? '1' : '0', $adminId);
+        }
+
+        // Result release: manual (default) or automatic on the results date.
+        if (array_key_exists('results_release_mode', $b)) {
+            $mode = (string) $b['results_release_mode'] === \AfricaGates\Support\ResultReleaseMode::AUTO
+                ? \AfricaGates\Support\ResultReleaseMode::AUTO : \AfricaGates\Support\ResultReleaseMode::MANUAL;
+            $this->settings->set(\AfricaGates\Support\ResultReleaseMode::SETTING, $mode, $adminId);
+            \AfricaGates\Support\ResultReleaseMode::forget();
         }
 
         // The ads rate card. Marker-gated like the arrivals block below: a blank price is how

@@ -282,6 +282,15 @@
         <div><label for="f-announce_until">Stop showing it at <small>optional</small></label><input type="datetime-local" step="60" name="announce_until" id="f-announce_until" value="{{ values.announce_until|default('') ? values.announce_until|when_input : '' }}"></div>
         <div></div>
       </div>
+      {#- The pop-up card (SiteNotice::popup): shown once to each visitor on top of the page,
+          with the link and label above as its button. Lives and ends with the banner. -#}
+      <div style="margin-top:10px"><label style="display:flex;gap:8px;align-items:center;font-weight:600"><input type="checkbox" name="announce_popup" value="1"{% if values.announce_popup|default('0') == '1' %} checked{% endif %}> Also show it as a pop-up card</label></div>
+      <div class="row">
+        <div><label for="f-announce_title">Pop-up title</label><input type="text" name="announce_title" id="f-announce_title" maxlength="90" value="{{ values.announce_title|default('') }}" placeholder="A fuller window for every nominee"></div>
+        <div><label for="f-announce_image">Pop-up image or GIF <small>https:// address or /path</small></label><input type="text" name="announce_image" id="f-announce_image" value="{{ values.announce_image|default('') }}" placeholder="https://res.cloudinary.com/.../extension.gif"></div>
+      </div>
+      <div><label for="f-announce_body">Pop-up text <small>up to 600 characters; a blank line starts a new paragraph</small></label><textarea name="announce_body" id="f-announce_body" rows="4" maxlength="600">{{ values.announce_body|default('') }}</textarea></div>
+      <div><label for="f-announce_image_alt">Describe the image <small>for screen readers</small></label><input type="text" name="announce_image_alt" id="f-announce_image_alt" maxlength="200" value="{{ values.announce_image_alt|default('') }}" placeholder="Two hands forming a heart around a voting card"></div>
       <p id="f-announce_url-h" style="margin:6px 0 0;font-size:12px;line-height:1.55;color:var(--cn-soft)">
         {%- if announce_state.bad_link %}<strong style="color:var(--cn-ink)">The link is not shown:</strong> use a path on this site, like <code>/vote</code>, or an address starting <code>https://</code>. {% endif -%}
         {%- if announce_state.showing %}Showing now at the top of every public page. Visitors can hide it; changing the text shows it to them again.
@@ -299,6 +308,15 @@
             {% for tz in tz_choices|default([]) %}<option value="{{ tz }}"{% if tz == tz_current %} selected{% endif %}>{{ tz }}</option>{% endfor %}
           </select>
           <div style="font-size:12px;color:var(--cn-soft);margin-top:4px">Stored times stay in UTC, so changing this re-labels what you see — it does not move any existing deadline.</div>
+        </div>
+        {# Result release. Manual by default: a results date passing only shows the public a
+           "result is late" notice until somebody presses Release (Admin → Result release). #}
+        <div><label for="f-results_release_mode">Publishing results</label>
+          <select name="results_release_mode" id="f-results_release_mode">
+            <option value="manual"{% if values.results_release_mode|default('manual') != 'auto' %} selected{% endif %}>Manual: an admin presses Release (recommended)</option>
+            <option value="auto"{% if values.results_release_mode|default('manual') == 'auto' %} selected{% endif %}>Automatic: publish on the results date</option>
+          </select>
+          <div style="font-size:12px;color:var(--cn-soft);margin-top:4px">With manual release, once an edition's results date passes the public pages say the result is late (with your note from the cycle editor) until you release it.</div>
         </div>
       </div>
     </div>

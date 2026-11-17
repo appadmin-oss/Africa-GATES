@@ -19,6 +19,43 @@
 {% if _notices %}
 <div class="ag-notices">
   {% for n in _notices %}
+    {% if n.kind == 'popup' %}
+      {#- THE POP-UP CARD (SiteNotice::popup): an image or GIF, a title, a few lines, one button,
+          the way a payments app greets you with news. Once per visitor per message. No script:
+          the overlay is drawn by CSS, and Close / Not now are the same posting form the slim row
+          uses, so it closes for people who block scripts too. The CTA also hides it. -#}
+      <div class="ag-pop" role="dialog" aria-modal="false" aria-labelledby="ag-pop-t-{{ n.id }}">
+        <div class="ag-pop__card">
+          <form class="ag-pop__x" method="post" action="/notice/hide">
+            <input type="hidden" name="_token" value="{{ csrf_token|default('') }}">
+            <input type="hidden" name="id" value="{{ n.id }}">
+            <input type="hidden" name="back" value="{{ request_path|default('/') }}">
+            <button type="submit" class="ag-pop__close" aria-label="{{ 'Close'|trans }}" title="{{ 'Close'|trans }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+          </form>
+          {% if n.image %}<img class="ag-pop__img" src="{{ n.image }}" alt="{{ n.alt }}" loading="eager" decoding="async">{% endif %}
+          <div class="ag-pop__body">
+            <h2 class="ag-pop__t" id="ag-pop-t-{{ n.id }}">{{ n.title }}</h2>
+            {% for p in n.paras %}<p class="ag-pop__p">{{ p|nl2br }}</p>{% endfor %}
+            <form class="ag-pop__acts" method="post" action="/notice/hide">
+              <input type="hidden" name="_token" value="{{ csrf_token|default('') }}">
+              <input type="hidden" name="id" value="{{ n.id }}">
+              {% if n.url %}
+                <input type="hidden" name="back" value="{{ n.url starts with '/' ? n.url : request_path|default('/') }}">
+                {% if n.url starts with '/' %}
+                  <button type="submit" class="ag-pop__cta">{{ n.cta|trans }}</button>
+                {% else %}
+                  <a class="ag-pop__cta" href="{{ n.url }}" rel="noopener">{{ n.cta|trans }}</a>
+                {% endif %}
+                <button type="submit" class="ag-pop__later" formaction="/notice/hide" name="back" value="{{ request_path|default('/') }}">{{ 'Not now'|trans }}</button>
+              {% else %}
+                <input type="hidden" name="back" value="{{ request_path|default('/') }}">
+                <button type="submit" class="ag-pop__cta">{{ 'Got it'|trans }}</button>
+              {% endif %}
+            </form>
+          </div>
+        </div>
+      </div>
+    {% else %}
     {% set _ann = n.kind == 'announce' %}
     <section class="ag-notice ag-notice--{{ n.kind }}{{ not _ann and n.started ? ' is-live' : '' }}" aria-label="{{ _ann ? 'Announcement'|trans : 'Planned work'|trans }}">
       {% if _ann %}
@@ -56,6 +93,7 @@
         </form>
       {% endif %}
     </section>
+    {% endif %}
   {% endfor %}
 </div>
 {% endif %}

@@ -85,6 +85,38 @@ final class SiteNoticeTest extends TestCase
         $this->assertStringNotContainsString('Voting closes on Friday', ChromeRender::html('/privacy'), 'a banner outlived the end it was given');
     }
 
+    public function test_the_popup_card_shows_once_with_its_picture_and_closing_it_keeps_the_row(): void
+    {
+        $base = ['announce_text' => 'Voting now closes Friday', 'announce_url' => '/vote', 'announce_cta' => 'Vote now',
+                 'announce_title' => 'A fuller window for every nominee',
+                 'announce_body' => "Some nominees only just heard.\n\nEvery vote <b>stands</b>.",
+                 'announce_image' => 'https://res.cloudinary.com/demo/image/upload/love.gif',
+                 'announce_image_alt' => 'A heart of light opens a gate'];
+        $this->set($base + ['announce_popup' => '0']);
+        $this->assertStringNotContainsString('class="ag-pop"', ChromeRender::html('/privacy'), 'a pop-up nobody switched on');
+
+        $this->set(['announce_popup' => '1']);
+        $html = ChromeRender::html('/privacy');
+        $this->assertStringContainsString('class="ag-pop"', $html, 'the switch did nothing');
+        $this->assertStringContainsString('A fuller window for every nominee', $html);
+        $this->assertStringContainsString('src="https://res.cloudinary.com/demo/image/upload/love.gif"', $html);
+        $this->assertStringContainsString('alt="A heart of light opens a gate"', $html);
+        $this->assertStringContainsString('Every vote &lt;b&gt;stands&lt;/b&gt;.', $html, 'the body printed as HTML');
+        $this->assertSame(2, substr_count($html, '<p class="ag-pop__p">'), 'a blank line is a new paragraph');
+        $this->assertStringContainsString('Voting now closes Friday', $html, 'the slim row went missing');
+
+        $pop = SiteNotice::popup();
+        $this->assertNull(SiteNotice::popup(['announce_image' => 'javascript:alert(1)'] + $base + ['announce_popup' => '1'])['image'] ?? null);
+        SiteNotice::hide($pop['id']);
+        $kinds = array_column(SiteNotice::forPage('/privacy'), 'kind');
+        $this->assertSame(['announce'], $kinds, 'closing the card should leave the row, and only the row');
+        $this->assertSame([], array_column(SiteNotice::forPage('/privacy', true), 'kind'), 'a pop-up interrupted a flow page');
+
+        // It lives and ends with the announcement.
+        $this->set(['announce_until' => Carbon::now()->subMinute()->toDateTimeString()]);
+        $this->assertNull(SiteNotice::popup());
+    }
+
     public function test_hiding_is_remembered_and_a_new_message_shows_again(): void
     {
         $this->set(['announce_text' => 'The gala is sold out']);
