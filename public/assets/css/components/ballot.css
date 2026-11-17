@@ -209,6 +209,8 @@
    width and the words beside an 88px ring wrapped to three short lines. */
 .vb-done .ag-cel--inline{ border:0; border-radius:0; padding:12px 0 0; background:none; overflow:visible }
 .vb-done .ag-cel--inline .ag-cel__actions{ grid-template-columns:minmax(0,1fr) }
+.vb-offer{ align-self:center; display:inline-flex; align-items:center; min-height:44px; color:var(--ag-ink); font-weight:700; font-size:var(--ag-fs-15); text-decoration:underline; text-underline-offset:3px }
+.vb-offer:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
 .vb-done .ag-cel--inline .ag-cel__sub{ margin-bottom:4px }
 .vb-done + *{ border-top:1px solid var(--ag-line); padding-top:16px }
 button.vn-bar__go{ border:0; cursor:pointer; font-family:inherit }

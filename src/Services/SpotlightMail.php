@@ -65,8 +65,18 @@ final class SpotlightMail
             $endOfYesterday = $lagos->copy()->startOfDay()->subSecond();
             $endOfLastWeek  = $lagos->copy()->startOfWeek(Carbon::MONDAY)->subSecond();
 
-            $y = SupporterSpotlight::build($cid, $endOfYesterday->copy()->setTimezone(date_default_timezone_get()));
-            if ($y['champion']) $sent += self::send($mailer, 'champion', $cid, $endOfYesterday->format('Y-m-d'), $y['champion'], $prog, $c, $site);
+            // The champion is told once the day is ANNOUNCED (DailyChampion seals it the morning
+            // after, once payments have settled), and told the announced name — never a live
+            // reading that a refund could have changed since. The board is read again only for
+            // the address, and only when it still names the same person.
+            foreach (DailyChampion::due($now) as $day) {
+                $row = DailyChampion::day($cid, $day);
+                if ($row === null) continue;
+                $y = SupporterSpotlight::build($cid, Carbon::parse($day . ' 23:59:59', SupporterSpotlight::ZONE)->setTimezone(date_default_timezone_get()));
+                $who = $y['champion'] ?? null;
+                if (!$who || (string) $who['key'] !== (string) $row->person_key) continue;
+                $sent += self::send($mailer, 'champion', $cid, $day, $who + ['row' => $row], $prog, $c, $site);
+            }
 
             if ($lagos->isMonday()) {
                 $w = SupporterSpotlight::build($cid, $endOfLastWeek->copy()->setTimezone(date_default_timezone_get()));
@@ -140,13 +150,37 @@ final class SpotlightMail
                 : 'The vote page shows the name you asked to be shown with your votes.')
             : 'You are shown as an anonymous supporter, because you did not ask for your name to be shown.';
 
+        // The champion's own extras: the announcement to share, and — once per campaign — the
+        // gift, with the code to quote and where to send it (AwardCampaign, DailyChampion).
+        $extraH = ''; $extraP = '';
+        $row = $who['row'] ?? null;
+        if ($kind === 'champion' && is_object($row)) {
+            $page = $site . '/vote/' . rawurlencode((string) $prog->slug) . '/champion/' . $row->day;
+            $extraH .= '<p style="margin:13px 0 0;font-size:16px;line-height:1.6;color:' . Accent::hex('ink') . '">Your announcement, with a card to share: <a href="' . $e($page) . '" style="color:' . Accent::hex('ink') . '">' . $e($page) . '</a></p>';
+            $extraP .= "Your announcement, with a card to share: " . $page . "\n\n";
+            if ((int) $row->gift === 1) {
+                $code = DailyChampion::code($row);
+                $claim = AwardCampaign::claimLink($c, 'Champion of the Day: claiming my gift ' . $code);
+                $gifts = $c['champion_gifts'] ?? [];
+                $how = $claim ? ' Contact us with it to claim your gift: ' . $claim['label'] . '.' : ' Keep it: the team will contact you about your gift.';
+                $extraH .= ($gifts ? '<p style="margin:13px 0 0;font-size:16px;line-height:1.6;color:' . Accent::hex('ink-2') . '">Your gift as Champion of the Day:</p><ul style="margin:6px 0 0;padding-left:20px;font-size:16px;line-height:1.6;color:' . Accent::hex('ink') . '">'
+                              . implode('', array_map(static fn ($g) => '<li>' . $e((string) $g) . '</li>', $gifts)) . '</ul>' : '')
+                         . '<p style="margin:13px 0 0;font-size:16px;line-height:1.6;color:' . Accent::hex('ink-2') . '">Your claim code is <strong style="font-family:Consolas,monospace;color:' . Accent::hex('ink') . '">' . $e($code) . '</strong>.' . $e($how) . '</p>';
+                $extraP .= ($gifts ? "Your gift as Champion of the Day:\n- " . implode("\n- ", $gifts) . "\n\n" : '') . 'Your claim code is ' . $code . '.' . $how . "\n\n";
+            } else {
+                $extraH .= '<p style="margin:13px 0 0;font-size:16px;line-height:1.6;color:' . Accent::hex('ink-2') . '">The gift is given once per person each campaign, and yours was for an earlier day. Every day you are champion is still announced and yours to share.</p>';
+                $extraP .= "The gift is given once per person each campaign, and yours was for an earlier day. Every day you are champion is still announced and yours to share.\n\n";
+            }
+        }
+
         [$ink, $ink2, $go, $on, $soft] = [Accent::hex('ink'), Accent::hex('ink-2'), Accent::hex('green'), Accent::hex('surface'), Accent::hex('soft')];
         $html = '<h1 style="margin:0;font-family:Helvetica,Arial,sans-serif;font-weight:700;font-size:24px;line-height:30px;color:' . $ink . '">' . $e($subject) . '</h1>'
               . '<p style="margin:13px 0 0;font-size:16px;line-height:1.6;color:' . $ink2 . '">' . $e($lead) . '</p>'
+              . $extraH
               . ($c['rally'] !== '' ? '<p style="margin:13px 0 0;font-size:16px;line-height:1.6;color:' . $ink . '"><strong>' . $e($c['rally']) . '</strong></p>' : '')
               . '<p style="text-align:center;margin:24px 0"><a href="' . $e($board) . '" style="display:inline-block;padding:13px 28px;background:' . $go . ';color:' . $on . ';border-radius:999px;font-weight:700;text-decoration:none;font-size:16px">See the Spotlight</a></p>'
               . '<p style="margin:0;font-size:13px;line-height:1.6;color:' . $soft . '">' . $e($shown) . ' Prefer not to be on it? <a href="' . $e($off) . '" style="color:' . $ink2 . '">Take me off the Spotlight</a>.</p>';
-        $plain = $subject . "\n\n" . $lead . "\n\n" . ($c['rally'] !== '' ? $c['rally'] . "\n\n" : '')
+        $plain = $subject . "\n\n" . $lead . "\n\n" . $extraP . ($c['rally'] !== '' ? $c['rally'] . "\n\n" : '')
                . 'See the Spotlight: ' . $board . "\n\n" . $shown . "\nPrefer not to be on it? Take me off the Spotlight: " . $off;
         return [$subject, $html, $plain];
     }

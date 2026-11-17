@@ -1,0 +1,64 @@
+{% extends 'layout/shell.twig' %}
+{#
+  /vote/{programme}/champion/{day} — THE CHAMPION OF THE DAY, ANNOUNCED (VoteController::champion,
+  Services\DailyChampion). The page a champion shares: its link preview is their card, so a
+  WhatsApp message carrying it shows the card. Named only as the board names them; somebody who
+  has taken themselves off the Spotlight is "A proud supporter", on past days too.
+
+  The champion themselves (signed in, or by their personal link) also sees their claim code and
+  how to claim the gift. Everybody else is asked to be tomorrow's champion.
+  No page script: sharing is a WhatsApp link and a download.
+  Colour: gold for the honour; green for the one action.
+#}
+{% set colour_tier = '2' %}
+{% set _p = programme %}
+{% set _c = campaign %}
+{% set _base = '/vote/' ~ _p.slug %}
+{% set _who = d.display ?: 'A proud supporter'|trans %}
+{% set app_bar = {variant: 'child', title: 'Champion of the Day'|trans, sub: d.date_words, back: _base ~ '/offer', share: true} %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/offer.css') }}">{% endblock %}
+
+{% block content %}
+<div class="of of--champ">
+  <header class="of-head">
+    {% if _c.community %}<p class="of-head__k">{{ '%place% is celebrating its own'|trans({'%place%': _c.community}) }}</p>{% endif %}
+    <h1 class="of-head__h">{{ is_me ? 'You were Champion of the Day'|trans : '%name%, Champion of the Day'|trans({'%name%': _who}) }}</h1>
+    <p class="of-head__lede">{{ '%date%, %award%. %n% backing %for%.'|trans({'%date%': d.date_words, '%award%': _p.title, '%n%': d.votes == 1 ? '1 vote'|trans : '%n% votes'|trans({'%n%': d.votes|number_format}), '%for%': d.backing ?: 'their own'|trans}) }}</p>
+  </header>
+
+  <figure class="of-card">
+    <img class="of-card__img" src="{{ path }}.png" width="1200" height="630" alt="{{ '%name%, Champion of the Day, %date%'|trans({'%name%': _who, '%date%': d.date_words}) }}">
+  </figure>
+  <div class="of-acts">
+    <a class="ag-btn ag-btn--secondary ag-btn--pill" href="https://wa.me/?text={{ share_text|url_encode }}" rel="noopener">{{ 'Share on WhatsApp'|trans }}</a>
+    <a class="ag-btn ag-btn--secondary ag-btn--pill" href="{{ path }}.png" download="champion-{{ d.day }}.png">{{ 'Download the card'|trans }}</a>
+  </div>
+
+  {% if is_me %}
+  <section class="of-me" aria-labelledby="of-claim-h">
+    {% if d.gift %}
+      <h2 class="of-me__h" id="of-claim-h">{{ 'Claim your gift'|trans }}</h2>
+      {% if _c.champion_gifts|length %}<ul class="of-gifts">{% for g in _c.champion_gifts %}<li>{{ g }}</li>{% endfor %}</ul>{% endif %}
+      <p class="of-me__d">{{ 'Your claim code'|trans }}: <span class="of-code">{{ code }}</span></p>
+      {% if claim %}
+        <p class="of-me__d">{{ 'Contact us with this code and we will arrange it with you:'|trans }}</p>
+        <a class="ag-btn ag-btn--primary ag-btn--pill" href="{{ claim.href }}"{% if claim.kind != 'email' %} rel="noopener"{% endif %}>{{ claim.kind == 'whatsapp' ? 'Message us on WhatsApp'|trans : (claim.kind == 'email' ? 'Email us'|trans : 'Claim it'|trans) }}</a>
+      {% else %}
+        <p class="of-me__d">{{ 'Keep this code. The team will contact you about your gift.'|trans }}</p>
+      {% endif %}
+    {% else %}
+      <h2 class="of-me__h" id="of-claim-h">{{ 'Champion again'|trans }}</h2>
+      <p class="of-me__d">{{ 'Thank you. The gift is given once per person each campaign, and yours was for an earlier day; every day you are champion is still announced and yours to share.'|trans }}</p>
+    {% endif %}
+  </section>
+  {% else %}
+  <section class="of-sec">
+    <h2 class="of-sec__h">{{ 'Be tomorrow’s champion'|trans }}</h2>
+    <p class="of-p">{{ 'Whoever gives the most votes in a day is announced the next morning.'|trans }}</p>
+    <a class="ag-btn ag-btn--primary ag-btn--pill" href="{{ _base }}#vp-race">{{ 'Vote now'|trans }}</a>
+  </section>
+  {% endif %}
+
+  <p class="of-foot"><a href="{{ _base }}/offer">{{ 'What your support unlocks'|trans }}</a></p>
+</div>
+{% endblock %}

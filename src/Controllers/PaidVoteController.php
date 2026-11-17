@@ -457,7 +457,10 @@ final class PaidVoteController
                 $own = ['share' => $share, 'beneficiary' => $campaign['beneficiary'], 'total' => $total,
                         'rank' => $me['rank'], 'people' => $me['people'], 'place' => $campaign['community'],
                         'standing' => \AfricaGates\Support\AwardCampaign::standing($campaign, $total),
-                        'ladder' => $campaign['ladder'] !== [], 'note' => $campaign['ladder_note']];
+                        'ladder' => $campaign['ladder'] !== [], 'note' => $campaign['ladder_note'],
+                        // Their own "what your votes unlock" link (OfferLink), on the address they paid from.
+                        'offer_url' => ($slug = (string) (DB::table('gates_award_programmes')->where('id', $this->programmeIdFor($nominee))->where('is_active', 1)->value('slug') ?? '')) !== ''
+                            ? \AfricaGates\Services\OfferLink::path($slug, \AfricaGates\Services\VoteService::voterHash((string) $don->donor_email)) : ''];
             } catch (\Throwable) {
                 $own = null;
             }

@@ -89,13 +89,17 @@
      against what can actually be delivered. #}
   <div class="ad-card">
     <div class="ad-card__head"><div class="ad-card__title">Campaign<small>Why somebody should vote: the award's rally line, what each vote does, what supporters unlock, and the Supporter Spotlight.</small></div>
-      {% if not is_new and row.slug %}<a class="ad-btn ad-btn--sm" href="/vote/{{ row.slug }}" target="_blank" rel="noopener">Preview the vote page →</a>{% endif %}</div>
+      {% if not is_new and row.slug %}<a class="ad-btn ad-btn--sm" href="/vote/{{ row.slug }}" target="_blank" rel="noopener">Preview the vote page →</a> <a class="ad-btn ad-btn--sm" href="/vote/{{ row.slug }}/offer" target="_blank" rel="noopener">Preview the offer page →</a>{% endif %}</div>
     <div class="ad-card__body">
       <div class="ad-form">
         {% for k, fdef in campaign_fields %}
           <div>
             <label for="f-c-{{ k }}">{{ fdef.label }}</label>
-            <input type="text" name="campaign[{{ k }}]" id="f-c-{{ k }}" value="{{ campaign[k] }}" maxlength="{{ fdef.max }}" aria-describedby="f-c-{{ k }}-h">
+            {% if fdef.long|default(false) %}
+              <textarea name="campaign[{{ k }}]" id="f-c-{{ k }}" rows="3" maxlength="{{ fdef.max }}" aria-describedby="f-c-{{ k }}-h">{{ campaign[k] }}</textarea>
+            {% else %}
+              <input type="text" name="campaign[{{ k }}]" id="f-c-{{ k }}" value="{{ campaign[k] }}" maxlength="{{ fdef.max }}" aria-describedby="f-c-{{ k }}-h">
+            {% endif %}
             <p class="hint" id="f-c-{{ k }}-h">{{ fdef.help }}</p>
           </div>
         {% endfor %}
@@ -108,6 +112,15 @@
           <label><input type="checkbox" name="campaign[spotlight_off]" value="1"{% if not campaign.spotlight %} checked{% endif %}> Hide the Supporter Spotlight on this award</label>
           <p class="hint">It is on for every award by default: Champion of the day, the edition's top supporters, the mobiliser of the week and a wall of everybody backing their own, each emailed when celebrated. Verified votes only. Members appear with their own account name and photo and can take themselves off in one tap; anybody else is named only if they ticked "show my name".</p>
         </div>
+        {# The Champion of the Day's and the Mobiliser of the Week's gifts, one per line: shown on
+           the offer page and in the champion's email (Services\DailyChampion). #}
+        {% for k, ldef in campaign_lists %}
+          <div>
+            <label for="f-cl-{{ k }}">{{ ldef.label }}</label>
+            <textarea name="campaign[{{ k }}]" id="f-cl-{{ k }}" rows="4" aria-describedby="f-cl-{{ k }}-h">{{ campaign[k]|join("\n") }}</textarea>
+            <p class="hint" id="f-cl-{{ k }}-h">{{ ldef.help }} Up to {{ list_max }} lines.</p>
+          </div>
+        {% endfor %}
         <fieldset class="pg-faq">
           <legend>What votes unlock <span class="hint">(up to {{ ladder_max }}; counted per person across the edition; a blank row is dropped)</span></legend>
           {% for i in 0..(ladder_max - 1) %}

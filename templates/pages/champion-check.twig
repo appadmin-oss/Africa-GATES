@@ -1,0 +1,29 @@
+{% extends 'layout/shell.twig' %}
+{#
+  /champions/{code} — CHECK A CHAMPION'S CLAIM (VoteController::championCheck). Whoever a champion
+  contacts opens the code and sees, from the platform's own record, that it is genuine, the day,
+  and whether it carries the gift (once per person per campaign) or is a repeat celebration. The
+  code is signed, so it cannot be made up; a wrong one is told so plainly.
+#}
+{% set colour_tier = '1' %}
+{% set flow_page = true %}
+{% set app_bar = {variant: 'child', title: 'Check a claim'|trans, back: '/vote'} %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/newsletter.css') }}"><meta name="robots" content="noindex, nofollow">{% endblock %}
+
+{% block content %}
+<div class="nl nl--task">
+  <section class="nl__card" aria-labelledby="chH">
+    <p class="nl__kicker">{{ 'Champion of the Day'|trans }}</p>
+    {% if d %}
+      <h1 class="nl__h1" id="chH">{{ 'This claim is genuine'|trans }}</h1>
+      <p class="nl__p">{{ '%name% was Champion of the Day in %award% on %date%, with %n%.'|trans({'%name%': d.display ?: 'A supporter who asked not to be named'|trans, '%award%': award, '%date%': d.date_words, '%n%': d.votes == 1 ? '1 vote'|trans : '%n% votes'|trans({'%n%': d.votes|number_format})}) }}</p>
+      <p class="nl__p"><b>{{ d.gift ? 'This day carries the Champion’s gift.'|trans : 'A repeat champion: the gift was given for an earlier day this campaign.'|trans }}</b></p>
+      <a class="ag-btn ag-btn--secondary" href="/vote/{{ slug }}/champion/{{ d.day }}">{{ 'See the announcement'|trans }}</a>
+    {% else %}
+      <h1 class="nl__h1" id="chH">{{ 'We could not find this claim'|trans }}</h1>
+      <p class="nl__p">{{ 'Check the code was typed exactly as it was sent: CD, a number, a dash and ten letters and numbers.'|trans }}</p>
+      <a class="ag-btn ag-btn--secondary" href="/vote">{{ 'See the awards'|trans }}</a>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

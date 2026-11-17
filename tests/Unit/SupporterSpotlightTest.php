@@ -391,7 +391,17 @@ final class SupporterSpotlightTest extends TestCase
             public function __construct() {}
             public function sendBranded(...$a): array { $this->sent[] = $a; return ['success' => true]; }
         };
-        $now = $lagosMidnight->copy()->addHours(3);
+        // The champion is told once the day is ANNOUNCED (DailyChampion, 09:00 West Africa Time,
+        // after the night's settlement) — not at 03:00, when nothing has been announced yet.
+        $early = $lagosMidnight->copy()->addHours(3);
+        \AfricaGates\Services\DailyChampion::sweep($early);
+        $this->assertNotContains('adaeze@example.test | You were Alimosho’s Champion of the Day',
+            array_map(static fn ($m) => $m[0] . ' | ' . $m[1], (function () use ($mailer, $early) { \AfricaGates\Services\SpotlightMail::sweep($mailer, $early, 'https://site.test'); return $mailer->sent; })()),
+            'a champion told before the day was announced');
+        $mailer->sent = [];
+        DB::table('gates_spotlight_notices')->delete();
+        $now = $lagosMidnight->copy()->addMinutes(9 * 60 + 30);
+        \AfricaGates\Services\DailyChampion::sweep($now);
         $n = \AfricaGates\Services\SpotlightMail::sweep($mailer, $now, 'https://site.test');
         $to = array_map(static fn ($m) => $m[0] . ' | ' . $m[1], $mailer->sent);
         $this->assertContains('adaeze@example.test | You were Alimosho’s Champion of the Day', $to, 'yesterday’s champion was not told, or today’s votes decided yesterday');

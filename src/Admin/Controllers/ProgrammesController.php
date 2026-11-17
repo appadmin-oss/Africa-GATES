@@ -62,6 +62,8 @@ class ProgrammesController
             'campaign'        => \AfricaGates\Support\AwardCampaign::of($row ? (object) $row : null),
             'campaign_fields' => \AfricaGates\Support\AwardCampaign::FIELDS,
             'ladder_max'      => \AfricaGates\Support\AwardCampaign::LADDER_MAX,
+            'campaign_lists'  => \AfricaGates\Support\AwardCampaign::LISTS,
+            'list_max'        => \AfricaGates\Support\AwardCampaign::LIST_MAX,
         ]);
     }
 

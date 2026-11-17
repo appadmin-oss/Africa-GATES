@@ -320,6 +320,116 @@ class VoteController {
     }
 
     /**
+     * /vote/{program}/offer — WHAT YOUR SUPPORT UNLOCKS (owner, 17 Nov 2026). Everything on it
+     * is what the award's campaign settings say, and nothing else: a section the host has not
+     * filled in is not drawn, because these are promises to the public (AwardCampaign).
+     *
+     * A signed-in member, or anybody arriving by their personal link (OfferLink), is shown
+     * their own votes, what they have unlocked and what is next, and any day they were
+     * Champion of the Day with the code to claim the gift.
+     */
+    public function offer(Request $req, Response $res, array $args): Response {
+        $p = $this->awards->getProgrammeBySlug((string) ($args['program'] ?? ''));
+        if (!$p) return $res->withHeader('Location', '/vote')->withStatus(302);
+        $c = \AfricaGates\Support\AwardCampaign::forProgramme((int) $p['id']);
+        $cycleId = (int) (($p['cycle']['id'] ?? null) ?: ($p['cycle_id'] ?? 0));
+        $keys = $this->viewerKeys($req);
+        $me = null; $mine = [];
+        if ($keys !== [] && $cycleId > 0) {
+            $st = \AfricaGates\Services\SupporterSpotlight::standingOfKeys($cycleId, $keys);
+            if ($st['votes'] > 0) $me = $st + ['standing' => \AfricaGates\Support\AwardCampaign::standing($c, $st['votes'])];
+            foreach (\AfricaGates\Services\DailyChampion::forKeys($cycleId, $keys) as $d) {
+                $mine[] = ['day' => $d->day, 'words' => $d->date_words, 'gift' => (int) $d->gift === 1, 'code' => \AfricaGates\Services\DailyChampion::code($d)];
+            }
+        }
+        $live = $cycleId > 0 && $c['spotlight'] ? (\AfricaGates\Services\SupporterSpotlight::forCycle($cycleId)['champion'] ?? null) : null;
+        return $this->view->render($res, 'pages/vote-offer.twig', [
+            'programme' => $p, 'campaign' => $c, 'impact' => \AfricaGates\Support\AwardCampaign::impact($c),
+            'me' => $me, 'my_days' => $mine, 'leader' => $live,
+            'champions' => $c['spotlight'] ? \AfricaGates\Services\DailyChampion::recent($cycleId, 7) : [],
+            'claim' => \AfricaGates\Support\AwardCampaign::claimLink($c, 'Champion of the Day: claiming my gift'),
+            'capital_url' => \AfricaGates\Support\AwardCampaign::safeUrl($c['capital_url']),
+            'announce_hour' => \AfricaGates\Services\DailyChampion::ANNOUNCE_HOUR,
+            'page_title' => 'What your support unlocks — ' . $p['title'] . ' — Africa GATES',
+            'meta_description' => $c['promise'] !== '' ? $c['promise'] : 'What voting in ' . $p['title'] . ' unlocks for you and your community.',
+        ]);
+    }
+
+    /**
+     * /vote/{program}/champion/{day} — THE CHAMPION OF THE DAY, ANNOUNCED: the page a champion
+     * shares. Its link preview is their card. The champion themselves (signed in, or by their
+     * personal link) also sees how to claim the gift.
+     */
+    public function champion(Request $req, Response $res, array $args): Response {
+        $p = $this->awards->getProgrammeBySlug((string) ($args['program'] ?? ''));
+        $d = $p ? \AfricaGates\Services\DailyChampion::forProgrammeDay((int) $p['id'], (string) ($args['day'] ?? '')) : null;
+        if (!$p || !$d) throw new \Slim\Exception\HttpNotFoundException($req);
+        $c = \AfricaGates\Support\AwardCampaign::forProgramme((int) $p['id']);
+        $isMe = in_array((string) $d->person_key, $this->viewerKeys($req), true);
+        $site = \AfricaGates\Support\SiteUrl::base($req);
+        $path = '/vote/' . $p['slug'] . '/champion/' . $d->day;
+        $who = $d->display ?? 'A proud supporter';
+        return $this->view->render($res, 'pages/vote-champion.twig', [
+            'programme' => $p, 'campaign' => $c, 'd' => $d, 'is_me' => $isMe, 'path' => $path,
+            'code' => $isMe ? \AfricaGates\Services\DailyChampion::code($d) : '',
+            'claim' => $isMe ? \AfricaGates\Support\AwardCampaign::claimLink($c, 'Champion of the Day: claiming my gift') : null,
+            'share_text' => ($c['community'] !== '' ? $c['community'] . '’s' : $p['title']) . ' Champion of the Day, ' . $d->date_words . ': ' . $who . '. ' . $site . $path,
+            'page_title' => $who . ' — Champion of the Day — ' . $p['title'],
+            'meta_description' => $who . ' gave the most votes of anybody on ' . $d->date_words . ' in ' . $p['title'] . '.',
+            'og_image' => $site . $path . '.png', 'og_image_w' => \AfricaGates\Services\BackedCard::W, 'og_image_h' => \AfricaGates\Services\BackedCard::H,
+            'og_image_alt' => $who . ', Champion of the Day',
+        ]);
+    }
+
+    /** /vote/{program}/champion/{day}.png — the champion's card, the page's link preview. */
+    public function championCard(Request $req, Response $res, array $args): Response {
+        $p = $this->awards->getProgrammeBySlug((string) ($args['program'] ?? ''));
+        $d = $p ? \AfricaGates\Services\DailyChampion::forProgrammeDay((int) $p['id'], (string) ($args['day'] ?? '')) : null;
+        if (!$p || !$d) throw new \Slim\Exception\HttpNotFoundException($req);
+        $c = \AfricaGates\Support\AwardCampaign::forProgramme((int) $p['id']);
+        $png = (new \AfricaGates\Services\BackedCard())->draw([
+            'photo' => (string) ($d->photo ?? ''), 'initials_of' => $d->display ?? 'Proud Supporter',
+            'kicker' => $c['community'] !== '' ? $c['community'] . ' is celebrating its own' : (string) $p['title'],
+            'lead' => 'Champion of the Day', 'title' => $d->display ?? 'A proud supporter',
+            'sub' => \Illuminate\Support\Carbon::parse((string) $d->day)->format('j F Y') . ' · ' . $p['title'],
+            'foot' => number_format((int) $d->votes) . ((int) $d->votes === 1 ? ' vote' : ' votes') . ($d->backing ? ' backing ' . $d->backing : ''),
+        ]);
+        if ($png === null || $png === '') throw new \Slim\Exception\HttpNotFoundException($req);
+        $res->getBody()->write($png);
+        return $res->withHeader('Content-Type', 'image/png')->withHeader('Content-Length', (string) strlen($png))
+            ->withHeader('Cache-Control', 'public, max-age=3600')->withHeader('X-Content-Type-Options', 'nosniff');
+    }
+
+    /**
+     * /champions/{code} — the check behind a gift claim: whoever the champion contacts opens
+     * the code and sees, from our own record, that it is genuine, which day, and whether this
+     * is their gift (once per person per campaign) or a repeat celebration.
+     */
+    public function championCheck(Request $req, Response $res, array $args): Response {
+        $d = \AfricaGates\Services\DailyChampion::byCode((string) ($args['code'] ?? ''));
+        $p = $d ? DB::table('gates_award_programmes')->where('id', (int) $d->programme_id)->where('is_active', 1)->first(['title', 'slug']) : null;
+        return $this->view->render($res->withStatus($d && $p ? 200 : 404), 'pages/champion-check.twig', [
+            'd' => $d && $p ? $d : null, 'award' => $p ? (string) $p->title : '', 'slug' => $p ? (string) $p->slug : '',
+            'page_title' => 'Check a Champion of the Day claim — Africa GATES',
+        ])->withHeader('X-Robots-Tag', 'noindex');
+    }
+
+    /**
+     * The person keys of whoever is looking: a signed-in member's (their address and their
+     * points), or the one their personal link carries. @return list<string>
+     */
+    private function viewerKeys(Request $req): array
+    {
+        $uid = (int) ($_SESSION['user_id'] ?? 0);
+        if ($uid > 0) {
+            $email = (string) (DB::table('gates_users')->where('id', $uid)->where('email_verified', 1)->value('email') ?? '');
+            if ($email !== '') return [\AfricaGates\Services\VoteService::voterHash($email), 'points:' . $uid];
+        }
+        $k = \AfricaGates\Services\OfferLink::key($req->getQueryParams());
+        return $k !== null ? [$k] : [];
+    }
+
+    /**
      * /vote/{program}/{id-slug}/poster — an A4 poster to print: the nominee, the award and a QR
      * code to their ballot, for the places a campaign actually happens here — a church, a market,
      * a school notice board. The flier already carries a QR, but no page printed on A4.
@@ -750,6 +860,8 @@ class VoteController {
             'terms'            => \AfricaGates\Services\AwardTerms::current((int) $nom->programme_id),
             'paid_sentence'    => \AfricaGates\Services\PaidVoteCopy::sentence((int) $nom->programme_id, (int) $nom->cycle_id),
             'vote_confirmed'   => $voteConfirmed,
+            // The voter's own "what your votes unlock" link, keyed on who just voted (OfferLink).
+            'offer_url'        => \AfricaGates\Services\OfferLink::path((string) $nom->programme_slug, $voteConfirmed ? (string) ($_SESSION['vote_key'] ?? '') : ''),
             'cheer'            => $cheer,
             'recruit'          => $recruit,
             // The nominee's thank-you to their backers, once it is final (sent, or past its

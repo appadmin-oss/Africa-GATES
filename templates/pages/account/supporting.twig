@@ -70,6 +70,7 @@
         {% endfor %}
       </ul>
       {% if e.phase == 'voting' %}<a class="spr-ed__more" href="/vote/{{ e.slug }}/spotlight">{{ 'Where you stand in the spotlight'|trans }}</a>{% endif %}
+      <a class="spr-ed__more" href="/vote/{{ e.slug }}/offer">{{ 'What your support unlocks in %award%'|trans({'%award%': e.award}) }}</a>
     </section>
   {% endfor %}
 {% else %}

@@ -51,7 +51,30 @@ final class AwardCampaign
             'help' => 'Optional, in your words, e.g. "The rest funds the concert, the awards and nominee prizes." Never describe money as going somewhere it has not been allocated.'],
         'ladder_note' => ['label' => 'The rule under the benefits', 'max' => 200,
             'help' => 'e.g. "Subject to centre capacity. Each benefit is redeemed once, by the person who voted."'],
+        // ── The offer page (/vote/{award}/offer). Each is optional; a blank one draws nothing.
+        'claim_contact' => ['label' => 'How a champion claims their gift', 'max' => 120,
+            'help' => 'An email address, a WhatsApp number (e.g. 0803 123 4567) or a link. Champions are told to contact you here with their claim code.'],
+        'opportunity' => ['label' => 'Community Opportunity Award', 'max' => 400, 'long' => true,
+            'help' => 'Optional. Who it is for and how the panel chooses, in your words. Chosen by published criteria, never by a draw.'],
+        'capital_title' => ['label' => 'Your long-term project', 'max' => 80,
+            'help' => 'Optional, e.g. "Ogidi Omo Hostel & Camp for Geniuses". Shown on the offer page with the note and link below.'],
+        'capital_note' => ['label' => 'About the project', 'max' => 500, 'long' => true,
+            'help' => 'What it is and what it needs. Say plainly that targets are targets. Never describe vote money as going to it unless that has been allocated.'],
+        'capital_url' => ['label' => 'Where to give to the project', 'max' => 200,
+            'help' => 'A link to its own donation page, e.g. /gift/ogidi-omo. Giving there is separate from voting.'],
+        'accountability' => ['label' => 'How you account for the money', 'max' => 300, 'long' => true,
+            'help' => 'Optional, e.g. "Every naira reconciled; a public report each month." Only what you will actually do.'],
     ];
+
+    /**
+     * Lists the offer page draws, each a few short lines: what the Champion of the Day and the
+     * Mobiliser of the Week receive. Blank means the page says only that they are celebrated.
+     */
+    public const LISTS = [
+        'champion_gifts'  => ['label' => 'What the Champion of the Day receives', 'help' => 'One per line, e.g. "Seven-day CACENTRE guest membership". Given once per person per campaign; a person can be champion again and is celebrated every time.'],
+        'mobiliser_gifts' => ['label' => 'What the Mobiliser of the Week receives', 'help' => 'One per line, e.g. "Nominate one child for NGGC screening".'],
+    ];
+    public const LIST_MAX = 8;
 
     public const LADDER_MAX = 8;
     public const BENEFIT_MAX = 140;
@@ -61,7 +84,9 @@ final class AwardCampaign
      * The campaign, complete and safe to print.
      *
      * @return array{community:string,rally:string,promise:string,beneficiary:string,remainder_note:string,
-     *               ladder_note:string,share_pct:int,spotlight:bool,ladder:list<array{votes:int,benefit:string}>}
+     *               ladder_note:string,share_pct:int,spotlight:bool,ladder:list<array{votes:int,benefit:string}>,
+     *               claim_contact:string,opportunity:string,capital_title:string,capital_note:string,capital_url:string,
+     *               accountability:string,champion_gifts:list<string>,mobiliser_gifts:list<string>}
      */
     public static function of(?object $programme): array
     {
@@ -80,6 +105,7 @@ final class AwardCampaign
         // when the Spotlight was opt-in is read the same way: only an explicit "off" hides it.
         $out['spotlight'] = empty($doc['spotlight_off']);
         $out['ladder']    = self::ladder($doc['ladder'] ?? []);
+        foreach (array_keys(self::LISTS) as $k) $out[$k] = self::lines($doc[$k] ?? []);
         return $out;
     }
 
@@ -155,6 +181,20 @@ final class AwardCampaign
             $doc[$k] = Brand::normalise($v);
         }
 
+        if (isset($doc['capital_url']) && self::safeUrl($doc['capital_url']) === '') return 'The project link must start with https:// or /.';
+        foreach (array_keys(self::LISTS) as $k) {
+            $raw = is_scalar($input[$k] ?? null) ? preg_split('/\R/', (string) $input[$k]) : (array) ($input[$k] ?? []);
+            $lines = [];
+            foreach ($raw ?: [] as $l) {
+                $l = trim(strip_tags((string) $l));
+                if ($l === '') continue;
+                if (mb_strlen($l) > self::BENEFIT_MAX) return 'Each line of "' . self::LISTS[$k]['label'] . '" is at most ' . self::BENEFIT_MAX . ' characters.';
+                $lines[] = Brand::normalise($l);
+            }
+            if (count($lines) > self::LIST_MAX) return 'Up to ' . self::LIST_MAX . ' lines for "' . self::LISTS[$k]['label'] . '".';
+            if ($lines !== []) $doc[$k] = $lines;
+        }
+
         $pct = trim((string) ($input['share_pct'] ?? ''));
         if ($pct !== '') {
             if (!ctype_digit($pct) || (int) $pct > 100) return 'The beneficiary share is a whole percentage from 0 to 100.';
@@ -191,6 +231,49 @@ final class AwardCampaign
             return 'The campaign could not be saved. Nothing was changed.';
         }
         return null;
+    }
+
+    /** @return list<string> */
+    private static function lines(mixed $raw): array
+    {
+        $out = [];
+        foreach (is_array($raw) ? $raw : [] as $l) {
+            $l = is_scalar($l) ? trim(strip_tags((string) $l)) : '';
+            if ($l !== '') $out[] = Brand::normalise(mb_substr($l, 0, self::BENEFIT_MAX));
+        }
+        return array_slice($out, 0, self::LIST_MAX);
+    }
+
+    /** A link the page may print: https, or a path on this site. '' otherwise. */
+    public static function safeUrl(string $u): string
+    {
+        $u = trim($u);
+        if ($u === '') return '';
+        if (preg_match('#^/(?!/)[^\s<>"]*$#', $u)) return $u;
+        $p = parse_url($u);
+        return is_array($p) && strtolower((string) ($p['scheme'] ?? '')) === 'https' && ($p['host'] ?? '') !== '' && !preg_match('/[\s<>"]/', $u) ? $u : '';
+    }
+
+    /**
+     * Where a champion claims: an email becomes mailto, a phone number WhatsApp (a Nigerian
+     * local 0… number written in international form, which wa.me requires), a link itself.
+     *
+     * @return array{href:string, label:string, kind:string}|null
+     */
+    public static function claimLink(array $c, string $subject = ''): ?array
+    {
+        $v = trim((string) ($c['claim_contact'] ?? ''));
+        if ($v === '') return null;
+        if (filter_var($v, FILTER_VALIDATE_EMAIL)) {
+            return ['href' => 'mailto:' . $v . ($subject !== '' ? '?subject=' . rawurlencode($subject) : ''), 'label' => $v, 'kind' => 'email'];
+        }
+        $digits = preg_replace('/\D+/', '', $v) ?? '';
+        if (preg_match('/^\+?[\d\s().-]{7,20}$/', $v) && strlen($digits) >= 7) {
+            if (str_starts_with($digits, '0') && strlen($digits) === 11) $digits = '234' . substr($digits, 1);
+            return ['href' => 'https://wa.me/' . $digits . ($subject !== '' ? '?text=' . rawurlencode($subject) : ''), 'label' => $v, 'kind' => 'whatsapp'];
+        }
+        $u = self::safeUrl($v);
+        return $u !== '' ? ['href' => $u, 'label' => $v, 'kind' => 'link'] : null;
     }
 
     /**

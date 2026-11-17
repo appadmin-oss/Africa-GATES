@@ -203,8 +203,12 @@ final class Maintenance
             $ran[] = ['award-alerts', $this->task('award-alerts',
                 fn() => \AfricaGates\Services\AwardAlert::sweep($this->mailer()))];
             // The Supporter Spotlight's messages (SpotlightMail): yesterday's Champion of the Day
-            // once the Lagos day is over, last week's Mobiliser on Monday, and a first place in
+            // once DailyChampion has announced it, last week's Mobiliser on Monday, and a first place in
             // the top supporters. Every tick, cheap when nothing is new; each is CLAIMED first.
+            // The Champion of the Day, announced the morning after once payments have settled,
+            // and sealed (DailyChampion). Before the Spotlight's mail, which tells the champion.
+            $ran[] = ['daily-champion', $this->task('daily-champion',
+                fn() => \AfricaGates\Services\DailyChampion::sweep())];
             $ran[] = ['spotlight-mail', $this->task('spotlight-mail',
                 fn() => \AfricaGates\Services\SpotlightMail::sweep($this->mailer()))];
             // Honouring the people who voted (16 Nov 2026): on results day, every backer told

@@ -120,6 +120,8 @@
               context: {moment: 'vote_cast', confirmed: true, edition: n.programme_slug ~ '-' ~ n.year, subject: n.id ~ '-' ~ n.category_id},
               primary: {label: 'Share %first%’s voting link'|trans({'%first%': first})},
               secondary: {label: 'Vote in another category'|trans, href: '/vote/' ~ n.programme_slug}} only %}
+          {# Their own link: their votes, what they have unlocked, what is next (OfferLink). #}
+          <a class="vb-offer" href="{{ ctx.offer_url }}">{{ 'See what your votes unlock'|trans }}</a>
         </div>
     {% endif %}
 
@@ -328,7 +330,7 @@
 {% set _bctx = {n: n, first: first, open: voting_open, phase: phase, paid_notice: paid_notice, can_redeem: can_redeem,
    member_points: member_points, points_per_vote: points_per_vote, member_logged_in: member_logged_in, points_enabled: points_enabled,
    paid: _paid, paid_sentence: paid_sentence, vote_price: vote_price, max_qty: max_qty, vote_tiers: vote_tiers, tiers: tier_prices,
-   retry: paid_retry, member: member, providers: pay_providers, wallet: wallet_sources|default([]), msg_max: msg_max, terms: terms, free: _free, confirmed: vote_confirmed, recruit: recruit, cheer: cheer, follow: follow_msg,
+   retry: paid_retry, member: member, providers: pay_providers, wallet: wallet_sources|default([]), msg_max: msg_max, terms: terms, free: _free, confirmed: vote_confirmed, offer_url: offer_url, recruit: recruit, cheer: cheer, follow: follow_msg,
    ts: _ts, ts_key: turnstile_site_key, url: '/vote/' ~ n.programme_slug ~ '/' ~ n.id} %}
 
 {% block content %}

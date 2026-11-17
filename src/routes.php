@@ -2332,6 +2332,11 @@ return function(App $app) {
         $g->get('/vote/{program}/tallies', VoteController::class.':tallies');
         // Before /vote/{program}/{slug}, which would otherwise answer it as a nominee.
         $g->get('/vote/{program}/spotlight', VoteController::class.':spotlight');
+        // What your support unlocks, and the Champion of the Day announced (DailyChampion).
+        $g->get('/vote/{program}/offer', VoteController::class.':offer');
+        $g->get('/vote/{program}/champion/{day:[0-9]{4}-[0-9]{2}-[0-9]{2}}.png', VoteController::class.':championCard');
+        $g->get('/vote/{program}/champion/{day:[0-9]{4}-[0-9]{2}-[0-9]{2}}', VoteController::class.':champion');
+        $g->get('/champions/{code:CD[0-9]+-[A-Fa-f0-9]{10}}', VoteController::class.':championCheck');
         // The flier routes go BEFORE /vote/{program}/{slug}: FastRoute matches in
         // declaration order for same-length paths, and `{slug}` would otherwise
         // swallow nothing here — but `{slug}/flier` is longer, so order is not

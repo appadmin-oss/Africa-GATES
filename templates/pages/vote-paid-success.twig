@@ -79,6 +79,7 @@
           </ul>
           {% if own.note %}<p class="rc__p">{{ own.note }}</p>{% endif %}
         {% endif %}
+        {% if own.offer_url %}<p class="rc__p"><a href="{{ own.offer_url }}">{{ 'See everything your votes unlock, and how to become Champion of the Day'|trans }}</a></p>{% endif %}
       {% endif %}
       <h2 class="rc__h2" id="rcNext">{{ 'What happens next'|trans }}</h2>
       <ul class="rc__rows">

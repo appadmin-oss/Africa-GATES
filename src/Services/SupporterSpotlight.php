@@ -111,10 +111,26 @@ final class SupporterSpotlight
      */
     public static function standingOf(int $cycleId, string $email, ?int $userId = null): array
     {
-        $out = ['votes' => 0, 'rank' => 0, 'people' => 0];
         $email = trim($email);
-        if ($cycleId < 1 || $email === '') return $out;
-        $me = VoteService::voterHash($email);
+        if ($email === '') return ['votes' => 0, 'rank' => 0, 'people' => 0];
+        $keys = [VoteService::voterHash($email)];
+        if ($userId !== null && $userId > 0) $keys[] = 'points:' . $userId;
+        return self::standingOfKeys($cycleId, $keys);
+    }
+
+    /**
+     * The same, for whichever of a person's keys is stronger — the personal link a voter is
+     * sent holds a person key, not an address (OfferLink).
+     *
+     * @param list<string> $keys
+     * @return array{votes:int, rank:int, people:int}
+     */
+    public static function standingOfKeys(int $cycleId, array $keys): array
+    {
+        $out = ['votes' => 0, 'rank' => 0, 'people' => 0];
+        $keys = array_values(array_filter(array_map('strval', $keys), static fn ($k) => $k !== ''));
+        if ($cycleId < 1 || $keys === []) return $out;
+        $me = $keys[0];
         $tot = []; $last = [];
         self::scan($cycleId, null, static function (string $key, object $r) use (&$tot, &$last): void {
             $tot[$key] = ($tot[$key] ?? 0) + max(1, (int) ($r->weight ?? 1));
@@ -122,7 +138,7 @@ final class SupporterSpotlight
             if ($at > ($last[$key] ?? '')) $last[$key] = $at;
         });
         $out['people'] = count($tot);
-        if ($userId !== null && $userId > 0 && ($tot['points:' . $userId] ?? 0) > ($tot[$me] ?? 0)) $me = 'points:' . $userId;
+        foreach ($keys as $k) if (($tot[$k] ?? 0) > ($tot[$me] ?? 0)) $me = $k;
         if (!isset($tot[$me])) return $out;
         $out['votes'] = $tot[$me];
         $ahead = 0;
