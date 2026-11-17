@@ -187,7 +187,13 @@ final class EventsFront
         $going = [];
         foreach ($ids as $id) $going[$id] = EventTicketService::attendingForEvent((int) $id);
 
-        return array_map(static fn (array $c): array => $c + ['going' => $going[$c['id']] ?? 0], $pick);
+        // The slide's colours from the event's own artwork (EventArtTone), so the text side
+        // matches the picture beside it; '' falls back to the neutral panel.
+        return array_map(static function (array $c) use ($going): array {
+            $t = ($c['image'] ?? '') !== '' ? EventArtTone::of((string) $c['image']) : null;
+            $style = EventArtTone::style($t);
+            return $c + ['going' => $going[$c['id']] ?? 0, 'art_style' => $style, 'art_mode' => $style !== '' ? EventArtTone::mode($t) : ''];
+        }, $pick);
     }
 
     /**
