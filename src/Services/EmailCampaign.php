@@ -67,9 +67,23 @@ final class EmailCampaign
      * @var array<string, array{label:string, fields:array<string,array{label:string, max:int, link?:bool, multiline?:bool}>}>
      */
     public const BLOCKS = [
+        // The masthead label and whether the nominee's voting countdown is drawn. Not every
+        // campaign is a voting push (owner, 17 Nov 2026: "the bulk email may not just be
+        // announcements"), so a campaign WITH this block says for itself; one without it
+        // keeps the shape every campaign before it had ("Final hours" + countdown).
+        'header' => [
+            'label'  => 'Header and countdown',
+            'fields' => [
+                'tag'       => ['label' => 'Label at the top right (e.g. Announcement, Update, Invitation)', 'max' => 30],
+                'countdown' => ['label' => 'Voting countdown', 'max' => 4,
+                                'choice' => ['hide' => 'Hide the countdown', 'show' => 'Show this nominee’s voting countdown']],
+            ],
+        ],
         'hero' => [
             'label'  => 'Headline',
             'fields' => [
+                // The small green line above the headline ("2026 Summit · Update").
+                'eyebrow'    => ['label' => 'Kicker above the headline (optional)', 'max' => 60],
                 'headline'   => ['label' => 'Headline', 'max' => 90],
                 // Rendered in the brand green, after the headline. The shipped campaign's
                 // "Finish strong" is headline "Finish" + accent "strong". Explicit rather
@@ -107,10 +121,15 @@ final class EmailCampaign
             'fields' => [
                 'label'           => ['label' => 'Button text', 'max' => 60],
                 'link'            => ['label' => 'Links to', 'max' => 32, 'link' => true],
+                // A typed address, for anything that is not one of the platform's pages
+                // (a form, a livestream, a partner's site). https:// or a path on this site
+                // only; when filled it replaces "Links to".
+                'url'             => ['label' => 'Or a web address (https://…, overrides “Links to”)', 'max' => 500, 'url' => true],
                 // The quieter link under the button. The shipped campaign had one, and a
                 // single CTA with no alternative loses the reader who wants the other thing.
                 'secondary_label' => ['label' => 'Secondary link text (optional)', 'max' => 60],
                 'secondary_link'  => ['label' => 'Secondary links to', 'max' => 32, 'link' => true],
+                'secondary_url'   => ['label' => 'Or a web address for the secondary link', 'max' => 500, 'url' => true],
             ],
         ],
         'callout' => [
@@ -241,7 +260,10 @@ final class EmailCampaign
      *
      * @return array{ok:bool, id:int, message:string}
      */
-    public static function create(string $name, string $subject, int $by = 0): array
+    /** What a new campaign can start from: the voting push, or a general message. */
+    public const STARTERS = ['general' => 'A general message (no countdown)', 'voting' => 'Final hours voting push'];
+
+    public static function create(string $name, string $subject, int $by = 0, string $starter = 'general'): array
     {
         $name    = trim($name);
         $subject = trim($subject);
@@ -259,7 +281,7 @@ final class EmailCampaign
             }
             $id = (int) DB::table('gates_email_campaigns')->insertGetId([
                 'slug' => $slug, 'name' => mb_substr($name, 0, 160), 'subject' => mb_substr($subject, 0, 200),
-                'preheader' => '', 'blocks_json' => json_encode(self::starter()),
+                'preheader' => '', 'blocks_json' => json_encode($starter === 'voting' ? self::starter() : self::general()),
                 'status' => 'draft', 'updated_by' => $by ?: null,
                 'created_at' => $now, 'updated_at' => $now,
             ]);
@@ -425,6 +447,17 @@ final class EmailCampaign
             foreach (self::BLOCKS[$type]['fields'] as $name => $spec) {
                 $v = (string) ($b[$name] ?? '');
 
+                if (!empty($spec['choice'])) {
+                    // One of the declared options, else the first (the safe default).
+                    $row[$name] = isset($spec['choice'][$v]) ? $v : (string) array_key_first($spec['choice']);
+                    continue;
+                }
+                if (!empty($spec['url'])) {
+                    // Typed, so held to the same rule as the site's announcement link:
+                    // https:// or a path on this site, never javascript: or //host.
+                    $row[$name] = \AfricaGates\Services\SiteNotice::safeUrl(mb_substr(trim($v), 0, (int) $spec['max'])) ?? '';
+                    continue;
+                }
                 if (!empty($spec['link'])) {
                     // A destination is chosen, never typed. Anything else becomes the safe
                     // default rather than a dead or hostile link.
@@ -470,6 +503,21 @@ final class EmailCampaign
         ];
     }
 
+    /** A neutral starting point for any message: news, an invitation, a reminder, a thank-you. */
+    public static function general(): array
+    {
+        return [
+            ['type' => 'header', 'tag' => 'Update', 'countdown' => 'hide'],
+            ['type' => 'hero', 'eyebrow' => '', 'headline' => 'Your headline', 'accent' => '',
+             'standfirst' => 'Dear {first_name|Friend}, one or two sentences that say why this email matters.'],
+            ['type' => 'paragraph', 'text' => "The details, in plain sentences.\n- A line starting with a dash becomes a bullet\n- **Two asterisks** make words bold"],
+            ['type' => 'button', 'label' => 'Find out more', 'link' => 'site_url', 'url' => '',
+             'secondary_label' => '', 'secondary_link' => 'site_url', 'secondary_url' => ''],
+            ['type' => 'signoff', 'text' => 'Any question? Simply reply to this email.',
+             'salutation' => 'With gratitude,', 'signature' => 'The Africa GATES team'],
+        ];
+    }
+
     // ══ rendering ════════════════════════════════════════════════════════════
 
     /**
@@ -490,14 +538,37 @@ final class EmailCampaign
             ['autoescape' => 'html']
         ));
 
+        $chrome = self::chrome($blocks);
+        if ($chrome !== null && !isset($vars['chrome'])) $vars['chrome'] = $chrome;
+
         return $twig->render('emails/campaign.twig', $vars + [
             'subject'   => $subject,
             'preheader' => $preheader,
-            // Resolved here, so the template never has to know that a link is a key.
-            'blocks'    => self::resolve($blocks, $vars),
+            // Resolved here, so the template never has to know that a link is a key. The
+            // Header block is settings, not content: drawn as `chrome`, never as a block,
+            // so the first VISIBLE block keeps the card's top padding.
+            'blocks'    => self::resolve(array_values(array_filter($blocks,
+                static fn ($b): bool => (string) ($b['type'] ?? '') !== 'header')), $vars),
             // The palette, by name — mail cannot read var() (Accent::mail()).
             'c'         => \AfricaGates\Support\Accent::mail(),
         ]);
+    }
+
+    /**
+     * The masthead label and countdown switch from a campaign's Header block, or null when
+     * it has none (the template then keeps the legacy "Final hours" + countdown shape).
+     *
+     * @param  list<array<string,mixed>> $blocks
+     * @return array{tag:string, countdown:bool}|null
+     */
+    public static function chrome(array $blocks): ?array
+    {
+        foreach ($blocks as $b) {
+            if ((string) ($b['type'] ?? '') !== 'header') continue;
+            return ['tag' => trim((string) ($b['tag'] ?? '')),
+                    'countdown' => (string) ($b['countdown'] ?? 'hide') === 'show'];
+        }
+        return null;
     }
 
     /** Render a stored campaign for one recipient. @param array<string,mixed> $vars */
@@ -529,6 +600,7 @@ final class EmailCampaign
             }
 
             foreach (self::BLOCKS[(string) $b['type']]['fields'] ?? [] as $name => $spec) {
+                if (!empty($spec['choice']) || !empty($spec['url'])) continue;
                 if (!empty($spec['link'])) {
                     $key = (string) ($b[$name] ?? 'vote_url');
                     $url = (string) ($vars[$key] ?? $vars['site_url'] ?? '');
@@ -543,6 +615,14 @@ final class EmailCampaign
                 if (isset($blocks[$i][$name])) {
                     $blocks[$i][$name] = self::fill((string) $blocks[$i][$name], $vars);
                 }
+            }
+            // A typed address replaces the chosen destination. Relative paths become absolute,
+            // because a mail client has no site to resolve them against.
+            foreach (['url' => 'href', 'secondary_url' => 'secondary_link_href'] as $from => $to) {
+                $typed = (string) ($b[$from] ?? '');
+                if ($typed === '') continue;
+                $blocks[$i][$to] = str_starts_with($typed, '/')
+                    ? rtrim((string) ($vars['site_url'] ?? ''), '/') . $typed : $typed;
             }
             // Multiline text becomes real paragraphs. Doing it here rather than with a
             // `nl2br` in Twig keeps the markup a table of <p>s, which is what Outlook wants.
@@ -632,7 +712,10 @@ final class EmailCampaign
 
         // The deadline and the unsubscribe are not blocks — they belong to the chrome, and
         // a plain-text part still has to carry a working opt-out.
-        if (($vars['closes_human'] ?? '') !== '') $out[] = 'Voting closes ' . $vars['closes_human'] . '.';
+        $chrome = self::chrome(self::clean($blocks));
+        if (($chrome === null || $chrome['countdown']) && ($vars['closes_human'] ?? '') !== '') {
+            $out[] = 'Voting closes ' . $vars['closes_human'] . '.';
+        }
         if (($vars['unsubscribe_url'] ?? '') !== '') $out[] = 'Unsubscribe: ' . $vars['unsubscribe_url'];
 
         return implode("\n\n", $out);

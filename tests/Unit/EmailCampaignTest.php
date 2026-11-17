@@ -519,4 +519,39 @@ final class EmailCampaignTest extends TestCase
         $this->assertStringContainsString('A brand new sentence.', $txt);
         $this->assertStringNotContainsString('final stretch', $txt, 'the old fixed prose leaked through');
     }
+
+    /** Not every campaign is a voting push (owner, 17 Nov 2026). */
+    public function test_a_general_campaign_has_no_countdown_and_takes_a_kicker_and_a_typed_link(): void
+    {
+        $vars   = EmailCampaign::sampleVars();
+        $in     = EmailCampaign::general();
+        $in[1]['eyebrow'] = 'Summit · {award_name|Awards}';
+        $in[3]['url'] = 'https://forms.example.org/rsvp?x=1';
+        $blocks = EmailCampaign::clean($in);
+
+        $this->assertSame(['tag' => 'Update', 'countdown' => false], EmailCampaign::chrome($blocks));
+        $html = EmailCampaign::render('s', 'p', $blocks, $vars);
+        $this->assertStringNotContainsString((string) $vars['countdown_url'], $html, 'a general message drew the voting countdown');
+        $this->assertStringNotContainsString('Final hours', $html);
+        $this->assertStringContainsString('forms.example.org/rsvp', $html, 'the typed address was not used');
+        $this->assertStringContainsString('Summit · ', $html, 'the kicker was not drawn');
+        $this->assertStringNotContainsString('Voting closes', EmailCampaign::plainOf($blocks, $vars));
+        $this->assertSame([], \AfricaGates\Services\EmailInboxGuard::problems($html));
+
+        // Switching the countdown on brings it back, and the legacy starter keeps it.
+        $blocks[0]['countdown'] = 'show';
+        $this->assertStringContainsString((string) $vars['countdown_url'], EmailCampaign::render('s', 'p', $blocks, $vars));
+        $this->assertStringContainsString((string) $vars['countdown_url'], EmailCampaign::render('s', 'p', EmailCampaign::starter(), $vars));
+    }
+
+    public function test_a_typed_link_must_be_https_or_a_path_on_this_site(): void
+    {
+        foreach (['javascript:alert(1)', '//evil.example/x', 'http://plain.example', 'data:text/html,x'] as $bad) {
+            $b = EmailCampaign::clean([['type' => 'button', 'label' => 'Go', 'link' => 'site_url', 'url' => $bad]]);
+            $this->assertSame('', $b[0]['url'], "$bad was kept");
+        }
+        $b = EmailCampaign::clean([['type' => 'button', 'label' => 'Go', 'link' => 'site_url', 'url' => '/events']]);
+        $html = EmailCampaign::render('s', 'p', $b, EmailCampaign::sampleVars());
+        $this->assertStringContainsString(rtrim((string) EmailCampaign::sampleVars()['site_url'], '/') . '/events', $html, 'a path was not made absolute');
+    }
 }

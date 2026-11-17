@@ -97,7 +97,8 @@ final class CampaignsController
         $body = (array) $req->getParsedBody();
         $r    = EmailCampaign::create(
             (string) ($body['name'] ?? ''), (string) ($body['subject'] ?? ''),
-            (int) ($_SESSION['admin_id'] ?? 0)
+            (int) ($_SESSION['admin_id'] ?? 0),
+            (string) ($body['starter'] ?? 'general') === 'voting' ? 'voting' : 'general'
         );
 
         $_SESSION[$r['ok'] ? 'flash' : 'flash_error'] = $r['message'];
