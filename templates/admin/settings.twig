@@ -288,6 +288,21 @@
         {%- elseif announce_state.ended %}Not showing: its end time has passed. Clear the end time, or the text, to tidy up.
         {%- else %}Nothing is showing. Type a sentence to put it at the top of every public page.{% endif -%}
       </p>
+      {#- The pop-up card (SiteNotice::popup): the same announcement, as a card with an image
+          or GIF, shown once to each visitor and never on a ballot or a checkout. -#}
+      <div><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="announce_popup" value="1"{{ values.announce_popup|default('') == '1' ? ' checked' }}> Also show it as a pop-up card, once to each visitor</label></div>
+      <div><label for="f-announce_title">Pop-up title</label><input type="text" name="announce_title" id="f-announce_title" maxlength="90" value="{{ values.announce_title|default('') }}" placeholder="Voting is extended to Friday"></div>
+      <div><label for="f-announce_body">Pop-up message <small>a blank line starts a new paragraph</small></label><textarea name="announce_body" id="f-announce_body" rows="4" maxlength="600" placeholder="A few short lines: what changed, and what to do.">{{ values.announce_body|default('') }}</textarea></div>
+      <div class="row">
+        <div><label for="f-announce_image">Pop-up image or GIF <small>optional: a path like /uploads/… or an https address</small></label><input type="text" name="announce_image" id="f-announce_image" value="{{ values.announce_image|default('') }}" placeholder="/assets/img/announce.gif"></div>
+        <div><label for="f-announce_image_alt">What the image shows <small>for screen readers; blank if decorative</small></label><input type="text" name="announce_image_alt" id="f-announce_image_alt" maxlength="200" value="{{ values.announce_image_alt|default('') }}"></div>
+      </div>
+      <p style="margin:6px 0 0;font-size:12px;line-height:1.55;color:var(--cn-soft)">
+        {%- if announce_state.bad_image %}<strong style="color:var(--cn-ink)">The image is not shown:</strong> use a path on this site or an address starting <code>https://</code>. {% endif -%}
+        {%- if announce_state.popup %}The pop-up is on: each visitor sees it once, over the first page they open, with the banner's link as its button.
+        {%- elseif values.announce_popup|default('') == '1' %}The pop-up is switched on but not showing: it needs the banner text above and a title.
+        {%- else %}The pop-up is off.{% endif -%}
+      </p>
       <div class="row">
         <div><label for="f-site_title">Site title</label><input type="text" name="site_title" id="f-site_title" value="{{ values.site_title|default('Africa GATES') }}"></div>
         <div><label for="f-contact_email">Contact email</label><input type="email" name="contact_email" id="f-contact_email" value="{{ values.contact_email|default('africa-gates@afrovanguard.org.ng') }}"></div>

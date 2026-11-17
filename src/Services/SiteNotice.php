@@ -84,7 +84,12 @@ final class SiteNotice
             // The pop-up card, once per visitor per message. Its own id, so closing the card
             // leaves the slim row as the reminder, and the row can still be hidden on its own.
             $m = self::popup($settings);
-            if ($m !== null && !in_array($m['id'], $hidden, true)) $out[] = $m;
+            if ($m !== null && !in_array($m['id'], $hidden, true)) {
+                $out[] = $m;
+                // ONCE: drawn now, so the next page does not draw it again. Never on a page
+                // fetched ahead of a click — a link hovered over is not a card seen.
+                if (!\AfricaGates\Support\Speculative::is()) self::hide($m['id']);
+            }
         }
         return $out;
     }
@@ -229,7 +234,7 @@ final class SiteNotice
     {
         try {
             return DB::table('gates_settings')
-                ->whereIn('key_name', array_merge(array_values(self::KEYS), array_values(PlannedWork::KEYS)))
+                ->whereIn('key_name', array_merge(array_values(self::KEYS), array_values(self::POPUP_KEYS), array_values(PlannedWork::KEYS)))
                 ->pluck('value', 'key_name')->map(fn ($x) => (string) $x)->all();
         } catch (\Throwable) {
             // A settings table that cannot be read costs the banner, never the page.

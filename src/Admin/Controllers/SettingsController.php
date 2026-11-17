@@ -67,6 +67,8 @@ class SettingsController
                     'showing'  => $a !== null,
                     'ended'    => $text !== '' && $a === null,
                     'bad_link' => $url !== '' && \AfricaGates\Services\SiteNotice::safeUrl($url) === null,
+                    'popup'    => \AfricaGates\Services\SiteNotice::popup($v) !== null,
+                    'bad_image'=> trim((string) ($v['announce_image'] ?? '')) !== '' && \AfricaGates\Services\SiteNotice::safeUrl((string) $v['announce_image']) === null,
                 ];
             })($this->settings->all()),
             'mail_config'    => (static function (): array {
@@ -594,7 +596,14 @@ class SettingsController
         $adminId = (int)$_SESSION['admin_id'];
 
         // Core site settings + email sender identity (gates_settings table)
+        // The pop-up card's switch posts nothing when unticked, so it is read only when the
+        // Public site card itself was submitted (its banner field is always posted).
+        if (array_key_exists('announce_text', $b)) {
+            $this->settings->set('announce_popup', !empty($b['announce_popup']) ? '1' : '0', $adminId);
+        }
         foreach (['announce_text','announce_url','announce_cta','site_title','contact_email',
+                  // The pop-up card (Services\SiteNotice::popup); clamped there, on the way out.
+                  'announce_title','announce_body','announce_image','announce_image_alt',
                   'mail_from_name','mail_from_address','mail_reply_to','admin_alert_email',
                   // The postal address every bulk mail's footer prints. It was .env only,
                   // read by six senders, on a host with no shell. See MailConfig::postal().

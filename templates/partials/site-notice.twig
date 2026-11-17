@@ -16,11 +16,11 @@
   planned work that moves or begins shows again.
 #}
 {% set _notices = site_notices(request_path|default('/'), flow_page|default(false)) %}
-{% if _notices %}
+{% set _rows = _notices|filter(n => n.kind != 'popup') %}
+{% set _pop = _notices|filter(n => n.kind == 'popup')|first %}
+{% if _rows %}
 <div class="ag-notices">
-  {# A 'popup' (SiteNotice::popup) is a card drawn on its own, never a row here: without this it
-     would read as "Planned work". #}
-  {% for n in _notices|filter(n => n.kind != 'popup') %}
+  {% for n in _rows %}
     {% set _ann = n.kind == 'announce' %}
     <section class="ag-notice ag-notice--{{ n.kind }}{{ not _ann and n.started ? ' is-live' : '' }}" aria-label="{{ _ann ? 'Announcement'|trans : 'Planned work'|trans }}">
       {% if _ann %}
@@ -60,4 +60,28 @@
     </section>
   {% endfor %}
 </div>
+{% endif %}
+{#
+  THE POP-UP CARD (SiteNotice::popup; owner, 17 Nov 2026). The announcement as a card — an
+  image or GIF, a title, a few lines, the banner's link as its one button — floating above the
+  page, not over it: no scrim and no trapped focus, so nothing on the page is taken away from
+  anybody, and a screen reader meets it as a labelled region. Drawn once per visitor (the
+  service marks it seen when it is drawn); closing it is a plain form that posts, so it works
+  without JavaScript.
+#}
+{% if _pop %}
+<aside class="ag-annc" aria-labelledby="ag-annc-h">
+  {% if _pop.image %}<img class="ag-annc__img" src="{{ _pop.image }}" alt="{{ _pop.alt }}" decoding="async">{% endif %}
+  <div class="ag-annc__b">
+    <h2 class="ag-annc__h" id="ag-annc-h">{{ _pop.title }}</h2>
+    {% for p in _pop.paras %}<p class="ag-annc__p">{{ p }}</p>{% endfor %}
+    {% if _pop.url %}<a class="ag-btn ag-btn--primary ag-btn--pill ag-annc__go" href="{{ _pop.url }}">{{ _pop.cta|trans }}</a>{% endif %}
+  </div>
+  <form class="ag-annc__x" method="post" action="/notice/hide">
+    <input type="hidden" name="_token" value="{{ csrf_token|default('') }}">
+    <input type="hidden" name="id" value="{{ _pop.id }}">
+    <input type="hidden" name="back" value="{{ request_path|default('/') }}">
+    <button type="submit" class="ag-annc__close" aria-label="{{ 'Close the announcement'|trans }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+  </form>
+</aside>
 {% endif %}

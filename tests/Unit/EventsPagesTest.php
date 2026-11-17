@@ -303,6 +303,29 @@ final class EventsPagesTest extends TestCase
      * screen or pausing while a quarter of it was in view, and a double edge over the card's
      * hairline. Refined 11 Nov 2026 to design.google's spec for the Gemini gradients.
      */
+    /**
+     * The pick, choreographed (owner, 17 Nov 2026: "more cinematic"): every beat is keyed on
+     * the STATE, so it plays however the tier was chosen, and every beat is dropped under
+     * reduced motion — the OS's and the site's own. A new animation without its reduced-motion
+     * line is the failure this exists for: it would play for exactly the people who asked it
+     * not to.
+     */
+    public function test_the_pick_sequence_runs_on_state_and_stops_for_reduced_motion(): void
+    {
+        $css = ChromeRender::code('public/assets/css/components/events.css');
+        foreach (['.ed-tier[aria-checked="true"]::after{ opacity:1; animation:edTileSheen', '.ed-tier[aria-checked="true"] .ed-tier__radio{ animation:edDot',
+                  '.ed-tier[aria-checked="true"] .ed-tier__p{ animation:edPrice', '.ed-inc:not([hidden]){ animation:edIncOpen', '.ed-inc:not([hidden]) .ed-inc__i{ animation:edIncLine'] as $beat) {
+            $this->assertStringContainsString($beat, $css, 'a beat of the pick is missing or no longer keyed on state');
+        }
+        preg_match('~@media \(prefers-reduced-motion:reduce\)\{\s*(\.ed-tier\[aria-checked.*?)\n\}~s', $css, $rm);
+        $this->assertNotEmpty($rm, 'no reduced-motion block for the pick');
+        foreach (['::after', '.ed-tier__radio', '.ed-tier__p', '.ed-inc:not([hidden])', '.ed-inc__i'] as $sel) {
+            $this->assertStringContainsString($sel, $rm[1], $sel . ' still animates under reduced motion');
+            $this->assertMatchesRegularExpression('~html\.ag-rm [^{]*' . preg_quote($sel, '~') . '~', $css, $sel . ' still animates under the site\'s own reduce-motion setting');
+        }
+        $this->assertStringNotContainsString('infinite', substr($css, (int) strpos($css, 'THE PICK, CHOREOGRAPHED'), 4000), 'a pick that never stops moving');
+    }
+
     public function test_the_glow_is_a_one_colour_sweep_round_the_card_that_rests_after(): void
     {
         $css = ChromeRender::code('public/assets/css/components/events.css');
@@ -330,8 +353,10 @@ final class EventsPagesTest extends TestCase
         $this->assertDoesNotMatchRegularExpression('~\.ed-glow__(halo|ring)\{[^}]*edAngle~', $css, 'a second clock on a child drifts from the first');
 
         // Tight to the card: it was a 10px blur on a box 3px outside it, scaled to 102% — a
-        // green smear ~20px beyond the edge (owner: "fix the … lightening").
-        $this->assertMatchesRegularExpression('~\.ed-glow__halo\{[^}]*inset:0;[^}]*filter:blur\(4px\)~s', $css, 'the glow smears beyond the card again');
+        // green smear ~20px beyond the edge (owner: "fix the … lightening"). Made more
+        // cinematic on 17 Nov 2026 (a stronger bloom), still on the card's own box and at
+        // most 8px soft — a light, never a stain.
+        $this->assertMatchesRegularExpression('~\.ed-glow__halo\{[^}]*inset:0;[^}]*filter:blur\([1-8]px\)~s', $css, 'the glow smears beyond the card again');
         $this->assertDoesNotMatchRegularExpression('~@keyframes edHalo\{[^\n]*scale~', $css, 'the halo grows past the card');
         $this->assertMatchesRegularExpression('~\.ed-glow__ring\{[^}]*padding-box, var\(--ev-cg\) border-box~s', $css);
         $this->assertMatchesRegularExpression('~@keyframes edSweep\{[^\n]*100%\{ opacity:0 \} \}~', $css, 'the card is left as it was drawn');
