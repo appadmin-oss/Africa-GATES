@@ -116,7 +116,7 @@
   <section class="ei-spot" aria-roledescription="carousel" aria-label="{{ 'Spotlight events'|trans }}" data-ei-spot>
     <div class="ei-spot__stage" aria-live="off" data-ei-stage>
       {% for s in _spot %}
-      <div class="ei-slide ei-t--{{ s.tone }}" role="group" aria-roledescription="slide" aria-label="{{ '%i% of %n%: %title%'|trans({'%i%': loop.index, '%n%': _n, '%title%': s.title}) }}"
+      <div class="ei-slide ei-t--{{ s.tone }}{{ s.image ? ' ei-art' }}" role="group" aria-roledescription="slide" aria-label="{{ '%i% of %n%: %title%'|trans({'%i%': loop.index, '%n%': _n, '%title%': s.title}) }}"
            {%- if not loop.first %} aria-hidden="true" hidden{% else %} data-on{% endif %} data-ei-slide>
         <div class="ei-slide__text">
           <div class="ei-slide__chips"><span class="ei-pill"><i aria-hidden="true"></i>{{ s.kind_label }}</span>{% if s.relative %}<span class="ei-rel">{{ s.relative }}</span>{% endif %}</div>
@@ -164,7 +164,7 @@
   <section class="ei-spotph" aria-label="{{ 'Spotlight events'|trans }}">
     <ul class="ei-spotph__track" data-ei-phtrack>
       {% for s in _spot %}
-      <li><a class="ei-spotph__card ei-t--{{ s.tone }}" href="{{ s.url }}">
+      <li><a class="ei-spotph__card ei-t--{{ s.tone }}{{ s.image ? ' ei-art' }}" href="{{ s.url }}">
         <span class="ei-spotph__vis">
           {% include 'partials/photo.twig' with {identity: s.id|default(null), kind: 'thing', subject: 'event', src: s.image, name: s.title,
                eager: loop.first, cover_kind: s.cover_kind, award_linked: s.award_linked, content: 'none', label: false,

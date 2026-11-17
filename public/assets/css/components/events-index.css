@@ -22,6 +22,14 @@
 .ei-t--live{  --ei-wash:var(--ag-cover-live-bg);  --ei-ink:var(--ag-cover-live-ink);  --ei-dot:var(--ag-cover-live-line);  --ei-edge:var(--ag-cover-live-edge) }
 .ei-t--info{  --ei-wash:var(--ag-cover-info-bg);  --ei-ink:var(--ag-cover-info-ink);  --ei-dot:var(--ag-cover-info-line);  --ei-edge:var(--ag-cover-info-edge) }
 .ei-t--stone{ --ei-wash:var(--ag-cover-stone-bg); --ei-ink:var(--ag-cover-stone-ink); --ei-dot:var(--ag-cover-stone-line); --ei-edge:var(--ag-cover-stone-edge) }
+/* AN EVENT WITH ITS OWN ARTWORK (owner, 17 Nov 2026: "it feels off. The colours do not
+   match"). The tone is the event's TYPE — gold for an awards ceremony — and it knows nothing
+   about the picture the organiser uploaded, so a gold panel sat beside green-and-red artwork.
+   With real artwork the text side is the plain surface and the picture brings the colour; the
+   type keeps only its dot. A generated cover (no upload) still wears its tone, because there
+   the tone IS the picture's colour. Declared after the tones so it wins at equal weight. */
+.ei-art{ --ei-wash:var(--ag-surface); --ei-ink:var(--ag-ink-2) }
+.ei-art .ei-slide__chips .ei-pill{ box-shadow:inset 0 0 0 1px var(--ag-line-2) }
 
 .ei{ max-width:1240px; margin:0 auto; padding:4px 16px 40px; display:flex; flex-direction:column; gap:28px }
 
