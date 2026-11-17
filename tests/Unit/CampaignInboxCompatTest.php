@@ -25,4 +25,10 @@ final class CampaignInboxCompatTest extends EmailInboxCompatCase
     {
         return __DIR__ . '/../../templates/emails/campaign.twig';
     }
+
+    /** Redrawn on the house shell's 600px card (17 Nov 2026), as every other message is. */
+    protected static function cardMaxWidth(): string
+    {
+        return 'max-width:600px';
+    }
 }

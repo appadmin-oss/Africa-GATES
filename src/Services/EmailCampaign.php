@@ -157,7 +157,12 @@ final class EmailCampaign
      */
     public const PLACEHOLDERS = [
         'first_name'    => 'The nominee’s first name',
+        'full_name'     => 'The nominee’s full name',
         'category_name' => 'Their award category',
+        // The programme their category's cycle belongs to, e.g. "Africa GATES Education
+        // Awards". Empty when the programme row is missing, hence {award_name|Africa GATES}.
+        'award_name'    => 'The award (programme) they are nominated in',
+        'edition_name'  => 'The edition, e.g. “11th Edition” or the year',
         'closes_human'  => 'When their voting closes',
     ];
 
@@ -681,7 +686,10 @@ final class EmailCampaign
 
         return [
             'first_name'      => 'Chidiebere-Oluwaseun',
+            'full_name'       => 'Chidiebere-Oluwaseun Adeyemi-Nwosu',
             'category_name'   => 'Community Education and Youth Development Excellence',
+            'award_name'      => 'Africa GATES Community Impact and Social Development Awards',
+            'edition_name'    => '11th Edition',
             'closes_human'    => 'Fri 29 Aug 2026, 23:59 WAT',
             'countdown_url'   => $site . '/email/countdown.gif?c=1',
             'countdown_alt'   => 'Voting closes Fri 29 Aug 2026, 23:59 WAT',

@@ -191,7 +191,13 @@ final class NomineeBroadcast
             'countdown_alt'   => 'Voting closes ' . $close->format('D j M Y, H:i T'),
             'closes_human'    => $close->format('D j M Y, H:i T'),
             'first_name'      => $first,
+            'full_name'       => trim((string) $n->name),
             'category_name'   => (string) ($n->category_title ?? ''),
+            // Empty rather than invented when unknown, so {award_name|Africa GATES} falls back.
+            'award_name'      => trim((string) ($r['cycle']->programme_title ?? '')),
+            'edition_name'    => trim((string) ($r['cycle']->edition_label ?? '')) !== ''
+                ? trim((string) $r['cycle']->edition_label)
+                : (string) ($r['cycle']->year ?? ''),
             'vote_url'        => $this->votePage($site, $n),
             'events_url'      => $site . '/events',
             'site_url'        => $site,
@@ -238,7 +244,10 @@ final class NomineeBroadcast
             ->leftJoin('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
             ->whereNotNull('cy.voting_close')
             ->where('cy.voting_close', '>', Carbon::now()->toDateTimeString())
-            ->select('cy.id', 'cy.programme_id', 'cy.voting_close', 'p.title as programme_title');
+            // year and edition_label feed the {edition_name} placeholder (both in the base
+            // schema, so selecting them is safe on every deployment).
+            ->select('cy.id', 'cy.programme_id', 'cy.voting_close', 'cy.year', 'cy.edition_label',
+                     'p.title as programme_title');
 
         // The rehearsal is seeded at status 'voting' with voting_close twenty days out,
         // precisely so the sandbox shows a usable ballot — which is also exactly the

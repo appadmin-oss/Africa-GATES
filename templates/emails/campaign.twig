@@ -1,42 +1,49 @@
 {#
-  A campaign whose copy lives in a database row.
+  A campaign whose copy lives in a database row — the bulk-mail path (Admin → Campaigns,
+  EmailCampaign::render(), sent by NomineeBroadcast through Mail\Outbox).
 
-  ── THIS FILE IS THE SKELETON, AND THE SKELETON IS NOT EDITABLE ────────────
+  ── THE SKELETON IS NOT EDITABLE; THE BLOCKS ARE ──────────────────────────
 
-  Everything structural here was proved by `templates/emails/final-hours.twig` and is
-  held by EmailInboxCompatTest: the fluid-hybrid wrapper that survives Gmail stripping
-  <style>, the MSO conditionals, the VML button, the styled alt text on the countdown,
-  role="presentation" on every layout table, the hidden preheader, no data: URIs, and
-  no CSP nonce. An operator editing copy cannot reach any of it.
+  What an operator edits is an ordered list of TYPED BLOCKS (EmailCampaign::BLOCKS). Each
+  block's text arrives as plain text — EmailCampaign::clean() strip_tags everything on the
+  way in — and this file supplies the markup. There is deliberately no block type that
+  emits raw HTML. Links arrive resolved (EmailCampaign::resolve()), so `b.href` is already
+  this recipient's URL. Rendered once per recipient, autoescaped.
 
-  What they edit is an ordered list of TYPED BLOCKS, rendered below. Each block's text
-  arrives as plain text — EmailCampaign::clean() strip_tags everything on the way in —
-  and this file supplies the markup. There is deliberately no block type that emits raw
-  HTML: a rich-text editor emits <div>s and inline styles Outlook drops on the floor,
-  which is the whole reason this design exists rather than a WYSIWYG.
+  ── REDRAWN 17 NOV 2026: THE HOUSE SHELL'S DESIGN, GENERAL-PURPOSE ─────────
 
-  Links are resolved before they arrive. A block names its destination by KEY
-  (vote_url, events_url, site_url) and EmailCampaign::resolve() turns it into this
-  recipient's URL, so a campaign cannot carry a typed-in link, and vote_url can differ
-  per person.
+  It draws what templates/emails/_shell.twig draws ("Shell, final"), so a campaign looks
+  like every other message the platform sends: the masthead on the paper ground (the mark
+  at 26×26 in a 40px white tile, "Africa GATES" set as TEXT beside it), a white card with a
+  16px radius and no dark fills, Playfair Display headings over Georgia, Arial body at
+  15/25, a green pill button, and the footer under the card — why this arrived, © ·
+  postal, Help · Privacy · Unsubscribe. Colours are `c.*` (Accent::mail()); type sits on
+  the §6.2 ladder (TypeScaleTest), display sizes above 18.
 
-  Rendered once per recipient, so autoescaping applies to every name that lands here —
-  a nominee called "Ade & Sons" must not break the markup around them.
+  What it must keep (EmailInboxCompatCase via CampaignInboxCompatTest): a fluid card
+  (width="100%" + max-width:600px) with an [if mso] fixed 600 table; the gutter on CELLS;
+  role="presentation" on every table; the hidden preheader with mso-hide:all; the VML
+  button with <w:anchorlock/> beside the [if !mso] anchor; colour-scheme metas and a
+  declared dark block; the iOS detector override; no data: URIs; absolute images; and,
+  when the countdown is drawn, its styled alt with the deadline repeated as text.
 
-  ── REBUILT 3 OCT 2026: THE HANDOFF'S LADDER, AND ACCENT'S COLOURS ──────────
+  ── THE CHROME: `chrome.tag` AND `chrome.countdown` ───────────────────────
 
-  Deleted and written again from docs/handoff/inventory/_emails.md (owner, 3 Oct 2026).
-  Type sits on REFERENCE §6.2's closed ladder — the 10px and 11px labels are 11.5, and
-  nothing is smaller but the 1px preheader collapse, which is a hiding device and not
-  type (TypeScaleTest). px is right here: no Display & reading setting reaches an inbox,
-  and rem is ignored by enough clients to be a gamble. Every colour is `c.<token>`,
-  `Accent::mail()` passed in by the sender under the handoff's own names — mail cannot
-  read `var()`, but it need not type a palette of its own either, and this file used to
-  type thirty-odd colours that were in no palette at all. The dark-mode block is ink as
-  the ground and ground as the words, as the newsletter's always was: the handoff names
-  no dark palette, so none is invented. The mono and capitals rules are for screens
-  (MonoAndCaseTest leaves mail out), so the tracked micro-labels keep their voice.
+  The masthead label and the voting countdown are award-specific, so they are switchable.
+  When the sender passes no `chrome`, this keeps the shape every campaign before this had
+  ("Final hours" + countdown), so an existing draft renders the same content.
+
+  ── LIGHT FORMATTING IN A PARAGRAPH, STILL PLAIN TEXT ──────────────────────
+
+  A paragraph line starting "- ", "* " or "• " is drawn as a bullet, and **double
+  asterisks** around words make them bold. Done here with split/slice, never with |raw:
+  every run is autoescaped, so nothing typed can become markup. An unmatched ** is shown
+  as typed rather than bolding the rest of the line.
 #}
+{%- set chrome = chrome ?? {tag: 'Final hours', countdown: true} -%}
+{%- set show_countdown = chrome.countdown ?? false -%}
+{%- set tag = chrome.tag ?? '' -%}
+{%- set year = year ?? 'now'|date('Y') -%}
 <!DOCTYPE html>
 <html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
 <head>
@@ -47,356 +54,217 @@
 <meta name="color-scheme" content="light">
 <meta name="supported-color-schemes" content="light">
 <title>{{ subject }}</title>
-<!--[if mso]>
-<noscript>
-<xml>
-<o:OfficeDocumentSettings>
-<o:PixelsPerInch>96</o:PixelsPerInch>
-</o:OfficeDocumentSettings>
-</xml>
-</noscript>
-<![endif]-->
+<!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->
 <style>
   body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
   table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
-  img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; display: block; }
-  body { margin: 0; padding: 0; width: 100% !important; height: 100% !important; background-color: {{ c.ground }}; }
-  table { border-collapse: collapse !important; }
+  img { -ms-interpolation-mode: bicubic; border: 0; outline: none; text-decoration: none; }
+  body { margin: 0; padding: 0; width: 100% !important; background-color: {{ c.ground }}; }
   a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; font-size: inherit !important; font-family: inherit !important; font-weight: inherit !important; line-height: inherit !important; }
   u + #body a { color: inherit; text-decoration: none; }
   #MessageViewBody a { color: inherit; text-decoration: none; }
-  span.MsoHyperlink { color: inherit; mso-style-priority: 99; }
-  [data-ogsc] .agw-bg { background-color: {{ c.surface }} !important; }
+  p, td, a, div, h1, h2 { mso-line-height-rule: exactly; }
+  /* Gmail app's forced dark mode: keep the card and its ink as designed. */
+  [data-ogsc] .agw-card { background-color: {{ c.surface }} !important; }
   [data-ogsc] .agw-text { color: {{ c.ink }} !important; }
 
-  /* Outlook (Word engine) ignores line-height unless told the rule is exact, and
-     collapses to single spacing on long paragraphs. */
-  p, td, a, div, h1 { mso-line-height-rule: exactly; }
-
-  /* ── DARK MODE ───────────────────────────────────────────────────────────
-     `color-scheme: light` above already stops Apple Mail and iOS inverting anything,
-     which is why the palette below is a deliberate dark counterpart rather than a
-     defensive one — Accent's ink as the ground and its ground as the words, because
-     the handoff names no dark palette and this file will not invent one. Gmail's and Outlook.com's dark modes invert regardless and do it
-     badly on near-white surfaces — dark text left on a darkened background. Declaring
-     the dark values explicitly means the clients that DO honour the query render a
-     chosen design, and the ones that force-invert have less to get wrong. */
-  @media (prefers-color-scheme: dark) {
-    .agw-body   { background-color: {{ c.ink }} !important; }
-    .agw-bg     { background-color: {{ c.ink }} !important; }
-    .agw-text   { color: {{ c.ground }} !important; }
-    .agw-muted  { color: {{ c.line }} !important; }
-    .agw-body-t { color: {{ c.tint }} !important; }
-    .agw-hero   { background-color: {{ c['ink-2'] }} !important; }
-    .agw-rule   { border-color: {{ c['ink-2'] }} !important; }
-    /* The green CTA already clears 4.5:1 against white text, so it is left alone —
-       lightening it here would only reduce that. */
+  @media only screen and (max-width: 620px) {
+    .agw-outer { padding: 20px 10px !important; }
+    .agw-px { padding-left: 22px !important; padding-right: 22px !important; }
+    .agw-first { padding-top: 28px !important; }
+    .agw-headline { font-size: 26px !important; line-height: 31px !important; }
+    .agw-btn { display: block !important; width: 100% !important; }
+    .agw-cd { padding-left: 22px !important; padding-right: 22px !important; padding-top: 22px !important; }
   }
 
-  @media screen and (max-width: 600px) {
-    .agw-wrapper { width: 100% !important; }
-    .agw-px { padding-left: 28px !important; padding-right: 28px !important; }
-    .agw-headline { font-size: 26px !important; line-height: 32px !important; }
-    .agw-btn-pad { padding-left: 28px !important; padding-right: 28px !important; }
-    .agw-hero-pad { padding: 28px 20px !important; }
+  /* DARK MODE is a colour LOCK, as the house shell's is: every block's ink is inline, so a
+     card flipped dark would put all of it dark-on-dark. Clients that honour the query get
+     the light design restated; Gmail and Outlook.com, which invert regardless, have a
+     white card with dark ink and one green to work from — the case they invert best. */
+  @media (prefers-color-scheme: dark) {
+    .agw-body { background-color: {{ c.ground }} !important; }
+    .agw-card { background-color: {{ c.surface }} !important; }
+    .agw-text { color: {{ c.ink }} !important; }
+    .agw-foot { background-color: {{ c.ground }} !important; color: {{ c.soft }} !important; }
   }
 </style>
 </head>
-<body id="body" class="agw-body" style="margin:0; padding:0; background-color:{{ c.ground }};">
-
-{# The brand mark is a HOSTED PNG, not an inlined data: URI.
-
-   It was base64 — 20,848 bytes, over half the entire email — and Gmail, Outlook desktop,
-   Outlook.com and Yahoo all refuse data: URIs in an img src, so the majority of readers
-   paid that weight and saw the alt text anyway. It also spent half the headroom before
-   Gmail's ~102KB clipping point, and what Gmail clips off a campaign is the footer, which
-   is where the unsubscribe link lives.
-
-   Not the SVG at /assets/img/logo-africa-gates.svg either: it is 1.4MB of embedded
-   bitmap, and email clients do not render SVG at all. #}
-<!-- PREHEADER -->
-<div style="display:none; max-height:0; overflow:hidden; mso-hide:all; font-size:1px; line-height:1px; color:{{ c.ground }}; opacity:0;">
-  {{ preheader ?: 'Voting closes soon. Rally your supporters and get them a seat.' }}
-  &nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;
-</div>
+<body id="body" class="agw-body" style="margin:0; padding:0; background-color:{{ c.ground }}; font-family:Arial, Helvetica, sans-serif;">
+<div style="display:none; max-height:0; max-width:0; overflow:hidden; mso-hide:all; font-size:1px; line-height:1px; color:{{ c.ground }}; opacity:0;">{{ preheader ?: (show_countdown ? 'Voting closes soon. Rally your supporters and get them a seat.' : '') }}{% for i in 1..12 %}&nbsp;&zwnj;{% endfor %}</div>
 
 <table role="presentation" class="agw-body" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="{{ c.ground }}" style="background-color:{{ c.ground }};">
-<tr>
-<td align="center" style="padding:32px 12px;">
+<tr><td class="agw-outer" align="center" style="padding:28px 12px;">
+  <!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;"><tr><td><![endif]-->
+  <table role="presentation" class="agw-wrapper" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:600px;">
 
+    {# MASTHEAD — on the ground, as the shell draws it. The name is TEXT so it is there
+       with images blocked; the mark's alt is styled; width AND height on the image. #}
+    <tr><td style="padding:0 8px 20px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+        <td valign="middle" width="40" align="center" bgcolor="{{ c.surface }}" style="width:38px; height:38px; border:1px solid {{ c['line-2'] }}; border-radius:8px; background-color:{{ c.surface }};">
+          <img src="{{ site_url }}/assets/img/logo-mark.png" width="26" height="26" alt="Africa GATES" style="display:block; width:26px; height:26px; border:0; font-family:Georgia, serif; font-size:12px; font-weight:700; color:{{ c.green }};">
+        </td>
+        <td align="left" valign="middle" class="agw-text" style="padding-left:10px; font-family:Arial, Helvetica, sans-serif; font-size:16px; line-height:20px; font-weight:700; color:{{ c.ink }};">Africa GATES</td>
+        {% if tag %}<td align="right" valign="middle" class="agw-text" style="font-family:Arial, Helvetica, sans-serif; font-size:11.5px; line-height:16px; font-weight:700; color:{{ c.ink }};">{{ tag }}</td>{% endif %}
+      </tr></table>
+    </td></tr>
 
-  <!--[if mso]>
-  <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="width:560px;"><tr><td>
-  <![endif]-->
-  {# FLUID-HYBRID, not a fixed 560px table.
+    {# THE CARD #}
+    <tr><td style="padding:0;">
+      <table role="presentation" class="agw-card" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="{{ c.surface }}" style="width:100%; background-color:{{ c.surface }}; border-radius:16px;">
 
-     This was width="560" with the mobile override living only inside the one @media
-     block. Gmail strips <style> in several configurations (notably a non-Gmail address
-     fetched via POP/IMAP into a Gmail account), and when it does, a 560px table lands on
-     a 320px screen: the reader gets a horizontally scrolling email or a zoomed-out one.
-     A percentage width with a max-width needs no media query to work, and the MSO
-     conditional above gives Outlook — which ignores max-width — its fixed 560. #}
-  <table role="presentation" class="agw-wrapper agw-bg" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:560px; background-color:{{ c.surface }}; border-radius:20px; overflow:hidden;">
-
-    <!-- DARK HEADER BAR (logo left, status badge right) -->
-    <tr>
-      <td style="background-color:{{ c.ink }};">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-          <tr>
-            <td class="agw-px" style="padding:20px 32px;">
-              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
-                <tr>
-                  <td valign="middle">
-                    <table role="presentation" cellpadding="0" cellspacing="0" border="0">
-                      <tr>
-                        <td valign="middle" width="40" style="padding-right:10px;">
-                          {# THE MARK ONLY, not the full lockup. The wordmark version is
-                             illegible below about 96px, and the words "Africa GATES" are
-                             already set in live text in the cell beside this one — printing
-                             them twice, once as unreadable pixels, is worse than not
-                             printing them at all.
-
-                             Served at 2x (192px for a 40px box) so it is not soft on a
-                             retina phone, which is where most of these are opened. #}
-                          <img src="{{ site_url }}/assets/img/logo-mark.png" width="40" height="40" alt="Africa GATES" style="display:block;">
-                        </td>
-                        <td valign="middle">
-                          <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:16px; font-weight:700; color:{{ c.surface }}; line-height:16px;">Africa</p>
-                          <p style="margin:1px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:11.5px; font-weight:700; letter-spacing:2px; color:{{ c['green-light'] }}; line-height:14px;">GATES</p>
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                  <td valign="middle" align="right">
-                    <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:11.5px; font-weight:700; color:{{ c.line }};">Final Hours</p>
-                  </td>
-                </tr>
-              </table>
+        {% if show_countdown %}
+        {# The nominee's own voting countdown: a GIF redrawn on every open (frame 1 is a
+           correct still for Outlook). Images off is the common case in corporate mail, so
+           the alt is STYLED, the box keeps its size, and the deadline is repeated as text. #}
+        <tr><td class="agw-cd" style="padding:32px 44px 0;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+            <td align="center" bgcolor="{{ c['green-wash'] }}" style="background-color:{{ c['green-wash'] }}; border-radius:14px; padding:24px 16px;">
+              <img src="{{ countdown_url }}" width="320" height="104" alt="{{ countdown_alt }}"
+                   style="display:block; width:100%; max-width:320px; height:auto; margin:0 auto; border:0;
+                          font-family:Arial, Helvetica, sans-serif; font-size:17px; font-weight:700;
+                          line-height:24px; color:{{ c.ink }}; text-align:center;">
+              <p style="margin:12px 0 0; font-family:Arial, Helvetica, sans-serif; font-size:13px; line-height:20px; font-weight:700; color:{{ c.soft }};">Voting closes {{ closes_human }}</p>
             </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
+          </tr></table>
+        </td></tr>
+        {% endif %}
 
-    <!-- HERO: live countdown GIF -->
-    <tr>
-      <td class="agw-hero-pad agw-hero" align="center" bgcolor="{{ c['green-wash'] }}" style="background-color:{{ c['green-wash'] }}; padding:40px 20px;">
-        <!-- Animated GIF, redrawn by the server on every open, so the time is true each
-             time the message is looked at rather than true when it was sent. Frame 1 is a
-             correct still for Outlook, which never advances past it. -->
-        {# IMAGES OFF IS THE COMMON CASE, NOT THE EDGE CASE. Outlook desktop blocks remote
-           images by default and so does most corporate mail. The countdown IS the hero, so
-           with images off this block has to still carry the deadline:
+        {% for b in blocks %}
+        {%- set top = loop.first ? (show_countdown ? '28px' : '40px') : '0' -%}
+        {%- set first = loop.first and not show_countdown -%}
 
-             · the alt text is STYLED — an unstyled alt renders as 10px browser-default
-               serif and reads as a broken attachment rather than as words somebody wrote;
-             · width/height are set so a blocked image reserves its box instead of
-               collapsing the panel to nothing;
-             · the deadline is repeated as real text underneath, which is the line that
-               actually does the work when the image never arrives. #}
-        <img src="{{ countdown_url }}" width="320" height="104" alt="{{ countdown_alt }}"
-             style="display:block; width:100%; max-width:320px; height:auto; margin:0 auto;
-                    font-family:Helvetica, Arial, sans-serif; font-size:16px; font-weight:700;
-                    line-height:1.4; color:{{ c.ink }}; text-align:center;">
-        <p class="agw-muted" style="margin:16px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:13px; font-weight:700; color:{{ c['ink-2'] }}; mso-line-height-rule:exactly; line-height:18px;">Voting closes {{ closes_human }}</p>
-      </td>
-    </tr>
-
-    {# ── THE EDITABLE PART ──────────────────────────────────────────────────
-       One table row per block, in the order the operator arranged them. Each arm
-       below is the markup the shipped "final hours" campaign used for that shape,
-       so a campaign built from the starter blocks renders identically to the file
-       it replaced — that was the acceptance test for this whole change.
-
-       `first` is used only to give the top block the larger padding the headline
-       had, so a campaign that does not open with a headline does not start flush
-       against the countdown. #}
-    {% for b in blocks %}
-      {% set first = loop.first %}
-
-      {% if b.type == 'hero' %}
-        <tr>
-          <td class="agw-px" align="center" style="padding:{{ first ? '36px' : '30px' }} 40px 0 40px;">
+        {% if b.type == 'hero' %}
+          <tr><td class="agw-px{{ first ? ' agw-first' }}" style="padding:{{ top }} 44px 0;">
+            {% if b.eyebrow is defined and b.eyebrow %}
+              <p style="margin:0 0 12px; font-family:Arial, Helvetica, sans-serif; font-size:11.5px; line-height:16px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:{{ c.green }};">{{ b.eyebrow }}</p>
+            {% endif %}
             {% if b.headline or b.accent %}
-              <h1 class="agw-headline agw-text" style="margin:0; font-family:Helvetica, Arial, sans-serif; font-weight:700; font-size:28px; line-height:34px; color:{{ c.ink }}; letter-spacing:-0.3px; text-align:center;">
-                {{ b.headline }}{% if b.accent %}{% if b.headline %} {% endif %}<span style="color:{{ c.green }};">{{ b.accent }}</span>{% endif %}
-              </h1>
+              <h1 class="agw-headline agw-text" style="margin:0 0 16px; font-family:'Playfair Display', Georgia, 'Times New Roman', serif; font-size:31px; line-height:37px; font-weight:700; color:{{ c.ink }};">{{ b.headline }}{% if b.accent %}{% if b.headline %} {% endif %}<span style="color:{{ c.green }};">{{ b.accent }}</span>{% endif %}</h1>
             {% endif %}
             {% if b.standfirst %}
-              <p style="margin:10px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:14px; color:{{ c.soft }}; text-align:center;">
-                {{ b.standfirst }}
-              </p>
+              <p style="margin:0 0 18px; font-family:Arial, Helvetica, sans-serif; font-size:17px; line-height:27px; color:{{ c['ink-2'] }};">{{ b.standfirst }}</p>
             {% endif %}
-          </td>
-        </tr>
+          </td></tr>
 
-      {% elseif b.type == 'quote' %}
-        <tr>
-          <td class="agw-px" style="padding:{{ first ? '36px' : '32px' }} 40px 0 40px;">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-              <tr>
-                <td style="border-left:2px solid {{ c.green }}; padding:2px 0 2px 16px;">
-                  <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:22px; color:{{ c.soft }}; font-style:italic;">
-                    "{{ b.text }}"{% if b.source %} &mdash; {{ b.source }}{% endif %}
-                  </p>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-
-      {% elseif b.type == 'paragraph' %}
-        <tr>
-          <td class="agw-px" style="padding:{{ first ? '36px' : '18px' }} 40px 0 40px;">
+        {% elseif b.type == 'paragraph' %}
+          <tr><td class="agw-px{{ first ? ' agw-first' }}" style="padding:{{ top }} 44px 0;">
             {% for para in (b.paras ?? [b.text]) %}
-              <p style="margin:0 0 {{ loop.last ? '0' : '12px' }} 0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:23px; color:{{ c['ink-2'] }};">
-                {{ para }}
-              </p>
+              {%- set bullet = para starts with '- ' or para starts with '* ' or para starts with '• ' -%}
+              {%- set line = bullet ? para|slice(2)|trim : para -%}
+              {%- set segs = line|split('**') -%}
+              {% if bullet %}
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+                  <td width="20" valign="top" style="width:20px; padding:0 0 8px; font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:25px; font-weight:700; color:{{ c.green }};">&bull;</td>
+                  <td valign="top" style="padding:0 0 8px; font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:25px; color:{{ c['ink-2'] }};">{% if segs|length is odd %}{% for s in segs %}{% if loop.index0 is odd %}<strong style="font-weight:700; color:{{ c.ink }};">{{ s }}</strong>{% else %}{{ s }}{% endif %}{% endfor %}{% else %}{{ line }}{% endif %}</td>
+                </tr></table>
+              {% else %}
+                <p style="margin:0 0 18px; font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:25px; color:{{ c['ink-2'] }};">{% if segs|length is odd %}{% for s in segs %}{% if loop.index0 is odd %}<strong style="font-weight:700; color:{{ c.ink }};">{{ s }}</strong>{% else %}{{ s }}{% endif %}{% endfor %}{% else %}{{ line }}{% endif %}</p>
+              {% endif %}
             {% endfor %}
-          </td>
-        </tr>
+            {# Bullets carry only 8px below each, so the list closes with the 18px rhythm. #}
+            {%- set tail = (b.paras ?? [b.text])|last -%}
+            {% if tail starts with '- ' or tail starts with '* ' or tail starts with '• ' %}<div style="height:10px; line-height:10px; font-size:1px;">&nbsp;</div>{% endif %}
+          </td></tr>
 
-      {% elseif b.type == 'heading' %}
-        <tr>
-          <td class="agw-px" style="padding:{{ first ? '36px' : '34px' }} 40px 0 40px;">
-            <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-weight:700; font-size:11.5px; color:{{ c.soft }};">
-              {{ b.text }}
-            </p>
-          </td>
-        </tr>
+        {% elseif b.type == 'heading' %}
+          <tr><td class="agw-px{{ first ? ' agw-first' }}" style="padding:{{ loop.first ? top : '10px' }} 44px 0;">
+            <h2 class="agw-text" style="margin:0 0 12px; font-family:'Playfair Display', Georgia, 'Times New Roman', serif; font-size:19px; line-height:25px; font-weight:700; color:{{ c.ink }};">{{ b.text }}</h2>
+          </td></tr>
 
-      {% elseif b.type == 'ask' %}
-        {# The number is the count of ask blocks so far, not the loop index — a
-           paragraph between two asks must not make them "01" and "03". #}
-        <tr>
-          <td class="agw-px" style="padding:18px 40px 0 40px;">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-              <tr>
-                <td width="30" valign="top" style="padding:1px 14px 0 0;">
-                  <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:14px; font-weight:700; color:{{ c.green }};">{{ b.n }}</p>
-                </td>
-                <td valign="top">
-                  {% if b.title %}
-                    <p style="margin:0 0 3px 0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:21px; color:{{ c.ink }}; font-weight:700;">
-                      {{ b.title }}
-                    </p>
-                  {% endif %}
-                  {% if b.text %}
-                    <p style="margin:0 0 8px 0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:21px; color:{{ c.soft }};">
-                      {{ b.text }}
-                    </p>
-                  {% endif %}
-                  {% if b.link_label %}
-                    <a href="{{ b.href }}" target="_blank" style="font-family:Helvetica, Arial, sans-serif; font-size:13px; font-weight:700; color:{{ c.green }}; text-decoration:none;">
-                      {{ b.link_label }} &nbsp;&rarr;
-                    </a>
-                  {% endif %}
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
+        {% elseif b.type == 'quote' %}
+          <tr><td class="agw-px{{ first ? ' agw-first' }}" style="padding:{{ top }} 44px 0;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+              <td style="border-left:3px solid {{ c.green }}; padding:2px 0 2px 18px;">
+                <p style="margin:0; font-family:'Playfair Display', Georgia, 'Times New Roman', serif; font-size:20px; line-height:29px; font-style:italic; color:{{ c.ink }};">&ldquo;{{ b.text }}&rdquo;</p>
+                {% if b.source %}<p style="margin:8px 0 0; font-family:Arial, Helvetica, sans-serif; font-size:13px; line-height:20px; color:{{ c.soft }};">&mdash; {{ b.source }}</p>{% endif %}
+              </td>
+            </tr></table>
+            <div style="height:18px; line-height:18px; font-size:1px;">&nbsp;</div>
+          </td></tr>
 
-      {% elseif b.type == 'callout' %}
-        <tr>
-          <td class="agw-px" style="padding:32px 40px 0 40px;">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:{{ c.ink }}; border-radius:14px;">
-              <tr>
-                <td align="center" style="padding:26px 28px;">
-                  {% for para in (b.paras ?? [b.text]) %}
-                    <p style="margin:0 0 {{ loop.last ? '0' : '10px' }} 0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:23px; color:{{ c.surface }};">
-                      {{ para }}
-                    </p>
-                  {% endfor %}
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
+        {% elseif b.type == 'ask' %}
+          {# Numbered by asks so far (EmailCampaign::resolve), not by position. #}
+          <tr><td class="agw-px{{ first ? ' agw-first' }}" style="padding:{{ top }} 44px 0;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+              <td width="30" valign="top" style="width:30px; padding:0 12px 18px 0; font-family:'Playfair Display', Georgia, 'Times New Roman', serif; font-size:20px; line-height:22px; font-weight:700; color:{{ c.green }};">{{ b.n }}</td>
+              <td valign="top" style="padding:0 0 18px; font-family:Arial, Helvetica, sans-serif;">
+                {% if b.title %}<p style="margin:0; font-size:15px; line-height:22px; font-weight:700; color:{{ c.ink }};">{{ b.title }}</p>{% endif %}
+                {% if b.text %}<p style="margin:3px 0 0; font-size:14px; line-height:22px; color:{{ c.soft }};">{{ b.text }}</p>{% endif %}
+                {% if b.link_label %}<p style="margin:6px 0 0;"><a href="{{ b.href }}" target="_blank" style="font-family:Arial, Helvetica, sans-serif; font-size:14px; line-height:20px; font-weight:700; color:{{ c.green }}; text-decoration:none;">{{ b.link_label }}&nbsp;&rarr;</a></p>{% endif %}
+              </td>
+            </tr></table>
+          </td></tr>
 
-      {% elseif b.type == 'button' %}
-        {# Both halves are required and EmailInboxCompatTest checks for each: the VML
-           roundrect is the only button Outlook's Word engine will render, and
-           <w:anchorlock/> stops it being draggable. #}
-        <tr>
-          <td class="agw-px agw-btn-pad" align="center" style="padding:32px 40px 0 40px;">
+        {% elseif b.type == 'callout' %}
+          {# A tinted note, not a dark fill — the house design draws none. #}
+          <tr><td class="agw-px{{ first ? ' agw-first' }}" style="padding:{{ top }} 44px 18px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+              <td bgcolor="{{ c['green-wash'] }}" style="background-color:{{ c['green-wash'] }}; border-radius:12px; padding:18px 20px;">
+                {% for para in (b.paras ?? [b.text]) %}
+                  <p style="margin:0 0 {{ loop.last ? '0' : '10px' }}; font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:24px; color:{{ c.ink }};">{{ para }}</p>
+                {% endfor %}
+              </td>
+            </tr></table>
+          </td></tr>
+
+        {% elseif b.type == 'button' %}
+          {# Both halves, and EmailInboxCompatCase checks for each: the VML roundrect is the
+             only button Outlook's Word engine draws, and <w:anchorlock/> stops it being
+             dragged. A button with no text draws nothing rather than an empty pill. #}
+          {% if b.label %}
+          <tr><td class="agw-px{{ first ? ' agw-first' }}" align="left" style="padding:{{ loop.first ? top : '6px' }} 44px 18px;">
             <!--[if mso]>
-            <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{ b.href }}" style="height:48px;v-text-anchor:middle;width:300px;" arcsize="12%" strokecolor="{{ c.green }}" fillcolor="{{ c.green }}">
+            <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{ b.href }}" style="height:50px;v-text-anchor:middle;width:300px;" arcsize="50%" stroke="f" fillcolor="{{ c.green }}">
             <w:anchorlock/>
-            <center style="color:{{ c.surface }};font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:bold;">{{ b.label }}</center>
+            <center style="color:{{ c.surface }};font-family:Arial,sans-serif;font-size:15px;font-weight:bold;">{{ b.label }}</center>
             </v:roundrect>
             <![endif]-->
             <!--[if !mso]><!-->
-            <a href="{{ b.href }}" target="_blank" style="display:inline-block; width:100%; max-width:300px; box-sizing:border-box; background-color:{{ c.green }}; border-radius:8px; padding:15px 24px; font-family:Helvetica, Arial, sans-serif; font-size:14px; font-weight:700; color:{{ c.surface }}; text-decoration:none; text-align:center;">
-              {{ b.label }}
-            </a>
+            <a class="agw-btn" href="{{ b.href }}" target="_blank" style="display:inline-block; box-sizing:border-box; padding:15px 30px; border-radius:999px; background-color:{{ c.green }}; font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:20px; font-weight:700; color:{{ c.surface }}; text-decoration:none; text-align:center;">{{ b.label }}</a>
             <!--<![endif]-->
-          </td>
-        </tr>
-        {% if b.secondary_label %}
-          <tr>
-            <td align="center" style="padding:14px 40px 0 40px;">
-              <a href="{{ b.secondary_link_href }}" target="_blank" style="font-family:Helvetica, Arial, sans-serif; font-size:13px; font-weight:700; color:{{ c['ink-2'] }}; text-decoration:underline;">
-                {{ b.secondary_label }}
-              </a>
-            </td>
-          </tr>
-        {% endif %}
+          </td></tr>
+          {% endif %}
+          {% if b.secondary_label %}
+          <tr><td class="agw-px" style="padding:0 44px 18px;">
+            <a href="{{ b.secondary_link_href }}" target="_blank" style="font-family:Arial, Helvetica, sans-serif; font-size:14px; line-height:20px; font-weight:700; color:{{ c.green }}; text-decoration:none;">{{ b.secondary_label }}&nbsp;&rarr;</a>
+          </td></tr>
+          {% endif %}
 
-      {% elseif b.type == 'signoff' %}
-        <tr>
-          <td class="agw-px" style="padding:38px 40px 0 40px;">
-            {% for para in (b.paras ?? [b.text]) %}
-              {% if para %}
-                <p style="margin:0 0 16px 0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:22px; color:{{ c.soft }};">
-                  {{ para }}
-                </p>
-              {% endif %}
-            {% endfor %}
-            {% if b.salutation %}
-              <p style="margin:0 0 2px 0; font-family:Helvetica, Arial, sans-serif; font-size:14px; color:{{ c.soft }};">{{ b.salutation }}</p>
-            {% endif %}
-            {% if b.signature %}
-              <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-weight:700; font-size:14px; color:{{ c.ink }};">{{ b.signature }}</p>
-            {% endif %}
-          </td>
-        </tr>
+        {% elseif b.type == 'signoff' %}
+          <tr><td class="agw-px{{ first ? ' agw-first' }}" style="padding:{{ loop.first ? top : '8px' }} 44px 18px;">
+            {% for para in (b.paras ?? [b.text]) %}{% if para %}
+              <p style="margin:0 0 14px; font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:24px; color:{{ c['ink-2'] }};">{{ para }}</p>
+            {% endif %}{% endfor %}
+            {% if b.salutation %}<p style="margin:0; font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:22px; color:{{ c.soft }};">{{ b.salutation }}</p>{% endif %}
+            {% if b.signature %}<p class="agw-text" style="margin:2px 0 0; font-family:'Playfair Display', Georgia, 'Times New Roman', serif; font-size:17px; line-height:24px; font-weight:700; color:{{ c.ink }};">{{ b.signature }}</p>{% endif %}
+          </td></tr>
 
-      {% elseif b.type == 'divider' %}
-        <tr>
-          <td class="agw-px" style="padding:28px 40px 0 40px;">
+        {% elseif b.type == 'divider' %}
+          <tr><td class="agw-px" style="padding:{{ loop.first ? top : '6px' }} 44px 24px;">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-              <tr><td style="border-top:1px solid {{ c.line }}; font-size:0; line-height:0;">&nbsp;</td></tr>
+              <tr><td style="border-top:1px solid {{ c['line-3'] }}; font-size:1px; line-height:1px;">&nbsp;</td></tr>
             </table>
-          </td>
-        </tr>
-      {% endif %}
-    {% endfor %}
+          </td></tr>
+        {% endif %}
+        {% endfor %}
 
-    <!-- FOOTER -->
-    <tr>
-      <td class="agw-px" align="center" style="padding:36px 40px 32px 40px;">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-          <tr><td style="border-top:1px solid {{ c['line-3'] }}; font-size:0; line-height:0; padding-bottom:22px;">&nbsp;</td></tr>
-        </table>
-        <p style="margin:0 0 6px 0; font-family:Helvetica, Arial, sans-serif; font-size:11.5px; color:{{ c.green }}; font-weight:700;">Africa G.A.T.E.S.</p>
-        <p style="margin:0 0 14px 0; font-family:Helvetica, Arial, sans-serif; font-size:11.5px; color:{{ c.soft }};">
-          {{ postal_address }}
-        </p>
-        <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:11.5px; color:{{ c.soft }};">
-          <a href="{{ site_url }}" style="color:{{ c.soft }}; text-decoration:underline;">africagates.org</a>&nbsp;&nbsp;·&nbsp;&nbsp;<a href="{{ unsubscribe_url }}" style="color:{{ c.soft }}; text-decoration:underline;">Unsubscribe</a>
-        </p>
-      </td>
-    </tr>
+        <tr><td style="padding:0 0 22px; font-size:1px; line-height:1px;">&nbsp;</td></tr>
+      </table>
+    </td></tr>
+
+    {# FOOTER — under the card, on the ground: why, who and where, and the way out. The
+       Unsubscribe link is the visible half; the List-Unsubscribe header OtpService sets is
+       the half Gmail reads. MailTraction::wrap() never rewrites /email/unsubscribe. #}
+    <tr><td class="agw-foot" align="center" style="padding:20px 12px 4px; font-family:Arial, Helvetica, sans-serif; font-size:12px; line-height:19px; color:{{ c.soft }};">
+      You’re receiving this because you’re a nominee on Africa GATES.<br>
+      &copy; {{ year }} Africa GATES, an Afrovanguard initiative{% if postal_address %} &middot; {{ postal_address }}{% endif %}<br>
+      <a href="{{ site_url }}/help" target="_blank" style="color:{{ c.soft }}; text-decoration:underline;">Help</a> &nbsp;&middot;&nbsp; <a href="{{ site_url }}/privacy" target="_blank" style="color:{{ c.soft }}; text-decoration:underline;">Privacy</a> &nbsp;&middot;&nbsp; <a href="{{ unsubscribe_url }}" target="_blank" style="color:{{ c.soft }}; text-decoration:underline;">Unsubscribe</a>
+    </td></tr>
 
   </table>
-  <!--[if mso]>
-  </td></tr></table>
-  <![endif]-->
-
-</td>
-</tr>
+  <!--[if mso]></td></tr></table><![endif]-->
+</td></tr>
 </table>
-
 </body>
 </html>
