@@ -49,7 +49,10 @@
 {% set _won = award_kind == 'winner' %}
 {% set _placed = award_kind != '' %}
 {% set _free = not paid_free_disabled %}
-{% set _paid = voting_open and paid_voting and (pay_providers is not empty or wallet_sources|default([]) is not empty) %}
+{# A voting extension's paid cutoff (VotingExtension) takes the paid option off the ballot and
+   says so in its place: the same rule the checkout refuses on (PaidVoteService::checkoutClosesAt). #}
+{% set _paid_ext_closed = paid_voting and paid_ext_closed|default(null) %}
+{% set _paid = voting_open and paid_voting and not _paid_ext_closed and (pay_providers is not empty or wallet_sources|default([]) is not empty) %}
 {% set _ts = voting_open and _free and turnstile_site_key %}
 {% set app_bar = {variant: 'child', title: n.name, sub: n.category ~ ' · ' ~ n.programme_title ~ (edition_label ? ' ' ~ edition_label), back: '/vote/' ~ n.programme_slug} %}
 {% set _ev_words = {nomination: 'nomination', interview: 'interview', document: 'document', link: 'link', media: 'recording', award: 'award', press: 'press article', note: 'note'} %}
@@ -91,6 +94,7 @@
 
   <div class="vb__body">
   {% if ctx.paid_notice %}<p class="vb-alert" role="alert">{{ ctx.paid_notice }}</p>{% endif %}
+  {% include 'partials/voting-extension.twig' with {x: ctx.extension, cls: 'vb-points vb-points--note'} only %}
 
   {% if not ctx.open %}
     {# A phase-specific closed state, with a way back, and no form at all. #}
@@ -187,6 +191,7 @@
     {% endif %}
 
     {# ── Contributed votes ── #}
+    {% if ctx.paid_ext_closed and not ctx.paid_notice %}<p class="vb-points vb-points--note" data-paid-ext-closed>{{ ctx.paid_ext_closed }}</p>{% endif %}
     {% if ctx.paid %}
     <div class="vb-paid" data-ag-paid aria-labelledby="{{ ctx.pre }}vb-paid-h">
       <h3 class="vb-paid__t" id="{{ ctx.pre }}vb-paid-h">{{ 'Add more votes'|trans }}</h3>
@@ -331,7 +336,8 @@
    member_points: member_points, points_per_vote: points_per_vote, member_logged_in: member_logged_in, points_enabled: points_enabled,
    paid: _paid, paid_sentence: paid_sentence, vote_price: vote_price, max_qty: max_qty, vote_tiers: vote_tiers, tiers: tier_prices,
    retry: paid_retry, member: member, providers: pay_providers, wallet: wallet_sources|default([]), msg_max: msg_max, terms: terms, free: _free, confirmed: vote_confirmed, offer_url: offer_url, recruit: recruit, cheer: cheer, follow: follow_msg,
-   ts: _ts, ts_key: turnstile_site_key, url: '/vote/' ~ n.programme_slug ~ '/' ~ n.id} %}
+   ts: _ts, ts_key: turnstile_site_key, url: '/vote/' ~ n.programme_slug ~ '/' ~ n.id,
+   extension: extension|default(null), paid_ext_closed: _paid_ext_closed ? paid_ext_closed : null} %}
 
 {% block content %}
 {# "Recently viewed" (search.js): this page's name for the search palette, on this device. #}

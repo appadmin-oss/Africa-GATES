@@ -1,0 +1,18 @@
+{#
+  A voting extension, stated in public (Services\VotingExtension::notice(); policy:
+  docs/VOTING-EXTENSION-POLICY.md). Drawn beside the closing time on every page that states
+  one. `cls` is the page's OWN notice class, so it looks like the notices already there; the
+  structure (a <b> lead and <span> lines) is what each of those classes styles.
+  The reasons are an operator's typed text and are printed through autoescape, never |raw.
+  Params: x (the notice), cls.
+#}
+{% if x %}
+<div class="{{ cls }}" role="note" data-voting-extension>
+  <b>{{ 'Voting extended from %f% to %t%.'|trans({'%f%': x.from, '%t%': x.to}) }}</b>
+  {% for r in x.reasons %}<span>{{ r }}</span> {% endfor %}
+  <span>{{ 'Every vote already cast stands. Rules and prices are unchanged. The new date applies to every nominee in this edition.'|trans }}</span>
+  {% if x.paid_cutoff and x.paid_on %}
+    <span>{{ (x.paid_cutoff_passed ? 'Paid voting closed at %c%; free voting stays open.' : 'Paid voting closes at %c%; free voting stays open until %t%.')|trans({'%c%': x.paid_cutoff, '%t%': x.to}) }}</span>
+  {% endif %}
+</div>
+{% endif %}

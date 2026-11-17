@@ -127,7 +127,8 @@ final class WalletVotes
                     ->whereIn('status', ['approved', 'winner', 'runner_up']))->lockForUpdate()->first();
                 if (!$nom) return ['ok' => false, 'message' => 'That nominee is not open for votes.'];
                 if (!PaidVoteService::checkoutOpenFor((int) $nom->category_id)) {
-                    return ['ok' => false, 'message' => 'Voting with money has closed for this category. Free voting may still be open.'];
+                    return ['ok' => false, 'message' => VotingExtension::paidClosedSentenceForCategory((int) $nom->category_id)
+                        ?? 'Voting with money has closed for this category. Free voting may still be open.'];
                 }
                 try {
                     BallotGuard::assertVotable((int) $nom->category_id);

@@ -1241,3 +1241,18 @@ CREATE TABLE IF NOT EXISTS gates_status_alerts (
   UNIQUE KEY uq_sta_token (token),
   KEY idx_sta_live (confirmed_at, cancelled_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─── Voting extensions, on the record (migrations/2027_06_03_voting_extensions.php) ───
+CREATE TABLE IF NOT EXISTS gates_voting_extensions (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  cycle_id BIGINT UNSIGNED NOT NULL,
+  previous_close DATETIME NOT NULL,
+  new_close DATETIME NOT NULL,
+  reason TEXT NOT NULL,
+  paid_cutoff_at DATETIME NULL,
+  snapshot_ref VARCHAR(80) NULL,
+  mode VARCHAR(10) NOT NULL DEFAULT 'moved',
+  admin_id BIGINT UNSIGNED NULL,
+  created_at DATETIME NOT NULL,
+  KEY idx_voting_ext_cycle (cycle_id, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

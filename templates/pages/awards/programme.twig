@@ -267,6 +267,7 @@
         : '%r% of %n% nominees have reached it. They share the pool by votes when voting closes.'|trans({'%r%': _won, '%n%': a.pool.nominees}) }}</p>
     </div>
     {% endif %}
+    {% include 'partials/voting-extension.twig' with {x: a.extension|default(null), cls: 'aw-late'} only %}
     {% if a.delay %}
       <div class="aw-late" role="note">
         <b>{{ 'The results were due on %date% and have not been announced yet.'|trans({'%date%': a.delay.promised|when_zoned('j M Y')}) }}</b>

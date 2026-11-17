@@ -513,6 +513,13 @@ class ProgrammesController
             // The nominee voting letter for this edition: on, sending, and how far it has got.
             'voting_letter' => $cycle ? self::votingLetterStatus($cycle) : null,
             'history'    => $history,
+            // Voting extensions on record for this edition (VotingExtension), oldest first,
+            // and whether the table exists yet — the form says so rather than failing.
+            'extensions' => $cycle ? array_map(static fn (object $x): array => (array) $x,
+                                \AfricaGates\Services\VotingExtension::forCycle((int) $cycle->id)) : [],
+            'extensions_ready' => \AfricaGates\Services\VotingExtension::available(),
+            'extension_reason_min' => \AfricaGates\Services\VotingExtension::REASON_MIN,
+            'extension_reason_max' => \AfricaGates\Services\VotingExtension::REASON_MAX,
             // Is this edition ready for its next phase? Computed from its own rows; not shown
             // once the edition is finished, where every item is history rather than a task.
             'readiness'  => $cycle && !($phase['is_finished'] ?? false) ? \AfricaGates\Services\EditionReadiness::for($cycle) : [],
@@ -564,6 +571,60 @@ class ProgrammesController
         }
         $_SESSION[$error === null ? 'flash_ok' : 'flash_error'] = $error ?? 'Prizes saved.';
         return $res->withHeader('Location', '/admin/programmes/' . $programmeId . '/cycle?cycle=' . (int) $cycle->id . '#prizes')->withStatus(303);
+    }
+
+    /**
+     * POST …/cycle/extend — EXTEND VOTING, ON THE RECORD (Services\VotingExtension; policy:
+     * docs/VOTING-EXTENSION-POLICY.md).
+     *
+     * Its own action, not a field of the cycle form: editing `voting_close` there moves the
+     * date and records nothing, and an extension owes the public a reason, a snapshot of the
+     * standings at that moment and (by default) a stop to paid checkout at the previous close.
+     * It also RECORDS an extension already made by editing the date directly (new close ==
+     * the current close). The whole edition moves: `voting_close` is the cycle's.
+     */
+    public function cycleExtend(Request $req, Response $res, array $args): Response
+    {
+        $programmeId = (int) $args['id'];
+        $b = (array) $req->getParsedBody();
+        $cycle = DB::table('gates_award_cycles')->where('id', (int) ($b['cycle_id'] ?? 0))
+            ->where('programme_id', $programmeId)->first();
+        if (!$cycle) throw new \Slim\Exception\HttpNotFoundException($req);
+        $back = '/admin/programmes/' . $programmeId . '/cycle?cycle=' . (int) $cycle->id . '#extend';
+
+        $adminId = (int) ($_SESSION['admin_id'] ?? 0);
+        $r = \AfricaGates\Services\VotingExtension::extend($cycle, [
+            'previous_close' => (string) ($b['previous_close'] ?? ''),
+            'new_close'      => (string) ($b['new_close'] ?? ''),
+            'reason'         => (string) ($b['reason'] ?? ''),
+            'stop_paid'      => !empty($b['stop_paid']),
+            'further'        => !empty($b['further']),
+        ], $adminId > 0 ? $adminId : null);
+
+        if (!$r['ok']) {
+            $_SESSION['flash_error'] = $r['error'];
+            return $res->withHeader('Location', $back)->withStatus(303);
+        }
+
+        $this->audit->record($adminId > 0 ? $adminId : null, 'cycle.voting_extended', 'cycle', (int) $cycle->id, [
+            'extension_id' => $r['id'],
+            'mode'         => $r['mode'],
+            'before'       => $r['before'],
+            'after'        => $r['after'],
+            'previous_close' => $r['row']['previous_close'],
+            'new_close'    => $r['row']['new_close'],
+            'paid_cutoff_at' => $r['row']['paid_cutoff_at'],
+            'snapshot_ref' => $r['snapshot_ref'],
+            'reason'       => $r['row']['reason'],
+        ]);
+        $this->bustAwardsCache();
+
+        $_SESSION['flash_ok'] = ($r['mode'] === \AfricaGates\Services\VotingExtension::MODE_RECORDED
+                ? 'Extension recorded. The voting close was already ' . \AfricaGates\Support\DisplayTime::showZoned($r['after']['voting_close']) . ' and has not changed.'
+                : 'Voting extended to ' . \AfricaGates\Support\DisplayTime::showZoned($r['after']['voting_close']) . ' for every category in this edition.')
+            . ' The notice is on the public voting pages.'
+            . ($r['warnings'] ? ' ' . implode(' ', $r['warnings']) : '');
+        return $res->withHeader('Location', $back)->withStatus(303);
     }
 
     public function cycleSave(Request $req, Response $res, array $args): Response

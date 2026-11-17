@@ -72,6 +72,7 @@
               </span>
               {% if p.meta %}<span class="vh-row__meta">{{ p.meta }}</span>{% endif %}
               <span class="vh-row__status">{{ p.status }}</span>
+              {% if p.extended|default('') %}<span class="vh-row__meta" data-voting-extension>{{ p.extended }}</span>{% endif %}
             </span>
             {# No count until there is one (LOW-DATA-RULES §3): "0 votes" beside "Be among the
                first to vote" says the same thing twice, the second time as a verdict. And none
