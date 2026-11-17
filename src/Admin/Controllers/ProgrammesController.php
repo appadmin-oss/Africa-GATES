@@ -63,6 +63,7 @@ class ProgrammesController
             'campaign_fields' => \AfricaGates\Support\AwardCampaign::FIELDS,
             'ladder_max'      => \AfricaGates\Support\AwardCampaign::LADDER_MAX,
             'campaign_lists'  => \AfricaGates\Support\AwardCampaign::LISTS,
+            'campaign_suggested' => \AfricaGates\Support\AwardCampaign::SUGGESTED,
             'list_max'        => \AfricaGates\Support\AwardCampaign::LIST_MAX,
         ]);
     }

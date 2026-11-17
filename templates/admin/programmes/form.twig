@@ -112,12 +112,18 @@
           <label><input type="checkbox" name="campaign[spotlight_off]" value="1"{% if not campaign.spotlight %} checked{% endif %}> Hide the Supporter Spotlight on this award</label>
           <p class="hint">It is on for every award by default: Champion of the day, the edition's top supporters, the mobiliser of the week and a wall of everybody backing their own, each emailed when celebrated. Verified votes only. Members appear with their own account name and photo and can take themselves off in one tap; anybody else is named only if they ticked "show my name".</p>
         </div>
-        {# The Champion of the Day's and the Mobiliser of the Week's gifts, one per line: shown on
-           the offer page and in the champion's email (Services\DailyChampion). #}
+        {# The Champions' (Day, Week, Award) and the Mobiliser of the Week's prizes, one per line:
+           shown on the offer page and in the champion's email (Services\DailyChampion). #}
+        {# The owner's prizes, one click away (AwardCampaign::SUGGESTED): fills only the lists
+           that are still empty, and nothing is published until the form is saved. #}
+        {% if campaign_suggested|default([]) %}
+          <p class="hint"><button type="button" class="ad-btn ad-btn--sm" data-ag-do="fill-suggested">Fill in the suggested prizes</button>
+            Souvenirs and a funfair ticket for the Champion of the Day, a CACENTRE scholarship for the Week, a ₦1.5m scholarship for the Award. Only empty lists are filled; edit them before saving.</p>
+        {% endif %}
         {% for k, ldef in campaign_lists %}
           <div>
             <label for="f-cl-{{ k }}">{{ ldef.label }}</label>
-            <textarea name="campaign[{{ k }}]" id="f-cl-{{ k }}" rows="4" aria-describedby="f-cl-{{ k }}-h">{{ campaign[k]|join("\n") }}</textarea>
+            <textarea name="campaign[{{ k }}]" id="f-cl-{{ k }}" rows="4" aria-describedby="f-cl-{{ k }}-h"{% if campaign_suggested[k] is defined %} data-suggest="{{ campaign_suggested[k]|join("\n") }}"{% endif %}>{{ campaign[k]|join("\n") }}</textarea>
             <p class="hint" id="f-cl-{{ k }}-h">{{ ldef.help }} Up to {{ list_max }} lines.</p>
           </div>
         {% endfor %}

@@ -79,6 +79,18 @@ final class AwardCampaign
     ];
     public const LIST_MAX = 8;
 
+    /**
+     * The owner's voter prizes (17 Nov 2026), each under the champion who wins it, offered on
+     * the Campaign form as a one-click starting point ("Fill in the suggested prizes"). A
+     * suggestion only: nothing is shown on the offer page until it is saved, because these are
+     * promises to the public and a host decides which of them their award makes.
+     */
+    public const SUGGESTED = [
+        'champion_gifts' => ['Africa GATES souvenirs', 'A funfair ticket'],
+        'week_gifts'     => ['A scholarship to study tech, business, music or media at CACENTRE'],
+        'award_gifts'    => ['A ₦1.5m scholarship for your child'],
+    ];
+
     public const LADDER_MAX = 8;
     public const BENEFIT_MAX = 140;
     public const MAX_JSON_BYTES = 20_000;

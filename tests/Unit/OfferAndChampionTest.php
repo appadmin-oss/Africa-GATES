@@ -345,4 +345,17 @@ final class OfferAndChampionTest extends TestCase
         $this->assertMatchesRegularExpression('#Champion of the Award</span>\s*<span class="of-ladder__b">A ₦1.5m scholarship for your child#', $html);
         $this->assertStringNotContainsString('draw', strtolower(strip_tags($html)), 'a prize described as drawn by chance');
     }
+
+    public function test_the_suggested_prizes_are_offered_but_never_published_until_saved(): void
+    {
+        $this->assertSame(['Africa GATES souvenirs', 'A funfair ticket'], AwardCampaign::SUGGESTED['champion_gifts']);
+        $this->assertSame([], array_diff(array_keys(AwardCampaign::SUGGESTED), array_keys(AwardCampaign::LISTS)), 'a suggestion for a list the form does not have');
+        // A suggestion is not a promise: the offer page shows nothing until a host saves it.
+        $this->assertStringNotContainsString('A funfair ticket', ChromeRender::html('/vote/offer-award/offer'));
+        $form = ChromeRender::source('templates/admin/programmes/form.twig');
+        $this->assertStringContainsString('data-ag-do="fill-suggested"', $form);
+        $this->assertStringContainsString('data-suggest=', $form);
+        $js = ChromeRender::code('public/assets/js/admin.js');
+        $this->assertMatchesRegularExpression("~fill-suggested.*?if \\(t\\.value\\.trim\\(\\) === ''\\)~s", $js, 'the fill overwrites prizes a host already wrote');
+    }
 }
