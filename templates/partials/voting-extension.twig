@@ -1,18 +1,27 @@
 {#
   A voting extension, stated in public (Services\VotingExtension::notice(); policy:
   docs/VOTING-EXTENSION-POLICY.md). Drawn beside the closing time on every page that states
-  one. `cls` is the page's OWN notice class, so it looks like the notices already there; the
-  structure (a <b> lead and <span> lines) is what each of those classes styles.
+  one, in its own compact card (components/notice.css, loaded on every public page): the new
+  close first, the old one beside it, the operator's reason, then what did NOT change as
+  three short ticks rather than a second paragraph repeating the reason (owner, 17 Nov 2026:
+  "this does not look so good").
   The reasons are an operator's typed text and are printed through autoescape, never |raw.
-  Params: x (the notice), cls.
+  Params: x (the notice). `cls` is accepted and ignored, for the callers that still pass it.
 #}
 {% if x %}
-<div class="{{ cls }}" role="note" data-voting-extension>
-  <b>{{ 'Voting extended from %f% to %t%.'|trans({'%f%': x.from, '%t%': x.to}) }}</b>
-  {% for r in x.reasons %}<span>{{ r }}</span> {% endfor %}
-  <span>{{ 'Every vote already cast stands. Rules and prices are unchanged. The new date applies to every nominee in this edition.'|trans }}</span>
-  {% if x.paid_cutoff and x.paid_on %}
-    <span>{{ (x.paid_cutoff_passed ? 'Paid voting closed at %c%; free voting stays open.' : 'Paid voting closes at %c%; free voting stays open until %t%.')|trans({'%c%': x.paid_cutoff, '%t%': x.to}) }}</span>
-  {% endif %}
-</div>
+<section class="ag-xt" role="note" aria-label="{{ 'Voting extended'|trans }}" data-voting-extension>
+  <span class="ag-xt__mark" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4M9.5 15l2 2 3.5-4"/></svg></span>
+  <div class="ag-xt__body">
+    <p class="ag-xt__t"><b>{{ 'Voting extended to %t%'|trans({'%t%': x.to}) }}</b> <span class="ag-xt__was">{{ '(was %f%)'|trans({'%f%': x.from}) }}</span></p>
+    {% for r in x.reasons %}<p class="ag-xt__r">{{ r }}</p>{% endfor %}
+    <ul class="ag-xt__ok">
+      <li>{{ 'Votes already cast stand'|trans }}</li>
+      <li>{{ 'Rules and prices unchanged'|trans }}</li>
+      <li>{{ 'Same date for every nominee'|trans }}</li>
+    </ul>
+    {% if x.paid_cutoff and x.paid_on %}
+      <p class="ag-xt__paid">{{ (x.paid_cutoff_passed ? 'Paid voting closed at %c%; free voting stays open.' : 'Paid voting closes at %c%; free voting stays open until %t%.')|trans({'%c%': x.paid_cutoff, '%t%': x.to}) }}</p>
+    {% endif %}
+  </div>
+</section>
 {% endif %}
