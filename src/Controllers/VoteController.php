@@ -339,15 +339,20 @@ class VoteController {
             $st = \AfricaGates\Services\SupporterSpotlight::standingOfKeys($cycleId, $keys);
             if ($st['votes'] > 0) $me = $st + ['standing' => \AfricaGates\Support\AwardCampaign::standing($c, $st['votes'])];
             foreach (\AfricaGates\Services\DailyChampion::forKeys($cycleId, $keys) as $d) {
-                $mine[] = ['day' => $d->day, 'words' => $d->date_words, 'gift' => (int) $d->gift === 1, 'code' => \AfricaGates\Services\DailyChampion::code($d)];
+                $mine[] = ['day' => $d->day, 'kind' => $d->kind, 'title' => $d->title, 'words' => $d->date_words, 'gift' => (int) $d->gift === 1, 'code' => \AfricaGates\Services\DailyChampion::code($d)];
             }
         }
-        $live = $cycleId > 0 && $c['spotlight'] ? (\AfricaGates\Services\SupporterSpotlight::forCycle($cycleId)['champion'] ?? null) : null;
+        $board = $cycleId > 0 && $c['spotlight'] ? \AfricaGates\Services\SupporterSpotlight::forCycle($cycleId) : [];
+        $live = $board['champion'] ?? null;
         return $this->view->render($res, 'pages/vote-offer.twig', [
             'programme' => $p, 'campaign' => $c, 'impact' => \AfricaGates\Support\AwardCampaign::impact($c),
             'me' => $me, 'my_days' => $mine, 'leader' => $live,
             'champions' => $c['spotlight'] ? \AfricaGates\Services\DailyChampion::recent($cycleId, 7) : [],
-            'claim' => \AfricaGates\Support\AwardCampaign::claimLink($c, 'Champion of the Day: claiming my gift'),
+            'week_leader' => $board['week_champion'] ?? null,
+            'week_champions' => $c['spotlight'] ? \AfricaGates\Services\DailyChampion::recent($cycleId, 4, 'week') : [],
+            'award_champion' => $c['spotlight'] ? (\AfricaGates\Services\DailyChampion::recent($cycleId, 1, 'award')[0] ?? null) : null,
+            'award_leader' => $board['top'][0] ?? null,
+            'claim' => \AfricaGates\Support\AwardCampaign::claimLink($c, 'Champion: claiming my gift'),
             'capital_url' => \AfricaGates\Support\AwardCampaign::safeUrl($c['capital_url']),
             'announce_hour' => \AfricaGates\Services\DailyChampion::ANNOUNCE_HOUR,
             'page_title' => 'What your support unlocks — ' . $p['title'] . ' — Africa GATES',
@@ -369,15 +374,17 @@ class VoteController {
         $site = \AfricaGates\Support\SiteUrl::base($req);
         $path = '/vote/' . $p['slug'] . '/champion/' . $d->day;
         $who = $d->display ?? 'A proud supporter';
+        $when = self::championWhen($d, (string) $p['title']);
         return $this->view->render($res, 'pages/vote-champion.twig', [
             'programme' => $p, 'campaign' => $c, 'd' => $d, 'is_me' => $isMe, 'path' => $path,
+            'gifts' => self::giftLists($c)[$d->kind] ?? [],
             'code' => $isMe ? \AfricaGates\Services\DailyChampion::code($d) : '',
-            'claim' => $isMe ? \AfricaGates\Support\AwardCampaign::claimLink($c, 'Champion of the Day: claiming my gift') : null,
-            'share_text' => ($c['community'] !== '' ? $c['community'] . '’s' : $p['title']) . ' Champion of the Day, ' . $d->date_words . ': ' . $who . '. ' . $site . $path,
-            'page_title' => $who . ' — Champion of the Day — ' . $p['title'],
-            'meta_description' => $who . ' gave the most votes of anybody on ' . $d->date_words . ' in ' . $p['title'] . '.',
+            'claim' => $isMe ? \AfricaGates\Support\AwardCampaign::claimLink($c, $d->title . ': claiming my gift') : null,
+            'share_text' => ($c['community'] !== '' ? $c['community'] . '’s' : $p['title']) . ' ' . $d->title . ($d->kind === 'award' ? '' : ', ' . $d->date_words) . ': ' . $who . '. ' . $site . $path,
+            'page_title' => $who . ' — ' . $d->title . ' — ' . $p['title'],
+            'meta_description' => $who . ' gave the most votes of anybody ' . $when . '.',
             'og_image' => $site . $path . '.png', 'og_image_w' => \AfricaGates\Services\BackedCard::W, 'og_image_h' => \AfricaGates\Services\BackedCard::H,
-            'og_image_alt' => $who . ', Champion of the Day',
+            'og_image_alt' => $who . ', ' . $d->title,
         ]);
     }
 
@@ -390,8 +397,12 @@ class VoteController {
         $png = (new \AfricaGates\Services\BackedCard())->draw([
             'photo' => (string) ($d->photo ?? ''), 'initials_of' => $d->display ?? 'Proud Supporter',
             'kicker' => $c['community'] !== '' ? $c['community'] . ' is celebrating its own' : (string) $p['title'],
-            'lead' => 'Champion of the Day', 'title' => $d->display ?? 'A proud supporter',
-            'sub' => \Illuminate\Support\Carbon::parse((string) $d->day)->format('j F Y') . ' · ' . $p['title'],
+            'lead' => $d->title, 'title' => $d->display ?? 'A proud supporter',
+            'sub' => match ($d->kind) {
+                'day' => \Illuminate\Support\Carbon::parse((string) $d->day)->format('j F Y') . ' · ',
+                'week' => ucfirst($d->date_words) . ' · ',
+                default => '',
+            } . $p['title'],
             'foot' => number_format((int) $d->votes) . ((int) $d->votes === 1 ? ' vote' : ' votes') . ($d->backing ? ' backing ' . $d->backing : ''),
         ]);
         if ($png === null || $png === '') throw new \Slim\Exception\HttpNotFoundException($req);
@@ -410,8 +421,24 @@ class VoteController {
         $p = $d ? DB::table('gates_award_programmes')->where('id', (int) $d->programme_id)->where('is_active', 1)->first(['title', 'slug']) : null;
         return $this->view->render($res->withStatus($d && $p ? 200 : 404), 'pages/champion-check.twig', [
             'd' => $d && $p ? $d : null, 'award' => $p ? (string) $p->title : '', 'slug' => $p ? (string) $p->slug : '',
-            'page_title' => 'Check a Champion of the Day claim — Africa GATES',
+            'page_title' => 'Check a champion’s claim — Africa GATES',
         ])->withHeader('X-Robots-Tag', 'noindex');
+    }
+
+    /** Each champion kind's prizes, from the award's settings. @return array<string,list<string>> */
+    private static function giftLists(array $c): array
+    {
+        return ['day' => $c['champion_gifts'] ?? [], 'week' => $c['week_gifts'] ?? [], 'award' => $c['award_gifts'] ?? []];
+    }
+
+    /** "on Monday 16 November 2026 in X", "in the week of … in X", "across the whole of X". */
+    private static function championWhen(object $d, string $award): string
+    {
+        return match ($d->kind) {
+            'day' => 'on ' . $d->date_words . ' in ' . $award,
+            'week' => 'in ' . $d->date_words . ' in ' . $award,
+            default => 'across the whole of ' . $award,
+        };
     }
 
     /**

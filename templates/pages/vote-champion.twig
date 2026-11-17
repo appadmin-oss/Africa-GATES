@@ -1,7 +1,7 @@
 {% extends 'layout/shell.twig' %}
 {#
-  /vote/{programme}/champion/{day} — THE CHAMPION OF THE DAY, ANNOUNCED (VoteController::champion,
-  Services\DailyChampion). The page a champion shares: its link preview is their card, so a
+  /vote/{programme}/champion/{period} — A CHAMPION, ANNOUNCED (VoteController::champion,
+  Services\DailyChampion): of the Day (2026-11-16), of the Week (2026-W47) or of the Award (award). The page a champion shares: its link preview is their card, so a
   WhatsApp message carrying it shows the card. Named only as the board names them; somebody who
   has taken themselves off the Spotlight is "A proud supporter", on past days too.
 
@@ -15,19 +15,21 @@
 {% set _c = campaign %}
 {% set _base = '/vote/' ~ _p.slug %}
 {% set _who = d.display ?: 'A proud supporter'|trans %}
-{% set app_bar = {variant: 'child', title: 'Champion of the Day'|trans, sub: d.date_words, back: _base ~ '/offer', share: true} %}
+{% set _title = d.title|trans %}
+{% set _when = d.kind == 'award' ? _p.title : (d.date_words|first|upper ~ d.date_words|slice(1)) %}
+{% set app_bar = {variant: 'child', title: _title, sub: _when, back: _base ~ '/offer', share: true} %}
 {% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/offer.css') }}">{% endblock %}
 
 {% block content %}
 <div class="of of--champ">
   <header class="of-head">
     {% if _c.community %}<p class="of-head__k">{{ '%place% is celebrating its own'|trans({'%place%': _c.community}) }}</p>{% endif %}
-    <h1 class="of-head__h">{{ is_me ? 'You were Champion of the Day'|trans : '%name%, Champion of the Day'|trans({'%name%': _who}) }}</h1>
-    <p class="of-head__lede">{{ '%date%, %award%. %n% backing %for%.'|trans({'%date%': d.date_words, '%award%': _p.title, '%n%': d.votes == 1 ? '1 vote'|trans : '%n% votes'|trans({'%n%': d.votes|number_format}), '%for%': d.backing ?: 'their own'|trans}) }}</p>
+    <h1 class="of-head__h">{{ is_me ? 'You were %title%'|trans({'%title%': _title}) : '%name%, %title%'|trans({'%name%': _who, '%title%': _title}) }}</h1>
+    <p class="of-head__lede">{{ (d.kind == 'award' ? '%award%. %n% backing %for%.' : '%date%, %award%. %n% backing %for%.')|trans({'%date%': _when, '%award%': _p.title, '%n%': d.votes == 1 ? '1 vote'|trans : '%n% votes'|trans({'%n%': d.votes|number_format}), '%for%': d.backing ?: 'their own'|trans}) }}</p>
   </header>
 
   <figure class="of-card">
-    <img class="of-card__img" src="{{ path }}.png" width="1200" height="630" alt="{{ '%name%, Champion of the Day, %date%'|trans({'%name%': _who, '%date%': d.date_words}) }}">
+    <img class="of-card__img" src="{{ path }}.png" width="1200" height="630" alt="{{ '%name%, %title%, %date%'|trans({'%name%': _who, '%title%': _title, '%date%': _when}) }}">
   </figure>
   <div class="of-acts">
     <a class="ag-btn ag-btn--secondary ag-btn--pill" href="https://wa.me/?text={{ share_text|url_encode }}" rel="noopener">{{ 'Share on WhatsApp'|trans }}</a>
@@ -38,7 +40,7 @@
   <section class="of-me" aria-labelledby="of-claim-h">
     {% if d.gift %}
       <h2 class="of-me__h" id="of-claim-h">{{ 'Claim your gift'|trans }}</h2>
-      {% if _c.champion_gifts|length %}<ul class="of-gifts">{% for g in _c.champion_gifts %}<li>{{ g }}</li>{% endfor %}</ul>{% endif %}
+      {% if gifts|length %}<ul class="of-gifts">{% for g in gifts %}<li>{{ g }}</li>{% endfor %}</ul>{% endif %}
       <p class="of-me__d">{{ 'Your claim code'|trans }}: <span class="of-code">{{ code }}</span></p>
       {% if claim %}
         <p class="of-me__d">{{ 'Contact us with this code and we will arrange it with you:'|trans }}</p>
@@ -48,13 +50,13 @@
       {% endif %}
     {% else %}
       <h2 class="of-me__h" id="of-claim-h">{{ 'Champion again'|trans }}</h2>
-      <p class="of-me__d">{{ 'Thank you. The gift is given once per person each campaign, and yours was for an earlier day; every day you are champion is still announced and yours to share.'|trans }}</p>
+      <p class="of-me__d">{{ 'Thank you. Each champion’s gift is given once per person each campaign, and yours was for an earlier one; every time you are champion is still announced and yours to share.'|trans }}</p>
     {% endif %}
   </section>
-  {% else %}
+  {% elseif d.kind != 'award' %}
   <section class="of-sec">
-    <h2 class="of-sec__h">{{ 'Be tomorrow’s champion'|trans }}</h2>
-    <p class="of-p">{{ 'Whoever gives the most votes in a day is announced the next morning.'|trans }}</p>
+    <h2 class="of-sec__h">{{ d.kind == 'week' ? 'Be this week’s champion'|trans : 'Be tomorrow’s champion'|trans }}</h2>
+    <p class="of-p">{{ d.kind == 'week' ? 'Whoever gives the most votes from Monday to Sunday is announced the next Monday morning.'|trans : 'Whoever gives the most votes in a day is announced the next morning.'|trans }}</p>
     <a class="ag-btn ag-btn--primary ag-btn--pill" href="{{ _base }}#vp-race">{{ 'Vote now'|trans }}</a>
   </section>
   {% endif %}

@@ -1,6 +1,6 @@
 {% extends 'layout/shell.twig' %}
 {#
-  /champions/{code} — CHECK A CHAMPION'S CLAIM (VoteController::championCheck). Whoever a champion
+  /champions/{code} — CHECK A CHAMPION'S CLAIM, of the Day, the Week or the Award (VoteController::championCheck). Whoever a champion
   contacts opens the code and sees, from the platform's own record, that it is genuine, the day,
   and whether it carries the gift (once per person per campaign) or is a repeat celebration. The
   code is signed, so it cannot be made up; a wrong one is told so plainly.
@@ -13,11 +13,11 @@
 {% block content %}
 <div class="nl nl--task">
   <section class="nl__card" aria-labelledby="chH">
-    <p class="nl__kicker">{{ 'Champion of the Day'|trans }}</p>
+    <p class="nl__kicker">{{ d ? d.title|trans : 'Champions'|trans }}</p>
     {% if d %}
       <h1 class="nl__h1" id="chH">{{ 'This claim is genuine'|trans }}</h1>
-      <p class="nl__p">{{ '%name% was Champion of the Day in %award% on %date%, with %n%.'|trans({'%name%': d.display ?: 'A supporter who asked not to be named'|trans, '%award%': award, '%date%': d.date_words, '%n%': d.votes == 1 ? '1 vote'|trans : '%n% votes'|trans({'%n%': d.votes|number_format})}) }}</p>
-      <p class="nl__p"><b>{{ d.gift ? 'This day carries the Champion’s gift.'|trans : 'A repeat champion: the gift was given for an earlier day this campaign.'|trans }}</b></p>
+      <p class="nl__p">{{ (d.kind == 'day' ? '%name% was %title% in %award% on %date%, with %n%.' : (d.kind == 'week' ? '%name% was %title% in %award% for %date%, with %n%.' : '%name% was %title% in %award%, with %n%.'))|trans({'%name%': d.display ?: 'A supporter who asked not to be named'|trans, '%title%': d.title|trans, '%award%': award, '%date%': d.date_words, '%n%': d.votes == 1 ? '1 vote'|trans : '%n% votes'|trans({'%n%': d.votes|number_format})}) }}</p>
+      <p class="nl__p"><b>{{ d.gift ? 'This carries the champion’s gift.'|trans : 'A repeat champion: this gift was given for an earlier win this campaign.'|trans }}</b></p>
       <a class="ag-btn ag-btn--secondary" href="/vote/{{ slug }}/champion/{{ d.day }}">{{ 'See the announcement'|trans }}</a>
     {% else %}
       <h1 class="nl__h1" id="chH">{{ 'We could not find this claim'|trans }}</h1>

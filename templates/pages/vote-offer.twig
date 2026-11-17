@@ -3,8 +3,8 @@
   /vote/{programme}/offer — WHAT YOUR SUPPORT UNLOCKS (VoteController::offer; owner, 17 Nov 2026).
 
   Every section is drawn from the award's campaign settings (Support\AwardCampaign) and only
-  when the host has filled it in: the share of each vote, the benefits ladder, what the Champion
-  of the Day and the Mobiliser of the Week receive, the Community Opportunity Award, the
+  when the host has filled it in: the share of each vote, the benefits ladder, what the Champions
+  of the Day, the Week and the Award and the Mobiliser of the Week receive, the Community Opportunity Award, the
   long-term project and how the money is accounted for. These are promises to the public, and
   the framework is explicit that none is published before it is approved — so a blank setting
   is a missing section, never a default sentence.
@@ -41,18 +41,34 @@
     </p>{% endif %}
     {% for d in my_days %}
       <div class="of-won">
-        <p class="of-won__t"><b>{{ 'You were Champion of the Day'|trans }}</b> · <a href="{{ _base }}/champion/{{ d.day }}">{{ d.words }}</a></p>
+        <p class="of-won__t"><b>{{ 'You were %title%'|trans({'%title%': d.title|trans}) }}</b> · <a href="{{ _base }}/champion/{{ d.day }}">{{ d.kind == 'award' ? _p.title : d.words }}</a></p>
         {% if d.gift %}
           <p class="of-won__d">{{ 'Your claim code'|trans }}: <span class="of-code">{{ d.code }}</span></p>
           {% if claim %}<p class="of-won__d">{{ 'To claim your gift, contact us with this code:'|trans }} <a href="{{ claim.href }}"{% if claim.kind != 'email' %} rel="noopener"{% endif %}>{{ claim.label }}</a></p>{% endif %}
         {% else %}
-          <p class="of-won__d">{{ 'Celebrated again. The gift is given once per person each campaign, and yours was for an earlier day.'|trans }}</p>
+          <p class="of-won__d">{{ 'Celebrated again. Each champion’s gift is given once per person each campaign, and yours was for an earlier win.'|trans }}</p>
         {% endif %}
       </div>
     {% endfor %}
   </section>
   {% endif %}
 
+  {# What can be won, in one place: each prize belongs to a champion, won by the most votes in
+     its period by the rule stated below it — a ranking, never a draw. #}
+  {% if _c.spotlight and (_c.champion_gifts|length or _c.week_gifts|length or _c.award_gifts|length) %}
+  <section class="of-sec of-honour" aria-labelledby="of-win-h">
+    <h2 class="of-sec__h" id="of-win-h">{{ 'What you can win'|trans }}</h2>
+    <p class="of-p">{{ 'Prizes go to the champions: whoever gives the most votes in a day, in a week and across the whole award.'|trans }}</p>
+    <ol class="of-ladder">
+      {% for k, l in {day: _c.champion_gifts, week: _c.week_gifts, award: _c.award_gifts} %}{% for g in l %}
+        <li class="of-ladder__i">
+          <span class="of-ladder__n">{{ (k == 'day' ? 'Champion of the Day' : (k == 'week' ? 'Champion of the Week' : 'Champion of the Award'))|trans }}</span>
+          <span class="of-ladder__b">{{ g }}</span>
+        </li>
+      {% endfor %}{% endfor %}
+    </ol>
+  </section>
+  {% endif %}
   {% if impact or _c.remainder_note %}
   <section class="of-sec" aria-labelledby="of-money-h">
     <h2 class="of-sec__h" id="of-money-h">{{ 'Where your vote goes'|trans }}</h2>
@@ -102,6 +118,43 @@
     {% endif %}
   </section>
 
+  <section class="of-sec of-honour" aria-labelledby="of-week-h">
+    <h2 class="of-sec__h" id="of-week-h">{{ 'Champion of the Week'|trans }}</h2>
+    <p class="of-p">{{ 'Whoever gives the most votes from Monday to Sunday, West Africa Time, is announced the next Monday at %h%:00, with a card to share. Settled votes only; a tie goes to whoever got there first.'|trans({'%h%': '%02d'|format(announce_hour)}) }}</p>
+    {% if _c.week_gifts|length %}
+      <h3 class="of-sub">{{ 'The Champion’s prize'|trans }}</h3>
+      <ul class="of-gifts">{% for g in _c.week_gifts %}<li>{{ g }}</li>{% endfor %}</ul>
+      <p class="of-note">{{ 'Given once per person each campaign.'|trans }}</p>
+    {% endif %}
+    {% if week_leader and not award_champion %}<p class="of-live"><span class="of-live__dot" aria-hidden="true"></span>{{ 'Leading this week: %name%, with %n%.'|trans({'%name%': week_leader.name ?: _anon, '%n%': week_leader.votes == 1 ? '1 vote'|trans : '%n% votes'|trans({'%n%': week_leader.votes|number_format})}) }}</p>{% endif %}
+    {% if week_champions|length %}
+      <h3 class="of-sub">{{ 'Recent champions'|trans }}</h3>
+      <ul class="of-champs">
+        {% for d in week_champions %}
+          <li><a class="of-champs__a" href="{{ _base }}/champion/{{ d.day }}">
+            {% include 'partials/avatar.twig' with {name: d.display ?: _anon, id: d.uid ?: null, src: d.photo|default(''), size: 44, named: true} only %}
+            <span class="of-champs__t"><b>{{ d.display ?: _anon }}</b><span>{{ d.date_words|first|upper ~ d.date_words|slice(1) }} · {{ d.votes == 1 ? '1 vote'|trans : '%n% votes'|trans({'%n%': d.votes|number_format}) }}</span></span>
+          </a></li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </section>
+  <section class="of-sec of-honour" aria-labelledby="of-award-h">
+    <h2 class="of-sec__h" id="of-award-h">{{ 'Champion of the Award'|trans }}</h2>
+    <p class="of-p">{{ 'Whoever gives the most votes across the whole of %award% is announced the morning after voting closes, with a card to share.'|trans({'%award%': _p.title}) }}</p>
+    {% if _c.award_gifts|length %}
+      <h3 class="of-sub">{{ 'The Champion’s prize'|trans }}</h3>
+      <ul class="of-gifts">{% for g in _c.award_gifts %}<li>{{ g }}</li>{% endfor %}</ul>
+    {% endif %}
+    {% if award_champion %}
+      <a class="of-champs__a" href="{{ _base }}/champion/award">
+        {% include 'partials/avatar.twig' with {name: award_champion.display ?: _anon, id: award_champion.uid ?: null, src: award_champion.photo|default(''), size: 44, named: true} only %}
+        <span class="of-champs__t"><b>{{ award_champion.display ?: _anon }}</b><span>{{ award_champion.votes == 1 ? '1 vote'|trans : '%n% votes'|trans({'%n%': award_champion.votes|number_format}) }}</span></span>
+      </a>
+    {% elseif award_leader %}
+      <p class="of-live"><span class="of-live__dot" aria-hidden="true"></span>{{ 'Leading the award: %name%, with %n%.'|trans({'%name%': award_leader.name ?: _anon, '%n%': award_leader.votes == 1 ? '1 vote'|trans : '%n% votes'|trans({'%n%': award_leader.votes|number_format})}) }}</p>
+    {% endif %}
+  </section>
   <section class="of-sec" aria-labelledby="of-mob-h">
     <h2 class="of-sec__h" id="of-mob-h">{{ 'Mobiliser of the Week'|trans }}</h2>
     <p class="of-p">{{ 'Money is not the only way to be honoured. Whoever brings the most people to vote through their own link in a week is Mobiliser of the Week.'|trans }}</p>

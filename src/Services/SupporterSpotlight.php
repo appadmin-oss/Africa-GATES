@@ -63,12 +63,12 @@ final class SupporterSpotlight
      */
     public static function forCycle(int $cycleId, ?Carbon $now = null): array
     {
-        $empty = ['champion' => null, 'top' => [], 'mobiliser' => null, 'wall' => [], 'people' => 0, 'votes' => 0, 'paid' => 0];
+        $empty = ['champion' => null, 'week_champion' => null, 'top' => [], 'mobiliser' => null, 'wall' => [], 'people' => 0, 'votes' => 0, 'paid' => 0];
         if ($cycleId < 1) return $empty;
         // The page never needs an address, so none is cached or handed to a template:
         // only SpotlightMail, which calls build() itself, ever holds one.
         $public = static function (array $s): array {
-            foreach (['champion', 'mobiliser'] as $k) if (is_array($s[$k] ?? null)) unset($s[$k]['email']);
+            foreach (['champion', 'week_champion', 'mobiliser'] as $k) if (is_array($s[$k] ?? null)) unset($s[$k]['email']);
             foreach ($s['top'] as $i => $t) unset($s['top'][$i]['email']);
             foreach ($s['wall'] ?? [] as $i => $t) unset($s['wall'][$i]['email']);
             return $s;
@@ -286,9 +286,11 @@ final class SupporterSpotlight
         $all = [];
         /** @var array<string,array{votes:int,last:string}> $today */
         $today = [];
+        /** @var array<string,array{votes:int,last:string}> $week  Monday to now, West Africa Time: the Champion of the Week. */
+        $week = [];
         $votes = 0; $paid = 0;
 
-        self::scan($cycleId, null, static function (string $key, object $r) use (&$all, &$today, &$votes, &$paid, $dayStart, $upTo): void {
+        self::scan($cycleId, null, static function (string $key, object $r) use (&$all, &$today, &$week, &$votes, &$paid, $dayStart, $weekStart, $upTo): void {
             if ((string) ($r->voted_at ?? '') > $upTo) return;
             $w = max(1, (int) ($r->weight ?? 1));
             $at = (string) ($r->voted_at ?? '');
@@ -315,6 +317,12 @@ final class SupporterSpotlight
                 if ($at > $t['last']) $t['last'] = $at;
                 $today[$key] = $t;
             }
+            if ($at !== '' && $at >= $weekStart) {
+                $t = $week[$key] ?? ['votes' => 0, 'last' => ''];
+                $t['votes'] += $w;
+                if ($at > $t['last']) $t['last'] = $at;
+                $week[$key] = $t;
+            }
         });
 
         $ids = [];
@@ -328,11 +336,13 @@ final class SupporterSpotlight
         $wallKeys = array_map('strval', array_keys(array_slice($ranked, 0, self::WALL, true)));
         uasort($today, $order);
         $champKey = array_key_first($today);
+        uasort($week, $order);
+        $weekKey = array_key_first($week);
         $mob = self::mobiliser($cycleId, $weekStart, $upTo);
 
         // Who each person on the board IS — an account, a hidden request, a consented name —
         // resolved for the handful drawn, never for the whole edition.
-        $who = self::identities(array_values(array_unique(array_filter(array_merge($wallKeys, [(string) $champKey, (string) ($mob['key'] ?? '')])))), $all);
+        $who = self::identities(array_values(array_unique(array_filter(array_merge($wallKeys, [(string) $champKey, (string) $weekKey, (string) ($mob['key'] ?? '')])))), $all);
 
         $card = static function (string $key, int $n) use (&$all, $names, $who): array {
             $p = $all[$key] ?? ['by' => []];
@@ -354,9 +364,10 @@ final class SupporterSpotlight
             $wall[] = ['key' => $c['key'], 'name' => $c['name'], 'photo' => $c['photo'], 'uid' => $c['uid'], 'votes' => $c['votes']];
         }
         $champion = $champKey !== null ? $card((string) $champKey, $today[$champKey]['votes']) : null;
+        $weekChampion = $weekKey !== null ? $card((string) $weekKey, $week[$weekKey]['votes']) : null;
         $mobiliser = $mob ? ['people' => $mob['people']] + $card($mob['key'], 0) : null;
 
-        return ['champion' => $champion, 'top' => $top, 'mobiliser' => $mobiliser, 'wall' => $wall,
+        return ['champion' => $champion, 'week_champion' => $weekChampion, 'top' => $top, 'mobiliser' => $mobiliser, 'wall' => $wall,
                 'people' => count($all), 'votes' => $votes, 'paid' => $paid];
     }
 

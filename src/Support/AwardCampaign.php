@@ -67,11 +67,14 @@ final class AwardCampaign
     ];
 
     /**
-     * Lists the offer page draws, each a few short lines: what the Champion of the Day and the
-     * Mobiliser of the Week receive. Blank means the page says only that they are celebrated.
+     * Lists the offer page draws, each a few short lines: what the Champions of the Day, the
+     * Week and the Award, and the Mobiliser of the Week, receive. Prizes are won by ranking —
+     * most votes in the period, by a published rule — never drawn by chance. Blank means the page says only that they are celebrated.
      */
     public const LISTS = [
-        'champion_gifts'  => ['label' => 'What the Champion of the Day receives', 'help' => 'One per line, e.g. "Seven-day CACENTRE guest membership". Given once per person per campaign; a person can be champion again and is celebrated every time.'],
+        'champion_gifts'  => ['label' => 'What the Champion of the Day receives', 'help' => 'One per line, e.g. "Africa GATES souvenirs" or "A funfair ticket". Given once per person per campaign; a person can be champion again and is celebrated every time.'],
+        'week_gifts'      => ['label' => 'What the Champion of the Week receives', 'help' => 'Most votes from one person Monday to Sunday. One per line, e.g. "A scholarship to study tech, business, music or media at CACENTRE". Given once per person per campaign.'],
+        'award_gifts'     => ['label' => 'What the Champion of the Award receives', 'help' => 'Most votes from one person across the whole edition, announced the morning after voting closes. One per line, e.g. "A ₦1.5m scholarship for your child".'],
         'mobiliser_gifts' => ['label' => 'What the Mobiliser of the Week receives', 'help' => 'One per line, e.g. "Nominate one child for NGGC screening".'],
     ];
     public const LIST_MAX = 8;
@@ -86,7 +89,7 @@ final class AwardCampaign
      * @return array{community:string,rally:string,promise:string,beneficiary:string,remainder_note:string,
      *               ladder_note:string,share_pct:int,spotlight:bool,ladder:list<array{votes:int,benefit:string}>,
      *               claim_contact:string,opportunity:string,capital_title:string,capital_note:string,capital_url:string,
-     *               accountability:string,champion_gifts:list<string>,mobiliser_gifts:list<string>}
+     *               accountability:string,champion_gifts:list<string>,week_gifts:list<string>,award_gifts:list<string>,mobiliser_gifts:list<string>}
      */
     public static function of(?object $programme): array
     {

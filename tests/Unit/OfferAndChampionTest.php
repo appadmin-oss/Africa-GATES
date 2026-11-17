@@ -150,7 +150,7 @@ final class OfferAndChampionTest extends TestCase
         $ok = ChromeRender::page('/champions/' . $code);
         $this->assertSame(200, $ok->getStatusCode());
         $this->assertStringContainsString('This claim is genuine', (string) $ok->getBody());
-        $this->assertStringContainsString('carries the Champion’s gift', (string) $ok->getBody());
+        $this->assertStringContainsString('carries the champion’s gift', (string) $ok->getBody());
         $this->assertSame(404, ChromeRender::page('/champions/CD' . $d->id . '-0000000000')->getStatusCode());
     }
 
@@ -252,5 +252,97 @@ final class OfferAndChampionTest extends TestCase
 
         $this->assertNull(AwardCampaign::save(self::P, ['champion_gifts' => "One\n\nTwo\n", 'mobiliser_gifts' => '']));
         $this->assertSame(['One', 'Two'], AwardCampaign::forProgramme(self::P)['champion_gifts']);
+    }
+
+    // ── the week and the award (owner, 17 Nov 2026: "champion donor of the day, week and
+    //    award"; prizes tied to the champions, a ranking and never a draw) ─────────────────
+
+    public function test_the_week_is_announced_on_monday_morning_and_its_prize_is_its_own(): void
+    {
+        // Week 46 of 2026: Monday 9 to Sunday 15 November, West Africa Time.
+        $this->order('ada@example.test', 3, self::A, '2026-11-09 10:00:00', 'Ada Obi');
+        $this->order('bola@example.test', 5, self::B, '2026-11-11 12:00:00', 'Bola Ade');
+        $this->order('ada@example.test', 4, self::A, '2026-11-15 21:00:00', 'Ada Obi');
+        $this->order('bola@example.test', 9, self::B, '2026-11-16 07:00:00', 'Bola Ade'); // the NEXT week
+
+        $this->assertSame(['2026-W44', '2026-W45'], DailyChampion::dueWeeks($this->lagos('2026-11-16 08:59:00')));
+        $this->assertSame(['2026-W45', '2026-W46'], DailyChampion::dueWeeks($this->lagos('2026-11-16 09:00:00')));
+        $this->assertNull(DailyChampion::seal(self::P, self::Y, '2026-W46', $this->lagos('2026-11-16 08:59:00')), 'the week announced before Monday morning');
+        DailyChampion::sweep($this->lagos('2026-11-16 09:01:00'));
+
+        $w = DailyChampion::day(self::Y, '2026-W46');
+        $this->assertNotNull($w, 'no Champion of the Week');
+        $this->assertSame('week', $w->kind);
+        $this->assertSame('Ada Obi', $w->display, 'a vote cast after Sunday midnight counted in the week');
+        $this->assertSame(7, (int) $w->votes);
+        $this->assertSame('Champion of the Week', $w->title);
+        $this->assertSame('the week of 9 November 2026', $w->date_words);
+        // Ada was also Champion of the Day on the 15th: each kind's gift is its own.
+        $d = DailyChampion::day(self::Y, '2026-11-15');
+        $this->assertSame('Ada Obi', $d->display);
+        $this->assertSame(1, (int) $d->gift);
+        $this->assertSame(1, (int) $w->gift, 'the day\'s gift used up the week\'s prize');
+
+        $this->campaign(['week_gifts' => ['A scholarship to study tech, business, music or media at CACENTRE']]);
+        $html = ChromeRender::html('/vote/offer-award/champion/2026-W46');
+        $this->assertStringContainsString('Ada Obi, Champion of the Week', $html);
+        $this->assertStringContainsString('The week of 9 November 2026', $html);
+        $this->assertSame(200, ChromeRender::page('/vote/offer-award/champion/2026-W46.png')->getStatusCode());
+        $this->assertSame(404, ChromeRender::page('/vote/offer-award/champion/2026-W47')->getStatusCode(), 'an unannounced week drawn');
+        $check = (string) ChromeRender::page('/champions/' . DailyChampion::code($w))->getBody();
+        $this->assertStringContainsString('Ada Obi was Champion of the Week in Offer Award for the week of 9 November 2026', $check);
+    }
+
+    public function test_the_award_is_announced_the_morning_after_voting_closes(): void
+    {
+        DB::table('gates_award_cycles')->where('id', self::Y)->update(['voting_close' => $this->lagos('2026-11-20 17:00:00')->toDateTimeString()]);
+        $this->order('ada@example.test', 5, self::A, '2026-11-18 10:00:00', 'Ada Obi');
+        $this->order('bola@example.test', 8, self::B, '2026-11-19 10:00:00', 'Bola Ade');
+        $this->order('ada@example.test', 6, self::A, '2026-11-20 18:00:00', 'Ada Obi'); // after the close
+
+        $this->assertNull(DailyChampion::seal(self::P, self::Y, 'award', $this->lagos('2026-11-20 23:00:00')), 'announced the night voting closed');
+        $this->assertNull(DailyChampion::seal(self::P, self::Y, 'award', $this->lagos('2026-11-21 08:59:00')), 'announced before nine in the morning');
+        $a = DailyChampion::seal(self::P, self::Y, 'award', $this->lagos('2026-11-21 09:00:00'));
+        $this->assertNotNull($a);
+        $this->assertSame('Bola Ade', $a->display, 'a vote cast after the close decided the award');
+        $this->assertSame(8, (int) $a->votes);
+        $this->assertSame('Champion of the Award', $a->title);
+        $this->assertNull(DailyChampion::seal(self::P, self::Y, 'award', $this->lagos('2026-11-22 09:00:00')), 'the award sealed twice');
+
+        $this->campaign(['award_gifts' => ['A ₦1.5m scholarship for your child'], 'claim_contact' => 'claims@example.test']);
+        $html = ChromeRender::html('/vote/offer-award/champion/award');
+        $this->assertStringContainsString('Bola Ade, Champion of the Award', $html);
+        $prog = DB::table('gates_award_programmes')->where('id', self::P)->first();
+        [$subject, , $plain] = SpotlightMail::compose('champion', ['key' => $a->person_key, 'name' => 'Bola Ade', 'votes' => 8, 'for' => 'Ibrahim Musa', 'row' => $a],
+            $prog, AwardCampaign::of($prog), 'https://ag.test');
+        $this->assertSame('You are Offer Award’s Champion of the Award', $subject);
+        $this->assertStringContainsString('Your prize as Champion of the Award:', $plain);
+        $this->assertStringContainsString('A ₦1.5m scholarship for your child', $plain);
+        $this->assertStringContainsString('https://ag.test/vote/offer-award/champion/award', $plain);
+        $this->assertStringContainsString(DailyChampion::code($a), $plain);
+    }
+
+    public function test_an_award_with_no_close_is_never_announced(): void
+    {
+        DB::table('gates_award_cycles')->where('id', self::Y)->update(['voting_close' => null]);
+        $this->order('ada@example.test', 5, self::A, '2026-11-18 10:00:00', 'Ada Obi');
+        $this->assertNull(DailyChampion::seal(self::P, self::Y, 'award', $this->lagos('2027-06-01 10:00:00')));
+    }
+
+    public function test_the_prizes_are_shown_against_the_champion_who_wins_them(): void
+    {
+        $bare = ChromeRender::html('/vote/offer-award/offer');
+        $this->assertStringNotContainsString('What you can win', $bare, 'a prize list drawn with nothing written');
+        $this->assertStringContainsString('Champion of the Week', $bare, 'the week\'s rule missing');
+        $this->assertStringContainsString('Champion of the Award', $bare, 'the award\'s rule missing');
+
+        $this->assertNull(AwardCampaign::save(self::P, ['champion_gifts' => "Africa GATES souvenirs\nA funfair ticket",
+            'week_gifts' => 'A scholarship to study tech, business, music or media at CACENTRE', 'award_gifts' => 'A ₦1.5m scholarship for your child']));
+        $html = ChromeRender::html('/vote/offer-award/offer');
+        $this->assertStringContainsString('What you can win', $html);
+        $this->assertMatchesRegularExpression('#Champion of the Day</span>\s*<span class="of-ladder__b">Africa GATES souvenirs#', $html);
+        $this->assertMatchesRegularExpression('#Champion of the Week</span>\s*<span class="of-ladder__b">A scholarship to study tech#', $html);
+        $this->assertMatchesRegularExpression('#Champion of the Award</span>\s*<span class="of-ladder__b">A ₦1.5m scholarship for your child#', $html);
+        $this->assertStringNotContainsString('draw', strtolower(strip_tags($html)), 'a prize described as drawn by chance');
     }
 }

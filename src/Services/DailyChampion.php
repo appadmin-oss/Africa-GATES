@@ -28,6 +28,18 @@ use Illuminate\Support\Carbon;
  * the award's campaign says (AwardCampaign `champion_gifts`), claimed by contacting the team
  * with the code {@see self::code()} — checkable at /champions/{code}, so whoever receives the
  * claim can see in one click that it is genuine.
+ *
+ * THREE KINDS, ONE MECHANISM (owner, 17 Nov 2026: "become the champion donor of the day, week
+ * and award"; prizes "tied to champions"). The Champion of the WEEK is the most votes from one
+ * person Monday to Sunday, West Africa Time, announced the Monday morning; the Champion of the
+ * AWARD is the most votes across the whole edition, announced the morning after voting closes.
+ * Each is counted by the same board, sealed the same way and claimed with the same kind of
+ * code. The period key says which (`2026-11-16`, `2026-W47`, `award`), so one row per period
+ * needs no new constraint; `kind` is stored beside it so the gift rule can be asked per kind:
+ * a person gets each kind's gift once, so the day's champion can still win the week's prize.
+ *
+ * A ranking, never a draw. Prizes here go to whoever gave the most, by a rule published on
+ * the offer page — a prize drawn by chance from people who paid to enter would be a lottery.
  */
 final class DailyChampion
 {
@@ -36,6 +48,83 @@ final class DailyChampion
 
     /** How many past days a sweep will still announce, if maintenance was down. */
     public const CATCH_UP_DAYS = 3;
+
+    /** What each kind is called, everywhere it is shown. */
+    public const KINDS = ['day' => 'Champion of the Day', 'week' => 'Champion of the Week', 'award' => 'Champion of the Award'];
+
+    /** The period key of the whole edition. */
+    public const AWARD = 'award';
+
+    /** Which kind a period key is, or null for a key that is none of them. */
+    public static function kindOf(string $key): ?string
+    {
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $key)) return 'day';
+        if (preg_match('/^\d{4}-W\d{2}$/', $key)) return 'week';
+        return $key === self::AWARD ? 'award' : null;
+    }
+
+    /** The ISO week key of the week a moment falls in, West Africa Time: `2026-W47`. */
+    public static function weekKey(Carbon $at): string
+    {
+        return $at->copy()->setTimezone(SupporterSpotlight::ZONE)->format('o-\\WW');
+    }
+
+    /**
+     * When a period's counting ENDS (its last second, in the app's zone) and when it may be
+     * ANNOUNCED. Null for a key that is not a period, or an award whose voting has no close.
+     *
+     * @return array{0:Carbon,1:Carbon}|null
+     */
+    public static function window(int $cycleId, string $key): ?array
+    {
+        $zone = \AfricaGates\Support\Clock::timezone();
+        switch (self::kindOf($key)) {
+            case 'day':
+                $end = Carbon::parse($key . ' 23:59:59', SupporterSpotlight::ZONE);
+                return [$end->copy()->setTimezone($zone), $end->copy()->addHours(self::ANNOUNCE_HOUR)->setTimezone($zone)];
+            case 'week':
+                [$y, $w] = array_map('intval', explode('-W', $key));
+                $end = Carbon::now(SupporterSpotlight::ZONE)->setISODate($y, $w, 7)->setTime(23, 59, 59);
+                return [$end->copy()->setTimezone($zone), $end->copy()->addHours(self::ANNOUNCE_HOUR)->setTimezone($zone)];
+            case 'award':
+                try {
+                    $close = DB::table('gates_award_cycles')->where('id', $cycleId)->value('voting_close');
+                } catch (\Throwable) {
+                    return null;
+                }
+                if (!$close) return null;
+                // The same night to settle as a day, and never announced before nine in the
+                // morning: voting that closes at five in the afternoon is announced at nine.
+                $end = Carbon::parse((string) $close, $zone);
+                $at = $end->copy()->addHours(self::ANNOUNCE_HOUR)->setTimezone(SupporterSpotlight::ZONE);
+                if ($at->hour < self::ANNOUNCE_HOUR) $at->setTime(self::ANNOUNCE_HOUR, 0);
+                return [$end, $at->setTimezone($zone)];
+        }
+        return null;
+    }
+
+    /**
+     * Who the board names for a period, read at the period's last second, with their address
+     * (for the message). The count is the board's own: SupporterSpotlight::build.
+     */
+    public static function leaderAt(int $cycleId, string $key): ?array
+    {
+        $w = self::window($cycleId, $key);
+        if ($w === null) return null;
+        $b = SupporterSpotlight::build($cycleId, $w[0]->copy());
+        return match (self::kindOf($key)) {
+            'day' => $b['champion'] ?? null,
+            'week' => $b['week_champion'] ?? null,
+            'award' => $b['top'][0] ?? null,
+            default => null,
+        };
+    }
+
+    /** Is the `kind` column there yet (2027_06_02)? Before it, only days exist. */
+    private static function kinds(): bool
+    {
+        return SchemaHas::column('gates_daily_champions', 'kind');
+    }
 
     public static function ready(): bool
     {
@@ -60,6 +149,10 @@ final class DailyChampion
             foreach (self::due($now) as $day) {
                 if (self::seal((int) $prog->id, (int) $cycle->id, $day, $now) !== null) $sealed++;
             }
+            if (!self::kinds()) continue;
+            foreach ([...self::dueWeeks($now), self::AWARD] as $key) {
+                if (self::seal((int) $prog->id, (int) $cycle->id, $key, $now) !== null) $sealed++;
+            }
         }
         return $sealed;
     }
@@ -80,33 +173,50 @@ final class DailyChampion
     }
 
     /**
+     * The weeks that may be announced now: last week once it is past the announce hour on
+     * Monday, and the one before in case a sweep was missed. Newest last.
+     *
+     * @return list<string> `2026-W47`
+     */
+    public static function dueWeeks(Carbon $now): array
+    {
+        $lagos = $now->copy()->setTimezone(SupporterSpotlight::ZONE);
+        $monday = $lagos->copy()->startOfWeek(Carbon::MONDAY);
+        $latest = $lagos->greaterThanOrEqualTo($monday->copy()->setTime(self::ANNOUNCE_HOUR, 0)) ? $monday->copy()->subWeek() : $monday->copy()->subWeeks(2);
+        return [self::weekKey($latest->copy()->subWeek()), self::weekKey($latest)];
+    }
+
+    /**
      * Seal one day's champion, once. Returns the row when it was written now, null when the day
      * had nobody, was already sealed, or is not over.
      */
     public static function seal(int $programmeId, int $cycleId, string $day, ?Carbon $now = null): ?object
     {
-        if (!self::ready() || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $day)) return null;
+        $kind = self::kindOf($day);
+        if (!self::ready() || $kind === null || ($kind !== 'day' && !self::kinds())) return null;
         $now ??= Carbon::now();
-        $end = Carbon::parse($day . ' 23:59:59', SupporterSpotlight::ZONE);
-        if ($end->copy()->addHours(self::ANNOUNCE_HOUR)->greaterThan($now)) return null;
+        $w = self::window($cycleId, $day);
+        if ($w === null || $w[1]->greaterThan($now)) return null;
         try {
             if (DB::table('gates_daily_champions')->where('cycle_id', $cycleId)->where('day', $day)->exists()) return null;
         } catch (\Throwable) {
             return null;
         }
-        $b = SupporterSpotlight::build($cycleId, $end->copy()->setTimezone(\AfricaGates\Support\Clock::timezone()));
-        $c = $b['champion'] ?? null;
+        // A period with no votes at all has nobody, which the board reports as no leader.
+        $c = self::leaderAt($cycleId, $day);
         if (!$c) return null;
-        // The board's "today" ends at the moment it is read; a day with no votes at all has
-        // nobody today, which build() reports as no champion — checked above.
         $key = (string) $c['key'];
         try {
-            $before = DB::table('gates_daily_champions')->where('cycle_id', $cycleId)->where('person_key', $key)->where('gift', 1)->exists();
-            $n = DB::table('gates_daily_champions')->insertOrIgnore([
-                'programme_id' => $programmeId, 'cycle_id' => $cycleId, 'day' => $day, 'person_key' => $key, 'votes' => (int) $c['votes'],
+            // One gift per person per KIND each campaign: the day's champion can still win the
+            // week's prize, and the award's.
+            $q = DB::table('gates_daily_champions')->where('cycle_id', $cycleId)->where('person_key', $key)->where('gift', 1);
+            $before = (self::kinds() ? $q->where('kind', $kind) : $q)->exists();
+            $row = ['programme_id' => $programmeId, 'cycle_id' => $cycleId, 'day' => $day, 'person_key' => $key, 'votes' => (int) $c['votes'],
                 'name' => $c['name'] !== null ? mb_substr((string) $c['name'], 0, 80) : null, 'uid' => (int) ($c['uid'] ?? 0),
                 'backing' => $c['for'] !== null ? mb_substr((string) $c['for'], 0, 190) : null, 'gift' => $before ? 0 : 1,
-                'created_at' => $now->toDateTimeString()]);
+                'created_at' => $now->toDateTimeString()];
+            if (self::kinds()) $row['kind'] = $kind;
+            $n = DB::table('gates_daily_champions')->insertOrIgnore($row);
         } catch (\Throwable) {
             return null;
         }
@@ -127,7 +237,7 @@ final class DailyChampion
     /** A programme's champion on a day, whichever edition it belonged to. */
     public static function forProgrammeDay(int $programmeId, string $day): ?object
     {
-        if (!self::ready() || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $day)) return null;
+        if (!self::ready() || self::kindOf($day) === null) return null;
         try {
             $r = DB::table('gates_daily_champions')->where('programme_id', $programmeId)->where('day', $day)->orderByDesc('id')->first();
         } catch (\Throwable) {
@@ -136,25 +246,28 @@ final class DailyChampion
         return $r ? self::shown($r) : null;
     }
 
-    /** The edition's announced champions, newest first. @return list<object> */
-    public static function recent(int $cycleId, int $limit = 7): array
+    /** The edition's announced champions of one kind, newest first. @return list<object> */
+    public static function recent(int $cycleId, int $limit = 7, string $kind = 'day'): array
     {
-        if (!self::ready() || $cycleId < 1) return [];
+        if (!self::ready() || $cycleId < 1 || !isset(self::KINDS[$kind])) return [];
+        if (!self::kinds() && $kind !== 'day') return [];
         try {
-            $rows = DB::table('gates_daily_champions')->where('cycle_id', $cycleId)->orderByDesc('day')->limit($limit)->get()->all();
+            $q = DB::table('gates_daily_champions')->where('cycle_id', $cycleId);
+            if (self::kinds()) $q->where('kind', $kind);
+            $rows = $q->orderByDesc('id')->limit($limit)->get()->all();
         } catch (\Throwable) {
             return [];
         }
         return array_map([self::class, 'shown'], $rows);
     }
 
-    /** Days this person was champion in the edition, newest first. @return list<object> */
+    /** Every period this person was champion in the edition, of any kind, newest first. @return list<object> */
     public static function forKeys(int $cycleId, array $keys): array
     {
         $keys = array_values(array_filter(array_map('strval', $keys)));
         if (!self::ready() || $cycleId < 1 || $keys === []) return [];
         try {
-            $rows = DB::table('gates_daily_champions')->where('cycle_id', $cycleId)->whereIn('person_key', $keys)->orderByDesc('day')->get()->all();
+            $rows = DB::table('gates_daily_champions')->where('cycle_id', $cycleId)->whereIn('person_key', $keys)->orderByDesc('id')->get()->all();
         } catch (\Throwable) {
             return [];
         }
@@ -202,7 +315,23 @@ final class DailyChampion
             } catch (\Throwable) {
             }
         }
-        $r->date_words = Carbon::parse((string) $r->day)->format('l j F Y');
+        $r->kind = self::kindOf((string) $r->day) ?? 'day';
+        $r->title = self::KINDS[$r->kind];
+        $r->date_words = self::words((string) $r->day);
         return $r;
+    }
+
+    /** A period in words: `Monday 16 November 2026`, `the week of 16 November 2026`, `the whole award`. */
+    public static function words(string $key): string
+    {
+        return match (self::kindOf($key)) {
+            'day' => Carbon::parse($key)->format('l j F Y'),
+            'week' => (function () use ($key): string {
+                [$y, $w] = array_map('intval', explode('-W', $key));
+                return 'the week of ' . Carbon::now(SupporterSpotlight::ZONE)->setISODate($y, $w, 1)->format('j F Y');
+            })(),
+            'award' => 'the whole award',
+            default => $key,
+        };
     }
 }

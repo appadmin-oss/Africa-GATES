@@ -2334,8 +2334,9 @@ return function(App $app) {
         $g->get('/vote/{program}/spotlight', VoteController::class.':spotlight');
         // What your support unlocks, and the Champion of the Day announced (DailyChampion).
         $g->get('/vote/{program}/offer', VoteController::class.':offer');
-        $g->get('/vote/{program}/champion/{day:[0-9]{4}-[0-9]{2}-[0-9]{2}}.png', VoteController::class.':championCard');
-        $g->get('/vote/{program}/champion/{day:[0-9]{4}-[0-9]{2}-[0-9]{2}}', VoteController::class.':champion');
+        // A day (2026-11-16), a week (2026-W47) or the whole award (DailyChampion::kindOf).
+        $g->get('/vote/{program}/champion/{day:(?:[0-9]{4}-(?:[0-9]{2}-[0-9]{2}|W[0-9]{2})|award)}.png', VoteController::class.':championCard');
+        $g->get('/vote/{program}/champion/{day:(?:[0-9]{4}-(?:[0-9]{2}-[0-9]{2}|W[0-9]{2})|award)}', VoteController::class.':champion');
         $g->get('/champions/{code:CD[0-9]+-[A-Fa-f0-9]{10}}', VoteController::class.':championCheck');
         // The flier routes go BEFORE /vote/{program}/{slug}: FastRoute matches in
         // declaration order for same-length paths, and `{slug}` would otherwise

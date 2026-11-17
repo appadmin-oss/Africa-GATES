@@ -17,7 +17,8 @@ use Illuminate\Support\Carbon;
  * Three messages, each sent once, each CLAIMED before it is composed
  * (gates_spotlight_notices' UNIQUE key is the mutex, as in SupporterHonours):
  *
- *   champion    the day after: "You were Champion of the Day", once the West Africa Time
+ *   champion    "You were Champion of the Day" (or of the Week, or of the Award), once
+ *               DailyChampion has announced it. For a day: once the West Africa Time
  *               day is over — a champion named at 15:00 can still be overtaken at 23:00,
  *               and the framework's rule is to publish after the day closes
  *   mobiliser   the Monday after: "You were Mobiliser of the Week"
@@ -61,19 +62,18 @@ final class SpotlightMail
             $cid = (int) $cycle->id;
 
             $lagos = $now->copy()->setTimezone(SupporterSpotlight::ZONE);
-            // The day that has ENDED, read at its last second, and the week likewise.
-            $endOfYesterday = $lagos->copy()->startOfDay()->subSecond();
+            // The week that has ENDED, read at its last second (the Mobiliser of the Week).
             $endOfLastWeek  = $lagos->copy()->startOfWeek(Carbon::MONDAY)->subSecond();
 
             // The champion is told once the day is ANNOUNCED (DailyChampion seals it the morning
             // after, once payments have settled), and told the announced name — never a live
             // reading that a refund could have changed since. The board is read again only for
             // the address, and only when it still names the same person.
-            foreach (DailyChampion::due($now) as $day) {
+            // Days, then weeks, then the award: each told once its period is announced.
+            foreach ([...DailyChampion::due($now), ...DailyChampion::dueWeeks($now), DailyChampion::AWARD] as $day) {
                 $row = DailyChampion::day($cid, $day);
                 if ($row === null) continue;
-                $y = SupporterSpotlight::build($cid, Carbon::parse($day . ' 23:59:59', SupporterSpotlight::ZONE)->setTimezone(date_default_timezone_get()));
-                $who = $y['champion'] ?? null;
+                $who = DailyChampion::leaderAt($cid, $day);
                 if (!$who || (string) $who['key'] !== (string) $row->person_key) continue;
                 $sent += self::send($mailer, 'champion', $cid, $day, $who + ['row' => $row], $prog, $c, $site);
             }
@@ -134,10 +134,16 @@ final class SpotlightMail
         $off = self::hideUrl($site, (string) $who['key']);
         $named = ($who['name'] ?? null) !== null;
 
+        $row = $who['row'] ?? null;
+        $ckind = is_object($row) ? (string) ($row->kind ?? 'day') : 'day';
+        $ctitle = DailyChampion::KINDS[$ckind] ?? DailyChampion::KINDS['day'];
+        $gave = number_format($votes) . ($votes === 1 ? ' vote' : ' votes') . ' — more than anybody else' . ($for !== '' ? ', backing ' . $for : '');
         [$subject, $lead] = match ($kind) {
-            'champion'  => ["You were {$place}’s Champion of the Day",
-                            'Yesterday you gave ' . number_format($votes) . ($votes === 1 ? ' vote' : ' votes') . ' — more than anybody else'
-                            . ($for !== '' ? ', backing ' . $for : '') . '. That made you Champion of the Day in ' . $title . '.'],
+            'champion'  => match ($ckind) {
+                'week'  => ["You were {$place}’s Champion of the Week", 'Last week you gave ' . $gave . '. That made you Champion of the Week in ' . $title . '.'],
+                'award' => ["You are {$place}’s Champion of the Award", 'Across the whole of ' . $title . ' you gave ' . $gave . '. That makes you Champion of the Award.'],
+                default => ["You were {$place}’s Champion of the Day", 'Yesterday you gave ' . $gave . '. That made you Champion of the Day in ' . $title . '.'],
+            },
             'mobiliser' => ["You were {$place}’s Mobiliser of the Week",
                             'Last week ' . number_format((int) ($who['people'] ?? 0)) . ' people voted through your own link — more than anybody else brought. That made you Mobiliser of the Week in ' . $title . '.'],
             default     => ["You’re in the Supporter Spotlight for {$title}",
@@ -153,23 +159,22 @@ final class SpotlightMail
         // The champion's own extras: the announcement to share, and — once per campaign — the
         // gift, with the code to quote and where to send it (AwardCampaign, DailyChampion).
         $extraH = ''; $extraP = '';
-        $row = $who['row'] ?? null;
         if ($kind === 'champion' && is_object($row)) {
             $page = $site . '/vote/' . rawurlencode((string) $prog->slug) . '/champion/' . $row->day;
             $extraH .= '<p style="margin:13px 0 0;font-size:16px;line-height:1.6;color:' . Accent::hex('ink') . '">Your announcement, with a card to share: <a href="' . $e($page) . '" style="color:' . Accent::hex('ink') . '">' . $e($page) . '</a></p>';
             $extraP .= "Your announcement, with a card to share: " . $page . "\n\n";
             if ((int) $row->gift === 1) {
                 $code = DailyChampion::code($row);
-                $claim = AwardCampaign::claimLink($c, 'Champion of the Day: claiming my gift ' . $code);
-                $gifts = $c['champion_gifts'] ?? [];
+                $claim = AwardCampaign::claimLink($c, $ctitle . ': claiming my gift ' . $code);
+                $gifts = $c[['day' => 'champion_gifts', 'week' => 'week_gifts', 'award' => 'award_gifts'][$ckind] ?? 'champion_gifts'] ?? [];
                 $how = $claim ? ' Contact us with it to claim your gift: ' . $claim['label'] . '.' : ' Keep it: the team will contact you about your gift.';
-                $extraH .= ($gifts ? '<p style="margin:13px 0 0;font-size:16px;line-height:1.6;color:' . Accent::hex('ink-2') . '">Your gift as Champion of the Day:</p><ul style="margin:6px 0 0;padding-left:20px;font-size:16px;line-height:1.6;color:' . Accent::hex('ink') . '">'
+                $extraH .= ($gifts ? '<p style="margin:13px 0 0;font-size:16px;line-height:1.6;color:' . Accent::hex('ink-2') . '">Your prize as ' . $e($ctitle) . ':</p><ul style="margin:6px 0 0;padding-left:20px;font-size:16px;line-height:1.6;color:' . Accent::hex('ink') . '">'
                               . implode('', array_map(static fn ($g) => '<li>' . $e((string) $g) . '</li>', $gifts)) . '</ul>' : '')
                          . '<p style="margin:13px 0 0;font-size:16px;line-height:1.6;color:' . Accent::hex('ink-2') . '">Your claim code is <strong style="font-family:Consolas,monospace;color:' . Accent::hex('ink') . '">' . $e($code) . '</strong>.' . $e($how) . '</p>';
-                $extraP .= ($gifts ? "Your gift as Champion of the Day:\n- " . implode("\n- ", $gifts) . "\n\n" : '') . 'Your claim code is ' . $code . '.' . $how . "\n\n";
+                $extraP .= ($gifts ? "Your prize as {$ctitle}:\n- " . implode("\n- ", $gifts) . "\n\n" : '') . 'Your claim code is ' . $code . '.' . $how . "\n\n";
             } else {
-                $extraH .= '<p style="margin:13px 0 0;font-size:16px;line-height:1.6;color:' . Accent::hex('ink-2') . '">The gift is given once per person each campaign, and yours was for an earlier day. Every day you are champion is still announced and yours to share.</p>';
-                $extraP .= "The gift is given once per person each campaign, and yours was for an earlier day. Every day you are champion is still announced and yours to share.\n\n";
+                $extraH .= '<p style="margin:13px 0 0;font-size:16px;line-height:1.6;color:' . Accent::hex('ink-2') . '">Each champion’s gift is given once per person each campaign, and yours was for an earlier win. Every time you are champion is still announced and yours to share.</p>';
+                $extraP .= "Each champion’s gift is given once per person each campaign, and yours was for an earlier win. Every time you are champion is still announced and yours to share.\n\n";
             }
         }
 
