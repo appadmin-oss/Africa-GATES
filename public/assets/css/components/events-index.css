@@ -45,6 +45,18 @@
 .ei-art--dark .ei-pill i{ background:var(--ei-wash) }
 .ei-art--dark .ei-btn--line{ border-color:var(--ag-surface); color:var(--ag-surface) }
 .ei-art--dark .ei-btn:focus-visible{ outline-color:var(--ag-surface) }
+/* THE WHOLE POSTER, ON ITS OWN COLOUR (owner, 17 Nov 2026: "is this cool?"). An organiser's
+   artwork is usually a flyer, and a flyer's words are the point: cropped to fill the box it
+   lost its edges (the date, the venue, the sponsors), and the fade that blends a photograph
+   into the panel ran across its lettering. So where the panel IS the artwork's colour, the
+   artwork is shown whole (`contain`), never faded, floating on that same colour with a soft
+   shadow — the colour carries on round it. */
+.ei-art--dark .ei-slide__fade, .ei-art--light .ei-slide__fade{ display:none }
+.ei-art--dark .ei-slide__vis .ag-photo, .ei-art--light .ei-slide__vis .ag-photo{ inset:24px 28px; width:auto; height:auto; background:none }
+.ei-art--dark .ag-photo__img, .ei-art--light .ag-photo__img{
+  object-fit:contain; filter:drop-shadow(0 18px 28px color-mix(in srgb, var(--ag-ink) 32%, transparent));
+}
+.ei-art--dark .ei-spotph__vis .ag-photo, .ei-art--light .ei-spotph__vis .ag-photo{ inset:14px 14px 0; width:auto; height:auto; background:none }
 
 .ei{ max-width:1240px; margin:0 auto; padding:4px 16px 40px; display:flex; flex-direction:column; gap:28px }
 

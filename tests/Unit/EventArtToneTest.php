@@ -90,6 +90,9 @@ final class EventArtToneTest extends TestCase
                   '.ei-art--dark .ei-btn--line{ border-color:var(--ag-surface); color:var(--ag-surface) }', '.ei-art--dark .ei-pill{ color:var(--ei-wash) }'] as $rule) {
             $this->assertStringContainsString($rule, $css, 'a word or action left in its light-panel colour on a dark panel');
         }
+        // The artwork is a flyer: shown whole and never faded across its lettering.
+        $this->assertStringContainsString('.ei-art--dark .ei-slide__fade, .ei-art--light .ei-slide__fade{ display:none }', $css, 'the fade runs across the poster');
+        $this->assertMatchesRegularExpression('~\.ei-art--dark \.ag-photo__img, \.ei-art--light \.ag-photo__img\{[^}]*object-fit:contain~', $css, 'the poster is cropped to fill the box');
         $this->assertSame('dark', EventArtTone::slots('#257629')['mode'], 'a deep green poster drawn with dark text');
         $this->assertSame('light', EventArtTone::slots('#F2D16B')['mode'], 'a pale yellow poster drawn with white text');
     }
