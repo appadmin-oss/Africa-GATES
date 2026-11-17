@@ -186,8 +186,7 @@ return function(App $app) {
             } elseif ($site === '') {
                 $lines[] = 'ABORTED: APP_URL is not set. Every link in this email is absolute.';
             } elseif (($plan['queue'] ?? []) === []) {
-                $lines[] = 'No nominee resolved in a live voting cycle, so there is no real';
-                $lines[] = 'personalisation to preview. Check the counts on this page first.';
+                $lines[] = (new \AfricaGates\Services\NomineeBroadcast())->whyEmpty();
             } else {
                 // The first resolved recipient, whether or not they are sendable — a
                 // suppressed or already-sent nominee is still a valid shape to preview.

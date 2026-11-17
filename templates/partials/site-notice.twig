@@ -18,7 +18,9 @@
 {% set _notices = site_notices(request_path|default('/'), flow_page|default(false)) %}
 {% if _notices %}
 <div class="ag-notices">
-  {% for n in _notices %}
+  {# A 'popup' (SiteNotice::popup) is a card drawn on its own, never a row here: without this it
+     would read as "Planned work". #}
+  {% for n in _notices|filter(n => n.kind != 'popup') %}
     {% set _ann = n.kind == 'announce' %}
     <section class="ag-notice ag-notice--{{ n.kind }}{{ not _ann and n.started ? ' is-live' : '' }}" aria-label="{{ _ann ? 'Announcement'|trans : 'Planned work'|trans }}">
       {% if _ann %}

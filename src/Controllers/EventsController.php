@@ -172,11 +172,12 @@ class EventsController
             $st   = (string) ($t['state'] ?? 'open');
             $gone = $st === 'sold_out';
             $c    = \AfricaGates\Services\EventTierTone::card($t, $event);
+            [$note, $perks] = self::tierLines((string) ($t['description'] ?? ''), (array) ($t['perks'] ?? []));
             $rows[] = [
                 'id'      => (int) $t['id'],
                 'name'    => (string) $t['name'],
-                'note'    => (string) ($t['description'] ?? ''),
-                'perks'   => (array) ($t['perks'] ?? []),
+                'note'    => $note,
+                'perks'   => $perks,
                 'price'   => (int) ($t['price_naira'] ?? 0),
                 'price_text' => \AfricaGates\Services\EventSales::money((int) ($t['price_naira'] ?? 0)),
                 'state'   => $st,
@@ -1564,4 +1565,26 @@ class EventsController
         return $res->withHeader('Location', $path)->withStatus(302);
     }
 
+
+    /**
+     * A tier's description as a list when the organiser wrote it as one. Organisers type what a
+     * ticket includes as a run-on line — "Support CACENTRE + Souvenir + Refreshments + Free
+     * Delivery" — and drawn as a sentence that is four lines of grey nobody scans (owner,
+     * 17 Nov 2026: "not sleek"). Split on " + " (or line breaks) when there are no separate
+     * perks; a description without them stays a sentence.
+     *
+     * @return array{0:string,1:list<string>}
+     */
+    public static function tierLines(string $description, array $perks): array
+    {
+        $perks = array_values(array_filter(array_map(static fn ($p) => trim((string) $p), $perks), static fn ($p) => $p !== ''));
+        $d = trim($description);
+        if ($perks !== [] || $d === '' || !preg_match('/\s\+\s|\R/u', $d)) return [$d, $perks];
+        $items = array_values(array_filter(array_map(
+            static fn ($p) => rtrim(trim($p), '.;,'),
+            preg_split('/\s\+\s|\R/u', $d) ?: []
+        ), static fn ($p) => $p !== ''));
+        $items = array_map(static fn ($p) => mb_strtoupper(mb_substr($p, 0, 1)) . mb_substr($p, 1), $items);
+        return count($items) > 1 ? ['', $items] : [$d, []];
+    }
 }

@@ -116,6 +116,11 @@
         first name and category are genuinely blank sometimes, and the fallback is what keeps
         the sentence grammatical.
       </p>
+      <p class="cp-note">
+        In a paragraph, start a line with <code>- </code> to make it a bullet, and wrap words in
+        <code>**two asterisks**</code> to make them bold. Empty optional fields are simply left out
+        of the email.
+      </p>
 
       {% for i, b in blocks %}
         <div class="cp-blk">
@@ -128,7 +133,15 @@
           {% for name, spec in types[b.type].fields %}
             <label class="cp-f">
               <span>{{ spec.label }}</span>
-              {% if spec.link is defined and spec.link %}
+              {% if spec.choice is defined and spec.choice %}
+                <select name="blocks[{{ i }}][{{ name }}]">
+                  {% for key, desc in spec.choice %}
+                    <option value="{{ key }}" {{ b[name]|default('') == key ? 'selected' : '' }}>{{ desc }}</option>
+                  {% endfor %}
+                </select>
+              {% elseif spec.url is defined and spec.url %}
+                <input type="url" name="blocks[{{ i }}][{{ name }}]" maxlength="{{ spec.max }}" value="{{ b[name]|default('') }}" placeholder="https://" pattern="https://.+">
+              {% elseif spec.link is defined and spec.link %}
                 <select name="blocks[{{ i }}][{{ name }}]">
                   {% for key, desc in links %}
                     <option value="{{ key }}" {{ b[name] == key ? 'selected' : '' }}>{{ desc }}</option>
@@ -203,6 +216,7 @@
         Resolved from live voting cycles, minus anyone who unsubscribed and anyone this
         campaign already reached. Read this before approving.
       </p>
+      {% if why_empty %}<p class="cp-note" role="status" style="margin-bottom:10px"><b>{{ why_empty }}</b></p>{% endif %}
       <div class="cp-kpis">
         <div class="cp-kpi">
           <div class="cp-kpi__l">Will be sent</div>
