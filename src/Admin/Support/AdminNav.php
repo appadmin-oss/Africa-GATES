@@ -171,6 +171,7 @@ final class AdminNav
                  ['page' => 'shop-stock',  'label' => 'Shop stock',          'href' => '/admin/shop/stock'],
                  ['page' => 'shop-print',  'label' => 'Pick list and packing slips', 'href' => '/admin/shop/orders/print'],
                  ['page' => 'shop-pickup', 'label' => 'Collection points',   'href' => '/admin/shop/pickup'],
+                 ['page' => 'shop-till',   'label' => 'Shop till',           'href' => '/admin/shop/till'],
              ]],
             ['page' => 'ads', 'label' => 'Ads', 'href' => '/admin/ads', 'icon' => 'mega',
              'sub' => 'Every campaign running, and ads posted by us: sold directly or our own.'],

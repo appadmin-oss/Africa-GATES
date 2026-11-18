@@ -4455,6 +4455,11 @@ return function(App $app) {
         $a->post('/shop/orders/{id:[0-9]+}/collect',AdminShopController::class.':collect');
         $a->get('/shop/pickup',                     AdminShopController::class.':pickupPoints');
         $a->post('/shop/pickup',                    AdminShopController::class.':savePickupPoint');
+        // The till: in-person sales and the cash drawer (phase 5).
+        $a->get('/shop/till',          \AfricaGates\Admin\Controllers\ShopTillController::class.':index');
+        $a->post('/shop/till/open',    \AfricaGates\Admin\Controllers\ShopTillController::class.':open');
+        $a->post('/shop/till/sale',    \AfricaGates\Admin\Controllers\ShopTillController::class.':sale');
+        $a->post('/shop/till/close',   \AfricaGates\Admin\Controllers\ShopTillController::class.':close');
         // Stock: running low, the stock-take, adjustments, and each product's ledger (phase 2).
         $a->get('/shop/stock',          \AfricaGates\Admin\Controllers\ShopStockController::class.':index');
         $a->post('/shop/stock/count',   \AfricaGates\Admin\Controllers\ShopStockController::class.':count');

@@ -1011,3 +1011,22 @@ any change: `./vendor/bin/phpunit --no-coverage` → 8214 tests, 8 failures, all
   documented for its rebuild in `docs/handoff/inventory/pages--shop--index.md`.
 - Screens: `/admin/shop/pickup` (add / edit / switch off — never delete; orders name their point),
   and a Collection panel on the order page. Tests: `tests/Unit/ShopPickupTest.php` (10).
+
+### Phase 5 — the till (in-person sales) and the cash drawer
+
+- `gates_shop_cash_sessions` (label, float, opened/closed by and when, expected, counted,
+  difference, note); on `gates_orders`: `channel` (`pos`), `pos_method` (cash | transfer |
+  terminal), `cash_session_id`. Migration `2027_06_06_shop_pos.php`.
+- `Services\ShopPos`: a till sale is a `gates_orders` row (`AFG-SHP-POS-…`, so it is in the shop
+  stream), paid and collected on the spot, priced from the catalogue (base price + the option's
+  delta; no regional multiplier — the buyer is standing there). Stock goes through the ledger as
+  `pos` and MAY go below zero (decision, per the research: a queue must not stall on a miscount);
+  the sale is still recorded and the screen names every count that went negative. The whole
+  basket is validated before anything is written. Cash needs an open session.
+- Drawer: expected = float + cash sales − cash refunded outside the gateway on that session's
+  cash sales. Closing stores expected, counted and the difference; a drawer that does not balance
+  needs a note, and a short/over close alerts the operators.
+- A till sale is refunded from its order page "outside the gateway" (the gateway route refuses —
+  it never went through one).
+- Screen: `/admin/shop/till` (quick sale, open/close a session with its summary, recent sales,
+  session list). Tests: `tests/Unit/ShopPosTest.php` (5).
