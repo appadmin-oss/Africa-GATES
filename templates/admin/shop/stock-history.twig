@@ -1,0 +1,89 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  ONE PRODUCT'S STOCK LEDGER (shop upgrade, 18 Nov 2026). Every change to its counts — sold,
+  returned, received, damaged, given away, counted, corrected in the form — newest first, with
+  who, why, and the order it belongs to. The answer to "where did those two shirts go?".
+#}
+
+{% block head_styles %}{% include 'admin/shop/_styles.twig' %}{% endblock %}
+
+{% block topbar_title %}Stock history{% endblock %}
+{% block topbar_actions %}
+  <a class="ad-btn" href="/admin/shop/stock">All stock</a>
+  <a class="ad-btn" href="/admin/products/{{ product.id }}">Edit product</a>
+{% endblock %}
+
+{% block content %}
+<p class="sh-sub"><strong>{{ product.name }}</strong></p>
+
+{% if not ready %}
+<section class="sh-sec sh-sec--warn">
+  <h2>One step outstanding on the server</h2>
+  <p>The stock ledger needs the latest database update. Run <strong>/__setup/migrate</strong>.</p>
+</section>
+{% endif %}
+
+<section class="sh-sec" aria-labelledby="shNow">
+  <h2 id="shNow">On the shelf now</h2>
+  <div class="ad-table-wrap">
+    <table class="sh-list">
+      <thead><tr><th scope="col">Option</th><th scope="col" class="is-num">In stock</th><th scope="col" class="is-num">Low at</th><th scope="col">Record a movement</th></tr></thead>
+      <tbody>
+        {% for r in now %}
+        <tr class="{{ r.state == 'out' or r.state == 'low' ? 'is-low' : '' }}">
+          <td>{{ r.option ?: '—' }}</td>
+          <td class="is-num">{{ r.stock is null ? 'not counted' : r.stock }}</td>
+          <td class="is-num">{{ r.low }}</td>
+          <td>
+            {% if r.stock is not null %}
+            <form method="post" action="/admin/shop/stock/adjust" class="sh-row">
+              <input type="hidden" name="_token" value="{{ csrf_token }}">
+              <input type="hidden" name="product_id" value="{{ r.product_id }}">
+              <input type="hidden" name="variant_id" value="{{ r.variant_id }}">
+              <input type="hidden" name="back" value="history">
+              <select name="reason" aria-label="What happened to {{ r.option ?: product.name }}">{% for k, label in reasons %}<option value="{{ k }}">{{ label }}</option>{% endfor %}</select>
+              <input type="number" name="qty" min="1" step="1" class="sh-num" required aria-label="How many">
+              <input name="note" maxlength="200" placeholder="Note" aria-label="Note">
+              <button class="sh-btn sh-btn--tiny" type="submit">Record</button>
+            </form>
+            {% else %}
+            <span class="sh-small sh-muted">Not counted — enter a number on the stock-take to start.</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="sh-muted">This product is not active, so it is not on the shelf list.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="sh-sec" aria-labelledby="shMoves">
+  <h2 id="shMoves">Every change</h2>
+  {% if moves|length %}
+  <div class="ad-table-wrap">
+    <table class="sh-list">
+      <thead><tr><th scope="col">When</th><th scope="col">Option</th><th scope="col">Why</th><th scope="col" class="is-num">Change</th><th scope="col" class="is-num">After</th><th scope="col">Order</th><th scope="col">By</th><th scope="col">Note</th></tr></thead>
+      <tbody>
+        {% for m in moves %}
+        <tr>
+          <td class="sh-small">{{ m.created_at }}</td>
+          <td>{{ m.variant_label|default('') ?: '—' }}</td>
+          <td>{{ m.label }}</td>
+          <td class="is-num">{{ m.delta > 0 ? '+' ~ m.delta : m.delta }}</td>
+          <td class="is-num">{{ m.after_qty ?? '—' }}</td>
+          <td>{% if m.order_id %}<a class="sh-ref" href="/admin/shop/orders/{{ m.order_id }}">{{ m.order_ref|default('#' ~ m.order_id) }}</a>{% else %}—{% endif %}</td>
+          <td class="sh-small">{{ m.admin_name|default('') ?: 'The platform' }}</td>
+          <td class="sh-small">{{ m.note|default('') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p>No changes recorded yet. Counts set before the ledger existed have no history; everything from now on does.</p>
+  {% endif %}
+</section>
+{% endblock %}

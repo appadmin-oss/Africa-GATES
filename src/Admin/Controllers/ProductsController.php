@@ -144,7 +144,6 @@ class ProductsController
             'description' => trim((string)($b['description'] ?? '')),
             'price_naira' => max(0, (int)($b['price_naira'] ?? 0)),
             'tag'         => in_array($b['tag'] ?? '', self::TAGS, true) ? $b['tag'] : null,
-            'stock'       => $stockRaw === '' ? null : max(0, (int)$stockRaw),
             'is_active'   => isset($b['is_active']) ? 1 : 0,
             'sort_order'  => (int)($b['sort_order'] ?? 0),
             // Restrict where this product can be delivered. NULL = nationwide.
@@ -184,11 +183,18 @@ class ProductsController
             $this->audit->record($adminId, 'product.update', 'product', $id);
         } else {
             $data['created_at'] = Carbon::now()->toDateTimeString();
-            $id = (int)DB::table('gates_products')->insertGetId($data);
+            $id = (int)DB::table('gates_products')->insertGetId($data + ['stock' => null]);
             $this->audit->record($adminId, 'product.create', 'product', $id);
         }
+        // ── THE COUNT GOES THROUGH THE LEDGER ───────────────────────────────
+        //
+        // It used to be one more column in the update above, so a typed-over number was a
+        // silent rewrite with a generic `product.update` audit row. ShopStock::set() writes the
+        // number AND the difference as a `correction` entry with this admin's name on it.
+        \AfricaGates\Services\ShopStock::set($id, 0, $stockRaw === '' ? null : max(0, (int) $stockRaw),
+            'correction', 'Product form', $adminId);
 
-        $this->saveVariants($id, $b);
+        $this->saveVariants($id, $b, $adminId);
         // Existing rows first, so the renumbering is settled before new uploads are appended.
         $this->saveImages($id, $b);
         $this->saveGalleryFiles($req, $id, $adminId);
@@ -286,7 +292,7 @@ class ProductsController
      *
      * @param array<string,mixed> $b
      */
-    private function saveVariants(int $productId, array $b): void
+    private function saveVariants(int $productId, array $b, int $adminId = 0): void
     {
         // Absent, not empty. A form posted from a deployment whose migration has not run has
         // no variant inputs at all, and treating that as "delete every variant" would wipe the
@@ -322,9 +328,6 @@ class ProductsController
                 'axis'       => $axis,
                 'sku'        => mb_substr(trim((string) ($skus[$i] ?? '')), 0, 60) ?: null,
                 'price_delta_naira' => (int) ($deltas[$i] ?? 0),
-                // '' is UNTRACKED and 0 is SOLD OUT. Two different statements, and an intval()
-                // would flatten every uncounted size into one nobody can buy.
-                'stock'      => $rawStock === '' ? null : max(0, (int) $rawStock),
                 'is_active'  => 1,
                 'sort_order' => $order++,
                 'updated_at' => $now,
@@ -353,9 +356,14 @@ class ProductsController
                     DB::table('gates_product_variants')->where('id', $vid)->update($row);
                 } else {
                     $vid = (int) DB::table('gates_product_variants')
-                        ->insertGetId($row + ['created_at' => $now]);
+                        ->insertGetId($row + ['created_at' => $now, 'stock' => null]);
                 }
                 $kept[] = $vid;
+                // '' is UNTRACKED and 0 is SOLD OUT. Two different statements, and an intval()
+                // would flatten every uncounted size into one nobody can buy. Written through
+                // the ledger, as the product's own count is (see save()).
+                \AfricaGates\Services\ShopStock::set($productId, $vid, $rawStock === '' ? null : max(0, (int) $rawStock),
+                    'correction', 'Product form', $adminId);
             } catch (\Throwable $e) {
                 error_log('[shop] could not save variant "' . $label . '": ' . $e->getMessage());
             }

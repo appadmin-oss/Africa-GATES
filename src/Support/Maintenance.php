@@ -207,6 +207,11 @@ final class Maintenance
             // the top supporters. Every tick, cheap when nothing is new; each is CLAIMED first.
             // The Champion of the Day, announced the morning after once payments have settled,
             // and sealed (DailyChampion). Before the Spotlight's mail, which tells the champion.
+            // The shop's stock digest: once a day after 07:00, what is out and running low, to
+            // the operators (ShopStock::digest). Every tick rather than in the 06:00 window, so a
+            // webcron that misses that quarter-hour does not skip a day; the day is claimed first.
+            $ran[] = ['shop-stock-digest', $this->task('shop-stock-digest',
+                fn() => \AfricaGates\Services\ShopStock::digest($this->mailer()))];
             $ran[] = ['daily-champion', $this->task('daily-champion',
                 fn() => \AfricaGates\Services\DailyChampion::sweep())];
             $ran[] = ['spotlight-mail', $this->task('spotlight-mail',

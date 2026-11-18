@@ -4446,6 +4446,11 @@ return function(App $app) {
         $a->get('/shop/orders/{id:[0-9]+}',         AdminShopController::class.':order');
         $a->post('/shop/orders/{id:[0-9]+}/refund', AdminShopController::class.':refund');
         $a->post('/shop/orders/{id:[0-9]+}/cancel', AdminShopController::class.':cancel');
+        // Stock: running low, the stock-take, adjustments, and each product's ledger (phase 2).
+        $a->get('/shop/stock',          \AfricaGates\Admin\Controllers\ShopStockController::class.':index');
+        $a->post('/shop/stock/count',   \AfricaGates\Admin\Controllers\ShopStockController::class.':count');
+        $a->post('/shop/stock/adjust',  \AfricaGates\Admin\Controllers\ShopStockController::class.':adjust');
+        $a->get('/shop/products/{id:[0-9]+}/stock', \AfricaGates\Admin\Controllers\ShopStockController::class.':history');
         $a->get('/shop/codes',         AdminShopController::class.':codes');
         $a->post('/shop/codes',        AdminShopController::class.':saveCode');
         $a->post('/shop/codes/{id:[0-9]+}/delete', AdminShopController::class.':deleteCode');

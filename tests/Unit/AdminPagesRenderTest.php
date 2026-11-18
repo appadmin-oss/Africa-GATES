@@ -73,6 +73,9 @@ final class AdminPagesRenderTest extends TestCase
             'name' => 'Render Buyer', 'address' => 'Lagos', 'subtotal_naira' => 9000, 'status' => 'paid',
             'provider' => 'paystack', 'created_at' => date('Y-m-d H:i:s'),
             'items_json' => json_encode([['slug' => 'render-tee', 'name' => 'Tee', 'qty' => 1, 'drawn' => 1, 'variant_id' => 0, 'line_total' => 9000]])]);
+        // And a product, so its stock ledger (/admin/shop/products/{id}/stock) renders too.
+        DB::table('gates_products')->insert(['slug' => 'render-tee', 'name' => 'Tee', 'price_naira' => 9000,
+            'stock' => 4, 'is_active' => 1]);
         // A same-named second nominee, so the duplicate tooling has something to show.
         $n = DB::table('gates_nominees')->orderBy('id')->first();
         if ($n) DB::table('gates_nominees')->insert(['category_id' => $n->category_id, 'name' => $n->name, 'status' => 'approved']);

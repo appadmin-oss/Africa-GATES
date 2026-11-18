@@ -1046,6 +1046,7 @@ return [
     // The mailer is the third argument and NOT optional in practice: marking an order shipped
     // without it changes a status and tells the buyer nothing, which is the one state change
     // they are actually waiting on.
+    \AfricaGates\Admin\Controllers\ShopStockController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\ShopStockController($c->get(Twig::class), $c->get(AuditService::class)),
     AdminShopController::class         => fn(ContainerInterface $c)=>new AdminShopController($c->get(Twig::class), $c->get(AuditService::class), $c->get(OtpService::class), $c->get(PaymentService::class)),
     \AfricaGates\Admin\Controllers\UsersController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\UsersController($c->get(AuditService::class), $c->get(Twig::class), $c->get(\AfricaGates\Admin\Services\MemberAccountsService::class)),
     \AfricaGates\Admin\Controllers\AuditController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\AuditController($c->get(Twig::class), $c->get(AuditService::class)),

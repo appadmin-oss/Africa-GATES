@@ -945,3 +945,26 @@ any change: `./vendor/bin/phpunit --no-coverage` → 8214 tests, 8 failures, all
   emails: `Services\ShopMail` (inline from the console; queued as `shop.mail` from the webhook).
 - Tests: `tests/Unit/ShopRefundsTest.php` (16). `AdminPagesRenderTest` now seeds one order so the
   order page is rendered by the sweep rather than raising its unreached ceiling.
+
+### Phase 2 — stock ledger, stock-take, low-stock levels, daily digest
+
+- `gates_shop_stock_moves` (product, variant, signed `delta`, `after_qty`, `reason`, note, order,
+  admin, time) and `low_stock` on variants and products. Migration `2027_06_04_shop_stock_ledger.php`.
+- `Services\ShopStock` is the one writer: `move()` (reason-coded ± units, compare-and-set,
+  never below zero except for the till), `set()` (a counted number; the difference is recorded),
+  `recordLine()` (sales, inside the confirm transaction). Reasons are a closed list in code
+  (`REASONS`) — the column is a VARCHAR, never an ENUM. Untracked (NULL) stays untracked.
+- Every count change now writes a row: online sale, refund/cancel restock, the product form (as
+  `correction` — the form no longer writes the column directly; `ShopStockLedgerTest` sweeps for
+  that), stock-take (`recount`), received / damaged / given away.
+- Levels: per option (`low_stock`), else the shop-wide `shop_low_stock_default` setting
+  (default 3, one resolver `ShopStock::lowLevel()`), settable in bulk from the stock-take.
+- Screens: `/admin/shop/stock` (running low, adjust, stock-take with per-option levels) and
+  `/admin/shop/products/{id}/stock` (one product's ledger). In the rail under Shop orders.
+- Daily digest: the `shop-stock-digest` maintenance task runs every tick and sends at most one
+  email a day after 07:00 (the day is claimed in `gates_settings` first; a day with nothing
+  low is claimed and sends nothing).
+- Known limit: the product form still saves the count it loaded, so a sale between loading and
+  saving the form is overwritten — now recorded as a correction with a name, where before it
+  was silent. Use the stock-take or adjust for counts.
+- Tests: `tests/Unit/ShopStockLedgerTest.php` (9).

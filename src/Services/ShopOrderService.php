@@ -244,7 +244,7 @@ final class ShopOrderService
         $short = [];
         try {
             $short = DB::connection()->transaction(static function () use (&$lines, $orderId): array {
-                $s = self::drawDownStock($lines);
+                $s = self::drawDownStock($lines, $orderId);
                 DB::table('gates_orders')->where('id', $orderId)
                     ->update(['items_json' => json_encode($lines, JSON_UNESCAPED_UNICODE)]);
                 return $s;
@@ -556,7 +556,7 @@ final class ShopOrderService
      * @param list<array<string,mixed>> $lines
      * @return list<string> human sentences naming what fell short
      */
-    private static function drawDownStock(array &$lines): array
+    private static function drawDownStock(array &$lines, int $orderId = 0): array
     {
         $short = [];
 
@@ -603,6 +603,9 @@ final class ShopOrderService
                 }
             }
             $lines[$i]['drawn'] = $drawn;
+            // And the ledger's half of it, inside the same transaction as the draw-down, so the
+            // history and the count cannot disagree about a sale (ShopStock).
+            if ($drawn > 0) ShopStock::recordLine($slug, $vid, -$drawn, 'sale', $orderId);
         }
 
         return $short;
