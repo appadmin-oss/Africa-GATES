@@ -87,6 +87,27 @@
   </div>
 </section>
 
+{% if o.status == 'paid' and state != 'cancelled' %}
+<section class="sh-sec" aria-labelledby="soMove">
+  <h2 id="soMove">Delivery</h2>
+  <p>Shipped and delivered each email the buyer; the note goes on their tracking page and in the shipped email.</p>
+  <form method="post" action="/admin/shop/orders/fulfil" class="sh-row">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <input type="hidden" name="id" value="{{ o.id }}">
+    <input type="hidden" name="back" value="order">
+    <label class="sh-field">State
+      <select name="fulfilment">
+        {% for key, label in fulfilments|filter((v, k) => k != 'cancelled') %}
+        <option value="{{ key }}" {% if key == state %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="sh-field sh-grow">Tracking or a note<input name="tracking_note" maxlength="500" value="{{ o.tracking_note|default('') }}"></label>
+    <button class="sh-btn" type="submit">Save</button>
+  </form>
+</section>
+{% endif %}
+
 {% if not refunds_ready %}
 <section class="sh-sec sh-sec--warn">
   <h2>One step outstanding on the server</h2>
@@ -210,5 +231,12 @@
   {% else %}
   <p>Nothing recorded yet beyond the order itself.</p>
   {% endif %}
+  <form method="post" action="/admin/shop/orders/{{ o.id }}/note">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <label class="sh-field">Add a staff note (not shown to the buyer)
+      <textarea name="note" maxlength="{{ note_max }}" required placeholder="Called the buyer, swapping to a large…"></textarea>
+    </label>
+    <div class="sh-row"><button class="sh-btn sh-btn--ghost" type="submit">Add note</button></div>
+  </form>
 </section>
 {% endblock %}

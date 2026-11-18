@@ -78,7 +78,7 @@ final class AdminNavTest extends TestCase
         '/admin/campaigns/newsletter' => null, '/admin/campaigns/greetings' => null,
         '/admin/shop/codes' => 'content', '/admin/shop/shipping' => 'content',
         // Shop upgrade (18 Nov 2026): new pages under the shop's existing gate, no role gains or loses access.
-        '/admin/shop/stock' => 'content', '/admin/assistant/scripts' => 'overview',
+        '/admin/shop/stock' => 'content', '/admin/shop/orders/print' => 'content', '/admin/assistant/scripts' => 'overview',
     ];
 
     /** The owner-approved widening (GAPS §8d), and the one new page. */

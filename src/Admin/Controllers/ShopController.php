@@ -53,61 +53,72 @@ final class ShopController
 
     // ══ orders ═══════════════════════════════════════════════════════════════
 
+    /** Orders on one page of the list. */
+    public const PAGE_SIZE = 50;
+    /** At most this many orders in one bulk action or one print. Named in the refusal. */
+    public const BULK_MAX = 200;
+
+    /**
+     * The list: filters, a date range, paging, and a TRUE total for the filter.
+     *
+     * It used to stop at 300 rows with no paging and no dates, so on a busy shop the oldest
+     * paid-but-unshipped orders simply fell off the bottom of the only screen that showed them.
+     * Every filter is applied in SQL above the page (never to the drawn page), the total is the
+     * filter's, and the stock shortfall still sorts to the top.
+     */
     public function orders(Request $req, Response $res): Response
     {
         $q      = $req->getQueryParams();
-        $status = (string) ($q['status'] ?? '');
-        $ful    = (string) ($q['ful'] ?? '');
-        $search = trim((string) ($q['q'] ?? ''));
-
+        $f      = self::filters($q);
         $hasFul = OptionalColumn::on('gates_orders', 'fulfilment');
+        $page   = max(1, (int) ($q['page'] ?? 1));
+        $error  = null;
+        $total  = 0;
+        $list   = [];
 
         try {
-            $rows = DB::table('gates_orders');
-            if ($status !== '') $rows->where('status', $status);
-            if ($ful !== '' && $hasFul) {
-                // 'unfulfilled' has to include NULL: every order that predates this column is
-                // unfulfilled in fact, and a filter that hid them would show an empty queue on
-                // a shop with a backlog.
-                $ful === 'unfulfilled'
-                    ? $rows->where(static function ($w): void {
-                          $w->whereNull('fulfilment')->orWhere('fulfilment', 'unfulfilled');
-                      })
-                    : $rows->where('fulfilment', $ful);
-            }
-            if ($search !== '') {
-                // Through Support\Like: a backslash escape with no ESCAPE clause is MySQL's
-                // default and SQLite has none, so a search for a reference containing `_`
-                // matched on production and returned nothing in dev.
-                $like = \AfricaGates\Support\Like::contains($search);
-                $rows->where(static function ($w) use ($like): void {
-                    $w->whereRaw(\AfricaGates\Support\Like::clause('reference'), [$like])
-                      ->orWhereRaw(\AfricaGates\Support\Like::clause('email'), [$like])
-                      ->orWhereRaw(\AfricaGates\Support\Like::clause('name'), [$like]);
-                });
-            }
+            $total = (int) $this->filtered($f)->count();
+            $pages = max(1, (int) ceil($total / self::PAGE_SIZE));
+            $page  = min($page, $pages);
+            $rows  = $this->filtered($f);
             // A shortfall first, then newest. Not a sort the operator picks: a paid order that
             // cannot be filled is the only row on this page with a clock on it.
             if (OptionalColumn::on('gates_orders', 'stock_short')) {
                 $rows->orderByDesc(DB::raw('COALESCE(stock_short, 0)'));
             }
-            $list = $rows->orderByDesc('id')->limit(300)->get()
+            $list = $rows->orderByDesc('id')->offset(($page - 1) * self::PAGE_SIZE)->limit(self::PAGE_SIZE)->get()
                 ->map(static function ($r): array {
                     $a = (array) $r;
                     $a['lines'] = json_decode((string) ($r->items_json ?? '[]'), true) ?: [];
                     $a['seats'] = array_sum(array_column($a['lines'], 'qty'));
                     return $a;
                 })->all();
-        } catch (\Throwable) { $list = []; }
+        } catch (\Throwable $e) {
+            // An honest error with a retry, never a silent empty table — that is the bug that
+            // hides an outage.
+            error_log('[shop] orders list: ' . $e->getMessage());
+            $error = 'The orders could not be read just now.';
+            $pages = 1;
+        }
 
         return $this->view->render($res, 'admin/shop/orders.twig', [
             'page_title'  => 'Shop orders — Admin',
             'admin_page'  => 'shop_orders',
             'rows'        => $list,
-            'status'      => $status,
-            'ful'         => $ful,
-            'q'           => $search,
+            'status'      => $f['status'],
+            'ful'         => $f['ful'],
+            'q'           => $f['q'],
+            'from'        => $f['from'],
+            'to'          => $f['to'],
+            'page'        => $page,
+            'pages'       => $pages,
+            'total'       => $total,
+            'error'       => $error,
+            'query'       => array_filter(['q' => $f['q'], 'status' => $f['status'], 'ful' => $f['ful'],
+                                           'from' => $f['from'], 'to' => $f['to']], static fn ($v) => $v !== ''),
             'fulfilments' => self::FULFILMENTS,
+            'moves'       => self::BULK_MOVES,
+            'bulk_max'    => self::BULK_MAX,
             'summary'     => $this->summary(),
             'has_ful'     => $hasFul,
             // The most actionable list in the shop, and one nothing has ever been able to
@@ -115,6 +126,59 @@ final class ShopController
             // orders screen because it is the same job — what to do next about stock.
             'demand'      => StockAlert::demand(20),
         ]);
+    }
+
+    /**
+     * The list's filters, read once and allow-listed: an unknown value falls back to "any"
+     * rather than erroring, so a stale bookmark shows the list, not a failure.
+     *
+     * @return array{status:string,ful:string,q:string,from:string,to:string}
+     */
+    private static function filters(array $q): array
+    {
+        $date = static fn ($v): string => preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $v) ? (string) $v : '';
+        $status = (string) ($q['status'] ?? '');
+        $ful    = (string) ($q['ful'] ?? '');
+        return [
+            'status' => in_array($status, ['paid', 'pending', 'failed', 'refunded', 'cancelled'], true) ? $status : '',
+            'ful'    => isset(self::FULFILMENTS[$ful]) ? $ful : '',
+            'q'      => mb_substr(trim((string) ($q['q'] ?? '')), 0, 120),
+            'from'   => $date($q['from'] ?? ''),
+            'to'     => $date($q['to'] ?? ''),
+        ];
+    }
+
+    /** @param array{status:string,ful:string,q:string,from:string,to:string} $f */
+    private function filtered(array $f): \Illuminate\Database\Query\Builder
+    {
+        $rows = DB::table('gates_orders');
+        if ($f['status'] !== '') $rows->where('status', $f['status']);
+        if ($f['ful'] !== '' && OptionalColumn::on('gates_orders', 'fulfilment')) {
+            // 'unfulfilled' has to include NULL: every order that predates this column is
+            // unfulfilled in fact, and a filter that hid them would show an empty queue on
+            // a shop with a backlog.
+            $f['ful'] === 'unfulfilled'
+                ? $rows->where(static function ($w): void {
+                      $w->whereNull('fulfilment')->orWhere('fulfilment', 'unfulfilled');
+                  })
+                : $rows->where('fulfilment', $f['ful']);
+        }
+        if ($f['q'] !== '') {
+            // Through Support\Like: a backslash escape with no ESCAPE clause is MySQL's
+            // default and SQLite has none, so a search for a reference containing `_`
+            // matched on production and returned nothing in dev.
+            $like = \AfricaGates\Support\Like::contains($f['q']);
+            $rows->where(static function ($w) use ($like): void {
+                $w->whereRaw(\AfricaGates\Support\Like::clause('reference'), [$like])
+                  ->orWhereRaw(\AfricaGates\Support\Like::clause('email'), [$like])
+                  ->orWhereRaw(\AfricaGates\Support\Like::clause('name'), [$like]);
+            });
+        }
+        // Whole days, as plain 'Y-m-d H:i:s' bounds: a `T`-separated or zoned value compares
+        // wrong on SQLite and is refused on strict MySQL (CLAUDE.md, the stack).
+        if ($f['from'] !== '') $rows->where('created_at', '>=', $f['from'] . ' 00:00:00');
+        if ($f['to'] !== '')   $rows->where('created_at', '<=', $f['to'] . ' 23:59:59');
+        return $rows;
     }
 
     /** Money and workload at a glance — the four numbers an operator opens this page for. */
@@ -140,16 +204,20 @@ final class ShopController
         return $out;
     }
 
+    /** The delivery states the list and the bulk bar can move an order to. Not "cancelled". */
+    public const BULK_MOVES = ['packed' => 'Packed', 'shipped' => 'Shipped', 'delivered' => 'Delivered'];
+
     /**
      * Move an order along, and tell the buyer when it is worth telling them.
      *
-     * ── ONLY 'SHIPPED' SENDS MAIL ────────────────────────────────────────────
+     * ── WHICH MOVES SEND MAIL ────────────────────────────────────────────────
      *
      * 'Packed' is an internal state; emailing somebody about it trains them to ignore the
      * emails that matter. 'Shipped' is the one they are waiting for, and it carries whatever
      * the operator typed as a tracking note — which is why the note is saved BEFORE the mail
      * is attempted rather than after: the buyer's own tracking page has to be right even if
-     * the message never arrives.
+     * the message never arrives. 'Delivered' closes the loop (it was silent until the shop
+     * upgrade, so a buyer whose parcel went to a neighbour had no message to answer).
      */
     public function fulfil(Request $req, Response $res): Response
     {
@@ -157,7 +225,7 @@ final class ShopController
         $id   = (int) ($b['id'] ?? 0);
         $to   = (string) ($b['fulfilment'] ?? '');
         $note = trim((string) ($b['tracking_note'] ?? ''));
-        $back = '/admin/shop/orders';
+        $back = ($b['back'] ?? '') === 'order' ? '/admin/shop/orders/' . $id : '/admin/shop/orders';
 
         if (!isset(self::FULFILMENTS[$to])) {
             $_SESSION['flash_error'] = 'That is not a delivery state.';
@@ -173,38 +241,197 @@ final class ShopController
             return $res->withHeader('Location', '/admin/shop/orders/' . $id)->withStatus(302);
         }
 
-        $order = DB::table('gates_orders')->where('id', $id)->first();
-        if (!$order) {
-            $_SESSION['flash_error'] = 'That order could not be found.';
+        $admin = (int) ($_SESSION['admin_id'] ?? 0);
+        $v = $this->applyFulfilment($id, $to, $note, $admin, true);
+        if ($v['verdict'] === 'refused') {
+            $_SESSION['flash_error'] = $v['why'];
             return $res->withHeader('Location', $back)->withStatus(302);
+        }
+        $this->audit->record($admin, 'order.fulfil', 'order', $id);
+        $_SESSION['flash_ok'] = 'Order ' . $v['ref'] . ' marked ' . strtolower(self::FULFILMENTS[$to]) . '.';
+        return $res->withHeader('Location', $back)->withStatus(302);
+    }
+
+    /**
+     * The single-row move, which the list, the order page and the bulk bar all use — one
+     * implementation, so a move and its bulk equivalent cannot drift into doing different things.
+     *
+     * @return array{verdict:'applied'|'unchanged'|'refused', ref:string, why:string}
+     */
+    private function applyFulfilment(int $id, string $to, string $note, int $admin, bool $writeNote): array
+    {
+        $order = DB::table('gates_orders')->where('id', $id)->first();
+        if (!$order) return ['verdict' => 'refused', 'ref' => '#' . $id, 'why' => 'That order could not be found.'];
+        $ref = (string) $order->reference;
+        if ((string) $order->status !== 'paid') {
+            return ['verdict' => 'refused', 'ref' => $ref, 'why' => $ref . ' is ' . (string) $order->status . ', not paid — only a paid order is sent.'];
+        }
+        if ((string) ($order->fulfilment ?? '') === 'cancelled') {
+            return ['verdict' => 'refused', 'ref' => $ref, 'why' => $ref . ' was cancelled.'];
+        }
+        $same = (string) ($order->fulfilment ?: 'unfulfilled') === $to;
+        if ($same && (!$writeNote || $note === (string) ($order->tracking_note ?? ''))) {
+            return ['verdict' => 'unchanged', 'ref' => $ref, 'why' => ''];
         }
 
         try {
+            $row = [
+                'fulfilment'   => $to,
+                'fulfilled_at' => in_array($to, ['shipped', 'delivered', 'collected'], true)
+                    ? ($order->fulfilled_at ?? null) ?: Carbon::now()->toDateTimeString() : null,
+                // Clearing the flag is part of resolving it: an operator who has restocked
+                // and shipped should not keep seeing the order at the top of the queue.
+                'stock_short'  => in_array($to, ['shipped', 'delivered', 'collected'], true) ? 0 : ($order->stock_short ?? null),
+            ];
+            if ($writeNote) $row['tracking_note'] = $note !== '' ? mb_substr($note, 0, 500) : null;
             DB::table('gates_orders')->where('id', $id)
-                ->update(OptionalColumn::filter('gates_orders', [
-                    'fulfilment'    => $to,
-                    'tracking_note' => $note !== '' ? mb_substr($note, 0, 500) : null,
-                    'fulfilled_at'  => in_array($to, ['shipped', 'delivered'], true)
-                        ? Carbon::now()->toDateTimeString() : null,
-                    // Clearing the flag is part of resolving it: an operator who has restocked
-                    // and shipped should not keep seeing the order at the top of the queue.
-                    'stock_short'   => $to === 'shipped' || $to === 'delivered' ? 0 : ($order->stock_short ?? null),
-                ], ['fulfilment', 'tracking_note', 'fulfilled_at', 'stock_short']));
+                ->update(OptionalColumn::filter('gates_orders', $row, ['fulfilment', 'tracking_note', 'fulfilled_at', 'stock_short']));
         } catch (\Throwable $e) {
             error_log('[shop] could not update fulfilment for order ' . $id . ': ' . $e->getMessage());
-            $_SESSION['flash_error'] = 'That could not be saved just now.';
+            return ['verdict' => 'refused', 'ref' => $ref, 'why' => 'That could not be saved just now.'];
+        }
+
+        ShopOrderLog::add($id, 'status', 'Marked ' . strtolower(self::FULFILMENTS[$to])
+            . ($note !== '' ? ' — ' . mb_substr($note, 0, 200) : '') . '.', $admin);
+        if (!$same) {
+            if ($to === 'shipped') $this->tellShipped($order, $note);
+            if ($to === 'delivered') ShopMail::send($this->mailer, $id, 'delivered');
+        }
+        return ['verdict' => $same ? 'unchanged' : 'applied', 'ref' => $ref, 'why' => ''];
+    }
+
+    /**
+     * One bulk op, several declared actions: move the ticked orders, or print them.
+     *
+     * The rules of every bulk action in this console: capped (BULK_MAX, named in the refusal),
+     * the whole payload validated before any write, a per-row verdict that wins over a top-level
+     * "ok" (12 of 15 moved is reported as partial), `unchanged` reported apart from applied, and
+     * ONE audit event for the run with its counts and refusals.
+     */
+    public function bulk(Request $req, Response $res): Response
+    {
+        $b      = (array) $req->getParsedBody();
+        $action = (string) ($b['action'] ?? '');
+        $ids    = array_values(array_unique(array_filter(array_map('intval', (array) ($b['ids'] ?? [])), static fn (int $i): bool => $i > 0)));
+        $back   = '/admin/shop/orders' . (($b['back_query'] ?? '') !== '' ? '?' . (string) preg_replace('/[^A-Za-z0-9=&%_.\-]/', '', (string) $b['back_query']) : '');
+
+        if ($ids === []) {
+            $_SESSION['flash_error'] = 'Tick at least one order first.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+        if (count($ids) > self::BULK_MAX) {
+            $_SESSION['flash_error'] = 'At most ' . self::BULK_MAX . ' orders at once; ' . count($ids) . ' were ticked. Nothing was changed.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+        if ($action === 'pick' || $action === 'slips') {
+            return $res->withHeader('Location', '/admin/shop/orders/print?kind=' . $action . '&ids=' . implode(',', $ids))->withStatus(302);
+        }
+        if (!isset(self::BULK_MOVES[$action])) {
+            $_SESSION['flash_error'] = 'Pick what to do with the ticked orders.';
             return $res->withHeader('Location', $back)->withStatus(302);
         }
 
-        $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'order.fulfil', 'order', $id);
-        ShopOrderLog::add($id, 'status', 'Marked ' . strtolower(self::FULFILMENTS[$to])
-            . ($note !== '' ? ' — ' . mb_substr($note, 0, 200) : '') . '.', (int) ($_SESSION['admin_id'] ?? 0));
-        $_SESSION['flash_ok'] = 'Order ' . (string) $order->reference . ' marked '
-            . strtolower(self::FULFILMENTS[$to]) . '.';
+        $admin = (int) ($_SESSION['admin_id'] ?? 0);
+        $done = []; $same = []; $refused = [];
+        foreach ($ids as $id) {
+            $v = $this->applyFulfilment($id, $action, '', $admin, false);
+            match ($v['verdict']) {
+                'applied'   => $done[] = $v['ref'],
+                'unchanged' => $same[] = $v['ref'],
+                default     => $refused[] = $v['why'],
+            };
+        }
+        $this->audit->record($admin, 'order.fulfil.bulk', 'order', null, [
+            'action' => $action, 'asked' => count($ids), 'applied' => count($done),
+            'unchanged' => count($same), 'refused' => $refused,
+        ]);
 
-        if ($to === 'shipped') $this->tellShipped($order, $note);
-
+        $msg = count($done) . ' marked ' . strtolower(self::BULK_MOVES[$action])
+             . ($same !== [] ? ', ' . count($same) . ' already were' : '') . '.';
+        if ($refused !== []) {
+            $_SESSION['flash_error'] = $msg . ' ' . count($refused) . ' refused: ' . implode(' ', array_slice($refused, 0, 5))
+                . (count($refused) > 5 ? ' …and ' . (count($refused) - 5) . ' more.' : '');
+        } else {
+            $_SESSION['flash_ok'] = $msg;
+        }
         return $res->withHeader('Location', $back)->withStatus(302);
+    }
+
+    /**
+     * The pick list (totals per product and option, to walk the shelf once) and packing slips
+     * (one page per order), for the ticked orders — or, with none named, every paid order not
+     * yet sent. A page of its own, made to be printed: the console's chrome is not on it.
+     */
+    public function printable(Request $req, Response $res): Response
+    {
+        $q    = $req->getQueryParams();
+        $kind = ($q['kind'] ?? '') === 'slips' ? 'slips' : 'pick';
+        $ids  = array_slice(array_values(array_unique(array_filter(array_map('intval',
+                    explode(',', (string) ($q['ids'] ?? ''))), static fn (int $i): bool => $i > 0))), 0, self::BULK_MAX);
+
+        $rows = DB::table('gates_orders');
+        if ($ids !== []) {
+            $rows->whereIn('id', $ids);
+        } else {
+            $rows->where('status', 'paid')->where(static function ($w): void {
+                $w->whereNull('fulfilment')->orWhereIn('fulfilment', ['unfulfilled', 'packed']);
+            });
+        }
+        $orders = $rows->orderBy('id')->limit(self::BULK_MAX)->get()->map(static function ($r): array {
+            $a = (array) $r;
+            $a['lines'] = json_decode((string) ($r->items_json ?? '[]'), true) ?: [];
+            return $a;
+        })->all();
+
+        // The pick list: one row per product × option, summed, with the orders it is for.
+        $pick = [];
+        $vids = [];
+        foreach ($orders as $o) {
+            foreach ($o['lines'] as $l) {
+                $key = (string) ($l['slug'] ?? '') . '|' . (int) ($l['variant_id'] ?? 0);
+                $pick[$key] ??= ['name' => (string) ($l['name'] ?? $l['slug'] ?? '?'), 'option' => (string) ($l['variant'] ?? ''),
+                                 'variant_id' => (int) ($l['variant_id'] ?? 0), 'qty' => 0, 'orders' => [], 'sku' => ''];
+                $pick[$key]['qty'] += (int) ($l['qty'] ?? 0);
+                $pick[$key]['orders'][] = (string) $o['reference'];
+                if ((int) ($l['variant_id'] ?? 0) > 0) $vids[] = (int) $l['variant_id'];
+            }
+        }
+        if ($vids !== []) {
+            // One query for every SKU on the list, never one per line.
+            $skus = DB::table('gates_product_variants')->whereIn('id', array_unique($vids))->pluck('sku', 'id')->all();
+            foreach ($pick as &$p) $p['sku'] = (string) ($skus[$p['variant_id']] ?? '');
+            unset($p);
+        }
+        uasort($pick, static fn ($a, $b) => [$a['name'], $a['option']] <=> [$b['name'], $b['option']]);
+
+        return $this->view->render($res, 'admin/shop/print.twig', [
+            'page_title' => ($kind === 'pick' ? 'Pick list' : 'Packing slips') . ' — Admin',
+            'kind'       => $kind,
+            'orders'     => $orders,
+            'pick'       => array_values($pick),
+            'named'      => $ids !== [],
+            'printed_at' => Carbon::now()->toDateTimeString(),
+        ]);
+    }
+
+    /** A staff note on the order's history. */
+    public function note(Request $req, Response $res, array $args): Response
+    {
+        $id   = (int) ($args['id'] ?? 0);
+        $body = trim((string) (((array) $req->getParsedBody())['note'] ?? ''));
+        if (!DB::table('gates_orders')->where('id', $id)->exists()) {
+            $_SESSION['flash_error'] = 'That order could not be found.';
+            return $res->withHeader('Location', '/admin/shop/orders')->withStatus(302);
+        }
+        if ($body === '') {
+            $_SESSION['flash_error'] = 'Write the note first.';
+        } elseif (mb_strlen($body) > ShopOrderLog::NOTE_MAX) {
+            $_SESSION['flash_error'] = 'A note can be at most ' . ShopOrderLog::NOTE_MAX . ' characters.';
+        } else {
+            ShopOrderLog::add($id, 'note', $body, (int) ($_SESSION['admin_id'] ?? 0));
+            $_SESSION['flash_ok'] = 'Note added.';
+        }
+        return $res->withHeader('Location', '/admin/shop/orders/' . $id . '#soHistory')->withStatus(302);
     }
 
     /** Best-effort. The state is in the database whether or not the message got through. */

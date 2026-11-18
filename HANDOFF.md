@@ -968,3 +968,26 @@ any change: `./vendor/bin/phpunit --no-coverage` → 8214 tests, 8 failures, all
   saving the form is overwritten — now recorded as a correction with a name, where before it
   was silent. Use the stock-take or adjust for counts.
 - Tests: `tests/Unit/ShopStockLedgerTest.php` (9).
+
+### Phase 3 — the orders desk
+
+- Orders list: paging (`PAGE_SIZE` 50) with the filter's true total — the 300-row ceiling is
+  gone; a date range (from/to, whole days, plain `Y-m-d H:i:s` bounds); unknown filter values
+  fall back to "any"; an honest error with a retry instead of a silent empty table.
+- Bulk: one op `POST /admin/shop/orders/bulk`, declared actions (mark packed / shipped /
+  delivered, pick list, packing slips), capped at `BULK_MAX` 200 and named, validated before any
+  write, per-row verdicts (a partial run is reported as partial; `unchanged` apart from applied),
+  ONE audit event per run (`order.fulfil.bulk`). It delegates to the same single-row
+  `applyFulfilment()` the list and the order page use. Only a paid, uncancelled order moves.
+- `/admin/shop/orders/print?kind=pick|slips[&ids=…]`: the pick list sums each product × option
+  (one SKU query, not one per line); slips are one page per order. With no ids: every paid order
+  not yet sent. Standalone page (no console chrome), opened in a new tab.
+- Order page gains the delivery move and staff notes (`gates_shop_order_events`, kind `note`).
+- Buyer emails: delivered (new) and cancelled (phase 1), through `ShopMail`; each sent message
+  is written on the order's history.
+- NOT built here, and why: `templates/pages/shop/order.twig` (the buyer's own order page, which
+  every email links to) is one of the public pages destroyed on 3 Oct 2026 and owed by the
+  public rebuild (docs/handoff/DESTROYED.md, Phase 7 · ShopPage). It still 500s; the emails
+  carry the order details in their own text so they stand without it.
+- Tests: `tests/Unit/ShopOrdersDeskTest.php` (8). `AdminNavTest::BEFORE` records the two new
+  pages with the shop's existing `content` gate.
