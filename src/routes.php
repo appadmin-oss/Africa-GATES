@@ -4460,6 +4460,10 @@ return function(App $app) {
         $a->post('/shop/till/open',    \AfricaGates\Admin\Controllers\ShopTillController::class.':open');
         $a->post('/shop/till/sale',    \AfricaGates\Admin\Controllers\ShopTillController::class.':sale');
         $a->post('/shop/till/close',   \AfricaGates\Admin\Controllers\ShopTillController::class.':close');
+        // The shop's today dashboard, reports and CSV (phase 6).
+        $a->get('/shop/today',         \AfricaGates\Admin\Controllers\ShopReportsController::class.':dashboard');
+        $a->get('/shop/reports',       \AfricaGates\Admin\Controllers\ShopReportsController::class.':reports');
+        $a->get('/shop/reports.csv',   \AfricaGates\Admin\Controllers\ShopReportsController::class.':csv');
         // Stock: running low, the stock-take, adjustments, and each product's ledger (phase 2).
         $a->get('/shop/stock',          \AfricaGates\Admin\Controllers\ShopStockController::class.':index');
         $a->post('/shop/stock/count',   \AfricaGates\Admin\Controllers\ShopStockController::class.':count');

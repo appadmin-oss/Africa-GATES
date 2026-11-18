@@ -1030,3 +1030,24 @@ any change: `./vendor/bin/phpunit --no-coverage` → 8214 tests, 8 failures, all
   it never went through one).
 - Screen: `/admin/shop/till` (quick sale, open/close a session with its summary, recent sales,
   session list). Tests: `tests/Unit/ShopPosTest.php` (5).
+
+### Phase 6 — shop today, reports and CSV
+
+- `gates_orders.fee_naira` (migration `2027_06_07_shop_fees.php`): the fee the gateway actually
+  reported for the charge, stored at confirmation. `PaymentService::verify()` for Paystack now
+  also returns `fees` (kobo → naira, null when absent).
+- `Services\ShopReports`: definitions, each stated once — gross = charged on orders PAID in the
+  range; refunds = refunds SETTLED in the range; fees = reported fee, or an estimate from
+  `GatewayFee` where none was reported (counted separately and labelled "estimated"); a till sale
+  has no gateway fee; net = gross − refunds − fees. Per product/option: units, units returned,
+  takings (line totals before order-level discount and delivery), orders; best sellers first.
+  Range clamped to `MAX_DAYS` 366, default the last 30 days; an unparseable date falls back.
+- `/admin/shop/today`: to prepare, out but not received (ready / shipped), out / low stock,
+  paid-but-short, sales today and this week (from Monday) net of refunds and fees, pending
+  payments and refunds waiting on the gateway. `/admin/shop/reports` and
+  `/admin/shop/reports.csv?kind=orders|products` (cells through `Support\Csv`, formula-safe; one
+  audit event per export).
+- Staff screens say "gateway fees" (a fact for staff). Nothing buyer-facing was added in this
+  phase; the owner's rule for buyer copy — "payment processing fee charged by our payment
+  provider", never the provider's name — applies to anything that later shows a buyer the fee.
+- Tests: `tests/Unit/ShopReportsTest.php` (6).

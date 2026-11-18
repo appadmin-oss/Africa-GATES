@@ -1209,6 +1209,11 @@ class PaymentService
             // indexed hit rather than a live call. See PaymentLookup.
             'gateway_id'  => (string) ($data['id'] ?? ''),
             'gateway_ref' => (string) ($data['reference'] ?? ''),
+            // The fee Paystack ACTUALLY took on this charge, in kobo → naira; null when it did
+            // not say. Stored on a shop order at confirmation so the shop's net figures use the
+            // real fee rather than one recomputed from a schedule that changes (ShopReports).
+            'fees'        => isset($data['fees']) && is_numeric($data['fees'])
+                ? (int) round(((float) $data['fees']) / 100) : null,
         ];
     }
 

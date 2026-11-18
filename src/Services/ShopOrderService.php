@@ -182,6 +182,13 @@ final class ShopOrderService
             // receipt. Outside the `$changed` branch on purpose: the loser of a race still
             // learned them, and writing them is not a state transition. See PaymentLookup.
             PaymentLookup::remember('gates_orders', (int) $order->id, $v);
+            // The gateway's own fee for this charge, when it reported one (ShopReports reads it;
+            // an order without one is reported with an estimate, marked as such).
+            if (isset($v['fees']) && $v['fees'] !== null && OptionalColumn::on('gates_orders', 'fee_naira')) {
+                try {
+                    DB::table('gates_orders')->where('id', (int) $order->id)->update(['fee_naira' => max(0, (int) $v['fees'])]);
+                } catch (\Throwable) {}
+            }
 
             if ($changed > 0) {
                 self::fulfil((int) $order->id, $log);
