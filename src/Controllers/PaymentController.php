@@ -506,6 +506,23 @@ final class PaymentController
             return $ack();
         }
 
+        // ── a SHOP refund, step by step ──────────────────────────────────────
+        //
+        // Claimed before the reversal branch, which acts only on `refund.processed` and treats
+        // every one as a whole-order reversal. A shop refund can be partial and is asked for
+        // from the console, so each step (pending, processing, processed, failed) is applied
+        // to its own refund row — matched by the gateway's refund id, deduplicated, and settled
+        // only on `processed` (ShopRefunds). Other streams keep the branch below unchanged.
+        if (str_starts_with($event, 'refund.')) {
+            $ref = $this->webhookReversalReference($provider, $payload);
+            if ($ref !== '' && PaymentDestination::streamForReference($ref) === 'shop') {
+                $did = \AfricaGates\Services\ShopRefunds::applyWebhook($provider, $event, $ref,
+                    is_array($payload['data'] ?? null) ? $payload['data'] : []);
+                Log::record($provider, $event, $ref, 'shop', $did, '', $domain);
+                return $ack();
+            }
+        }
+
         // ── money going BACK ─────────────────────────────────────────────────
         $reversal = $this->webhookReversalKind($payload);
         if ($reversal !== null) {

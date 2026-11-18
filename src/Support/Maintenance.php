@@ -1275,6 +1275,11 @@ final class Maintenance
                 \AfricaGates\Services\ShopOrderService::receipt(
                     (int) ($p['order_id'] ?? 0), $this->container?->get(OtpService::class));
             });
+            // The buyer's later shop emails (refund settled, refund failed) queued by the
+            // webhook, which cannot spend its gateway budget on SMTP. See ShopMail.
+            $q->on(\AfricaGates\Services\ShopMail::JOB, function (array $p) {
+                \AfricaGates\Services\ShopMail::handle($p, $this->container?->get(OtpService::class));
+            });
             $q->on(\AfricaGates\Services\EventTicketMailer::JOB, function (array $p) {
                 \AfricaGates\Services\EventTicketMailer::send(
                     (int) ($p['registration_id'] ?? 0), $this->container?->get(OtpService::class));

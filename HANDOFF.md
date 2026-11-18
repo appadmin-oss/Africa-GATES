@@ -905,3 +905,43 @@ to answer it at all — the simulation cannot stand in for a handset.
 **The short URL beside the QR** needs a shortener decision. The full typeable event address
 ships as text in the meantime, which covers the screenshot and cannot-scan cases for the open
 flier; a confirmed flier's referral parameter is still only carried by the code.
+
+---
+
+## Shop management upgrade (18 Nov 2026, branch `afv/shop-upgrade`)
+
+Owner's ask: "Upgrade the shop massively … for better and effective management." Brief:
+`SHOP-MANAGEMENT-PLAN.md` §1 (research) and §3 (this repo's audit and build order), kept in the
+NGG repository. Built in the brief's order, one commit per phase, each green. Baseline before
+any change: `./vendor/bin/phpunit --no-coverage` → 8214 tests, 8 failures, all
+`PasskeyTest` (`ReflectionProperty::isProtectedSet()` is PHP 8.4; this container is 8.3).
+
+### Phase 1 — refunds and cancelling from the console
+
+- `gates_shop_refunds` (one row per refund, `status` pending → processed | failed,
+  `method` gateway | manual) and `gates_shop_order_events` (the order's history);
+  `gates_orders.refunded_naira` and `cancelled_at`. Migration `2027_06_03_shop_refunds.php`.
+- `Services\ShopRefunds`: `request()` asks Paystack through `PaymentService::refund()` (a whole
+  refund sends no amount, a partial one names it in naira → kobo); `recordManual()` records money
+  returned outside the gateway; `cancel()`; `applyWebhook()` for `refund.*`.
+- **Decisions.** A refund is settled ONLY by `refund.processed` — including when the API's first
+  answer is "processed" or "already refunded"; the gateway sends the event for those too. Total
+  refunds ≤ charge: pending + processed count against the ceiling, the row is written first and
+  the sum re-read, so two operators cannot both fit. A definite refusal releases the amount; an
+  unknown outcome (gateway unreachable) does not. Stock returns when the money does, and only the
+  units the operator entered — each order line remembers `restocked`, so a partial refund and a
+  later chargeback cannot return the same unit twice. A refund made on the Paystack dashboard is
+  recorded when its `refund.processed` arrives (partial stays partial — it used to reverse the
+  whole order). Bank-transfer/USSD auto-refund is unconfirmed, so the gateway's refusal is shown
+  in its own words and "Refunded outside the gateway" is always offered.
+- Cancelling: a pending order is checked with the gateway first (a paid one is confirmed, not
+  cancelled), becomes `status = cancelled`, and its discount use is released on the transition
+  only. A paid order is cancelled THROUGH a full refund of what is left, restocking by default
+  unless the goods have left. "Cancelled" is no longer a label the orders list can set. A payment
+  landing on a cancelled order is never fulfilled; staff are alerted and it is in the history.
+- Fixed on the way: `ShopOrderService::reverse()` tested `fulfilment = 'fulfilled'`, a value the
+  console never wrote, so a chargeback on a delivered parcel restocked it.
+- Screen: `/admin/shop/orders/{id}` (linked from each reference on the orders list). Buyer
+  emails: `Services\ShopMail` (inline from the console; queued as `shop.mail` from the webhook).
+- Tests: `tests/Unit/ShopRefundsTest.php` (16). `AdminPagesRenderTest` now seeds one order so the
+  order page is rendered by the sweep rather than raising its unreached ceiling.

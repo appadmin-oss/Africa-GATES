@@ -67,6 +67,12 @@ final class AdminPagesRenderTest extends TestCase
                 'headline' => 'Nominations are open', 'body' => 'Put forward somebody who deserves it.', 'cta' => 'learn_more',
                 'url' => '/nominate'], '/uploads/ads/render.jpg');
         }
+        // A paid shop order, so /admin/shop/orders/{id} (the order page, its refunds and history)
+        // renders one rather than raising the ceiling.
+        DB::table('gates_orders')->insert(['reference' => 'AFG-SHP-render1', 'email' => 'render-buyer@example.test',
+            'name' => 'Render Buyer', 'address' => 'Lagos', 'subtotal_naira' => 9000, 'status' => 'paid',
+            'provider' => 'paystack', 'created_at' => date('Y-m-d H:i:s'),
+            'items_json' => json_encode([['slug' => 'render-tee', 'name' => 'Tee', 'qty' => 1, 'drawn' => 1, 'variant_id' => 0, 'line_total' => 9000]])]);
         // A same-named second nominee, so the duplicate tooling has something to show.
         $n = DB::table('gates_nominees')->orderBy('id')->first();
         if ($n) DB::table('gates_nominees')->insert(['category_id' => $n->category_id, 'name' => $n->name, 'status' => 'approved']);

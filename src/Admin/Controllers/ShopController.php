@@ -5,7 +5,8 @@ namespace AfricaGates\Admin\Controllers;
 
 use AfricaGates\Support\ColumnRange;
 use AfricaGates\Admin\Services\AuditService;
-use AfricaGates\Services\{OtpService, ShopDiscount, ShopPricing, ShopShipping, StockAlert};
+use AfricaGates\Services\{OtpService, PaymentService, ShopDiscount, ShopMail, ShopOrderLog, ShopOrderService,
+                            ShopPricing, ShopRefunds, ShopShipping, StockAlert};
 use AfricaGates\Support\{OptionalColumn, PromoCode};
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
@@ -45,6 +46,9 @@ final class ShopController
         private readonly Twig $view,
         private readonly AuditService $audit,
         private readonly ?OtpService $mailer = null,
+        // Refunds and cancelling a pending order both ask the gateway. Optional so the
+        // order-list tests can build the controller bare; every action that needs it says so.
+        private readonly ?PaymentService $payments = null,
     ) {}
 
     // ══ orders ═══════════════════════════════════════════════════════════════
@@ -159,6 +163,15 @@ final class ShopController
             $_SESSION['flash_error'] = 'That is not a delivery state.';
             return $res->withHeader('Location', $back)->withStatus(302);
         }
+        // ── "CANCELLED" IS NOT A LABEL ───────────────────────────────────────
+        //
+        // It used to be one more option in this list, and choosing it moved neither money
+        // nor stock: the buyer kept paying for a shirt still counted as sold. Cancelling goes
+        // through the order's own page now, which refunds what was paid (ShopRefunds::cancel).
+        if ($to === 'cancelled') {
+            $_SESSION['flash_error'] = 'Cancel an order from its own page — that refunds the buyer and returns the stock.';
+            return $res->withHeader('Location', '/admin/shop/orders/' . $id)->withStatus(302);
+        }
 
         $order = DB::table('gates_orders')->where('id', $id)->first();
         if (!$order) {
@@ -184,6 +197,8 @@ final class ShopController
         }
 
         $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'order.fulfil', 'order', $id);
+        ShopOrderLog::add($id, 'status', 'Marked ' . strtolower(self::FULFILMENTS[$to])
+            . ($note !== '' ? ' — ' . mb_substr($note, 0, 200) : '') . '.', (int) ($_SESSION['admin_id'] ?? 0));
         $_SESSION['flash_ok'] = 'Order ' . (string) $order->reference . ' marked '
             . strtolower(self::FULFILMENTS[$to]) . '.';
 
@@ -218,6 +233,106 @@ final class ShopController
             $this->mailer->sendBranded((string) $order->email,
                 'Your order is on its way — ' . (string) $order->reference, $html, $plain, 'Shop');
         } catch (\Throwable) {}
+    }
+
+    // ══ one order ════════════════════════════════════════════════════════════
+
+    /**
+     * One order, everything about it: what was bought, what was paid and refunded, where it is,
+     * and what has happened to it — and the two things that move money, refund and cancel.
+     */
+    public function order(Request $req, Response $res, array $args): Response
+    {
+        $id = (int) ($args['id'] ?? 0);
+        $o  = DB::table('gates_orders')->where('id', $id)->first();
+        if (!$o) {
+            $_SESSION['flash_error'] = 'That order could not be found.';
+            return $res->withHeader('Location', '/admin/shop/orders')->withStatus(302);
+        }
+        $a = (array) $o;
+        $a['lines'] = json_decode((string) ($o->items_json ?? '[]'), true) ?: [];
+
+        return $this->view->render($res, 'admin/shop/order.twig', $this->orderContext($o, $a));
+    }
+
+    /** @return array<string,mixed> */
+    private function orderContext(object $o, array $a): array
+    {
+        $refundable = ShopRefunds::ready() ? ShopRefunds::refundable($o) : 0;
+        return [
+            'page_title'  => 'Order ' . (string) $o->reference . ' — Admin',
+            'admin_page'  => 'shop_orders',
+            'o'           => $a,
+            'fulfilments' => self::FULFILMENTS,
+            'refunds'     => ShopRefunds::forOrder((int) $o->id),
+            'refundable'  => $refundable,
+            'refunds_ready' => ShopRefunds::ready(),
+            'has_left'    => ShopOrderService::hasLeft($o),
+            'history'     => ShopOrderLog::for((int) $o->id),
+            'note_max'    => ShopOrderLog::NOTE_MAX,
+        ];
+    }
+
+    /**
+     * Refund some or all of a paid order — through the gateway, or recorded as returned by hand.
+     *
+     * The amount is blank for "everything left". The units to return are per line and default
+     * to none: a partial refund is as often a goodwill gesture as a return, and a shirt that
+     * did not come back must not be counted as on the shelf.
+     */
+    public function refund(Request $req, Response $res, array $args): Response
+    {
+        $id   = (int) ($args['id'] ?? 0);
+        $b    = (array) $req->getParsedBody();
+        $back = '/admin/shop/orders/' . $id;
+        $raw  = trim((string) ($b['amount'] ?? ''));
+        $amount = $raw === '' ? null : (int) preg_replace('/[^0-9]/', '', $raw);
+        $restock = [];
+        foreach ((array) ($b['restock'] ?? []) as $i => $q) {
+            if ((int) $q > 0) $restock[(int) $i] = (int) $q;
+        }
+        // The confirm dialog's reason (`_reason`, admin.js agConfirm) is the refund's reason.
+        $reason = mb_substr(trim((string) (($b['reason'] ?? '') ?: ($b['_reason'] ?? ''))), 0, 300);
+        $admin  = (int) ($_SESSION['admin_id'] ?? 0);
+
+        if (($b['method'] ?? 'gateway') === 'manual') {
+            $r = ShopRefunds::recordManual($id, $amount, $restock, $reason, $admin);
+        } elseif ($this->payments === null) {
+            $r = ['ok' => false, 'message' => 'The payment gateway is not available here.'];
+        } else {
+            $r = ShopRefunds::request($id, $amount, $restock, $reason, $admin, $this->payments);
+        }
+
+        if ($r['ok']) {
+            $this->audit->record($admin, 'order.refund', 'order', $id,
+                ['amount' => $amount, 'method' => (string) ($b['method'] ?? 'gateway')]);
+            $_SESSION['flash_ok'] = $r['message'];
+        } else {
+            $_SESSION['flash_error'] = $r['message'];
+        }
+        return $res->withHeader('Location', $back)->withStatus(302);
+    }
+
+    /** Call an order off: a pending one is cancelled, a paid one is refunded and cancelled. */
+    public function cancel(Request $req, Response $res, array $args): Response
+    {
+        $id     = (int) ($args['id'] ?? 0);
+        $b      = (array) $req->getParsedBody();
+        $admin  = (int) ($_SESSION['admin_id'] ?? 0);
+        $reason = mb_substr(trim((string) (($b['reason'] ?? '') ?: ($b['_reason'] ?? ''))), 0, 300);
+
+        $r = $this->payments === null
+            ? ['ok' => false, 'message' => 'The payment gateway is not available here.']
+            : ShopRefunds::cancel($id, $reason, $admin, $this->payments,
+                                  ($b['method'] ?? 'gateway') === 'manual', !empty($b['restock']), $this->mailer);
+
+        if ($r['ok']) {
+            $this->audit->record($admin, 'order.cancel', 'order', $id);
+            $_SESSION['flash_ok'] = $r['message'];
+        } else {
+            $_SESSION['flash_error'] = $r['message'];
+        }
+        return $res->withHeader('Location', '/admin/shop/orders/' . $id)->withStatus(302);
     }
 
     // ══ discount codes ═══════════════════════════════════════════════════════

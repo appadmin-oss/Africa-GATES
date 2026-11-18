@@ -4442,6 +4442,10 @@ return function(App $app) {
         // discount codes, and what delivery costs per region.
         $a->get('/shop/orders',        AdminShopController::class.':orders');
         $a->post('/shop/orders/fulfil',AdminShopController::class.':fulfil');
+        // One order, and the two acts that move money on it (shop upgrade phase 1).
+        $a->get('/shop/orders/{id:[0-9]+}',         AdminShopController::class.':order');
+        $a->post('/shop/orders/{id:[0-9]+}/refund', AdminShopController::class.':refund');
+        $a->post('/shop/orders/{id:[0-9]+}/cancel', AdminShopController::class.':cancel');
         $a->get('/shop/codes',         AdminShopController::class.':codes');
         $a->post('/shop/codes',        AdminShopController::class.':saveCode');
         $a->post('/shop/codes/{id:[0-9]+}/delete', AdminShopController::class.':deleteCode');

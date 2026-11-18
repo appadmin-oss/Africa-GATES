@@ -146,7 +146,7 @@
     <label class="sr-only" for="soStatus">Payment status</label>
     <select name="status" id="soStatus">
       <option value="">Any payment</option>
-      {% for s in ['paid', 'pending', 'failed'] %}
+      {% for s in ['paid', 'pending', 'failed', 'refunded', 'cancelled'] %}
       <option value="{{ s }}" {% if status == s %}selected{% endif %}>{{ s|capitalize }}</option>
       {% endfor %}
     </select>
@@ -175,7 +175,7 @@
         {% for o in rows %}
         <tr class="{{ o.stock_short|default(0) and o.status == 'paid' ? 'is-short' : '' }}">
           <td>
-            <a class="so-ref" href="/shop/order/{{ o.reference|url_encode }}" target="_blank" rel="noopener noreferrer">{{ o.reference }}</a>
+            <a class="so-ref" href="/admin/shop/orders/{{ o.id }}">{{ o.reference }}</a>
             <div style="color:#67797b;margin-top:4px">{{ o.created_at }}</div>
             {% if o.provider %}<div style="color:#8a9a9c">{{ o.provider }}</div>{% endif %}
           </td>
@@ -230,7 +230,8 @@
               <input type="hidden" name="_token" value="{{ csrf_token }}">
               <input type="hidden" name="id" value="{{ o.id }}">
               <select name="fulfilment" aria-label="Delivery state for {{ o.reference }}">
-                {% for key, label in fulfilments %}
+                {# Not "cancelled": that is an act on the order's own page, which refunds. #}
+                {% for key, label in fulfilments|filter((v, k) => k != 'cancelled') %}
                 <option value="{{ key }}" {% if key == state %}selected{% endif %}>{{ label }}</option>
                 {% endfor %}
               </select>

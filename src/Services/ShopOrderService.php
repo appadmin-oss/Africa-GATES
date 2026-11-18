@@ -132,6 +132,32 @@ final class ShopOrderService
                         'message' => 'The gateway shows a different amount for that payment, '
                                    . 'so nothing has been confirmed. Please contact us.'];
             }
+            // ── PAID FOR AN ORDER STAFF HAD ALREADY CANCELLED ───────────────────
+            //
+            // Cancelling a pending order asks the gateway first (ShopRefunds::cancel), but a
+            // buyer can still finish paying in a wallet app after that. The money is real and
+            // the order is not, so nothing is fulfilled and a person is told — once, by the
+            // writer that claims the alert through the order's history.
+            if ((string) ($order->status ?? '') === 'cancelled') {
+                $log?->warning('[shop] payment arrived for a CANCELLED order', ['ref' => $reference, 'paid' => $paid]);
+                $seen = OptionalColumn::on('gates_orders', 'refund_note')
+                    && str_contains((string) ($order->refund_note ?? ''), '[paid after cancel]');
+                if (!$seen) {
+                    try {
+                        DB::table('gates_orders')->where('id', (int) $order->id)->update(OptionalColumn::filter('gates_orders',
+                            ['refund_note' => mb_substr(trim((string) ($order->refund_note ?? '') . ' [paid after cancel]'), 0, 300)],
+                            ['refund_note']));
+                    } catch (\Throwable) {}
+                    ShopOrderLog::add((int) $order->id, 'payment', '₦' . number_format($paid)
+                        . ' arrived AFTER this order was cancelled. Refund it by hand from the gateway, or reopen the sale with the buyer.');
+                    Notifier::adminAlert(null, 'Payment arrived for a cancelled shop order',
+                        "Order:  {$reference}\nPaid:   ₦" . number_format($paid)
+                        . "\n\nThis order had been cancelled before the payment completed. Nothing has been fulfilled. Refund the buyer from the gateway dashboard.");
+                }
+                return ['ok' => false, 'state' => 'mismatch',
+                        'message' => 'This order was cancelled before your payment arrived. Our team has been told and will refund you.'];
+            }
+
             if ($paid > $owed) {
                 // Money we did not ask for is a conversation somebody has to have, not a
                 // number to absorb silently.
@@ -212,7 +238,7 @@ final class ShopOrderService
         $lines = json_decode((string) $order->items_json, true) ?: [];
 
         // What was actually taken is written back onto the lines, so a later refund returns
-        // THAT and not the quantity ordered. See returnStock(). The draw-down and that record
+        // THAT and not the quantity ordered. See restock(). The draw-down and that record
         // are ONE transaction: stock taken with the lines unrecorded meant a later refund put
         // back the full quantity and created units nobody had (AUDIT-AND-PLAN §2 fault 5).
         $short = [];
@@ -382,19 +408,53 @@ final class ShopOrderService
         $order = DB::table('gates_orders')->where('reference', trim($reference))->first();
         if (!$order || (string) ($order->status ?? '') !== 'paid') return false;
 
-        $lines     = json_decode((string) $order->items_json, true) ?: [];
-        $unshipped = (string) ($order->fulfilment ?? 'unfulfilled') !== 'fulfilled';
+        // Restocked only when the goods have not left. `fulfilled` is the word the first
+        // version of this check used; the console has only ever written shipped, delivered and
+        // (since phase 4) collected, so a chargeback on a DELIVERED parcel used to put the
+        // units back on a shelf they were not on.
+        $unshipped = !self::hasLeft($order);
+        return self::settleInFull((int) $order->id, $why, $unshipped ? null : [], $log);
+    }
+
+    /** Has this order physically left us — shipped, delivered or collected? */
+    public static function hasLeft(object $order): bool
+    {
+        return in_array((string) ($order->fulfilment ?? ''), ['fulfilled', 'shipped', 'delivered', 'collected'], true);
+    }
+
+    /**
+     * The order's money has all gone back. One implementation for a refund settled from the
+     * console ({@see ShopRefunds}), a refund started on the gateway's dashboard, and a
+     * chargeback ({@see reverse()}).
+     *
+     * `$restock`: null puts back everything still out (what was drawn, less what an earlier
+     * partial refund already returned); a map of line index → units puts back exactly that;
+     * [] puts back nothing.
+     *
+     * Idempotent by status: only a `paid` row moves, so a duplicate delivery does the work once.
+     *
+     * @param array<int,int>|null $restock
+     * @return bool whether this call was the one that settled it
+     */
+    public static function settleInFull(int $orderId, string $why, ?array $restock, ?LoggerInterface $log = null): bool
+    {
+        $order = DB::table('gates_orders')->where('id', $orderId)->first();
+        if (!$order || (string) ($order->status ?? '') !== 'paid') return false;
+
         // The status change and the stock coming back are ONE transaction: refunded with the
         // stock never returned, or returned on an order a crash left `paid`, are both a
         // count that no longer matches the shelf (AUDIT-AND-PLAN §2 fault 5).
-        $changed = DB::connection()->transaction(static function () use ($order, $why, $lines, $unshipped): int {
+        $returned = [];
+        $changed = DB::connection()->transaction(static function () use ($order, $why, $restock, &$returned): int {
             $n = DB::table('gates_orders')->where('id', (int) $order->id)->where('status', 'paid')
                 ->update(OptionalColumn::filter('gates_orders', [
                     'status'      => 'refunded',
                     'refunded_at' => Carbon::now()->toDateTimeString(),
                     'refund_note' => mb_substr($why, 0, 300),
                 ], ['refunded_at', 'refund_note']));
-            if ($n > 0 && $unshipped) self::returnStock($lines);
+            if ($n > 0 && $restock !== []) {
+                $returned = self::restock((int) $order->id, $restock, 'refund', 'Refunded: ' . $why);
+            }
             return $n;
         });
         if ($changed === 0) return false;
@@ -415,19 +475,59 @@ final class ShopOrderService
         } catch (\Throwable) {}
 
         $log?->warning('[shop] order reversed', [
-            'ref' => (string) $order->reference, 'why' => $why, 'restocked' => $unshipped,
+            'ref' => (string) $order->reference, 'why' => $why, 'restocked' => $returned !== [],
         ]);
+        ShopOrderLog::add((int) $order->id, 'refund', 'All of the money is back with the buyer (' . $why . ').'
+            . ($returned !== [] ? ' Returned to stock: ' . implode(', ', $returned) . '.' : ' Nothing was returned to stock.'));
 
         Notifier::adminAlert(null, 'Shop order reversed — ' . $why,
             "Order:  {$order->reference}\nBy:     {$order->name} <{$order->email}>\n"
             . 'Amount: ₦' . number_format((int) $order->subtotal_naira) . "\nReason: {$why}\n\n"
-            . ($unshipped
-                ? "Stock has been returned — this order had not been marked fulfilled.\n"
-                : "STOCK WAS NOT RETURNED — this order was already marked fulfilled, so the "
-                  . "goods have left. This is a loss to write off, not a stock correction.\n")
+            . ($returned !== []
+                ? 'Returned to stock: ' . implode(', ', $returned) . "\n"
+                : "STOCK WAS NOT RETURNED — either the goods had already left, or whoever refunded "
+                  . "it chose not to. If they are not on the shelf, this is a loss to write off.\n")
             . 'Points awarded for this order have been taken back where the balance allowed.');
 
         return true;
+    }
+
+    /**
+     * Put units of a paid order back on the shelf, never more than it actually took.
+     *
+     * `$qty` maps a line's index to the units to return; null means "everything still out".
+     * Each line remembers what has already come back (`restocked`), so a partial refund that
+     * returned one shirt and a later chargeback cannot return it twice — the fault that once
+     * minted units nobody had (see drawDownStock()).
+     *
+     * @param array<int,int>|null $qty
+     * @return list<string> what went back, in words
+     */
+    public static function restock(int $orderId, ?array $qty, string $reason = 'refund', string $note = '', ?int $adminId = null): array
+    {
+        $order = DB::table('gates_orders')->where('id', $orderId)->first();
+        if (!$order) return [];
+        $lines = json_decode((string) $order->items_json, true) ?: [];
+        $said  = [];
+
+        foreach ($lines as $i => $l) {
+            $drawn = array_key_exists('drawn', $l) ? (int) $l['drawn'] : (int) ($l['qty'] ?? 0);
+            $out   = max(0, $drawn - (int) ($l['restocked'] ?? 0));
+            $want  = $qty === null ? $out : min($out, max(0, (int) ($qty[$i] ?? 0)));
+            if ($want < 1 || (string) ($l['slug'] ?? '') === '') continue;
+
+            if (ShopStock::move((string) $l['slug'], (int) ($l['variant_id'] ?? 0), $want, $reason,
+                                $note, $orderId, $adminId)) {
+                $lines[$i]['restocked'] = (int) ($l['restocked'] ?? 0) + $want;
+                $said[] = $want . ' × ' . (string) ($l['name'] ?? $l['slug'])
+                        . (($l['variant'] ?? '') !== '' ? ' (' . $l['variant'] . ')' : '');
+            }
+        }
+        if ($said !== []) {
+            DB::table('gates_orders')->where('id', $orderId)
+                ->update(['items_json' => json_encode($lines, JSON_UNESCAPED_UNICODE)]);
+        }
+        return $said;
     }
 
     // ── stock ────────────────────────────────────────────────────────────────
@@ -448,7 +548,7 @@ final class ShopOrderService
      *
      * An oversold line is clamped to zero, so it draws only what was on hand — three of a
      * five-unit order, say. `drawn` is written onto each tracked line (by reference, then
-     * persisted by fulfil()) because returnStock() used to give back the full `qty`: a
+     * persisted by fulfil()) because the old returnStock() gave back the full `qty`: a
      * refunded oversold order then CREATED two units nobody had, and the next buyer paid
      * for a shirt that was never on the shelf. The count is the gap the conditional
      * statements actually closed, not the read before them.
@@ -506,33 +606,6 @@ final class ShopOrderService
         }
 
         return $short;
-    }
-
-    /**
-     * Put the units back. Only ever called for an order that had not shipped.
-     *
-     * Returns `drawn`, what fulfil() actually took, and falls back to `qty` only for an
-     * order fulfilled before `drawn` was recorded — the old behaviour, for the rows that
-     * have no better answer.
-     */
-    private static function returnStock(array $lines): void
-    {
-        foreach ($lines as $l) {
-            $slug = (string) ($l['slug'] ?? '');
-            $qty  = array_key_exists('drawn', $l) ? (int) $l['drawn'] : (int) ($l['qty'] ?? 0);
-            $vid  = (int) ($l['variant_id'] ?? 0);
-            if ($slug === '' || $qty < 1) continue;
-
-            try {
-                if ($vid > 0) {
-                    DB::table('gates_product_variants')->where('id', $vid)
-                        ->whereNotNull('stock')->increment('stock', $qty);
-                    continue;
-                }
-                DB::table('gates_products')->where('slug', $slug)
-                    ->whereNotNull('stock')->increment('stock', $qty);
-            } catch (\Throwable) { /* a stock correction must not throw out of a webhook */ }
-        }
     }
 
     /**
