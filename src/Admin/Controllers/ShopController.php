@@ -6,7 +6,7 @@ namespace AfricaGates\Admin\Controllers;
 use AfricaGates\Support\ColumnRange;
 use AfricaGates\Admin\Services\AuditService;
 use AfricaGates\Services\{OtpService, PaymentService, ShopDiscount, ShopMail, ShopOrderLog, ShopOrderService,
-                            ShopPricing, ShopRefunds, ShopShipping, StockAlert};
+                            ShopPickup, ShopPricing, ShopRefunds, ShopShipping, StockAlert};
 use AfricaGates\Support\{OptionalColumn, PromoCode};
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
@@ -39,6 +39,9 @@ final class ShopController
         'packed'      => 'Packed',
         'shipped'     => 'Shipped',
         'delivered'   => 'Delivered',
+        // A collection order's two states (phase 4, ShopPickup): ready, then handed over.
+        'ready'       => 'Ready to collect',
+        'collected'   => 'Collected',
         'cancelled'   => 'Cancelled',
     ];
 
@@ -205,7 +208,8 @@ final class ShopController
     }
 
     /** The delivery states the list and the bulk bar can move an order to. Not "cancelled". */
-    public const BULK_MOVES = ['packed' => 'Packed', 'shipped' => 'Shipped', 'delivered' => 'Delivered'];
+    public const BULK_MOVES = ['packed' => 'Packed', 'shipped' => 'Shipped', 'delivered' => 'Delivered',
+                               'ready' => 'Ready to collect'];
 
     /**
      * Move an order along, and tell the buyer when it is worth telling them.
@@ -241,6 +245,12 @@ final class ShopController
             return $res->withHeader('Location', '/admin/shop/orders/' . $id)->withStatus(302);
         }
 
+        // "Collected" needs the buyer's code or a reason — a person at a table, on the order's
+        // own page (ShopPickup::collect), never a dropdown.
+        if ($to === 'collected') {
+            $_SESSION['flash_error'] = 'Hand a collection over from the order\'s own page — it asks for the buyer\'s code.';
+            return $res->withHeader('Location', '/admin/shop/orders/' . $id)->withStatus(302);
+        }
         $admin = (int) ($_SESSION['admin_id'] ?? 0);
         $v = $this->applyFulfilment($id, $to, $note, $admin, true);
         if ($v['verdict'] === 'refused') {
@@ -263,6 +273,14 @@ final class ShopController
         $order = DB::table('gates_orders')->where('id', $id)->first();
         if (!$order) return ['verdict' => 'refused', 'ref' => '#' . $id, 'why' => 'That order could not be found.'];
         $ref = (string) $order->reference;
+        if ($to === 'collected') {
+            return ['verdict' => 'refused', 'ref' => $ref, 'why' => $ref . ' — a collection is handed over from its own page, with the code.'];
+        }
+        if ($to === 'ready') {
+            if ((string) ($order->fulfilment ?? '') === 'ready') return ['verdict' => 'unchanged', 'ref' => $ref, 'why' => ''];
+            $r = ShopPickup::markReady($id, $admin, $this->mailer);
+            return ['verdict' => $r['ok'] ? 'applied' : 'refused', 'ref' => $ref, 'why' => $r['message']];
+        }
         if ((string) $order->status !== 'paid') {
             return ['verdict' => 'refused', 'ref' => $ref, 'why' => $ref . ' is ' . (string) $order->status . ', not paid — only a paid order is sent.'];
         }
@@ -497,6 +515,8 @@ final class ShopController
             'has_left'    => ShopOrderService::hasLeft($o),
             'history'     => ShopOrderLog::for((int) $o->id),
             'note_max'    => ShopOrderLog::NOTE_MAX,
+            'pickup'      => ShopPickup::isCollection($o) ? (array) (ShopPickup::point((int) $o->pickup_point_id) ?? []) : null,
+            'override_min'=> ShopPickup::OVERRIDE_MIN,
         ];
     }
 
@@ -560,6 +580,79 @@ final class ShopController
             $_SESSION['flash_error'] = $r['message'];
         }
         return $res->withHeader('Location', '/admin/shop/orders/' . $id)->withStatus(302);
+    }
+
+    // ══ collection ═══════════════════════════════════════════════════════════
+
+    /** Ready to collect: emails the buyer where, when and their code. */
+    public function ready(Request $req, Response $res, array $args): Response
+    {
+        $id = (int) ($args['id'] ?? 0);
+        $r  = ShopPickup::markReady($id, (int) ($_SESSION['admin_id'] ?? 0), $this->mailer);
+        if ($r['ok']) $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'order.ready', 'order', $id);
+        $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = $r['message'];
+        return $res->withHeader('Location', '/admin/shop/orders/' . $id)->withStatus(302);
+    }
+
+    /** Handed over: the buyer's code, or a reason recorded with the staff member's name. */
+    public function collect(Request $req, Response $res, array $args): Response
+    {
+        $id = (int) ($args['id'] ?? 0);
+        $b  = (array) $req->getParsedBody();
+        $admin = (int) ($_SESSION['admin_id'] ?? 0);
+        $r  = ShopPickup::collect($id, (string) ($b['code'] ?? ''), (string) ($b['override'] ?? ''), $admin, $this->mailer);
+        if ($r['ok']) {
+            $this->audit->record($admin, 'order.collect', 'order', $id,
+                ['override' => trim((string) ($b['code'] ?? '')) === '']);
+        }
+        $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = $r['message'];
+        return $res->withHeader('Location', '/admin/shop/orders/' . $id)->withStatus(302);
+    }
+
+    /** The collection points: where buyers can pick an order up instead of having it delivered. */
+    public function pickupPoints(Request $req, Response $res): Response
+    {
+        return $this->view->render($res, 'admin/shop/pickup.twig', [
+            'page_title' => 'Collection points — Admin',
+            'admin_page' => 'shop-pickup',
+            'points'     => ShopPickup::points(),
+            'ready'      => ShopPickup::ready(),
+        ]);
+    }
+
+    public function savePickupPoint(Request $req, Response $res): Response
+    {
+        $b    = (array) $req->getParsedBody();
+        $back = '/admin/shop/pickup';
+        if (!ShopPickup::ready()) {
+            $_SESSION['flash_error'] = 'Collection points need the latest database update — run /__setup/migrate.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+        $name = mb_substr(trim((string) ($b['name'] ?? '')), 0, 120);
+        if ($name === '') {
+            $_SESSION['flash_error'] = 'A collection point needs a name buyers will recognise.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+        $now = Carbon::now()->toDateTimeString();
+        $row = [
+            'name'       => $name,
+            'address'    => mb_substr(trim((string) ($b['address'] ?? '')), 0, 300) ?: null,
+            'hours'      => mb_substr(trim((string) ($b['hours'] ?? '')), 0, 200) ?: null,
+            'is_active'  => !empty($b['is_active']) ? 1 : 0,
+            'sort_order' => ColumnRange::clamp((int) ($b['sort_order'] ?? 0), ColumnRange::INT, 0),
+            'updated_at' => $now,
+        ];
+        $id = (int) ($b['point_id'] ?? 0);
+        if ($id > 0 && DB::table('gates_shop_pickup_points')->where('id', $id)->exists()) {
+            // Never deleted: orders name their point, and an order whose point vanished could not
+            // say where it is waiting. Switch it off instead.
+            DB::table('gates_shop_pickup_points')->where('id', $id)->update($row);
+        } else {
+            $id = (int) DB::table('gates_shop_pickup_points')->insertGetId($row + ['created_at' => $now]);
+        }
+        $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'shop.pickup.save', 'setting', $id);
+        $_SESSION['flash_ok'] = $name . ' saved.';
+        return $res->withHeader('Location', $back)->withStatus(302);
     }
 
     // ══ discount codes ═══════════════════════════════════════════════════════

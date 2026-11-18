@@ -61,6 +61,7 @@
   <a class="ad-btn" href="/admin/products">Catalogue</a>
   <a class="ad-btn" href="/admin/shop/stock">Stock</a>
   <a class="ad-btn" href="/admin/shop/codes">Discount codes</a>
+  <a class="ad-btn" href="/admin/shop/pickup">Collection points</a>
   <a class="ad-btn" href="/admin/shop/shipping">Delivery charges</a>
 {% endblock %}
 
@@ -269,7 +270,7 @@
               <input type="hidden" name="id" value="{{ o.id }}">
               <select name="fulfilment" aria-label="Delivery state for {{ o.reference }}">
                 {# Not "cancelled": that is an act on the order's own page, which refunds. #}
-                {% for key, label in fulfilments|filter((v, k) => k != 'cancelled') %}
+                {% for key, label in fulfilments|filter((v, k) => k not in ['cancelled', 'collected'] and (o.pickup_point_id|default(0) or k != 'ready')) %}
                 <option value="{{ key }}" {% if key == state %}selected{% endif %}>{{ label }}</option>
                 {% endfor %}
               </select>

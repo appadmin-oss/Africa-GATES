@@ -87,6 +87,36 @@
   </div>
 </section>
 
+{% if pickup is not null %}
+<section class="sh-sec" aria-labelledby="soPick">
+  <h2 id="soPick">Collection</h2>
+  <p>
+    To be collected from <strong>{{ pickup.name|default('a collection point that no longer exists') }}</strong>{% if pickup.address|default('') %}, {{ pickup.address }}{% endif %}.
+    {% if o.pickup_code|default('') %}The buyer has a six-digit code; it is not shown here, because it is what proves the person in front of you is them.{% endif %}
+  </p>
+  {% if state == 'collected' %}
+  <p><span class="sh-tag sh-tag--ok">Collected</span> {{ o.collected_at|default('') }}{% if o.collect_override|default('') %} — handed over without the code: {{ o.collect_override }}{% endif %}</p>
+  {% elseif o.status == 'paid' and state != 'cancelled' %}
+    {% if state != 'ready' %}
+    <form method="post" action="/admin/shop/orders/{{ o.id }}/ready" class="sh-row">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <button class="sh-btn" type="submit">Ready to collect — email the buyer</button>
+    </form>
+    {% endif %}
+    <form method="post" action="/admin/shop/orders/{{ o.id }}/collect">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <div class="sh-row">
+        <label class="sh-field">Buyer's code<input name="code" inputmode="numeric" autocomplete="off" maxlength="12" class="sh-num"></label>
+        <label class="sh-field sh-grow">Or, without the code, why you are handing it over (at least {{ override_min }} characters)
+          <input name="override" maxlength="300" placeholder="Saw their ID: Ada Obi, NIN ending 4410">
+        </label>
+      </div>
+      <div class="sh-row"><button class="sh-btn" type="submit">Hand it over</button></div>
+    </form>
+  {% endif %}
+</section>
+{% endif %}
+
 {% if o.status == 'paid' and state != 'cancelled' %}
 <section class="sh-sec" aria-labelledby="soMove">
   <h2 id="soMove">Delivery</h2>
@@ -97,7 +127,7 @@
     <input type="hidden" name="back" value="order">
     <label class="sh-field">State
       <select name="fulfilment">
-        {% for key, label in fulfilments|filter((v, k) => k != 'cancelled') %}
+        {% for key, label in fulfilments|filter((v, k) => k not in ['cancelled', 'collected'] and (pickup is not null or k != 'ready')) %}
         <option value="{{ key }}" {% if key == state %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>

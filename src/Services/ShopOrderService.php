@@ -271,6 +271,9 @@ final class ShopOrderService
             ]);
         }
 
+        // A collection order gets its code now, so the receipt below can quote it (ShopPickup).
+        try { ShopPickup::issueCode($orderId); } catch (\Throwable) {}
+
         // Counted from PAID orders only — an abandoned checkout is not a sale and must not
         // move a product up the page.
         try { ShopCatalogue::countSales($lines); } catch (\Throwable) {}
@@ -338,6 +341,14 @@ final class ShopOrderService
             $lines
         ));
         $total = '₦' . number_format((int) $order->subtotal_naira);
+        // A collection order: where, and the code the buyer will be asked for.
+        $collect = '';
+        if ((int) ($order->pickup_point_id ?? 0) > 0) {
+            $pp = ShopPickup::point((int) $order->pickup_point_id);
+            $collect = '<p>You chose to collect this order' . ($pp ? ' from <strong>' . htmlspecialchars((string) $pp->name) . '</strong>' : '')
+                . '. We will email you when it is ready. Your collection code is <strong style="font-family:monospace">'
+                . htmlspecialchars((string) ($order->pickup_code ?? '')) . '</strong> — keep it; you will be asked for it.</p>';
+        }
         $base  = rtrim(\AfricaGates\Support\SiteUrl::base(), '/');
         $short = (int) ($order->stock_short ?? 0) === 1;
 
@@ -350,6 +361,7 @@ final class ShopOrderService
                     . ' — your order is confirmed and being prepared.</p>'
                     . '<p style="font-family:monospace">Order '
                     . htmlspecialchars((string) $order->reference) . '</p>'
+                    . $collect
                     . "<p>Total paid: <strong>{$total}</strong>. Every purchase funds child "
                     . 'leadership programmes — thank you.</p>'
                     // The order's own page, reachable with the reference alone. Without it a

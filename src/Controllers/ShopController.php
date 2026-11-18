@@ -69,6 +69,7 @@ class ShopController
         'email'       => ['err',  'Enter an email address we can send your receipt to.'],
         'details'     => ['err',  'Add your name and a delivery address so the courier can find you.'],
         'error'       => ['err',  'We could not save your order. Nothing was charged — please try again.'],
+        'pickup'      => ['err',  'That collection point is not taking orders right now. Choose another, or delivery. Nothing was charged.'],
         'codegone'    => ['err',  'That discount code ran out before your order went through. Nothing was charged.'],
         'start'       => ['err',  'We could not start the payment. Nothing was charged — please try again.'],
         'failed'      => ['err',  'That payment did not complete, so nothing was charged.'],

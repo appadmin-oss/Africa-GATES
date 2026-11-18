@@ -991,3 +991,23 @@ any change: `./vendor/bin/phpunit --no-coverage` → 8214 tests, 8 failures, all
   carry the order details in their own text so they stand without it.
 - Tests: `tests/Unit/ShopOrdersDeskTest.php` (8). `AdminNavTest::BEFORE` records the two new
   pages with the shop's existing `content` gate.
+
+### Phase 4 — collection points and the pickup code
+
+- `gates_shop_pickup_points` (name, address, hours, on/off, order) and on `gates_orders`:
+  `pickup_point_id`, `pickup_code` (TEXT so a leading zero survives), `collected_at`,
+  `collected_by`, `collect_override`. Migration `2027_06_05_shop_pickup.php`. Fulfilment gains
+  `ready` (Ready to collect) and `collected`.
+- `Services\ShopPickup`: the code is six digits from `random_int()`, issued once when the order is
+  paid (in `ShopOrderService::fulfil()`), quoted in the receipt and the "ready" email, and never
+  shown on the staff order page or the packing slip — it is what proves the person collecting is
+  the buyer. "Collected" needs the code typed back (spaces/dashes ignored, `hash_equals`) or a
+  reason of at least 8 characters, recorded with the staff member's name. Refused for unpaid or
+  cancelled orders; cannot be set from the list or bulk (only "Ready to collect" can).
+- Checkout: `pickup=<id>` on `/shop/quote` and `/shop/checkout` prices with no delivery charge,
+  makes the address optional and skips delivery-region restrictions; an unknown or switched-off
+  point is refused (`?checkout=pickup`), never turned into a delivery. `/shop/quote` lists the
+  active points. The public checkout page is one of the destroyed templates, so the choice is
+  documented for its rebuild in `docs/handoff/inventory/pages--shop--index.md`.
+- Screens: `/admin/shop/pickup` (add / edit / switch off — never delete; orders name their point),
+  and a Collection panel on the order page. Tests: `tests/Unit/ShopPickupTest.php` (10).

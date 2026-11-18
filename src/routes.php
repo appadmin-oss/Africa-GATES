@@ -4450,6 +4450,11 @@ return function(App $app) {
         $a->post('/shop/orders/bulk',               AdminShopController::class.':bulk');
         $a->get('/shop/orders/print',               AdminShopController::class.':printable');
         $a->post('/shop/orders/{id:[0-9]+}/note',   AdminShopController::class.':note');
+        // Collection points and the pickup flow (phase 4).
+        $a->post('/shop/orders/{id:[0-9]+}/ready',  AdminShopController::class.':ready');
+        $a->post('/shop/orders/{id:[0-9]+}/collect',AdminShopController::class.':collect');
+        $a->get('/shop/pickup',                     AdminShopController::class.':pickupPoints');
+        $a->post('/shop/pickup',                    AdminShopController::class.':savePickupPoint');
         // Stock: running low, the stock-take, adjustments, and each product's ledger (phase 2).
         $a->get('/shop/stock',          \AfricaGates\Admin\Controllers\ShopStockController::class.':index');
         $a->post('/shop/stock/count',   \AfricaGates\Admin\Controllers\ShopStockController::class.':count');
