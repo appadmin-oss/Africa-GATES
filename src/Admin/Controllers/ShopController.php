@@ -517,6 +517,7 @@ final class ShopController
             'note_max'    => ShopOrderLog::NOTE_MAX,
             'pickup'      => ShopPickup::isCollection($o) ? (array) (ShopPickup::point((int) $o->pickup_point_id) ?? []) : null,
             'override_min'=> ShopPickup::OVERRIDE_MIN,
+            'can_money'   => \AfricaGates\Admin\Support\ShopMoney::current(),
         ];
     }
 
@@ -532,6 +533,10 @@ final class ShopController
         $id   = (int) ($args['id'] ?? 0);
         $b    = (array) $req->getParsedBody();
         $back = '/admin/shop/orders/' . $id;
+        if (!\AfricaGates\Admin\Support\ShopMoney::current()) {
+            $_SESSION['flash_error'] = \AfricaGates\Admin\Support\ShopMoney::REFUSAL;
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
         $raw  = trim((string) ($b['amount'] ?? ''));
         $amount = $raw === '' ? null : (int) preg_replace('/[^0-9]/', '', $raw);
         $restock = [];
@@ -567,6 +572,12 @@ final class ShopController
         $b      = (array) $req->getParsedBody();
         $admin  = (int) ($_SESSION['admin_id'] ?? 0);
         $reason = mb_substr(trim((string) (($b['reason'] ?? '') ?: ($b['_reason'] ?? ''))), 0, 300);
+        // Cancelling a PAID order refunds it, so it is shop money. A pending one moves none.
+        if ((string) (DB::table('gates_orders')->where('id', $id)->value('status') ?? '') === 'paid'
+            && !\AfricaGates\Admin\Support\ShopMoney::current()) {
+            $_SESSION['flash_error'] = \AfricaGates\Admin\Support\ShopMoney::REFUSAL;
+            return $res->withHeader('Location', '/admin/shop/orders/' . $id)->withStatus(302);
+        }
 
         $r = $this->payments === null
             ? ['ok' => false, 'message' => 'The payment gateway is not available here.']

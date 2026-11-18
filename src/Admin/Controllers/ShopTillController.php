@@ -45,11 +45,16 @@ final class ShopTillController
             'methods'    => ShopPos::METHODS,
             'rows'       => self::ROWS,
             'recent'     => $recent,
+            'can_money'  => \AfricaGates\Admin\Support\ShopMoney::current(),
         ]);
     }
 
     public function open(Request $req, Response $res): Response
     {
+        if (!\AfricaGates\Admin\Support\ShopMoney::current()) {
+            $_SESSION['flash_error'] = \AfricaGates\Admin\Support\ShopMoney::REFUSAL;
+            return $res->withHeader('Location', '/admin/shop/till')->withStatus(302);
+        }
         $b = (array) $req->getParsedBody();
         $admin = (int) ($_SESSION['admin_id'] ?? 0);
         $r = ShopPos::open((string) ($b['label'] ?? ''), (int) preg_replace('/\D/', '', (string) ($b['float'] ?? '0')), $admin);
@@ -60,6 +65,10 @@ final class ShopTillController
 
     public function sale(Request $req, Response $res): Response
     {
+        if (!\AfricaGates\Admin\Support\ShopMoney::current()) {
+            $_SESSION['flash_error'] = \AfricaGates\Admin\Support\ShopMoney::REFUSAL;
+            return $res->withHeader('Location', '/admin/shop/till')->withStatus(302);
+        }
         $b = (array) $req->getParsedBody();
         $basket = [];
         foreach ((array) ($b['item'] ?? []) as $i => $key) {
@@ -79,6 +88,10 @@ final class ShopTillController
 
     public function close(Request $req, Response $res): Response
     {
+        if (!\AfricaGates\Admin\Support\ShopMoney::current()) {
+            $_SESSION['flash_error'] = \AfricaGates\Admin\Support\ShopMoney::REFUSAL;
+            return $res->withHeader('Location', '/admin/shop/till')->withStatus(302);
+        }
         $b = (array) $req->getParsedBody();
         $sid = (int) ($b['session_id'] ?? 0);
         $admin = (int) ($_SESSION['admin_id'] ?? 0);

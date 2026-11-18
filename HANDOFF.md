@@ -1051,3 +1051,39 @@ any change: `./vendor/bin/phpunit --no-coverage` → 8214 tests, 8 failures, all
   phase; the owner's rule for buyer copy — "payment processing fee charged by our payment
   provider", never the provider's name — applies to anything that later shows a buyer the fee.
 - Tests: `tests/Unit/ShopReportsTest.php` (6).
+
+### Phase 7 — catalogue search, archive, duplicate; a separate shop-money permission
+
+- Products list: search by name or slug (through `Support\Like`), filter on sale / hidden /
+  low or out / archived and by category; unknown filter values fall back. A product that has been
+  ordered is **archived, never deleted** (delete refuses and names archive); archive takes it off
+  the shop and out of the stock lists, restore brings it back hidden. Duplicate copies the
+  product, its active options and its gallery — hidden, uncounted (stock NULL), sales count reset.
+- **Shop money** (`Admin\Support\ShopMoney`, `gates_admins.shop_money`, migration
+  `2027_06_08_shop_money_archive.php`): refunds, cancelling a PAID order, and the till (open,
+  sale, close) need it in addition to the shop's `content` section. DECISIONS: (1) nobody lost
+  access — the migration grants it to every existing `superadmin`, `admin` and `editor` account,
+  which are exactly the roles that could write and open the shop before (a test reads the
+  migration's list and compares it with `Permissions`); the grant runs only when the column is
+  added, so a re-run never re-grants a flag a superadmin removed. (2) A superadmin always holds
+  it, so nobody can be left unable to refund. (3) Accounts created from now on start WITHOUT it;
+  a superadmin ticks "May move shop money" under Admins (that screen is superadmin-only). (4)
+  Before the migration runs the old rule stands, so deploying code ahead of the migration takes
+  nothing from anybody. Reports and the CSV stay readable to anyone who opens the shop.
+- Handbook §7 gains "Running the shop", its figures read from the code
+  (`HandbookController::shopFacts()`).
+- Tests: `tests/Unit/ShopMoneyAndCatalogueTest.php` (6).
+
+### Where this leaves things
+
+- Full suite after phase 7: `rm -f var/data/.gates-maintenance.lock var/data/.maintenance_tick &&
+  ./vendor/bin/phpunit --no-coverage` → 8274 tests, 8 failures — the same 8 `PasskeyTest`
+  failures as the baseline (PHP 8.3 container). 60 new tests across seven files.
+- No MySQL parity run was possible here. Every new column is VARCHAR/INT (no ENUM), dates are
+  plain `Y-m-d H:i:s`, indexes go through `SchemaIndex`, and new money columns that can be
+  negative are signed — but run `scripts/mysql-parity.sh` before deploying.
+- No public JavaScript was changed, so no minified twins needed rebuilding.
+- Owed by the public rebuild: the buyer's order page (`pages/shop/order.twig`, destroyed) and the
+  delivery-or-collect choice at checkout (documented in the inventory). Any buyer-facing copy
+  about the fee must say "payment processing fee charged by our payment provider" and must not
+  name the provider (owner, 18 Nov 2026).

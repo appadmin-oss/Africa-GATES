@@ -313,6 +313,34 @@
     the evening without anybody realising why it was slow. There is a manual code entry on
     the same screen; know where it is before the queue arrives.</div>
 
+  <h3 id="hb-shop">Running the shop</h3>
+  <p><a href="/admin/shop/today">Shop today</a> is the place to start: orders to prepare,
+    orders out but not yet received, what is low or out of stock, and sales net of refunds and
+    gateway fees.</p>
+  <ul>
+    <li><strong>Refunds</strong> are made from an order's own page, all or part, through the
+      gateway or recorded as returned another way. A gateway refund is marked refunded only when
+      the gateway confirms it; until then it shows as waiting and still counts, so the refunds on
+      an order can never add up to more than it was charged. Units come back to stock only when
+      the money does, and only the ones you entered.</li>
+    <li><strong>Cancelling</strong> a paid order refunds it. Cancelling an unpaid one asks the
+      gateway first and hands back any discount code's use.</li>
+    <li><strong>Refunds, cancelling a paid order and the till need the shop-money
+      permission</strong>, granted per person under Admins. A superadmin always has it.</li>
+    <li><strong>Stock</strong>: every change is recorded with a reason
+      ({% for k, r in shop.reasons %}{{ r|lower }}{{ loop.last ? '' : ', ' }}{% endfor %}) and who did it.
+      An option is "low" at its own level, or at {{ shop.low_default }} when it has none. One
+      summary email goes out a day, after {{ shop.digest_hour }}:00, only when something is low.</li>
+    <li><strong>Bulk</strong>: at most {{ shop.bulk_max }} orders at a time; the pick list and
+      packing slips print from the same selection.</li>
+    <li><strong>Collection</strong>: the buyer gets a {{ shop.code_len }}-digit code; hand the
+      order over against it, or record a reason of at least {{ shop.override_min }} characters.</li>
+    <li><strong>The till</strong> takes {% for k, m in shop.methods %}{{ m|lower }}{{ loop.last ? '' : ', ' }}{% endfor %}.
+      Cash goes into a named cash session, which you close by counting the drawer. A sale is never
+      refused for stock; the screen tells you which counts went below zero.</li>
+    <li><strong>Reports</strong> cover up to {{ shop.report_days }} days at a time, with CSV.</li>
+  </ul>
+
   {# ══ 8 ═══════════════════════════════════════════════════════════════════ #}
   <h2 id="hb-verify">8 · Verification</h2>
   <p>Three different things get verified, and they are unrelated:</p>

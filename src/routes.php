@@ -4438,6 +4438,9 @@ return function(App $app) {
         $a->get('/products/{id:[0-9]+}',         AdminProductsController::class.':form');
         $a->post('/products/{id:[0-9]+}',        AdminProductsController::class.':save');
         $a->post('/products/{id:[0-9]+}/delete', AdminProductsController::class.':delete');
+        // Archive (a product that has been ordered is never deleted) and duplicate (phase 7).
+        $a->post('/products/{id:[0-9]+}/archive',   AdminProductsController::class.':archive');
+        $a->post('/products/{id:[0-9]+}/duplicate', AdminProductsController::class.':duplicate');
         // Running the shop, as distinct from editing the catalogue: orders that get shipped,
         // discount codes, and what delivery costs per region.
         $a->get('/shop/orders',        AdminShopController::class.':orders');

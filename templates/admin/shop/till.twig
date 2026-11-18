@@ -23,6 +23,11 @@
   <h2>One step outstanding on the server</h2>
   <p>The till needs the latest database update. Run <strong>/__setup/migrate</strong>.</p>
 </section>
+{% elseif not can_money %}
+<section class="sh-sec">
+  <h2>The till needs the shop-money permission</h2>
+  <p>Taking money in person and counting the cash drawer need the shop-money permission on your account. A superadmin can grant it under Admins.</p>
+</section>
 {% else %}
 
 <div class="sh-grid">

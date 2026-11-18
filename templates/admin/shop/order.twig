@@ -145,7 +145,14 @@
 </section>
 {% endif %}
 
-{% if refunds_ready and o.status == 'paid' and refundable > 0 %}
+{% if refunds_ready and o.status == 'paid' and refundable > 0 and not can_money %}
+<section class="sh-sec">
+  <h2>Refund</h2>
+  <p>Refunding and cancelling a paid order need the shop-money permission on your account. A superadmin can grant it under Admins.</p>
+</section>
+{% endif %}
+
+{% if refunds_ready and o.status == 'paid' and refundable > 0 and can_money %}
 <section class="sh-sec" aria-labelledby="soRefund">
   <h2 id="soRefund">Refund</h2>
   <p>
@@ -216,7 +223,7 @@
 </section>
 {% endif %}
 
-{% if o.status in ['pending', 'failed', 'paid'] and state != 'cancelled' %}
+{% if o.status in ['pending', 'failed', 'paid'] and state != 'cancelled' and (o.status != 'paid' or can_money) %}
 <section class="sh-sec sh-sec--danger" aria-labelledby="soCancel">
   <h2 id="soCancel">Cancel this order</h2>
   {% if o.status == 'paid' %}

@@ -78,6 +78,11 @@ class AdminsController
         }
 
         $data = ['email' => $email, 'name' => $name, 'role' => $role, 'is_active' => $active, 'updated_at' => Carbon::now()->toDateTimeString()];
+        // The shop-money permission (Admin\Support\ShopMoney): refunds, cancelling a paid
+        // order, the till. Per person, granted here by a superadmin; a superadmin holds it anyway.
+        if (\AfricaGates\Support\SchemaHas::column('gates_admins', 'shop_money')) {
+            $data['shop_money'] = !empty($b['shop_money']) ? 1 : 0;
+        }
         if ($id) {
             DB::table('gates_admins')->where('id', $id)->update($data);
             $this->audit->record((int)$_SESSION['admin_id'], 'admin.update', 'admin', $id);
