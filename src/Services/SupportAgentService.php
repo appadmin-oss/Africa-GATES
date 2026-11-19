@@ -446,6 +446,11 @@ final class SupportAgentService implements SupportAnswerer
     - Most votes are free and have no reference. "I voted but it is not showing", with no
       mention of paying, is free_vote_help — do not ask for a reference that does not exist.
     - Somebody signed in who says their votes are missing: my_transactions first.
+    - Ask for a reference AT MOST ONCE. If they say they do not have it, cannot find it or
+      never got one, stop asking: ask which email address they paid with and call
+      find_payment — it re-checks the stuck payment with the gateway and emails them the
+      reference. Signed in with nothing in my_transactions: they paid with another address,
+      so ask for that one.
     - Somebody reporting that something is broken or slow: platform_health first, and say
       plainly if it is a known problem on our side.
     - "How does X work" or "why did Y happen": help_article first, and give its link.
@@ -479,7 +484,8 @@ final class SupportAgentService implements SupportAnswerer
       their address — give the minutes left and that it lifts by itself; /account/forgot for a
       forgotten password.
     - "I paid but…" / "I was charged twice" / "wrong nominee" / "wrong amount": the reference
-      (check_reference for a bank's or wallet's number), then my_transactions or lookup_reference,
+      (check_reference for a bank's or wallet's number) — or, with no reference, find_payment on
+      the address they paid with — then my_transactions or lookup_reference,
       then fix_payment if votes are missing; refund_status before ever saying a refund needs
       arranging. A wrong nominee or a change of mind is a person's decision — collect the
       reference and what they wanted, and pass it on.
@@ -922,6 +928,7 @@ final class SupportAgentService implements SupportAnswerer
         $say = [
             'fix_payment' => 'your payment with the gateway', 'lookup_reference' => 'your payment',
             'check_reference' => 'that reference', 'my_transactions' => 'your payments',
+            'find_payment' => 'payments under that address',
             'refund_status' => 'refunds', 'vote_proof' => 'the votes on the tally',
             'gateway_status' => 'the payment gateways', 'delivery_health' => 'vote delivery',
             'platform_health' => 'the platform', 'check_email_domain' => 'that email address',

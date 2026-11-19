@@ -773,18 +773,31 @@ final class MergeSuggestionService
      */
     public static function findLiveMatch(int $categoryId, string $name): int
     {
+        return self::liveMatches($categoryId, $name)[0] ?? 0;
+    }
+
+    /**
+     * Every live nominee in the category with exactly this normalised name, oldest
+     * first. More than one means the category already holds two people of that name,
+     * and a caller attaching by name must not pick between them silently.
+     *
+     * @return list<int>
+     */
+    public static function liveMatches(int $categoryId, string $name): array
+    {
         $target = self::norm($name);
-        if ($target === '') return 0;
+        if ($target === '') return [];
+        $out = [];
         try {
             $q = DB::table('gates_nominees')
                 ->where('category_id', $categoryId)
                 ->whereIn('status', ['pending', 'approved', 'winner', 'runner_up']);
             MergeService::notMerged($q);
             foreach ($q->orderBy('id')->limit(self::SCAN_CAP)->get(['id', 'name']) as $row) {
-                if (self::norm((string) $row->name) === $target) return (int) $row->id;
+                if (self::norm((string) $row->name) === $target) $out[] = (int) $row->id;
             }
         } catch (\Throwable) {}
-        return 0;
+        return $out;
     }
 
     /**

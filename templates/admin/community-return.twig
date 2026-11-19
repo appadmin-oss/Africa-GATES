@@ -36,6 +36,7 @@
       <div class="ad-stat__lbl">Model</div>
       <div class="ad-stat__num">{{ model_names[p.model]|default(p.model) }}</div>
       <div class="ad-stat__hint">{{ p.summary }}</div>
+      {% if model_from in ['default', 'global'] %}<div class="ad-stat__hint"><strong>No rule saved for this edition</strong> — it runs the house default. Save this edition’s rules below to choose one.</div>{% endif %}
     </div>
     {% if p.uses_milestone %}
     <div class="ad-stat {{ p.reached ? 'ad-stat--accent' : '' }}">
@@ -109,9 +110,14 @@
       <div class="ad-form__row">
         <div>
           <label for="crModel">Model</label>
-          <select id="crModel" name="model">
+          {# An edition with no rule of its own used to show Threshold selected, so pressing Save
+             unchanged CHOSE Threshold without anybody choosing it (4 Nov 2026). Unsaved, the picker
+             now starts blank and must be answered; the server refuses a blank too. #}
+          {% set _unchosen = model_from in ['default', 'global'] %}
+          <select id="crModel" name="model" required>
+            {% if _unchosen %}<option value="" selected disabled>Choose the rule this edition runs</option>{% endif %}
             {% for key, label in model_choices %}
-              <option value="{{ key }}" {% if p.model == key %}selected{% endif %}>{{ label }}</option>
+              <option value="{{ key }}" {% if not _unchosen and p.model == key %}selected{% endif %}>{{ label }}</option>
             {% endfor %}
           </select>
         </div>
@@ -144,9 +150,9 @@
           <p class="hint">Held locked in the nominee’s wallet until the milestone is confirmed.</p>
         </div>
         <div>
-          <label for="crFull">Full share (%) — threshold, two-stage and flat</label>
+          <label for="crFull">Full share (%) — target pool, threshold, two-stage and flat</label>
           <input id="crFull" type="number" name="full_pct" min="0" max="100" step="0.5" value="{{ p.rules.community_return_bps / 100 }}">
-          <p class="hint">After the milestone (two-stage), or once a nominee qualifies (threshold).</p>
+          <p class="hint">What goes into the pool (target pool), after the milestone (two-stage), or once a nominee qualifies (threshold).</p>
         </div>
       </div>
       <div class="ad-form__actions"><button class="ad-btn ad-btn--primary" type="submit">Save this edition’s rules</button></div>

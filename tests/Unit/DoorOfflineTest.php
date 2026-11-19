@@ -141,6 +141,58 @@ final class DoorOfflineTest extends TestCase
         $this->assertSame(1, EventArrivals::inTheRoom($this->eventId));
     }
 
+    /**
+     * The same, on a ticket for a party. A single seat hides the fault — the second admission
+     * is refused as "already in" — so the replay case has to leave seats on the ticket: two
+     * of four scanned, the flush resent after its answer was lost, and two must stay two.
+     */
+    public function test_a_resent_flush_does_not_admit_more_of_a_party(): void
+    {
+        $this->ticket('OFF-0014', 4);
+        $scan = [['id' => 'party-1', 'code' => 'OFF-0014', 'at' => '', 'seats' => 2]];
+
+        [$first]  = $this->sync($scan);
+        [$second] = $this->sync($scan);
+
+        $this->assertSame('admit', $first['results'][0]['verdict']);
+        $this->assertSame('duplicate', $second['results'][0]['verdict']);
+        $this->assertSame('party-1', $second['results'][0]['id'], 'the gate needs the id back to retire the item');
+        $this->assertSame(2, (int) DB::table('gates_event_registrations')->where('ticket_code', 'OFF-0014')->value('checked_in_seats'),
+            'a resent flush admitted the same two people again');
+
+        // A NEW scan of the same ticket (a different id) is a real arrival and still counts.
+        [$third] = $this->sync([['id' => 'party-2', 'code' => 'OFF-0014', 'at' => '', 'seats' => 2]]);
+        $this->assertSame('admit', $third['results'][0]['verdict']);
+        $this->assertSame(4, (int) DB::table('gates_event_registrations')->where('ticket_code', 'OFF-0014')->value('checked_in_seats'));
+    }
+
+    /**
+     * A gate offline when its link closed. Every flush after the close was a 403 and the phone
+     * kept its queue for good, so the last stretch's arrivals were never recorded
+     * (AUDIT-AND-PLAN EV-16). Scans taken while the link was open still land; one stamped
+     * after the close is refused on its own.
+     */
+    public function test_scans_taken_before_the_link_closed_still_land_after_it(): void
+    {
+        $this->ticket('OFF-0021');
+        $this->ticket('OFF-0022');
+        $closed = Carbon::now()->subMinutes(30);
+        DB::table('gates_event_scan_passes')->update(['closes_at' => $closed->toDateTimeString()]);
+
+        [$d, $status] = $this->sync([
+            ['id' => 'before', 'code' => 'OFF-0021', 'at' => $closed->copy()->subMinutes(10)->toDateTimeString()],
+            ['id' => 'after', 'code' => 'OFF-0022', 'at' => Carbon::now()->subMinutes(5)->toDateTimeString()],
+        ]);
+        $this->assertSame(200, $status, 'a closed link refused the scans it took while open');
+        $this->assertSame('admit', $d['results'][0]['verdict']);
+        $this->assertSame('refuse', $d['results'][1]['verdict'], 'a scan after the close is not admitted');
+        $this->assertSame(1, EventArrivals::inTheRoom($this->eventId));
+
+        DB::table('gates_event_scan_passes')->update(['closes_at' => Carbon::now()->subHours(13)->toDateTimeString()]);
+        [, $status] = $this->sync([['id' => 'late', 'code' => 'OFF-0022', 'at' => '']]);
+        $this->assertSame(403, $status, 'the grace ends');
+    }
+
     /** The server still applies every check it always had — offline is not a bypass. */
     public function test_an_unpaid_booking_is_still_refused_on_the_flush(): void
     {

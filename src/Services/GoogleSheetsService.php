@@ -91,5 +91,10 @@ class GoogleSheetsService
     public function pushNomination(array $data): void   { $this->push('nominations',   $data); }
     public function pushRegistration(array $data): void { $this->push('registrations', $data); }
     public function pushPartnerEnquiry(array $data): void { $this->push('partners',     $data); }
-    public function pushVote(array $data): void         { $this->push('votes',         $data); }
+    public function pushVote(array $data): void
+    {
+        if (!$this->push('votes', $data)) {
+            throw new \RuntimeException('Google Sheets did not accept the vote; delivery will be retried.');
+        }
+    }
 }

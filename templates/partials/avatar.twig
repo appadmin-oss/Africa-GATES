@@ -30,8 +30,10 @@
 <span class="ag-avatar ag-avatar--{{ _m.tone }} ag-avatar--s{{ _m.size }}{{ _m.kind != 'person' ? ' ag-avatar--org' }}{{ _m.one ? ' ag-avatar--one' }}{{ fill|default(false) ? ' ag-avatar--fill' }}"
   {%- if named|default(false) %} aria-hidden="true"{% else %} role="img" aria-label="{{ _m.label }}"{% endif %}>
   <span class="ag-avatar__face">
+    {% if src|default('') %}<img class="ag-member-photo" src="{{ src|media_url('avatar') }}" alt="" width="{{ _m.size }}" height="{{ _m.size }}">{% else %}
     {%- if _m.size >= 40 %}<span class="ag-avatar__arcs" aria-hidden="true"></span>{% endif -%}
     <span class="ag-avatar__in" aria-hidden="true">{{ _m.initials }}</span>
+    {% endif %}
   </span>
   {%- if _m.badge %}
   {%- set _v = verified|default(false) and _m.kind == 'person' %}

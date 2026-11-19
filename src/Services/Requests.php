@@ -120,6 +120,9 @@ final class Requests
         if (!$allowed) return ['ok' => false, 'error' => 'This request is not yours to ' . ($who === 'decider' ? 'decide.' : 'change.')];
         if (!in_array($r->status, $from, true)) return ['ok' => false, 'error' => 'This request has already been decided.'];
         $note = trim($note);
+        // An approval that has to DO something is checked before it is recorded, so a request
+        // never reads "Approved" over an effect that could not happen (AUDIT-AND-PLAN VO-6).
+        if ($action === 'approve' && ($why = self::effectBlocker($r)) !== null) return ['ok' => false, 'error' => $why];
         if ($needsNote && $note === '') {
             return ['ok' => false, 'error' => match ($action) {
                 'decline' => 'Say why, so they can fix it and ask again.',
@@ -134,7 +137,57 @@ final class Requests
         ]);
         if ($n === 0) return ['ok' => false, 'error' => 'Somebody else answered this a moment ago.'];
         self::log($id, $actorKind, $actorId, $actorName, $action, $note !== '' ? mb_substr($note, 0, 2000) : null);
+        if ($action === 'approve') self::applyEffect($r, $actorKind, $actorId, $actorName);
         return ['ok' => true, 'status' => $to];
+    }
+
+    /**
+     * What approving a volunteer's request DOES. Approved requests used to change nothing: an
+     * hours correction wrote no hours, so "Approved" sat over a record that never moved
+     * (AUDIT-AND-PLAN VO-6).
+     *
+     *   · hours — the approved hours are written to the volunteer's record, verified, with the
+     *     decider as the one who confirmed them (Hours::confirm's rule holds: never their own).
+     *   · role — a role is a grant at a place, which a sentence cannot name, so the approval
+     *     adds the next step to the request's history for the person who gives it.
+     *   · off, travel — nothing in the platform holds them (shifts are gone; travel money is
+     *     paid outside it); the approval is the answer, and the history says so.
+     */
+    private static function applyEffect(object $r, string $actorKind, int $actorId, string $actorName): void
+    {
+        try {
+            if ($r->type === 'hours' && $r->from_kind === 'member') {
+                $vid = (int) DB::table('gates_volunteers')->where('user_id', (int) $r->from_id)->value('id');
+                $h = self::hoursAsked($r);
+                if ($vid > 0 && $h !== null) {
+                    DB::table('gates_vol_hours')->insert(['volunteer_id' => $vid, 'source' => 'manual', 'ref_kind' => 'request', 'ref_id' => (int) $r->id,
+                        'worked_on' => date('Y-m-d', (int) strtotime((string) $r->created_at)), 'what' => mb_substr('Correction: ' . (string) $r->title, 0, 255),
+                        'hours' => $h, 'status' => 'verified', 'confirmed_kind' => $actorKind, 'confirmed_id' => $actorId,
+                        'confirmed_name' => mb_substr($actorName, 0, 190), 'confirmed_at' => date('Y-m-d H:i:s'), 'created_at' => date('Y-m-d H:i:s')]);
+                    self::log((int) $r->id, $actorKind, $actorId, $actorName, 'note', 'Added ' . $h . ' hours to the record.');
+                }
+            } elseif ($r->type === 'role') {
+                self::log((int) $r->id, $actorKind, $actorId, $actorName, 'note', 'Next: give the role on the volunteer roster, with the place and the day it ends.');
+            }
+        } catch (\Throwable $e) {
+            error_log('[requests] approval effect failed for #' . (int) $r->id . ': ' . $e->getMessage());
+        }
+    }
+
+    /** Why this request cannot be approved as asked, or null. */
+    private static function effectBlocker(object $r): ?string
+    {
+        if ($r->type === 'hours' && self::hoursAsked($r) === null) return 'This asks for no number of hours between a quarter and 24. Ask them for the figure first.';
+        return null;
+    }
+
+    private static function hoursAsked(object $r): ?float
+    {
+        $t = trim((string) ($r->amount_text ?? ''));
+        if ($t === '' && $r->amount_minor !== null) $t = (string) ((int) $r->amount_minor / 100);
+        if (!preg_match('/(\d+(?:\.\d+)?)/', $t, $m)) return null;
+        $h = round((float) $m[1] * 4) / 4;
+        return $h > 0 && $h <= 24 ? $h : null;
     }
 
     /** Take back the last decision, within UNDO_SECONDS, by the person who made it. */
@@ -229,6 +282,14 @@ final class Requests
     /** May this person decide this request? */
     public static function canDecide(object $r, string $actorKind, int $actorId, ?string $adminRole = null): bool
     {
+        // An event's spend sent to its finance admin was decidable by that person for ever:
+        // the decider is fixed when the request is made and nothing re-checked the grant or
+        // the finance limit (AUDIT-AND-PLAN EV-4). Both are asked now, at decision time; when
+        // either fails, the request falls to the platform's finance team.
+        if (self::eventFinanceLapsed($r)) {
+            return $actorKind === 'admin' && $adminRole !== null
+                && in_array($adminRole, Permissions::MATRIX['finance'] ?? ['superadmin'], true);
+        }
         if ($r->decider_kind === 'member' || $r->decider_kind === 'admin') {
             return $r->decider_kind === $actorKind && (int) $r->decider_id === $actorId;
         }
@@ -238,6 +299,16 @@ final class Requests
             return in_array($adminRole, $roles, true);
         }
         return false;
+    }
+
+    /** A spend at an event, named to a member whose finance role has ended or whose limit it is over. */
+    private static function eventFinanceLapsed(object $r): bool
+    {
+        if ((string) ($r->type ?? '') !== 'spend' || (string) ($r->scope_kind ?? '') !== 'event' || (string) $r->decider_kind !== 'member') return false;
+        $event = (int) ($r->scope_id ?? 0);
+        if ($event < 1) return false;
+        if (!Grants::allows('member', (int) $r->decider_id, 'event.finance', 'event', $event)) return true;
+        return (int) ($r->amount_minor ?? 0) > \AfricaGates\Services\EventPlan\EventPermissions::financeCeiling();
     }
 
     /**
@@ -259,6 +330,16 @@ final class Requests
                 }
             }
             return ['kind' => 'role', 'id' => null, 'role' => 'admin', 'label' => 'the volunteer team'];
+        }
+        // Money about an event goes to that event's finance admin when it has one (Grants
+        // 'event.finance'), never the person asking; otherwise the platform's finance team.
+        if ($route === 'finance' && $scopeKind === 'event' && $scopeId) {
+            foreach (Grants::holders('event.finance', 'event', $scopeId) as $g) {
+                if ($g->actor_kind === $fromKind && (int) $g->actor_id === $fromId) continue;
+                $name = self::memberName((string) $g->actor_kind, (int) $g->actor_id);
+                return ['kind' => (string) $g->actor_kind, 'id' => (int) $g->actor_id, 'role' => null,
+                        'label' => 'the event’s finance admin' . ($name !== '' ? ', ' . $name : '')];
+            }
         }
         if ($route === 'finance') return ['kind' => 'role', 'id' => null, 'role' => 'finance', 'label' => 'finance'];
         return ['kind' => 'role', 'id' => null, 'role' => 'admin', 'label' => $route === 'staff' ? 'the volunteer team' : 'an administrator'];
@@ -305,7 +386,12 @@ final class Requests
         $rows = DB::table('gates_requests')->where('status', 'waiting')
             ->where(static function ($w) use ($kind, $id, $adminRole) {
                 $w->where(static fn ($o) => $o->where('decider_kind', $kind)->where('decider_id', $id));
-                if ($kind === 'admin' && $adminRole !== null) $w->orWhere('decider_kind', 'role');
+                if ($kind === 'admin' && $adminRole !== null) {
+                    $w->orWhere('decider_kind', 'role');
+                    // An event's spend whose named finance admin has lapsed falls to finance
+                    // (canDecide), so finance has to SEE it here, or it waits for ever.
+                    $w->orWhere(static fn ($o) => $o->where('type', 'spend')->where('scope_kind', 'event')->where('decider_kind', 'member'));
+                }
             })->orderBy('id')->limit(200)->get()->all();
         return array_values(array_filter($rows, static fn ($r) => self::canDecide($r, $kind, $id, $adminRole)));
     }

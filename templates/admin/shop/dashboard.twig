@@ -1,0 +1,71 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  SHOP TODAY (shop upgrade, 18 Nov 2026): the numbers that decide what somebody does next —
+  orders to prepare, orders out but not yet in the buyer's hands, what is low or out, and
+  sales today and this week net of refunds and the payment provider's fees. Everything else on
+  the page is a link. Figures come from ShopReports; nothing here is typed.
+#}
+
+{% block head_styles %}{% include 'admin/shop/_styles.twig' %}{% endblock %}
+
+{% block topbar_title %}Shop today{% endblock %}
+{% block topbar_actions %}
+  <a class="ad-btn" href="/admin/shop/orders">Orders</a>
+  <a class="ad-btn" href="/admin/shop/reports">Reports</a>
+{% endblock %}
+
+{% block content %}
+{% if error %}
+<div class="sh-warn" role="alert">{{ error }} <a href="/admin/shop/today">Try again</a></div>
+{% else %}
+<div class="sh-stat">
+  <a class="sh-s" href="/admin/shop/orders?status=paid&amp;ful=unfulfilled">
+    <div class="sh-s__k">To prepare</div><div class="sh-s__v">{{ t.to_prepare }}</div>
+    <div class="sh-s__n">paid, not yet sent or ready</div>
+  </a>
+  <a class="sh-s" href="/admin/shop/orders?status=paid&amp;ful=ready">
+    <div class="sh-s__k">Out, not yet received</div><div class="sh-s__v">{{ t.not_handed }}</div>
+    <div class="sh-s__n">ready to collect, or shipped and not delivered</div>
+  </a>
+  <a class="sh-s{{ t.out ? ' sh-s--alarm' : '' }}" href="/admin/shop/stock?show=low">
+    <div class="sh-s__k">Out of stock / low</div><div class="sh-s__v">{{ t.out }} / {{ t.low }}</div>
+    <div class="sh-s__n">options at or under their level</div>
+  </a>
+  {% if t.short %}
+  <a class="sh-s sh-s--alarm" href="/admin/shop/orders?status=paid">
+    <div class="sh-s__k">Paid, not enough stock</div><div class="sh-s__v">{{ t.short }}</div>
+    <div class="sh-s__n">contact the buyer</div>
+  </a>
+  {% endif %}
+</div>
+
+<div class="sh-grid">
+  {% for label, m in {'Today': t.today, ('This week (from ' ~ t.week_from ~ ')'): t.week} %}
+  <section class="sh-sec">
+    <h2>{{ label }}</h2>
+    <dl class="sh-dl">
+      <dt>Orders</dt><dd>{{ m.orders }}</dd>
+      <dt>Sales</dt><dd>₦{{ m.gross|number_format }}{% if m.in_person %} <span class="sh-small sh-muted">(₦{{ m.in_person|number_format }} in person)</span>{% endif %}</dd>
+      <dt>Refunded</dt><dd>−₦{{ m.refunds|number_format }}</dd>
+      <dt>Gateway fees</dt><dd>−₦{{ m.fees|number_format }}{% if m.fees_estimated %} <span class="sh-small sh-muted">(₦{{ m.fees_estimated|number_format }} estimated)</span>{% endif %}</dd>
+      <dt class="is-total">Net</dt><dd class="is-total">₦{{ m.net|number_format }}</dd>
+    </dl>
+  </section>
+  {% endfor %}
+</div>
+
+<section class="sh-sec">
+  <h2>Also waiting</h2>
+  <p>
+    {{ t.pending_pay }} order{{ t.pending_pay == 1 ? '' : 's' }} started and not yet paid ·
+    {{ t.refunds_waiting }} refund{{ t.refunds_waiting == 1 ? '' : 's' }} waiting for the gateway to confirm.
+  </p>
+  {% if t.low_rows|length %}
+  <ul class="sh-tl">
+    {% for r in t.low_rows %}<li><a href="/admin/shop/products/{{ r.product_id }}/stock">{{ r.name }}{% if r.option %} — {{ r.option }}{% endif %}</a>: {{ r.state == 'out' ? 'out of stock' : r.stock ~ ' left' }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

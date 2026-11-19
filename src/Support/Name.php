@@ -149,4 +149,40 @@ final class Name
         $rest = mb_substr($word, 2, null, 'UTF-8');
         return preg_match('/^\p{L}/u', $rest) ? 'Mc' . self::capitalise($rest) : $word;
     }
+
+    /**
+     * Words that mark a name as an ORGANISATION's rather than a person's.
+     *
+     * The ballot addresses a nominee by first name ("Back Ada", "Vote for Ada"). Taken as
+     * the first word, that turned "Glow Foundation" into "Vote for Glow" and "Chief Bola
+     * Ige" into "Back Chief" — on the button somebody presses to vote. An organisation is
+     * addressed by its whole name; a person by their first name with any title dropped.
+     */
+    private const ORG_WORDS = [
+        'foundation', 'initiative', 'initiatives', 'limited', 'ltd', 'plc', 'inc', 'llc',
+        'group', 'company', 'co', 'enterprise', 'enterprises', 'ventures', 'association',
+        'network', 'trust', 'society', 'school', 'schools', 'academy', 'college',
+        'university', 'church', 'ministry', 'ministries', 'club', 'team', 'project',
+        'studio', 'studios', 'agency', 'hub', 'centre', 'center', 'institute', 'ngo',
+        'organisation', 'organization', 'fund', 'alliance', 'coalition', 'collective',
+        'cooperative', 'services', 'solutions', 'media', 'africa', 'nigeria', 'ghana',
+        'kenya', 'band', 'choir', 'orchestra', 'hospital', 'clinic', 'bank', 'council',
+    ];
+
+    /**
+     * How a page speaks to or about a nominee in a short phrase: a person's first name
+     * (titles dropped, as {@see \AfricaGates\Services\DoorWelcome::firstName()} does at
+     * the door), or an organisation's whole name. Never empty for a non-empty name.
+     */
+    public static function addressAs(string $raw): string
+    {
+        $name = trim((string) preg_replace('/[\s\x{00A0}]+/u', ' ', $raw));
+        if ($name === '') return '';
+        $parts = explode(' ', $name);
+        foreach ($parts as $w) {
+            if (in_array(mb_strtolower(trim($w, '.,&()')), self::ORG_WORDS, true)) return $name;
+        }
+        while (count($parts) > 1 && \AfricaGates\Services\DoorWelcome::isTitle($parts[0])) array_shift($parts);
+        return $parts[0];
+    }
 }

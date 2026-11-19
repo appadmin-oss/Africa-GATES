@@ -76,60 +76,60 @@ class QueueService
      */
     public function work(int $limit = 20): array
     {
-        $now = Carbon::now()->toDateTimeString();
-        // A lock older than LOCK_TIMEOUT means the worker died holding it — reclaim.
-        $staleBefore = Carbon::now()->subSeconds(self::LOCK_TIMEOUT)->toDateTimeString();
-        $reclaimable = static function ($q) use ($staleBefore) {
-            $q->whereNull('locked_at')->orWhere('locked_at', '<', $staleBefore);
+        $now = Carbon::now();
+        $reclaimable = static function ($query) use ($now) {
+            $query->whereNull('locked_at')->orWhere('locked_at', '<',
+                $now->copy()->subSeconds(self::LOCK_TIMEOUT)->toDateTimeString());
         };
-
-        $jobs = DB::table('gates_jobs')
-            ->where('status', 'pending')->where('run_after', '<=', $now)->where($reclaimable)
+        $jobs = DB::table('gates_jobs')->where('status', 'pending')
+            ->where('run_after', '<=', $now->toDateTimeString())->where($reclaimable)
             ->orderBy('id')->limit($limit)->get();
 
         $done = 0; $failed = 0; $retried = 0;
         foreach ($jobs as $job) {
-            // Poison pill: a job that already burned all attempts (e.g. crashed the
-            // worker mid-handler every time) must be failed, not reaped forever.
+            // A later job needs a fresh lease, not the time this batch began.
+            $claimedAt = Carbon::now();
+            $claimTime = $claimedAt->toDateTimeString();
+            $staleBefore = $claimedAt->copy()->subSeconds(self::LOCK_TIMEOUT)->toDateTimeString();
+            $claim = DB::table('gates_jobs')->where('id', $job->id)->where('status', 'pending')
+                ->where('attempts', (int) $job->attempts)->where('run_after', '<=', $claimTime)
+                ->where(static function ($query) use ($staleBefore) {
+                    $query->whereNull('locked_at')->orWhere('locked_at', '<', $staleBefore);
+                });
+
             if ((int) $job->attempts >= self::MAX_ATTEMPTS) {
-                DB::table('gates_jobs')->where('id', $job->id)->update([
+                $failed += $claim->update([
                     'status' => 'failed', 'locked_at' => null,
                     'last_error' => 'exceeded max attempts (likely crashed mid-handler)',
-                    'updated_at' => Carbon::now()->toDateTimeString(),
+                    'updated_at' => $claimTime,
                 ]);
-                $failed++;
                 continue;
             }
+            if (!$claim->update(['locked_at' => $claimTime,
+                    'attempts' => DB::raw('attempts + 1'), 'updated_at' => $claimTime])) continue;
 
-            // Claim: flip the lock only if it's still free or still stale (so a fresh
-            // claim by another worker wins the race). Increment attempts AT CLAIM so a
-            // worker that dies mid-handler still burns an attempt — no infinite loop.
-            $claimed = DB::table('gates_jobs')->where('id', $job->id)
-                ->where('status', 'pending')->where($reclaimable)
-                ->update(['locked_at' => $now, 'attempts' => DB::raw('attempts + 1'), 'updated_at' => $now]);
-            if (!$claimed) continue;
-
-            $attempts = (int) $job->attempts + 1; // reflects the claim-time increment
-
+            // attempts is the monotonic claim version. A stale worker may not
+            // acknowledge or reschedule a job since reclaimed by another worker.
+            $attempts = (int) $job->attempts + 1;
+            $owned = static fn () => DB::table('gates_jobs')->where('id', $job->id)
+                ->where('status', 'pending')->where('attempts', $attempts)->where('locked_at', $claimTime);
             try {
                 $handler = $this->handlers[$job->type] ?? null;
                 if (!$handler) throw new \RuntimeException("No handler registered for job type '{$job->type}'");
                 $handler(json_decode((string) $job->payload, true) ?: []);
-                DB::table('gates_jobs')->where('id', $job->id)->update([
-                    'status' => 'done', 'locked_at' => null, 'updated_at' => Carbon::now()->toDateTimeString(),
+                $done += $owned()->update([
+                    'status' => 'done', 'locked_at' => null,
+                    'updated_at' => Carbon::now()->toDateTimeString(),
                 ]);
-                $done++;
             } catch (\Throwable $e) {
-                // attempts already incremented at claim — don't double-count.
                 $exhausted = $attempts >= self::MAX_ATTEMPTS;
-                DB::table('gates_jobs')->where('id', $job->id)->update([
-                    'status'     => $exhausted ? 'failed' : 'pending',
-                    'locked_at'  => null,
-                    'run_after'  => Carbon::now()->addSeconds(60 * $attempts)->toDateTimeString(),
+                $settled = $owned()->update([
+                    'status' => $exhausted ? 'failed' : 'pending', 'locked_at' => null,
+                    'run_after' => Carbon::now()->addSeconds(60 * $attempts)->toDateTimeString(),
                     'last_error' => mb_substr($e->getMessage(), 0, 500),
                     'updated_at' => Carbon::now()->toDateTimeString(),
                 ]);
-                $exhausted ? $failed++ : $retried++;
+                if ($settled) $exhausted ? $failed++ : $retried++;
             }
         }
         return ['done' => $done, 'failed' => $failed, 'retried' => $retried];

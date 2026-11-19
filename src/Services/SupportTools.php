@@ -60,7 +60,10 @@ final class SupportTools
     /** What we will quote. A short list because each one is a promise of accuracy. */
     private const FX_ALLOWED = ['USD', 'GBP', 'EUR', 'CAD', 'ZAR', 'GHS', 'KES', 'XOF', 'AED'];
 
-    public function __construct(private readonly ?CacheService $cache = null) {}
+    public function __construct(
+        private readonly ?CacheService $cache = null,
+        private readonly ?\Closure $dnsLookup = null,
+    ) {}
 
     // ── is it them, or is it us? ─────────────────────────────────────────────
 
@@ -140,9 +143,8 @@ final class SupportTools
      * useless. It gives the same answer to somebody whose mail is in spam and
      * somebody who typed `gmial.com`, and only one of those is going to work.
      *
-     * A DNS MX lookup settles it in milliseconds. No third party, no key, no
-     * network egress beyond a resolver: a domain with no MX record cannot receive
-     * mail from anybody, and no amount of checking spam will change that.
+     * DNS can establish published routing, but not mailbox validity or delivery.
+     * An unavailable resolver leaves the result unknown.
      *
      * The typo check catches the rest. A near-miss on a common provider is by far
      * the likeliest cause of a code that "never arrived", and Levenshtein finds it
@@ -155,7 +157,7 @@ final class SupportTools
      * repeats somebody's email into a chat transcript has created a disclosure
      * out of a diagnostic.
      *
-     * @return array{ok:bool, domain:string, deliverable:bool, reason:string, suggest:?string, say:string}
+     * @return array{ok:bool, domain:string, deliverable:?bool, reason:string, suggest:?string, say:string}
      */
     public function emailDomain(string $email): array
     {
@@ -183,32 +185,48 @@ final class SupportTools
         }
 
         $hasMx = $this->hasMailExchanger($domain);
+        if ($hasMx === null) {
+            return ['ok' => false, 'domain' => $domain, 'deliverable' => null, 'reason' => 'dns_unavailable',
+                    'suggest' => null,
+                    'say' => 'The domain lookup is unavailable right now. Keep the address and check '
+                           . 'the delivery log before recommending another code or a different address.'];
+        }
         if (!$hasMx) {
             return ['ok' => true, 'domain' => $domain, 'deliverable' => false, 'reason' => 'no_mx',
                     'suggest' => null,
-                    'say' => 'The domain "' . $domain . '" has no mail server configured, so it cannot receive '
-                           . 'email from anyone — this is not our delivery failing. Ask them to check the '
-                           . 'spelling, or use a different address.'];
+                    'say' => 'No mail routing was found for "' . $domain . '". Ask them to check '
+                           . 'the domain spelling, and check the delivery log for the actual send result.'];
         }
 
         return ['ok' => true, 'domain' => $domain, 'deliverable' => true, 'reason' => 'accepts_mail',
                 'suggest' => null,
-                'say' => 'That domain accepts mail normally, so the address is fine and the code is very '
-                       . 'likely in spam or promotions. Say that with confidence rather than as a guess, and '
-                       . 'have them request a fresh code — only the newest one works.'];
+                'say' => 'That domain publishes mail routing. Check the delivery log and any bounce; '
+                       . 'if the message was accepted, ask them to check spam or promotions.'];
     }
 
-    /** True when the domain publishes an MX (or at least an A) record. */
-    private function hasMailExchanger(string $domain): bool
+    /** null means the resolver failed; an empty successful answer means no routing. */
+    private function hasMailExchanger(string $domain): ?bool
     {
         try {
-            if (checkdnsrr($domain, 'MX')) return true;
-            // A bare A record is a legal, if unusual, mail destination. Treating it
-            // as undeliverable would tell somebody with a small self-hosted domain
-            // that their perfectly working address is broken.
-            return checkdnsrr($domain, 'A');
+            $types = DNS_MX | DNS_A | DNS_AAAA;
+            $records = $this->dnsLookup !== null
+                ? ($this->dnsLookup)($domain, $types)
+                : @dns_get_record($domain, $types);
+            if (!is_array($records)) return null;
+            $address = false;
+            $mail = false;
+            foreach ($records as $record) {
+                if (($record['type'] ?? '') === 'MX') {
+                    // RFC 7505: a null MX explicitly opts out, including when
+                    // web-hosting address records exist on the same domain.
+                    if (($record['target'] ?? '') === '.') return false;
+                    if (trim((string) ($record['target'] ?? '')) !== '') $mail = true;
+                }
+                if (in_array($record['type'] ?? '', ['A', 'AAAA'], true)) $address = true;
+            }
+            return $mail || $address;
         } catch (\Throwable) {
-            return true;   // a resolver failure is not evidence against the user
+            return null;
         }
     }
 

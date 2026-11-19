@@ -92,7 +92,7 @@
 
   {# ── the work ──────────────────────────────────────────────────────────── #}
   <div class="dp-bar">
-    <nav class="ls-tabs" aria-label="Duplicates">
+    <nav class="ls-tabs" aria-label="Duplicates" data-tabs="duplicates">
       {% for k, l in {split: 'Split votes', across: 'Across categories', near: 'Near matches', merged: 'Recently merged'} %}
         {% set n = {split: split|length, across: across|length, near: people.pairs|length, merged: merged|length}[k] %}
         <a class="ls-tab" href="{{ base }}&amp;tab={{ k }}"{% if tab == k %} aria-current="page"{% endif %}>{{ l }}<span class="ls-tab__num">{{ n }}</span></a>

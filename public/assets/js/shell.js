@@ -29,16 +29,21 @@
 
   /* The footer's columns fold on a phone and are held open from 600 (site-footer.twig).
      The markup ships them open, so a page without this script loses nothing. */
-  var folds = document.querySelectorAll('details[data-ag-foot]');
-  if (folds.length && window.matchMedia) {
-    var wideFoot = window.matchMedia('(min-width: 600px)');
-    var setFolds = function () { for (var f = 0; f < folds.length; f++) folds[f].open = wideFoot.matches; };
-    setFolds();
-    if (wideFoot.addEventListener) wideFoot.addEventListener('change', setFolds);
-    for (var g = 0; g < folds.length; g++) folds[g].addEventListener('toggle', function (e) {
-      if (wideFoot.matches && !e.currentTarget.open) e.currentTarget.open = true;
-    });
+  var wideFoot = window.matchMedia ? window.matchMedia('(min-width: 600px)') : null;
+  function footFolds() {
+    var folds = document.querySelectorAll('details[data-ag-foot]');
+    if (!folds.length || !wideFoot) return;
+    for (var f = 0; f < folds.length; f++) {
+      folds[f].open = wideFoot.matches;
+      if (folds[f]._agFold) continue;
+      folds[f]._agFold = true;
+      folds[f].addEventListener('toggle', function (e) {
+        if (wideFoot.matches && !e.currentTarget.open) e.currentTarget.open = true;
+      });
+    }
   }
+  footFolds();
+  if (wideFoot && wideFoot.addEventListener) wideFoot.addEventListener('change', footFolds);
 
   var THRESHOLD = 8;     /* §6.6 / §9.1: scrolled = scrollTop > 8 */
   var DRIFT     = 24;    /* §9.2 state 4: an opened, empty search closes after 24px */
@@ -182,7 +187,7 @@
       btn.focus({ preventScroll: true });
     });
 
-    listen(main, onScroll);
+    return listen(main, onScroll);
     y0 = main.scrollTop;
     set(main.scrollTop <= THRESHOLD || !!input.value.trim());
   }
@@ -299,19 +304,68 @@
   }
 
   /* ── Boot ─────────────────────────────────────────────────────────────────── */
+  /* The page's collapsing searches subscribe to <main>'s scroll. On an in-place navigation
+     (site-nav.js) <main> stays and its contents change, so the old page's subscriptions are
+     dropped and the new page's made — or a search that is gone would go on being driven. */
+  var pageStops = [];
+  function pageBlocks(main) {
+    pageStops.forEach(function (stop) { if (stop) stop(); });
+    pageStops = [];
+    var blocks = main.querySelectorAll('[data-cs]');
+    for (var i = 0; i < blocks.length; i++) pageStops.push(collapsingSearch(main, blocks[i]));
+  }
+
   function boot() {
     var main = document.querySelector('.ag-main');
     if (main) {
       watchScroll(main);
-      var blocks = main.querySelectorAll('[data-cs]');
-      for (var i = 0; i < blocks.length; i++) collapsingSearch(main, blocks[i]);
+      pageBlocks(main);
+      document.addEventListener('ag:load', function () { pageBlocks(main); footFolds(); });
     }
     /* Always: a page with no bar yet may mount one later, and the figure has to be
        cleared when the last one goes. */
     trackBottomUI();
   }
 
+  /* WHERE "SKIP TO CONTENT" AND A NEW PAGE PUT THE READER: the page's own heading.
+     On a phone a root page's <h1> is the app bar's large title, which sits before <main>;
+     sending focus to <main> started a screen reader just below the title of the page it had
+     opened (accessibility audit, 11 Nov 2026). The first VISIBLE <h1> is the target, made
+     focusable for the purpose; <main> when a page has none. site-nav.js and the skip link
+     (accessibility-focus.js, which also serves the console, where this file is absent) ask it. */
+  function pageHeading() {
+    var hs = document.querySelectorAll('h1');
+    for (var i = 0; i < hs.length; i++) {
+      var h = hs[i];
+      if (h.closest('[hidden],[aria-hidden="true"],[inert]') || !h.getClientRects().length) continue;
+      if (!h.hasAttribute('tabindex')) h.setAttribute('tabindex', '-1');
+      return h;
+    }
+    return document.querySelector('.ag-main');
+  }
+
+  /* "YOU'RE OFFLINE" (UX standard §13.4). The service worker answers a navigation with our
+     own page when the network has gone, but a page already open said nothing: a vote or a
+     form sent into a dead connection simply failed. One polite line at the top while it
+     lasts, gone when the connection is back. */
+  function offline() {
+    var bar = document.querySelector('[data-ag-offline]');
+    if (!bar) {
+      bar = document.createElement('p');
+      bar.className = 'ag-offline'; bar.setAttribute('data-ag-offline', ''); bar.setAttribute('role', 'status');
+      bar.hidden = true;
+      bar.textContent = document.documentElement.getAttribute('data-ag-offline-text') || 'You are offline. Anything you send will need sending again once you are back.';
+      document.body.appendChild(bar);
+    }
+    var paint = function () { bar.hidden = navigator.onLine !== false; };
+    window.addEventListener('online', paint);
+    window.addEventListener('offline', paint);
+    paint();
+  }
+  if (document.body) offline(); else document.addEventListener('DOMContentLoaded', offline);
+
   window.AGShell = {
+    pageHeading: pageHeading,
     watchScroll: watchScroll,
     collapsingSearch: collapsingSearch,
     trackBottomUI: trackBottomUI,
@@ -320,4 +374,13 @@
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
+
+  /* The service worker (public/sw.js): our own page when the network drops, and the
+     fingerprinted files kept on this device. Registered after load so it never competes
+     with the page for the first paint; only on https or localhost, where browsers allow it. */
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('/sw.js').catch(function () {});
+    });
+  }
 })();

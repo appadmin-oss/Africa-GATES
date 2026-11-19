@@ -269,6 +269,54 @@ final class ConsoleAlerts
                     ['Open Integrations and press Run all checks.', 'Each prints the provider\'s own answer — usually credit or a sender ID.']);
             },
 
+            // ── people the site failed: 500s and refused checkouts ────────────────
+            //
+            // Every 500 has written a reference to the error log since Phase 9, and the page
+            // tells the visitor to quote it — while nothing told anybody running the site
+            // that it had happened. The only reader was a token-gated setup page, so a fault
+            // reached the console when somebody complained and not before. Counted from the
+            // log itself (PublicFault::recent(), the one parser); derived like every alert
+            // here, so it closes on its own a day after the last one.
+            'faults' => static function (): ?array {
+                $r = \AfricaGates\Support\PublicFault::recent(24, 1);
+                $n = $r['total'];
+                if ($n === 0) return null;
+                $hour = $r['last_hour'];
+                $sev  = $hour >= 10 ? self::HIGH : ($n >= 3 || $r['money'] > 0 ? self::MEDIUM : self::LOW);
+                $top  = array_key_first($r['by_where']);
+                $newest = $r['entries'][0] ?? null;
+                $facts = [['In 24 hours', (string) $n], ['In the last hour', (string) $hour]];
+                if ($top !== null) $facts[] = ['Most often', $top . ' (' . $r['by_where'][$top] . ')'];
+                if ($r['money'] > 0) $facts[] = ['While paying or voting', (string) $r['money']];
+                if ($newest !== null && $newest['ref'] !== null) $facts[] = ['Newest reference', $newest['ref']];
+                return self::alert('faults', $sev,
+                    $n . ' error' . ($n === 1 ? '' : 's') . ' shown to visitors in 24 hours', 'Site',
+                    'Pages that failed on our side. Each person was shown a reference to quote; this is the same list, before anybody writes in.',
+                    $facts, '/admin/errors', 'Read the errors', $newest['at'] ?? null,
+                    $hour > 0 ? 'affects' : null,
+                    $hour > 0 ? 'Visitors are meeting an error page now.' : '',
+                    ['Open the errors and start with the page that fails most often.',
+                     'A reference somebody quotes in a ticket opens its full entry there.',
+                     'This clears on its own a day after the last error.']);
+            },
+
+            // ── the public site is closed for planned work ───────────────────────
+            //
+            // Closing the site is a setting (MaintenanceGate), and staff walk straight through
+            // a closed site — so the one group who can open it again is the one group that
+            // cannot see it is shut. Said here until the window ends.
+            'closed' => static function (): ?array {
+                $p = \AfricaGates\Services\MaintenanceGate::closed();
+                if ($p === null) return null;
+                return self::alert('closed', self::MEDIUM, 'The public site is closed for planned work', 'Site',
+                    'Visitors see the planned-work page until ' . \AfricaGates\Support\DisplayTime::showZoned((string) $p['to'], 'D j M, H:i')
+                    . '. Staff, sign-in, payment confirmations and the status page are open.',
+                    [['What', (string) $p['title']], ['Back at', \AfricaGates\Support\DisplayTime::showZoned((string) $p['to'], 'D j M, H:i')]],
+                    '/admin/settings#planned-work', 'Change the window', (string) $p['from'],
+                    'affects', 'Every visitor, until the window ends.',
+                    ['To open the site now, untick "Close the public site while it runs" and save.']);
+            },
+
             // ── outbound webhooks that did not land ─────────────────────────────
             'webhooks' => static function (): ?array {
                 $n = (int) DB::table('gates_webhook_deliveries')->where('ok', 0)

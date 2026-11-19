@@ -76,6 +76,15 @@ final class ConsoleAlertLogTest extends TestCase
         $this->assertSame('assigned', array_column(ConsoleAlertLog::timeline('callbacks'), 'kind')[1]);
         $this->assertSame('Tunde Akin', ConsoleAlertLog::timeline('callbacks')[1]['who']);
 
+        // Taking it again is not a hand-over: no second line on the timeline, and the
+        // clock that says how long it has sat with somebody does not restart.
+        $at = DB::table('gates_console_alerts')->where('alert_key', 'callbacks')->value('owner_at');
+        DB::table('gates_console_alerts')->where('alert_key', 'callbacks')->update(['owner_at' => '2026-01-01 09:00:00']);
+        $this->assertTrue(ConsoleAlertLog::assign('callbacks', $admin));
+        $this->assertSame(1, count(array_filter(ConsoleAlertLog::timeline('callbacks'), static fn ($e) => $e['kind'] === 'assigned')));
+        $this->assertSame('2026-01-01 09:00:00', DB::table('gates_console_alerts')->where('alert_key', 'callbacks')->value('owner_at'));
+        $this->assertNotNull($at);
+
         ConsoleAlertLog::sync([], []);
         $this->assertFalse(ConsoleAlertLog::assign('callbacks', $admin), 'a resolved alert has nothing to take');
     }

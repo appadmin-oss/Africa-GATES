@@ -67,8 +67,11 @@ final class DuplicatesController
         }
 
         // A merge preview, when asked for: the real merge, run and rolled back.
+        // Only for a role that may merge. The preview RUNS the merge — every write, every
+        // trigger, inside a transaction — so a read-only role reaching it by URL was
+        // executing the one operation this page refuses them, rollback or not.
         $preview = null;
-        if (!empty($q['keep']) && !empty($q['ids'])) {
+        if (self::canRule() && !empty($q['keep']) && !empty($q['ids'])) {
             $ids = array_values(array_filter(array_map('intval', explode(',', (string) $q['ids']))));
             $keep = (int) $q['keep'];
             $take = [];

@@ -222,9 +222,10 @@ final class RecurringGiving
         // waits for the first to commit. Its existence check then runs as the transaction's
         // first non-locking read, which is when InnoDB takes the snapshot — after the wait,
         // so it sees the committed row. That check is deliberately NOT `FOR UPDATE`:
-        // `payment_ref` has no index, and a locking read on an unindexed column next-key
-        // locks the whole table, stalling every checkout on the platform behind one
-        // instalment. (SQLite has one writer and ignores the clause.)
+        // `payment_ref` had no index until 2027_05_22_payment_ref_index.php, and a locking
+        // read on an unindexed column next-key locks the whole table, stalling every checkout
+        // behind one instalment. The lock on the arrangement's row above is still what orders
+        // deliveries, so this stays a plain read. (SQLite has one writer and ignores the clause.)
         return (int) DB::connection()->transaction(static function () use ($q, $ref, $now, $amountNaira): int {
             // The most recent. Somebody who stopped a ₦5,000 monthly gift and started another
             // has two rows on the same plan, and the charge belongs to the newer.

@@ -2,7 +2,8 @@
    without this file: forms post, links are links. It adds these on top:
      · a toast leaves on its own after a few seconds (and stays while hovered or focused);
      · a button with data-sh7-confirm asks first, since a dropped shift or leaving is hard to undo;
-     · Escape closes the phone's More sheet and returns focus to its button;
+     · Escape, its Close button or a tap outside closes the phone's menu sheet, and focus goes
+       back to the Menu button;
      · Find (⌘K): matches as you type from the list the page carries; Enter on nothing chosen
        submits the search, which is what happens without this file too;
      · Ask (⌘J): the console's assistant in a side panel; without this file Ask is a link to it.
@@ -10,6 +11,14 @@
    token is refreshed under an open page (csrf-fresh), and a copy would go stale. */
 (function () {
   'use strict';
+  // Keep a directly opened subpage's current tab visible without moving the page vertically.
+  var tabRail = document.querySelector('.sh7-tabs');
+  var currentTab = tabRail && tabRail.querySelector('[aria-current="page"]');
+  if (currentTab) {
+    var railBox = tabRail.getBoundingClientRect(), tabBox = currentTab.getBoundingClientRect();
+    if (tabBox.right > railBox.right || tabBox.left < railBox.left) tabRail.scrollLeft += tabBox.left - railBox.left - 16;
+  }
+
   // What just happened, said aloud. A live region filled before the reader is listening is
   // often not announced, so the message is repeated into the empty regions a moment after
   // load: an error into the alert region, a confirmation into the polite one.
@@ -36,7 +45,9 @@
   }
   // A click outside an open Updates panel or switcher closes it, as a menu does.
   document.addEventListener('click', function (e) {
-    document.querySelectorAll('.sh7-bellbox[open], .sh7-switch[open]').forEach(function (d) { if (!d.contains(e.target)) d.removeAttribute('open'); });
+    document.querySelectorAll('.sh7-bellbox[open], .sh7-switch[open], .sh7-more[open]').forEach(function (d) { if (!d.contains(e.target)) d.removeAttribute('open'); });
+    var x = e.target.closest('[data-sh7-sheet-x]');
+    if (x) { var m = x.closest('.sh7-more'); if (m) { m.removeAttribute('open'); var ms = m.querySelector('summary'); if (ms) ms.focus(); } }
   });
   document.addEventListener('click', function (e) {
     var b = e.target.closest('[data-sh7-confirm]');
@@ -142,15 +153,15 @@
     });
   }
 
-  // The product switcher (a <details>): a click outside or Escape closes it; Escape returns
+  // The role switch (a <details>, partials/role-switch.twig): a click outside or Escape closes it; Escape returns
   // focus to the button that opened it.
   document.addEventListener('click', function (e) {
-    var p = document.querySelector('.sh7-prod[open]');
+    var p = document.querySelector('.rs[open]');
     if (p && !p.contains(e.target)) p.open = false;
   });
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
-    var p = document.querySelector('.sh7-prod[open]');
+    var p = document.querySelector('.rs[open]');
     if (p) { p.open = false; p.querySelector('summary').focus(); }
   });
 })();

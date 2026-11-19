@@ -113,8 +113,17 @@ final class MemberWallet
                 'sub' => self::pageName($nid),
                 'available_kobo' => $w['available_kobo'],
                 'coming_kobo'    => $w['locked_kobo'] + $w['awaiting_kobo'],
-                'coming_note'    => $w['locked_kobo'] > 0 ? 'Locked until your edition’s milestone is confirmed'
-                                   : ($w['awaiting_kobo'] > 0 ? 'Released when your edition announces its results' : ''),
+                // Under the target pool there is no milestone to confirm, and this money is not
+                // this nominee's yet at all: it is what their supporters put into a pool that
+                // goes, when voting closes, to the nominees who reached the vote target, by
+                // their votes. "Locked until your edition's milestone is confirmed" promised a
+                // release that does not exist, beside a reason line saying the opposite.
+                // The line is called "In the pool" there (wallet.twig) and needs no note: the
+                // reason line under it says what happens to it, once.
+                'in_pool'        => (bool) ($w['in_pool'] ?? false),
+                'coming_note'    => ($w['in_pool'] ?? false) ? ''
+                                   : ($w['locked_kobo'] > 0 ? 'Locked until your edition’s milestone is confirmed'
+                                   : ($w['awaiting_kobo'] > 0 ? 'Released when your edition announces its results' : '')),
                 'review_kobo'    => $w['under_review_kobo'],
                 'paid_kobo'      => $w['paid_kobo'],
                 'can' => $c['ok'], 'why' => $c['reason'], 'partial' => true, 'nominee_id' => $nid,
@@ -122,6 +131,8 @@ final class MemberWallet
                 // thing that tells a nominee with locked money when it will be theirs.
                 'points' => 0, 'points_votes' => 0,
                 'milestone' => ($cy = self::pageCycle($nid)) ? CommunityReturnMilestone::progress($cy) : null,
+                // The one thing that decides a pool edition's money for this nominee.
+                'pool' => $cy && ($w['in_pool'] ?? false) ? self::poolStanding($cy, $nid) : null,
             ];
         }
 
@@ -376,6 +387,7 @@ final class MemberWallet
             $cycles = [];
             foreach ($rows as $r) $cycles[(int) ($r->cycle_id ?? 0)] = true;
             $released = CommunityReturnService::releasedCycles(array_keys($cycles));
+            $poolCycles = [];
 
             foreach ($rows as $r) {
                 $type = (string) $r->entry_type;
@@ -390,7 +402,11 @@ final class MemberWallet
                     'reversal'   => ['Reversed: the contribution was refunded', self::ST_REVERSED],
                     'hold'       => ['Put on hold', self::ST_HELD],
                     'release'    => ['Hold lifted', self::ST_RECEIVED],
-                    'adjustment' => ['Correction by our team', self::ST_RECEIVED],
+                    // Settling a pool writes two adjustments, and they are not corrections: titled
+                    // as one, a nominee saw our team take their money and hand some back.
+                    'adjustment' => [(string) $r->note === CommunityReturnPool::NOTE_INTO ? 'Into the edition pool'
+                                     : (str_starts_with((string) $r->note, CommunityReturnPool::NOTE_SHARE) ? 'Your share of the edition pool'
+                                     : 'Correction by our team'), self::ST_RECEIVED],
                     'forfeit'    => ['Forfeited', self::ST_REVERSED],
                     default      => [ucfirst($type), self::ST_RECEIVED],
                 };
@@ -398,50 +414,112 @@ final class MemberWallet
                 $details = [['Pocket', 'Community return · ' . $page]];
                 if ($type === 'accrual') {
                     $details[] = ['Contribution', '₦' . CommunityReturnService::naira((int) $r->basis_kobo)];
-                    $details[] = ['Your share', CommunityReturnLadder::pct((int) $r->rate_bps) . '%'];
+                    // In a pool edition the percentage is what went INTO the pool, not this
+                    // nominee's share of anything: that is decided by votes, at settling.
+                    $cyc = (int) ($r->cycle_id ?? 0);
+                    $pooled = $cyc > 0 && ($poolCycles[$cyc] ??= CommunityReturnService::modelForCycle($cyc) === CommunityReturnService::MODEL_POOL);
+                    $details[] = [$pooled ? 'Set aside for the pool' : 'Your share', CommunityReturnLadder::pct((int) $r->rate_bps) . '%'];
                 }
                 if ($r->note) $details[] = ['Note', (string) $r->note];
 
-                $out[] = self::tx('cr-' . (int) $r->id, $amt >= 0 ? 'in' : 'out', $title,
+                $tx = self::tx('cr-' . (int) $r->id, $amt >= 0 ? 'in' : 'out', $title,
                     $type === 'accrual' ? 'From a supporter of ' . $page : $page,
                     abs($amt), $status, (string) $r->created_at, $ref, 0, 'return', $details);
+                // A transfer the bank sent back (WalletAutoPay::reverseSettled): money restored,
+                // not money earned, so the statement does not count it in twice.
+                if ($type === 'adjustment' && preg_match('/^withdrawal #\d+ returned by the bank/', (string) $r->note)) {
+                    $tx['title'] = 'Returned by the bank';
+                    $tx['restores'] = true;
+                }
+                $out[] = $tx;
             }
 
-            foreach (CommunityReturnWithdrawals::historyFor($nid, 100) as $w) {
-                $status = match ((string) $w->status) {
-                    CommunityReturnWithdrawals::WD_REQUESTED => self::ST_PENDING,
-                    CommunityReturnWithdrawals::WD_APPROVED  => self::ST_PROCESSING,
-                    CommunityReturnWithdrawals::WD_PAID      => self::ST_PAID,
-                    default                                  => self::ST_REFUSED,
-                };
-                [$status, $extra] = self::auto($w, $status);
-                $out[] = self::withdrawalTx('crw-' . (int) $w->id, (int) $w->amount_kobo, (int) $w->fee_kobo,
-                    (string) $w->bank_name, (string) $w->account_name, (string) $w->account_number,
-                    $status, (string) ($w->paid_at ?: ($w->sent_at ?? null) ?: $w->reviewed_at ?: $w->requested_at),
-                    (string) ($w->payment_ref ?? ''), (string) ($w->review_note ?? ''), 'Community return · ' . $page,
-                    (string) $w->requested_at, $extra);
-            }
 
             // Votes this page's return paid for (WalletVotes). Their ledger rows are
             // `payout` entries, which the loop above leaves to their own receipts.
-            try {
-                $spends = SchemaHas::table('gates_wallet_votes')
-                    ? DB::table('gates_wallet_votes')->where('source_nominee_id', $nid)->orderByDesc('id')->limit(200)->get()
-                    : collect();
-            } catch (\Throwable) {
-                $spends = collect();
+            //
+            // The member's own spends get the full receipt (below, with their spends on any
+            // other page). One made by an EARLIER holder of this page is still a movement on
+            // this page's balance, so it is listed — but as a bare line: who it was spent on
+            // and the reference are that person's business, not the next holder's.
+            foreach (self::votesFrom($nid) as $v) {
+                if ((int) ($v->user_id ?? 0) === $userId) continue;
+                $out[] = self::tx('crh-wv-' . (int) $v->id, 'out', 'Spent on votes before you held this page', $page,
+                    (int) $v->amount_kobo, self::ST_SPENT, (string) $v->created_at, '', 0, 'return',
+                    [['Pocket', 'Community return · ' . $page]]);
             }
-            foreach ($spends as $v) {
-                $for = self::pageName((int) $v->nominee_id);
-                $t = self::tx('wv-' . (int) $v->id, 'out', 'Spent on votes',
-                    number_format((int) $v->votes) . ' vote' . ((int) $v->votes === 1 ? '' : 's') . ' for ' . $for,
-                    (int) $v->amount_kobo, self::ST_SPENT, (string) $v->created_at, (string) $v->reference, 0, 'return',
-                    [['Pocket', 'Community return · ' . $page], ['Votes', number_format((int) $v->votes) . ' for ' . $for],
-                     ['Fee', 'None. Nothing went to a bank.']]);
-                $out[] = $t;
+            // And the same for money an earlier holder took out: the balance moved, so the
+            // statement says so, without their bank, account or name.
+            foreach (self::othersPaid($nid, $userId) as $w) {
+                $out[] = self::tx('crh-' . (int) $w->id, 'out', 'Paid out before you held this page', $page,
+                    (int) $w->amount_kobo, self::ST_SPENT,
+                    (string) ($w->paid_at ?: $w->requested_at), '', 0, 'return',
+                    [['Pocket', 'Community return · ' . $page]]);
             }
         }
+
+        // The member's own vote spends, on whichever page — a member who handed a page on
+        // keeps the record of what they spent from it.
+        try {
+            $mine = SchemaHas::table('gates_wallet_votes')
+                ? DB::table('gates_wallet_votes')->where('user_id', $userId)->orderByDesc('id')->limit(200)->get()
+                : collect();
+        } catch (\Throwable) {
+            $mine = collect();
+        }
+        foreach ($mine as $v) {
+            $page = self::pageName((int) $v->source_nominee_id);
+            $for = self::pageName((int) $v->nominee_id);
+            $out[] = self::tx('wv-' . (int) $v->id, 'out', 'Spent on votes',
+                number_format((int) $v->votes) . ' vote' . ((int) $v->votes === 1 ? '' : 's') . ' for ' . $for,
+                (int) $v->amount_kobo, self::ST_SPENT, (string) $v->created_at, (string) $v->reference, 0, 'return',
+                [['Pocket', 'Community return · ' . $page], ['Votes', number_format((int) $v->votes) . ' for ' . $for],
+                 ['Fee', 'None. Nothing went to a bank.']]);
+        }
+        // Withdrawals are the ASKER's, on whichever page: listed by page, a member who took
+        // over a page saw the previous holder's withdrawals — their bank, account number and
+        // name — and could open the receipts, while the person who had been paid saw nothing
+        // and the "has been paid" mail linked them to a transaction "not in your wallet".
+        foreach (CommunityReturnWithdrawals::byMember($userId, 100) as $w) {
+            $page = self::pageName((int) $w->nominee_id);
+            $status = match ((string) $w->status) {
+                CommunityReturnWithdrawals::WD_REQUESTED => self::ST_PENDING,
+                CommunityReturnWithdrawals::WD_APPROVED  => self::ST_PROCESSING,
+                CommunityReturnWithdrawals::WD_PAID      => self::ST_PAID,
+                default                                  => self::ST_REFUSED,
+            };
+            [$status, $extra] = self::auto($w, $status);
+            $out[] = self::withdrawalTx('crw-' . (int) $w->id, (int) $w->amount_kobo, (int) $w->fee_kobo,
+                (string) $w->bank_name, (string) $w->account_name, (string) $w->account_number,
+                $status, (string) ($w->paid_at ?: ($w->sent_at ?? null) ?: $w->reviewed_at ?: $w->requested_at),
+                (string) ($w->payment_ref ?? ''), (string) ($w->review_note ?? ''), 'Community return · ' . $page,
+                (string) $w->requested_at, $extra);
+        }
+
         return $out;
+    }
+
+    /** @return list<object> votes paid for from one page's return */
+    private static function votesFrom(int $nid): array
+    {
+        try {
+            return SchemaHas::table('gates_wallet_votes')
+                ? DB::table('gates_wallet_votes')->where('source_nominee_id', $nid)->orderByDesc('id')->limit(200)->get()->all()
+                : [];
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
+    /** @return list<object> paid withdrawals from one page by anybody but this member */
+    private static function othersPaid(int $nid, int $userId): array
+    {
+        try {
+            return DB::table('gates_return_withdrawals')->where('nominee_id', $nid)->where('user_id', '!=', $userId)
+                ->where('status', CommunityReturnWithdrawals::WD_PAID)->orderByDesc('id')->limit(100)->get()->all();
+        } catch (\Throwable) {
+            return [];
+        }
     }
 
     /** @return list<array<string,mixed>> */
@@ -590,6 +668,25 @@ final class MemberWallet
     }
 
     /** The edition a nominee page stands in, through its category. */
+    /**
+     * Where this nominee stands against their edition's vote target, while the pool is open.
+     *
+     * @return array{target:int, votes:int, to_go:int, reached:bool}|null
+     */
+    private static function poolStanding(int $cycleId, int $nomineeId): ?array
+    {
+        try {
+            $p = CommunityReturnPool::progress($cycleId);
+            if ($p['settled'] || $p['target'] < 1) return null;
+            foreach ($p['rows'] as $r) {
+                if ((int) $r['id'] === $nomineeId) {
+                    return ['target' => (int) $p['target'], 'votes' => (int) $r['votes'], 'to_go' => (int) $r['to_go'], 'reached' => (bool) $r['reached']];
+                }
+            }
+        } catch (\Throwable) {}
+        return null;
+    }
+
     private static function pageCycle(int $nomineeId): ?int
     {
         try {

@@ -101,7 +101,9 @@ final class VisitTracker
     {
         try {
             if (!self::enabled()) return '';
-            if (strtoupper($request->getMethod()) !== 'GET') return '';
+            // GET, or the HEAD site-nav.js sends to count a page it showed from a prefetch.
+            $method = strtoupper($request->getMethod());
+            if ($method !== 'GET' && !($method === 'HEAD' && self::header($request, 'X-Site-Nav') === '1')) return '';
 
             $path = '/' . ltrim($request->getUri()->getPath(), '/');
             foreach (self::IGNORE as $prefix) {
@@ -479,10 +481,16 @@ final class VisitTracker
      * because Nigerian mobile networks put thousands of phones behind one address (carrier
      * NAT); the browser string splits them apart without identifying anybody.
      */
-    private static function visitorHash(Request $request): ?string
+    public static function visitorHash(Request $request): ?string
     {
         $ip = self::ip($request);
         return $ip === '' ? null : hash_hmac('sha256', $ip . '|' . self::header($request, 'User-Agent'), self::salt());
+    }
+
+    /** A daily-salted hash of the network alone (PageViews' per-connection ceiling). */
+    public static function networkHash(Request $request): ?string
+    {
+        return self::ipHash($request);
     }
 
     private static function ip(Request $request): string
@@ -558,6 +566,17 @@ final class VisitTracker
      * (Services\Ads\AdDelivery), which bill per view and must not count a bot the arrivals
      * report would refuse.
      */
+    /**
+     * A person's browser, for a request that is NOT a page: a beacon a page's own script
+     * sends (PageViews). isReader() asks for a page navigation, which a fetch never is, so
+     * it would refuse every beacon; the checks that still mean something for one are these
+     * two. The page itself was a reader's, or the script would not be running in it.
+     */
+    public static function isPerson(Request $request): bool
+    {
+        return !self::looksLikeBot($request) && self::hasLanguage($request);
+    }
+
     public static function isReader(Request $request): bool
     {
         return !self::looksLikeBot($request) && self::isPageNavigation($request)
@@ -599,6 +618,10 @@ final class VisitTracker
      */
     private static function isPageNavigation(Request $request): bool
     {
+        // A page swapped in place by site-nav.js is a page view the browser fetched by
+        // script (`Sec-Fetch-Mode: cors`). It says so; its prefetch says that instead, and
+        // isSpeculative() refuses it before this is asked.
+        if (self::header($request, 'X-Site-Nav') === '1') return true;
         $mode = strtolower(self::header($request, 'Sec-Fetch-Mode'));
         $dest = strtolower(self::header($request, 'Sec-Fetch-Dest'));
         if ($mode !== '' || $dest !== '') {

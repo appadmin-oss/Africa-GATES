@@ -127,7 +127,12 @@ final class Outreach
         $out = [];
         if (self::ready() && Meetings::adult($v) && in_array(Volunteers::role($v), ['new', 'active', 'lead'], true)) {
             foreach (Workspace::places($v) as $p) {
-                if ($p['kind'] === 'cycle' && in_array(self::CAPABILITY, $p['caps'], true)) $out[(int) $p['id']] = (string) $p['name'];
+                if (!in_array(self::CAPABILITY, $p['caps'], true)) continue;
+                // A cycle place includes an award reached through an outreach role given at an
+                // EVENT (Workspace::places). It used to be read only off an award grant, so staff
+                // giving outreach to an event's team gave them nothing, while the Academy told
+                // them to open the Nominees page.
+                if ($p['kind'] === 'cycle') $out[(int) $p['id']] = (string) $p['name'];
             }
         }
         return self::$awards[(int) $v->id] = $out;

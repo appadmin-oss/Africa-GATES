@@ -1,0 +1,24 @@
+{#- Plain-text part for event-loop.html.twig. -#}
+{{ place }}
+
+{% if kind == 'digest' %}Today, {{ first_name }}
+
+{% if items|length %}What needs you, most urgent first:
+{% for i in items %}- {{ i[0] }}: {{ i[1] }}
+{% endfor %}{% else %}Nothing is waiting for a decision.
+{% endif %}{% if goals|length %}
+Goals against plan:
+{% for g in goals %}- {{ g[0] }}: {{ g[1] }}
+{% endfor %}{% endif %}{% else %}Due soon, {{ first_name }}
+
+This is yours and nothing has been heard about it lately. A one-tap report is enough — on track, at risk or blocked.
+{% for i in items %}- {{ i[0] }}: {{ i[1] }}
+{% endfor %}{% endif %}
+{{ action_label }}: {{ action_url }}
+
+{{ kind == 'digest' ? 'Sent once a day while the digest rule is on. A lead switches it off under Rules.' : 'Only you get this reminder. Nobody else is told.' }}
+
+—
+{{ kind == 'digest' ? 'You lead an Africa GATES event, and its daily summary is switched on.' : 'Work at an Africa GATES event is yours and due soon.' }}
+{{ postal_address }}
+Help: {{ site_url }}/help · Privacy: {{ site_url }}/privacy

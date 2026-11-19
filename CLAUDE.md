@@ -160,6 +160,29 @@ parsing, because Chromium checks a `<style>` against the policy even in an inert
 document. A prefetch carries `X-Console-Prefetch: 1`, and `ConsoleShell::prefetch()` keeps it
 out of Recent and Presence — a link hovered over is not a page viewed.
 
+## The public site swaps pages too; a page script must say whether it may run again
+
+`public/assets/js/site-nav.js` (2 Nov 2026) does for the public shell what console-nav does
+for the console: a link or a GET form fetches the next page and swaps the inside of `<main>`,
+the header, the app bar and the bottom bars, with prefetch on hover or touch. Every POST is a
+full navigation, always (a vote, a payment). A page swaps only when each script of its own
+says `data-nav="rerun"` (safe on every visit), `once` (a third party's loader, Turnstile) or
+is the layout's (`shell`); `reload` or anything unmarked is a full load. A `rerun` script
+binds no document, window or `<main>` listener and starts no interval except through
+`agPage.on/every/leave` (layout/shell.twig head), which are undone on `ag:unload`.
+`<main>` itself survives a swap, so a scroll listener on it piles up. Overlays that stay
+carry `data-nav-keep`; a kept element's per-page attributes are listed in `data-nav-sync`.
+Shell scripts re-scan on `ag:load`. `SiteNavTest` holds it, and fails on an unmarked script.
+
+**A tab bar says so: `data-tabs="name"` on the element holding its links** (3 Nov 2026).
+Both site-nav and console-nav then fetch that bar's links once the page is idle and keep them
+a minute, so a tab swaps from memory (950ms → ~30ms on a 150ms link; the organisation
+console was a 2.3s full reload per tab). `data-tabs-top` is for a section rail: the new
+section opens at its top rather than holding the rail in place. `/org` is swapped but never
+fetched ahead from outside it — a GET there opens the organisation's session. A page fetched
+ahead neither shows nor spends a flash or a form replay (`$ahead` in `config/container.php`).
+`TabSwitchTest` fails on a `?tab=` link marked current in a template with no `data-tabs`.
+
 ## A header can switch a feature off in a way nothing on the page can see
 
 `Permissions-Policy: camera=()` denied the camera on **every page of the site**, so the
@@ -356,8 +379,12 @@ by name, and an unknown name throws rather than painting a button blank.
 **The admin console has a second set in the same file** (owner, 4 Oct 2026): the admin
 handoff's monochrome palette (README §10) as `Accent::console()`, emitted as `--cn-*` by
 `ag_accents('console')` in the admin layout only — the two surfaces share no name. Its words
-are measured by `ConsolePaletteTest`; four the handoff draws under 4.5:1 are REPORTED in
-`Accent::consoleReported()`, never re-valued.
+are measured by `ConsolePaletteTest`, and every one clears 4.5:1 on every ground it is drawn
+on. The handoff drew `soft`, `faint`, `faint-2` and `slate` below that; they were REPORTED
+and left alone until the owner ruled (31 Oct, confirmed 5 Nov 2026) that the console must
+pass accessibility. They were re-valued to pass, `Accent::consoleReported()` is empty, and
+`AdminContrastTest` keeps the old greys from returning. A new console colour is measured
+like the rest: if it fails, darken it until it passes; do not add it to the reported list.
 
 Why PHP and not a stylesheet: the values the page receives and the values the tests measure
 must be the same values. A colour with two sources is decided by load order, which is how
@@ -989,6 +1016,15 @@ Twenty-four round trips per page, invisibly — the page draws and the figures a
 `Support\SchemaHas` is it; it never memoises a `false` that came from a throw, because a
 dropped connection recorded as "no such column" makes a merge skip a table, journal nothing
 for it, and report success.
+
+## Minified twins: run `php scripts/build-min.php` after editing a script
+
+`Assets::url()` serves `public/assets/min/<js|css>/<path>.<hash>.<ext>` in place of a source
+when a twin exists for the source's CURRENT content hash (`Support\MinifiedAssets`). Edit a
+script and its old twin stops matching, so the source is served as written: correct, and
+43% heavier. CSS twins are rebuilt by the hourly maintenance run in PHP; JS twins need
+esbuild, which the host does not have, so run the build where Node exists and commit
+`public/assets/min`. Never edit a twin.
 
 ## Running the tests
 

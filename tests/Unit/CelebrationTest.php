@@ -498,7 +498,7 @@ final class CelebrationTest extends TestCase
     public function test_the_scripts_are_deferred_nonced_and_self_hosted(): void
     {
         $html = $this->vote();
-        $this->assertSame(2, preg_match_all('~<script defer nonce="test-nonce" src="/assets/js/celebration(-boot)?\.js\?v=[^"]+"></script>~', $html),
+        $this->assertSame(2, preg_match_all('~<script defer nonce="test-nonce" src="/assets/js/celebration(-boot)?\.js\?v=[^"]+" data-nav="rerun"></script>~', $html),
             'a celebration must not block the first paint, and the public CSP is nonce-based');
         $this->assertLessThan(strpos($html, 'celebration-boot.js'), strpos($html, '/celebration.js'), 'the engine loads before its boot');
         $this->assertDoesNotMatchRegularExpression('~src="https?://~', $html);

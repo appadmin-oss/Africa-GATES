@@ -381,6 +381,14 @@ final class MergeService
         self::reassignPlain('gates_otp_tokens', 'nominee_id', $from, $to, $batch, $log,
                             ['purpose', self::NOMINEE_OTP_PURPOSES]);
         self::reassignPlain('gates_donations',     'intent_nominee_id', $from, $to, $batch, $log);
+        // The community return follows the contributions it came from. Moving the donations
+        // and the claim but not the ledger left the merged-away page holding the money: no
+        // member holds that page any more, so no wallet listed it and nobody could withdraw
+        // it, while audit() flagged every entry as "credited to a different nominee". The
+        // withdrawals move with the ledger they draw on; an open one is still checked
+        // against whoever holds the survivor's claim before anything is paid.
+        self::reassignPlain('gates_community_returns',  'nominee_id', $from, $to, $batch, $log);
+        self::reassignPlain('gates_return_withdrawals', 'nominee_id', $from, $to, $batch, $log);
 
         // Polymorphic references (type column = 'nominee').
         self::reassignPlain('gates_comments',    'target_id',      $from, $to, $batch, $log, ['target_type', 'nominee']);

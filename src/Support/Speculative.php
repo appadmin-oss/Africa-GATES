@@ -25,7 +25,9 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  */
 final class Speculative
 {
-    private const HEADERS = ['Sec-Purpose', 'Purpose', 'X-Purpose', 'X-Moz'];
+    // The browsers' four spellings, and site-nav.js's own: a script cannot set a `Sec-`
+    // header, so its prefetch says `X-Site-Prefetch: prefetch`.
+    private const HEADERS = ['Sec-Purpose', 'Purpose', 'X-Purpose', 'X-Moz', 'X-Site-Prefetch'];
 
     public static function is(?Request $request = null): bool
     {

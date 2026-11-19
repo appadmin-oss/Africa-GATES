@@ -1,0 +1,83 @@
+{% extends 'pages/account/_frame.twig' %}
+{#
+  MY SUPPORT — /account/supporting (AccountController::supporting, Services\SupporterRecord)
+
+  A vote as a record that builds rather than a one-off (owner, 16 Nov 2026: "make the voter feel
+  good and proud of themselves … make it feel worthwhile"). Three things, in the order a
+  supporter asks them:
+
+    1. What have I done?      backed N, across M editions, brought P people
+    2. What has it earned?    four badges, earned by time, judgement and people brought —
+                              never by money — with the ones not yet earned and how to earn them
+    3. How did they do?       every nominee, edition by edition, with the result, their "I
+                              backed" card, and a certificate where the edition earned one
+
+  An earned badge says "Earned" in words, never by colour alone; one not yet earned is a plain
+  row with how it is earned. No page script: every action is a link.
+  Colour: gold for honour (earned badges, a win), green for the one action (back someone).
+#}
+{% set acc_tab = 'supporting' %}
+{% set colour_tier = '2' %}
+{% set _r = record %}
+{% block acc_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/supporting.css') }}">{% endblock %}
+{% block acc_body %}
+{% if _r.editions|length %}
+  <section class="spr-sum" aria-label="{{ 'Your support in numbers'|trans }}">
+    <p class="spr-sum__i"><b class="spr-sum__n">{{ _r.backed|number_format }}</b><span>{{ _r.backed == 1 ? 'nominee backed'|trans : 'nominees backed'|trans }}</span></p>
+    <p class="spr-sum__i"><b class="spr-sum__n">{{ _r.editions_n|number_format }}</b><span>{{ _r.editions_n == 1 ? 'edition'|trans : 'editions'|trans }}</span></p>
+    <p class="spr-sum__i"><b class="spr-sum__n">{{ _r.brought|number_format }}</b><span>{{ _r.brought == 1 ? 'person you brought'|trans : 'people you brought'|trans }}</span></p>
+  </section>
+
+  <section class="acc__sec spr-badges" aria-labelledby="spr-b-h">
+    <h2 class="acc__h2" id="spr-b-h">{{ _r.earned == 0 ? 'Badges to earn'|trans : (_r.earned == 1 ? 'One badge earned'|trans : '%n% badges earned'|trans({'%n%': _r.earned})) }}</h2>
+    <ul class="spr-b">
+      {% for b in _r.badges %}
+        <li class="spr-b__i{{ b.earned ? ' spr-b__i--on' }}">
+          <span class="spr-b__ic" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              {%- if b.key == 'early' %}<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/>
+              {%- elseif b.key == 'winner' %}<path d="M6 4h12v4a6 6 0 0 1-12 0zM9 20h6M12 14v6M6 6H3v1a4 4 0 0 0 4 4M18 6h3v1a4 4 0 0 1-4 4"/>
+              {%- elseif b.key == 'mobiliser' %}<path d="M16 11a4 4 0 1 0-8 0M3 21a9 9 0 0 1 18 0M19 8v6M22 11h-6"/>
+              {%- else %}<path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3M18 3v4h-4M6 21v-4h4"/>{% endif -%}
+            </svg>
+          </span>
+          <span class="spr-b__t"><b>{{ b.t|trans }}</b><span>{{ b.d }}</span></span>
+          <span class="spr-b__s">{{ b.earned ? 'Earned'|trans : 'Not yet'|trans }}</span>
+        </li>
+      {% endfor %}
+    </ul>
+    <p class="spr-ed__place">{{ 'Badges are earned by when you backed, who you backed and who you brought. Never by how much you spent.'|trans }}</p>
+  </section>
+
+  {% for e in _r.editions %}
+    <section class="acc__sec spr-ed" aria-labelledby="spr-e-{{ e.cycle_id }}">
+      <div class="spr-ed__h">
+        <h2 class="acc__h2" id="spr-e-{{ e.cycle_id }}">{{ e.award }} <span class="spr-ed__y">{{ e.edition }}</span></h2>
+        {% if e.certificate %}<a class="ag-btn ag-btn--secondary ag-btn--pill spr-ed__cert" href="/account/supporting/certificate/{{ e.cycle_id }}">{{ 'Your certificate'|trans }}</a>{% endif %}
+      </div>
+      {% if e.place %}<p class="spr-ed__place">{{ '%place% is celebrating its own.'|trans({'%place%': e.place}) }}</p>{% endif %}
+      {% if not e.closed %}<p class="spr-ed__place">{{ 'When voting closes, a certificate of community recognition goes to the top 10 supporters and to anybody who brought 10 or more people to vote.'|trans }}</p>{% endif %}
+      <ul class="spr-n">
+        {% for n in e.nominees %}
+          <li class="spr-n__i">
+            <a class="spr-n__a" href="{{ n.url }}">
+              {% include 'partials/avatar.twig' with {name: n.name, id: n.id, size: 44, named: true} only %}
+              <span class="spr-n__t"><b>{{ n.name }}</b><span>{{ n.category }} · {{ n.votes == 1 ? '1 vote from you'|trans : '%n% votes from you'|trans({'%n%': n.votes|number_format}) }}</span></span>
+              <span class="spr-res spr-res--{{ n.tone }}">{{ n.result|trans }}</span>
+            </a>
+            <a class="spr-n__card" href="{{ n.url }}/backed.png" download="i-backed-{{ n.id }}.png">{{ 'Your “I backed” card'|trans }}</a>
+          </li>
+        {% endfor %}
+      </ul>
+      {% if e.phase == 'voting' %}<a class="spr-ed__more" href="/vote/{{ e.slug }}/spotlight">{{ 'Where you stand in the spotlight'|trans }}</a>{% endif %}
+      <a class="spr-ed__more" href="/vote/{{ e.slug }}/offer">{{ 'What your support unlocks in %award%'|trans({'%award%': e.award}) }}</a>
+    </section>
+  {% endfor %}
+{% else %}
+  <div class="ag-empty acc__empty">
+    <p class="ag-empty__t">{{ 'You have not backed anybody yet.'|trans }}</p>
+    <p>{{ 'When you vote with this account’s email, everybody you back shows up here, with how they did and the badges your support earns.'|trans }}</p>
+    <a class="ag-btn ag-btn--primary ag-btn--pill" href="/vote">{{ 'Back someone'|trans }}</a>
+  </div>
+{% endif %}
+{% endblock %}

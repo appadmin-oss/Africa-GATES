@@ -1,0 +1,57 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  SHOP REPORTS (shop upgrade, 18 Nov 2026): money and sales by product and option over a date
+  range, best sellers first, with the CSV for accounting. Gross is what orders PAID in the range
+  were charged; refunds are those SETTLED in the range; fees are what the gateway reported, or an
+  estimate where it did not (said so). See ShopReports for each definition.
+#}
+
+{% block head_styles %}{% include 'admin/shop/_styles.twig' %}{% endblock %}
+
+{% block topbar_title %}Shop reports{% endblock %}
+{% block topbar_actions %}
+  <a class="ad-btn" href="/admin/shop/today">Today</a>
+  <a class="ad-btn" href="/admin/shop/reports.csv?kind=orders&amp;from={{ from }}&amp;to={{ to }}">Orders CSV</a>
+  <a class="ad-btn" href="/admin/shop/reports.csv?kind=products&amp;from={{ from }}&amp;to={{ to }}">Products CSV</a>
+{% endblock %}
+
+{% block content %}
+<form class="sh-row" method="get" action="/admin/shop/reports">
+  <label class="sh-field">From<input type="date" name="from" value="{{ from }}"></label>
+  <label class="sh-field">To<input type="date" name="to" value="{{ to }}"></label>
+  <button class="sh-btn" type="submit">Show</button>
+  <span class="sh-small sh-muted">At most {{ max_days }} days at a time.</span>
+</form>
+
+{% if error %}
+<div class="sh-warn" role="alert">{{ error }} <a href="/admin/shop/reports?from={{ from }}&amp;to={{ to }}">Try again</a></div>
+{% else %}
+<div class="sh-stat">
+  <div class="sh-s"><div class="sh-s__k">Orders paid</div><div class="sh-s__v">{{ money.orders }}</div><div class="sh-s__n">{{ from }} to {{ to }}</div></div>
+  <div class="sh-s"><div class="sh-s__k">Sales</div><div class="sh-s__v">₦{{ money.gross|number_format }}</div><div class="sh-s__n">online ₦{{ money.online|number_format }} · in person ₦{{ money.in_person|number_format }}</div></div>
+  <div class="sh-s"><div class="sh-s__k">Refunded</div><div class="sh-s__v">₦{{ money.refunds|number_format }}</div><div class="sh-s__n">settled in the range</div></div>
+  <div class="sh-s"><div class="sh-s__k">Gateway fees</div><div class="sh-s__v">₦{{ money.fees|number_format }}</div><div class="sh-s__n">{% if money.fees_estimated %}₦{{ money.fees_estimated|number_format }} of it estimated{% else %}as reported by the gateway{% endif %}</div></div>
+  <div class="sh-s"><div class="sh-s__k">Net</div><div class="sh-s__v">₦{{ money.net|number_format }}</div><div class="sh-s__n">sales − refunds − fees</div></div>
+</div>
+
+<section class="sh-sec" aria-labelledby="rpProducts">
+  <h2 id="rpProducts">By product and option</h2>
+  {% if products|length %}
+  <div class="ad-table-wrap">
+    <table class="sh-list">
+      <thead><tr><th scope="col">#</th><th scope="col">Product</th><th scope="col">Option</th><th scope="col" class="is-num">Units sold</th><th scope="col" class="is-num">Returned</th><th scope="col" class="is-num">Takings</th><th scope="col" class="is-num">Orders</th></tr></thead>
+      <tbody>
+        {% for r in products %}
+        <tr><td>{{ loop.index }}</td><td>{{ r.product }}</td><td>{{ r.option ?: '—' }}</td><td class="is-num">{{ r.units }}</td><td class="is-num">{{ r.returned }}</td><td class="is-num">₦{{ r.takings|number_format }}</td><td class="is-num">{{ r.orders }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="sh-small">Takings are line totals as charged, before any order-level discount and delivery.</p>
+  {% else %}
+  <p role="status">Nothing was sold in this range.</p>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

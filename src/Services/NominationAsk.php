@@ -125,29 +125,48 @@ final class NominationAsk
      */
     public static function answer(object $nom, array $links, array $files): int
     {
-        $kept = 0;
         $now = date('Y-m-d H:i:s');
         $hasEvidence = SchemaHas::table('gates_nomination_evidence');
+        $urls = [];
         foreach (array_slice($links, 0, self::MAX_LINKS) as $u) {
-            $u = trim($u);
-            if (!NominationRules::isHttpUrl($u)) continue;
-            if ($hasEvidence) {
-                DB::table('gates_nomination_evidence')->insert([
-                    'nomination_id' => (int) $nom->id, 'kind' => NominationRules::EVIDENCE_LINK,
-                    'url' => mb_substr($u, 0, 600), 'label' => mb_substr((string) (parse_url($u, PHP_URL_HOST) ?: ''), 0, 200),
-                    'created_at' => $now,
-                ]);
-                $kept++;
-            }
+            $u = trim((string) $u);
+            if (NominationRules::isHttpUrl($u) && $hasEvidence) $urls[] = $u;
         }
-        foreach ($files as $f) {
-            if (AwardService::recordEvidenceFile((int) $nom->id, $f['path'], $f['label'], $f['mime'], $f['bytes'], $f['sha256'] ?? null)) $kept++;
+        if ($urls === [] && $files === []) return 0;
+
+        // CLAIM FIRST, then write. The link is single-use, and the status change was what
+        // spent it — but it ran AFTER the evidence was inserted, so two submits of the same
+        // form (a double tap, a retry on a slow connection) each read the nomination as
+        // still asking, each wrote the whole answer, and the reviewer got every link and
+        // file twice. Now the conditional update is the claim: the second submit moves no
+        // row and writes nothing. Inside one transaction, so a claim with nothing kept
+        // (every file refused) is rolled back and the link still works.
+        try {
+            $kept = DB::transaction(function () use ($nom, $urls, $files, $now): int {
+                $claimed = DB::table('gates_nominations')->where('id', (int) $nom->id)->where('status', NS::NEEDS_DETAILS)
+                    ->update(['status' => NS::PENDING, 'ask_token_hash' => null]);
+                if ($claimed < 1) return 0;
+                $kept = 0;
+                foreach ($urls as $u) {
+                    DB::table('gates_nomination_evidence')->insert([
+                        'nomination_id' => (int) $nom->id, 'kind' => NominationRules::EVIDENCE_LINK,
+                        'url' => mb_substr($u, 0, 600), 'label' => mb_substr((string) (parse_url($u, PHP_URL_HOST) ?: ''), 0, 200),
+                        'created_at' => $now,
+                    ]);
+                    $kept++;
+                }
+                foreach ($files as $f) {
+                    if (AwardService::recordEvidenceFile((int) $nom->id, $f['path'], $f['label'], $f['mime'], $f['bytes'], $f['sha256'] ?? null)) $kept++;
+                }
+                if ($kept === 0) throw new \RuntimeException('nominationask.nothing-kept');
+                return $kept;
+            });
+        } catch (\RuntimeException $e) {
+            if ($e->getMessage() === 'nominationask.nothing-kept') return 0;
+            throw $e;
         }
         if ($kept === 0) return 0;
 
-        // Back to the queue, and the link is spent: one answer per ask.
-        DB::table('gates_nominations')->where('id', (int) $nom->id)->where('status', NS::NEEDS_DETAILS)
-            ->update(['status' => NS::PENDING, 'ask_token_hash' => null]);
         // The AI's reading was of the nomination BEFORE this answer — it is exactly the
         // reading whose gap the reviewer asked about. Read again, off the request path.
         try { NominationTriageService::enqueue((int) $nom->id); } catch (\Throwable) {}

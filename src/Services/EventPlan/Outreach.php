@@ -33,7 +33,7 @@ final class Outreach
     /** Send the next batch of invitation letters for the lead's event. @return array{ok:bool, error?:string, sent?:int, failed?:int, left?:int, event?:int} */
     public static function sendLetters(int $eventId, int $leadId, ?OtpService $mailer = null): array
     {
-        if (!Plan::isLead($leadId, $eventId)) return ['ok' => false, 'error' => 'Only a lead of this event can send its letters.'];
+        if (!Plan::may($leadId, $eventId, 'messages.send')) return ['ok' => false, 'error' => 'Only a lead of this event, or a team role that includes it, can send its letters.'];
         $event = Plan::event($eventId);
         if (!$event) return ['ok' => false, 'error' => 'That event is not there.'];
         $mailer ??= OtpService::boot();
@@ -70,7 +70,7 @@ final class Outreach
         $r = Requests::find($requestId);
         if (!$r || $r->type !== 'message' || $r->scope_kind !== 'event') return ['ok' => false, 'error' => 'That is not a message request for an event.'];
         $eventId = (int) $r->scope_id;
-        if (!Plan::isLead($leadId, $eventId)) return ['ok' => false, 'error' => 'Only a lead of this event can send its messages.'];
+        if (!Plan::may($leadId, $eventId, 'messages.send')) return ['ok' => false, 'error' => 'Only a lead of this event, or a team role that includes it, can send its messages.'];
         if ($r->status !== 'approved') return ['ok' => false, 'error' => 'A big send needs its request approved first.'];
         if (!isset(self::AUDIENCES[$audience])) return ['ok' => false, 'error' => 'Pick who it goes to.'];
         $subject = trim($subject);

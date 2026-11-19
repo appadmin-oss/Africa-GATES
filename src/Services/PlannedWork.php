@@ -25,12 +25,19 @@ use Illuminate\Support\Carbon;
 final class PlannedWork
 {
     public const KEYS = ['title' => 'status_planned_title', 'from' => 'status_planned_from',
-                         'to' => 'status_planned_to', 'note' => 'status_planned_note'];
+                         'to' => 'status_planned_to', 'note' => 'status_planned_note',
+                         'close' => 'status_planned_close'];
     public const LEAD_DAYS = 7;
+    /**
+     * Hours before it starts that the notice is on EVERY public page (SiteNotice), not only
+     * /status. A week on /status is right for people who go looking; a week on every page is a
+     * banner people stop reading by the day it matters.
+     */
+    public const SITE_LEAD_HOURS = 72;
 
     /**
      * @param array<string,string>|null $settings injectable; read from gates_settings otherwise
-     * @return array{title:string, from:string, to:string, note:string, minutes:int, started:bool}|null
+     * @return array{title:string, from:string, to:string, note:string, minutes:int, started:bool, close:bool, site:bool}|null
      */
     public static function current(?array $settings = null): ?array
     {
@@ -53,6 +60,10 @@ final class PlannedWork
             'note'    => $v['note'],
             'minutes' => intdiv($to->getTimestamp() - $from->getTimestamp(), 60),
             'started' => $now->gte($from),
+            // The operator chose to CLOSE the public site while it runs (MaintenanceGate):
+            // visitors get the planned-work page, staff and the machinery keep working.
+            'close'   => $v['close'] === '1',
+            'site'    => $now->gte($from->copy()->subHours(self::SITE_LEAD_HOURS)),
         ];
     }
 
@@ -60,7 +71,7 @@ final class PlannedWork
      * What is stored, normalised, for the settings form to show back.
      *
      * @param array<string,string>|null $settings
-     * @return array{title:string, from:string, to:string, note:string}
+     * @return array{title:string, from:string, to:string, note:string, close:string}
      */
     public static function stored(?array $settings = null): array
     {
@@ -90,6 +101,9 @@ final class PlannedWork
         $out = [];
         foreach (self::KEYS as $k => $key) {
             $v = trim((string) ($posted[$key] ?? ''));
+            // A checkbox posts nothing when unticked, so its absence IS the answer here: the
+            // section always posts its title, which is how the caller knows it was submitted.
+            if ($k === 'close') { $out[$key] = $v !== '' && $v !== '0' ? '1' : '0'; continue; }
             if (($k === 'from' || $k === 'to') && $v !== '') {
                 // Typed in the display zone, stored in UTC — the pair to `when_input` on the
                 // form. Parsed as UTC it moved the window an hour on every save.

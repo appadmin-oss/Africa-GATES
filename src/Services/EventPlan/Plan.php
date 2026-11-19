@@ -41,9 +41,15 @@ final class Plan
     public const RULES = [
         'lead_spend_limit_naira' => 200000,   // a lead approves one line up to this
         'lead_week_hours'        => 40,       // a person's week, for the load on People
+        // An event's finance admin approves one line up to this. It was "unset = no limit",
+        // read by its own copy of the lookup, with no field anywhere to set it, while the
+        // menu promised a ceiling (AUDIT-AND-PLAN EV-3). Settable on /admin/settings.
+        'event_finance_limit_naira' => 1000000,
     ];
 
     public const STATUSES = ['todo' => 'Not started', 'doing' => 'In progress', 'done' => 'Done'];
+    /** Work in these states is not on the plan yet (a suggestion) or never will be: it counts nowhere (TeamLoop). */
+    public const OFF_PLAN = ['proposed', 'declined'];
     public const LIKELIHOOD = ['unlikely' => 'Unlikely', 'possible' => 'Possible', 'likely' => 'Likely'];
     public const IMPACT = ['low' => 'Low impact', 'medium' => 'Medium impact', 'high' => 'High impact'];
     public const LINE_STATUSES = ['proposed' => 'Not approved yet', 'approved' => 'Approved', 'requested' => 'With finance', 'declined' => 'Declined'];
@@ -91,6 +97,19 @@ final class Plan
     }
 
     /**
+     * May this member do what one MENU permission allows at this event, now? A lead may do all
+     * of them; an approved custom role only what it was ticked for (EventPermissions). Every
+     * writer here asks this on the ROW's event, so a post naming a row of another event — or
+     * a role without the tick — writes nothing.
+     */
+    public static function may(int $memberId, int $eventId, string $perm): bool
+    {
+        if ($memberId <= 0 || $eventId <= 0) return false;
+        if (self::isLead($memberId, $eventId)) return isset(EventPermissions::MENU[$perm]);
+        return EventPermissions::can($memberId, $eventId, $perm);
+    }
+
+    /**
      * The events this member leads right now, soonest first. A grant at the platform covers every
      * event still ahead or within the last month.
      *
@@ -130,12 +149,13 @@ final class Plan
         if (!Grants::ready()) return [];
         $now = date('Y-m-d H:i:s');
         $rows = DB::table('gates_grants')->where('scope_kind', 'event')->where('scope_id', $eventId)
-            ->whereNull('revoked_at')->where('expires_at', '>', $now)
+            ->where(static fn ($w) => Grants::live($w))
             ->where(static fn ($w) => $w->whereNull('starts_at')->orWhere('starts_at', '<=', $now))
             ->orderBy('id')->get()->all();
         $out = [];
         foreach ($rows as $g) {
-            if ($g->capability !== 'event.lead' && !str_starts_with((string) $g->capability, 'vol.')) continue;
+            // Leads, volunteers and the people in an event's own roles; an owner decides, and owns no work.
+            if (!in_array($g->capability, ['event.lead', 'event.role'], true) && !str_starts_with((string) $g->capability, 'vol.')) continue;
             $key = $g->actor_kind . ':' . $g->actor_id;
             if (isset($out[$key])) continue;
             $out[$key] = ['key' => $key, 'kind' => (string) $g->actor_kind, 'id' => (int) $g->actor_id,
@@ -168,7 +188,7 @@ final class Plan
     public static function addWork(int $eventId, array $in, int $leadId): array
     {
         if (!self::ready()) return ['ok' => false, 'error' => 'The database needs its latest update first.'];
-        if (!self::isLead($leadId, $eventId)) return ['ok' => false, 'error' => 'Only a lead of this event can change its plan.'];
+        if (!self::may($leadId, $eventId, 'plan.edit')) return ['ok' => false, 'error' => 'Only a lead of this event, or a team role that includes it, can change its plan.'];
         $title = trim((string) ($in['title'] ?? ''));
         if ($title === '') return ['ok' => false, 'error' => 'Say what has to be done.'];
         [$ok, $kind, $oid, $err] = self::owner($eventId, (string) ($in['owner'] ?? ''));
@@ -179,7 +199,10 @@ final class Plan
         if ($hours !== null && ($hours < 0 || $hours > 500)) return ['ok' => false, 'error' => 'Hours must be between 0 and 500.'];
         $blocks = (string) ($in['blocks_night'] ?? '') === '1';
         $now = date('Y-m-d H:i:s');
-        $id = (int) DB::table('gates_event_work')->insertGetId([
+        // What proves it done is chosen now, not argued about later (TeamLoop, plan AT-6).
+        $proof = (string) ($in['proof_type'] ?? 'none');
+        $extra = SchemaHas::column('gates_event_work', 'proof_type') ? ['proof_type' => isset(TeamLoop::PROOF[$proof]) ? $proof : 'none'] : [];
+        $id = (int) DB::table('gates_event_work')->insertGetId($extra + [
             'event_id' => $eventId, 'title' => mb_substr($title, 0, 255), 'detail' => trim((string) ($in['detail'] ?? '')) ?: null,
             'owner_kind' => $kind, 'owner_id' => $oid, 'due_at' => $due, 'est_hours' => $hours, 'status' => 'todo',
             'blocks_night' => $blocks ? 1 : 0, 'blocks_note' => $blocks ? (mb_substr(trim((string) ($in['blocks_note'] ?? '')), 0, 255) ?: null) : null,
@@ -194,7 +217,10 @@ final class Plan
         if (!isset(self::STATUSES[$status])) return ['ok' => false, 'error' => 'That is not a state work can be in.'];
         $w = self::ready() ? DB::table('gates_event_work')->where('id', $workId)->first() : null;
         if (!$w) return ['ok' => false, 'error' => 'That work is not there.'];
-        if (!self::isLead($leadId, (int) $w->event_id)) return ['ok' => false, 'error' => 'Only a lead of this event can change its plan.'];
+        if (!self::may($leadId, (int) $w->event_id, 'plan.edit')) return ['ok' => false, 'error' => 'Only a lead of this event, or a team role that includes it, can change its plan.'];
+        if (in_array($w->status, self::OFF_PLAN, true)) return ['ok' => false, 'error' => 'Decide the suggestion first.'];
+        // Done goes through the proof check: work that needs proof is held until it has it.
+        if ($status === 'done' && (string) ($w->proof_type ?? 'none') !== 'none' && TeamLoop::ready()) return TeamLoop::complete($workId, $leadId, '');
         DB::table('gates_event_work')->where('id', $workId)->update([
             'status' => $status, 'done_at' => $status === 'done' ? date('Y-m-d H:i:s') : null, 'updated_at' => date('Y-m-d H:i:s'),
         ]);
@@ -206,7 +232,7 @@ final class Plan
     {
         $w = self::ready() ? DB::table('gates_event_work')->where('id', $workId)->first() : null;
         if (!$w) return ['ok' => false, 'error' => 'That work is not there.'];
-        if (!self::isLead($leadId, (int) $w->event_id)) return ['ok' => false, 'error' => 'Only a lead of this event can change its plan.'];
+        if (!self::may($leadId, (int) $w->event_id, 'plan.edit')) return ['ok' => false, 'error' => 'Only a lead of this event, or a team role that includes it, can change its plan.'];
         [$ok, $kind, $oid, $err] = self::owner((int) $w->event_id, $owner);
         if (!$ok) return ['ok' => false, 'error' => $err];
         DB::table('gates_event_work')->where('id', $workId)->update(['owner_kind' => $kind, 'owner_id' => $oid, 'updated_at' => date('Y-m-d H:i:s')]);
@@ -222,7 +248,7 @@ final class Plan
     public static function work(array $eventIds, bool $openOnly = false): array
     {
         if (!self::ready() || $eventIds === []) return [];
-        $q = DB::table('gates_event_work')->whereIn('event_id', $eventIds);
+        $q = DB::table('gates_event_work')->whereIn('event_id', $eventIds)->whereNotIn('status', self::OFF_PLAN);
         if ($openOnly) $q->where('status', '!=', 'done');
         $rows = $q->orderBy('id')->get()->all();
         usort($rows, static fn ($a, $b) => [$a->due_at === null ? 1 : 0, (string) $a->due_at, $a->id] <=> [$b->due_at === null ? 1 : 0, (string) $b->due_at, $b->id]);
@@ -238,7 +264,7 @@ final class Plan
     public static function readiness(int $eventId): ?array
     {
         if (!self::ready()) return null;
-        $all = (int) DB::table('gates_event_work')->where('event_id', $eventId)->count();
+        $all = (int) DB::table('gates_event_work')->where('event_id', $eventId)->whereNotIn('status', self::OFF_PLAN)->count();
         if ($all === 0) return null;
         $done = (int) DB::table('gates_event_work')->where('event_id', $eventId)->where('status', 'done')->count();
         return ['done' => $done, 'all' => $all, 'pct' => (int) floor($done * 100 / $all)];
@@ -270,7 +296,7 @@ final class Plan
     public static function addRisk(int $eventId, array $in, int $leadId): array
     {
         if (!self::ready()) return ['ok' => false, 'error' => 'The database needs its latest update first.'];
-        if (!self::isLead($leadId, $eventId)) return ['ok' => false, 'error' => 'Only a lead of this event can change its plan.'];
+        if (!self::may($leadId, $eventId, 'plan.edit')) return ['ok' => false, 'error' => 'Only a lead of this event, or a team role that includes it, can change its plan.'];
         $title = trim((string) ($in['title'] ?? ''));
         if ($title === '') return ['ok' => false, 'error' => 'Say what could happen.'];
         $l = (string) ($in['likelihood'] ?? '');
@@ -290,7 +316,7 @@ final class Plan
     {
         $r = self::ready() ? DB::table('gates_event_risks')->where('id', $riskId)->first() : null;
         if (!$r) return ['ok' => false, 'error' => 'That risk is not there.'];
-        if (!self::isLead($leadId, (int) $r->event_id)) return ['ok' => false, 'error' => 'Only a lead of this event can change its plan.'];
+        if (!self::may($leadId, (int) $r->event_id, 'plan.edit')) return ['ok' => false, 'error' => 'Only a lead of this event, or a team role that includes it, can change its plan.'];
         DB::table('gates_event_risks')->where('id', $riskId)->where('status', 'open')->update(['status' => 'closed', 'closed_at' => date('Y-m-d H:i:s')]);
         return ['ok' => true, 'event' => (int) $r->event_id];
     }
@@ -321,7 +347,7 @@ final class Plan
     public static function addLine(int $eventId, array $in, int $leadId): array
     {
         if (!self::ready()) return ['ok' => false, 'error' => 'The database needs its latest update first.'];
-        if (!self::isLead($leadId, $eventId)) return ['ok' => false, 'error' => 'Only a lead of this event can change its plan.'];
+        if (!self::may($leadId, $eventId, 'money.plan')) return ['ok' => false, 'error' => 'Only a lead of this event, or a team role that includes it, can change its plan.'];
         $title = trim((string) ($in['title'] ?? ''));
         $amount = self::kobo((string) ($in['estimate'] ?? ''));
         if ($title === '') return ['ok' => false, 'error' => 'Say what the money is for.'];
@@ -340,10 +366,19 @@ final class Plan
     {
         $l = self::ready() ? DB::table('gates_event_budget')->where('id', $lineId)->first() : null;
         if (!$l) return ['ok' => false, 'error' => 'That line is not there.'];
-        if (!self::isLead($leadId, (int) $l->event_id)) return ['ok' => false, 'error' => 'Only a lead of this event can approve its spend.'];
+        if (!self::may($leadId, (int) $l->event_id, 'money.approve')) return ['ok' => false, 'error' => 'Only a lead of this event, or a team role that includes it, can approve its spend.'];
         if ($l->status !== 'proposed') return ['ok' => false, 'error' => 'That line has already been decided.'];
-        if ((int) $l->estimate_minor > self::limitMinor()) {
-            return ['ok' => false, 'error' => 'That is over your limit of ' . self::naira(self::limitMinor()) . '. Ask finance instead.'];
+        // The person who asks for money is never the one who approves it (39b34dd). Only the
+        // finance-admin path held that; a lead holds both money.plan and money.approve, so a
+        // lead approved the lines they had just added themselves (AUDIT-AND-PLAN EV-1).
+        if ((string) $l->proposed_kind === self::ACTOR && (int) $l->proposed_id === $leadId) {
+            return ['ok' => false, 'error' => 'You added this line, so somebody else approves it: another lead, the event’s finance admin, or finance.'];
+        }
+        // The ACTOR's ceiling: the platform's limit for a lead, the role's (never above it) for a
+        // custom role holding `money.approve`.
+        $ceiling = EventPermissions::ceiling($leadId, (int) $l->event_id);
+        if ((int) $l->estimate_minor > $ceiling) {
+            return ['ok' => false, 'error' => 'That is over your limit of ' . self::naira($ceiling) . '. Ask finance instead.'];
         }
         $n = DB::table('gates_event_budget')->where('id', $lineId)->where('status', 'proposed')->update([
             'status' => 'approved', 'approved_kind' => self::ACTOR, 'approved_id' => $leadId,
@@ -361,7 +396,7 @@ final class Plan
     {
         $l = self::ready() ? DB::table('gates_event_budget')->where('id', $lineId)->first() : null;
         if (!$l) return ['ok' => false, 'error' => 'That line is not there.'];
-        if (!self::isLead($leadId, (int) $l->event_id)) return ['ok' => false, 'error' => 'Only a lead of this event can ask for its spend.'];
+        if (!self::may($leadId, (int) $l->event_id, 'money.plan')) return ['ok' => false, 'error' => 'Only a lead of this event, or a team role that includes it, can ask for its spend.'];
         if (!in_array($l->status, ['proposed', 'declined'], true)) return ['ok' => false, 'error' => 'That line is already approved or with finance.'];
         $r = Requests::create('lead', 'spend', self::ACTOR, $leadId, $leadName,
             ['title' => (string) $l->title, 'amount' => (string) intdiv((int) $l->estimate_minor, 100), 'by' => $by, 'why' => $why],
@@ -394,11 +429,17 @@ final class Plan
     {
         $l = self::ready() ? DB::table('gates_event_budget')->where('id', $lineId)->first() : null;
         if (!$l) return ['ok' => false, 'error' => 'That line is not there.'];
-        if (!self::isLead($leadId, (int) $l->event_id)) return ['ok' => false, 'error' => 'Only a lead of this event can change its plan.'];
+        if (!self::may($leadId, (int) $l->event_id, 'money.plan')) return ['ok' => false, 'error' => 'Only a lead of this event, or a team role that includes it, can change its plan.'];
         if ($l->status !== 'approved') return ['ok' => false, 'error' => 'Only approved spend can be committed or paid.'];
         $c = self::kobo($committed);
         $p = self::kobo($paid);
         if (($committed !== '' && $c === null) || ($paid !== '' && $p === null)) return ['ok' => false, 'error' => 'Give the figures in naira.'];
+        // What was approved is the ceiling. Without this a ₦50,000 approval could be recorded
+        // as ₦10m committed or paid with nobody deciding the difference (AUDIT-AND-PLAN EV-2).
+        $cap = (int) $l->estimate_minor;
+        if (($c ?? 0) > $cap || ($p ?? 0) > $cap) {
+            return ['ok' => false, 'error' => 'That is more than the ' . self::naira($cap) . ' approved for this line. Add a line for the difference so somebody approves it.'];
+        }
         DB::table('gates_event_budget')->where('id', $lineId)->update([
             'committed_minor' => $c ?? (int) $l->committed_minor, 'paid_minor' => $p ?? (int) $l->paid_minor, 'updated_at' => date('Y-m-d H:i:s'),
         ]);
@@ -435,13 +476,21 @@ final class Plan
     /** The event's budget and series (its settings on the lead's Overview). */
     public static function setEventSettings(int $eventId, string $budget, string $series, int $leadId): array
     {
-        if (!self::isLead($leadId, $eventId)) return ['ok' => false, 'error' => 'Only a lead of this event can change its settings.'];
+        if (!self::may($leadId, $eventId, 'settings.edit')) return ['ok' => false, 'error' => 'Only a lead of this event, or a team role that includes it, can change its settings.'];
         if (!SchemaHas::column('gates_site_events', 'series_key')) return ['ok' => false, 'error' => 'The database needs its latest update first.'];
         $b = self::kobo($budget);
         if ($budget !== '' && $b === null) return ['ok' => false, 'error' => 'Give the budget in naira.'];
         // One spelling per series, so "Alimosho Ceremony" and "alimosho-ceremony " are one series.
         $key = Slug::make($series, 64);
-        DB::table('gates_site_events')->where('id', $eventId)->update(['budget_minor' => $b ?: null, 'series_key' => $key !== '' ? $key : null]);
+        DB::table('gates_site_events')->where('id', $eventId)->update(['series_key' => $key !== '' ? $key : null]);
+        // The budget is a LARGE change (Tiers): an owner decides it. It used to be written here
+        // straight away (AUDIT-AND-PLAN EV-8). The series is only a label and still applies.
+        $now = DB::table('gates_site_events')->where('id', $eventId)->value('budget_minor');
+        if ((string) ($b ?: '') !== (string) ($now ?? '')) {
+            $r = Changes::propose('budget', $eventId, $b ? (string) $b : '', 'The lead set the event’s budget', $leadId);
+            if (!$r['ok']) return $r;
+            return ['ok' => true, 'event' => $eventId, 'msg' => 'Saved. The budget change waits for an owner: ' . (string) ($r['msg'] ?? '')];
+        }
         return ['ok' => true, 'event' => $eventId];
     }
 

@@ -56,3 +56,14 @@ Each line is a test method that was deleted because it rendered or read a destro
 - `FormAccessibilityTest::test_a_decorative_duplicate_link_is_hidden_from_assistive_tech` — A decorative duplicate link is hidden from assistive tech.
 - `ShopCheckoutNoticeTest::test_every_emitted_checkout_code_has_a_message` — Expected to find the controller bail codes — *Expected to find the template message keys*
 - `ShopCheckoutNoticeTest::test_mismatch_is_worded_as_money_moved_not_as_a_failure` — No `mismatch` entry in the checkout message map — *`mismatch` must not be styled as a failure*
+
+## Added after the destruction: collection points (shop upgrade phase 4, 18 Nov 2026)
+
+The checkout the rebuild draws owes one more choice: **delivery or collect**. `POST /shop/quote`
+now returns `pickup_points` (id, name, address, hours — active ones only). Posting `pickup=<id>`
+to `/shop/quote` and `/shop/checkout` prices the order with no delivery charge and makes the
+delivery address optional; an unknown or switched-off point is refused with
+`?checkout=pickup` (copy in `ShopController::CHECKOUT_NOTICES`), never turned into a delivery.
+The region is still required — it drives regional pricing. The buyer's six-digit collection
+code is in their receipt and the "ready to collect" email; the order page should show it too
+(`gates_orders.pickup_code`) when it is rebuilt (`pages--shop--order.md`).

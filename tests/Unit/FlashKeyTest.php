@@ -168,7 +168,8 @@ final class FlashKeyTest extends TestCase
         $src = (string) file_get_contents($this->root() . '/config/container.php');
 
         $this->assertMatchesRegularExpression(
-            "~'flash_ok'\s*=>\s*\\\$_SESSION\['flash_ok'\]\s*\?\?\s*\\\$_SESSION\['flash'\]~",
+            // (A page fetched ahead shows none — `$ahead ? null : (…)` — TabSwitchTest.)
+            "~'flash_ok'\s*=>\s*(?:\\\$ahead \? null : \()?\\\$_SESSION\['flash_ok'\]\s*\?\?\s*\\\$_SESSION\['flash'\]~",
             $src
         );
     }

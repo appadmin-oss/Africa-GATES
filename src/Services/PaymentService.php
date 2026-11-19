@@ -251,9 +251,6 @@ class PaymentService
                                                string $why, ?\Throwable $e): void
     {
         try {
-            $dir = dirname(__DIR__, 2) . '/var/logs';
-            if (!is_dir($dir)) @mkdir($dir, 0775, true);
-
             $entry = '[' . date('c') . '] CheckoutCouldNotStart: ' . $provider
                    . ' refused ' . $reference . ' — ' . mb_substr(trim($why), 0, 400);
             if ($e !== null) {
@@ -265,7 +262,7 @@ class PaymentService
                 $entry .= "\n(the gateway answered and refused — this is its own message, "
                         . 'not a crash on our side)';
             }
-            @file_put_contents($dir . '/error-detail.log', $entry . "\n\n", FILE_APPEND);
+            \AfricaGates\Support\PublicFault::append($entry . "\n\n");
         } catch (\Throwable) { /* a diagnostic must never be the thing that breaks */ }
     }
 
@@ -636,7 +633,9 @@ class PaymentService
                 // org id trustworthy here. A tip a client could pass to this method is a
                 // number a browser chose for somebody else's settlement.
                 $route = PaymentDestination::initFieldsForPartner(
-                    $orgId, PaymentDestination::platformTipForReference($reference));
+                    $orgId, PaymentDestination::platformTipForReference($reference),
+                    PaymentDestination::platformShareForReference($reference),
+                    PaymentDestination::coverForReference($reference));
                 // Only claim the partner stream if the routing actually resolved. A suspended
                 // partner falls through to an empty route and the payment settles to the main
                 // account, where it is visible and refundable.
@@ -1210,6 +1209,11 @@ class PaymentService
             // indexed hit rather than a live call. See PaymentLookup.
             'gateway_id'  => (string) ($data['id'] ?? ''),
             'gateway_ref' => (string) ($data['reference'] ?? ''),
+            // The fee Paystack ACTUALLY took on this charge, in kobo → naira; null when it did
+            // not say. Stored on a shop order at confirmation so the shop's net figures use the
+            // real fee rather than one recomputed from a schedule that changes (ShopReports).
+            'fees'        => isset($data['fees']) && is_numeric($data['fees'])
+                ? (int) round(((float) $data['fees']) / 100) : null,
         ];
     }
 

@@ -1,0 +1,35 @@
+{#- A role given, or offered, at an event · Events. Sender: RoleInvites::tell (owner, 3 Nov
+    2026: "the new lead is never told").
+    Variables: first_name, role (e.g. "Lead", "Door steward"), place (the event's title),
+    when (its date, or ''), until (the day the role ends), inviter (who gave it), state —
+      'given'   the role is theirs now: open it
+      'account' it switches on when they create an account with THIS address and confirm it
+      'confirm' they have an account here whose address is not confirmed yet
+      'apply'   a volunteer role: it switches on once they are an approved volunteer
+    action_url, action_label.
+    Only what the code does: the role ends by itself on `until` (Grants: every grant ends),
+    and an invitation turns into the role on their next sign-in once the condition is met
+    (RoleInvites::claimFor). -#}
+{% extends 'emails/_layout.html.twig' %}
+{% block category %}Events{% endblock %}
+{% block hero %}illo-shield{% endblock %}
+{% block why %}{{ inviter ? inviter ~ ' gave' : 'You were given' }} a role at an Africa GATES event{{ inviter ? ' to this address' : '' }}.{% endblock %}
+{% block subject %}{{ state == 'given' ? 'You are now ' ~ (role == 'Lead' ? 'a lead' : role|lower) ~ ' for ' ~ place : 'You’re invited to be ' ~ (role == 'Lead' ? 'a lead' : role|lower) ~ ' for ' ~ place }}{% endblock %}
+{% block preheader %}{{ state == 'given' ? 'It’s in your account now, until ' ~ until ~ '.' : 'It switches on by itself once you ' ~ (state == 'apply' ? 'are an approved volunteer.' : 'sign in with this address.') }}{% endblock %}
+{% block body %}
+{%- import 'emails/_blocks.html.twig' as b -%}
+{{ b.eyebrow(place) }}
+{{ b.h1(state == 'given' ? 'You’re on, ' ~ first_name : 'You’re invited, ' ~ first_name) }}
+{% if state == 'given' %}
+{{ b.p((inviter ? inviter ~ ' has made you ' : 'You are now ') ~ (role == 'Lead' ? 'a lead' : role|lower) ~ ' for ' ~ place ~ '. It’s in your Africa GATES account now.') }}
+{% elseif state == 'account' %}
+{{ b.p((inviter ? inviter ~ ' has asked you to be ' : 'You’ve been asked to be ') ~ (role == 'Lead' ? 'a lead' : role|lower) ~ ' for ' ~ place ~ '. Create an Africa GATES account with this email address and confirm it — the role switches on by itself the next time you sign in. Nobody has to give it to you again.') }}
+{% elseif state == 'confirm' %}
+{{ b.p((inviter ? inviter ~ ' has asked you to be ' : 'You’ve been asked to be ') ~ (role == 'Lead' ? 'a lead' : role|lower) ~ ' for ' ~ place ~ '. Your account’s email address isn’t confirmed yet: confirm it, and the role switches on the next time you sign in.') }}
+{% else %}
+{{ b.p((inviter ? inviter ~ ' has asked you to be ' : 'You’ve been asked to be ') ~ role|lower ~ ' for ' ~ place ~ '. Volunteers apply once, and the volunteer team checks every application. Once yours is approved, this role switches on by itself the next time you sign in.') }}
+{% endif %}
+{{ b.facts([['Role', role], ['Event', place]]|merge(when ? [['Date', when]] : [])|merge([['Ends', until, 'b']])) }}
+{{ b.button(action_label, action_url) }}
+{{ b.note('The role ends by itself on ' ~ until ~ '. If you weren’t expecting this, you can ignore it — nothing happens unless you sign in.') }}
+{% endblock %}

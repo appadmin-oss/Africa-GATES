@@ -34,15 +34,17 @@
   /* Store → controls. On load, after every `ag:a11y`, and when a sheet opens. */
   function sync() {
     if (!window.AGA11y) return;
-    var s = window.AGA11y.read(), size = s.size | 0;
+    var s = window.AGA11y.read(), size = s.size | 0, scheme = s.scheme | 0;
 
-    /* Each size group is a radiogroup with ONE tab stop on the chosen option. */
+    /* Each size and appearance group is a radiogroup with ONE tab stop on the chosen
+       option. */
     all('[role="radiogroup"]').forEach(function (g) {
-      var opts = all('[data-ag-size]', g);
-      opts.forEach(function (b) {
-        var on = parseInt(b.getAttribute('data-ag-size'), 10) === size;
-        b.setAttribute('aria-checked', String(on));
-        b.tabIndex = on ? 0 : -1;
+      [['data-ag-size', size], ['data-ag-scheme', scheme]].forEach(function (pick) {
+        all('[' + pick[0] + ']', g).forEach(function (b) {
+          var on = parseInt(b.getAttribute(pick[0]), 10) === pick[1];
+          b.setAttribute('aria-checked', String(on));
+          b.tabIndex = on ? 0 : -1;
+        });
       });
     });
 
@@ -62,6 +64,8 @@
     document.addEventListener('click', function (e) {
       var size = closest(e, '[data-ag-size]');
       if (size) { window.AGA11y.set({ size: parseInt(size.getAttribute('data-ag-size'), 10) }); return; }
+      var scheme = closest(e, '[data-ag-scheme]');
+      if (scheme) { window.AGA11y.set({ scheme: parseInt(scheme.getAttribute('data-ag-scheme'), 10) }); return; }
       var tog = closest(e, '[data-ag-toggle]');
       if (tog) {
         var p = {};
@@ -70,21 +74,25 @@
       }
     });
 
-    /* Arrow keys move the size choice: a radiogroup that only answers Tab and Space is a
-       radiogroup in name. Left and right follow the reading direction. */
+    /* Arrow keys move the size or appearance choice: a radiogroup that only answers Tab
+       and Space is a radiogroup in name. Left and right follow the reading direction. */
     document.addEventListener('keydown', function (e) {
       var k = e.key;
       if (k !== 'ArrowLeft' && k !== 'ArrowRight' && k !== 'ArrowUp' && k !== 'ArrowDown') return;
       var here = document.activeElement;
-      if (!here || !here.hasAttribute || !here.hasAttribute('data-ag-size')) return;
-      var group = all('[data-ag-size]', here.closest('[role="radiogroup"]') || document);
+      if (!here || !here.hasAttribute) return;
+      var attr = here.hasAttribute('data-ag-size') ? 'data-ag-size' : (here.hasAttribute('data-ag-scheme') ? 'data-ag-scheme' : '');
+      if (!attr) return;
+      var group = all('[' + attr + ']', here.closest('[role="radiogroup"]') || document);
       var i = group.indexOf(here);
       if (i < 0) return;
       var rtl = document.documentElement.dir === 'rtl';
       var back = k === 'ArrowUp' || (k === 'ArrowLeft' && !rtl) || (k === 'ArrowRight' && rtl);
       var next = group[(i + (back ? -1 : 1) + group.length) % group.length];
       e.preventDefault();
-      window.AGA11y.set({ size: parseInt(next.getAttribute('data-ag-size'), 10) });
+      var patch = {};
+      patch[attr === 'data-ag-size' ? 'size' : 'scheme'] = parseInt(next.getAttribute(attr), 10);
+      window.AGA11y.set(patch);
       next.focus();
     });
 
@@ -246,4 +254,7 @@
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
+  // A swapped page (site-nav.js) may bring the first-visit language prompt, or controls
+  // whose state comes from the store: answered again, with no listener bound twice.
+  document.addEventListener('ag:load', function () { bindLangAsk(); sync(); });
 })();

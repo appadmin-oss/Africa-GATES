@@ -642,6 +642,7 @@ final class ActivityFeedService
                 DB::table('gates_nominees as n')
                     ->leftJoin('gates_award_categories as c', 'c.id', '=', 'n.category_id')
                     ->leftJoin('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
+                    ->leftJoin('gates_award_programmes as pg', 'pg.id', '=', 'cy.programme_id')
                     ->whereIn('n.status', ['approved', 'winner', 'runner_up'])
                     ->whereNull('n.merged_into'),
                 'cy.programme_id'),
@@ -649,14 +650,17 @@ final class ActivityFeedService
             ['n.name', 'n.tagline', 'c.title'],
         )
             ->orderByDesc('n.nominated_at')->limit($limit)
-            ->get(['n.id', 'n.name', 'n.tagline', 'n.nominated_at', 'c.title as category'])->all();
+            ->get(['n.id', 'n.name', 'n.tagline', 'n.nominated_at', 'c.title as category', 'pg.slug as programme_slug'])->all();
 
         return array_map(fn (object $r): array => $this->item(
             kind:   'nominee',
             label:  'Nominee',
             title:  (string) $r->name,
             detail: trim(((string) ($r->category ?? '')) . (($r->tagline ?? '') !== '' ? ' · ' . $r->tagline : ''), ' ·'),
-            url:    '/registry',
+            // The nominee's own page. It was '/registry' — which redirects to the People tab —
+            // so every nominee the search palette or the Live tab found led to a list, never
+            // to the person: the one click a search exists for went nowhere.
+            url:    \AfricaGates\Support\NomineeUrl::of((string) ($r->programme_slug ?? ''), (int) $r->id, (string) $r->name),
             at:     (string) ($r->nominated_at ?? ''),
         ), $rows);
     }
@@ -807,8 +811,10 @@ final class ActivityFeedService
             kind:   'profile',
             label:  'Joined',
             title:  (string) $r->display_name,
-            detail: trim(((string) ($r->category ?? '')) . ' · '
-                . trim(((string) ($r->location_city ?? '')) . ' ' . ((string) ($r->country_code ?? ''))), ' ·'),
+            // The country by name: "Lagos NG" read as a typo.
+            detail: implode(' · ', array_filter([(string) ($r->category ?? ''), trim((string) ($r->location_city ?? '')),
+                (string) ($r->country_code ?? '') !== '' ? \AfricaGates\Support\NationsLive::name((string) $r->country_code) : ''],
+                static fn (string $v): bool => $v !== '')),
             url:    '/registry/' . ($r->slug ?? ''),
             at:     (string) ($r->registered_at ?? ''),
         ), $rows);
@@ -839,14 +845,15 @@ final class ActivityFeedService
             ['p.title', 't.to_status', 'cy.edition_label'],
         )
             ->orderByDesc('t.observed_at')->limit($limit)
-            ->get(['t.id', 't.to_status', 't.observed_at', 'p.title as programme', 'cy.year', 'cy.edition_label'])->all();
+            ->get(['t.id', 't.to_status', 't.observed_at', 'p.title as programme', 'p.slug as programme_slug', 'cy.year', 'cy.edition_label'])->all();
 
         return array_map(fn (object $r): array => $this->item(
             kind:   'phase',
             label:  self::phaseLabel((string) $r->to_status),
             title:  trim(((string) ($r->programme ?? 'Award cycle')) . ' ' . ((string) ($r->year ?? ''))),
             detail: (string) ($r->edition_label ?? ''),
-            url:    '/awards',
+            // The award it happened to, not the index of every award.
+            url:    (string) ($r->programme_slug ?? '') !== '' ? '/awards/' . rawurlencode((string) $r->programme_slug) : '/awards',
             at:     (string) ($r->observed_at ?? ''),
         ) + ['phase' => (string) $r->to_status], $rows);
     }

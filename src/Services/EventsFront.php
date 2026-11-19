@@ -187,7 +187,13 @@ final class EventsFront
         $going = [];
         foreach ($ids as $id) $going[$id] = EventTicketService::attendingForEvent((int) $id);
 
-        return array_map(static fn (array $c): array => $c + ['going' => $going[$c['id']] ?? 0], $pick);
+        // The slide's colours from the event's own artwork (EventArtTone), so the text side
+        // matches the picture beside it; '' falls back to the neutral panel.
+        return array_map(static function (array $c) use ($going): array {
+            $t = ($c['image'] ?? '') !== '' ? EventArtTone::of((string) $c['image']) : null;
+            $style = EventArtTone::style($t);
+            return $c + ['going' => $going[$c['id']] ?? 0, 'art_style' => $style, 'art_mode' => $style !== '' ? EventArtTone::mode($t) : ''];
+        }, $pick);
     }
 
     /**
@@ -395,6 +401,43 @@ final class EventsFront
         };
     }
 
+    /** The longest map link kept. Far above any share link; a bound, not a format. */
+    public const MAX_LINK = 2048;
+
+    /**
+     * What the organiser pasted into "Map link", made into something we can store and link to.
+     *
+     * Two things people paste and one we must refuse:
+     *   · a Google Maps PLACE link copied from the address bar. These run long — the `data=`
+     *     and `g_ep` parameters alone are often several hundred characters — and the column
+     *     was VARCHAR(500) on MySQL, so strict mode refused the save with "Data too long" and
+     *     the event form answered 500 (4 Nov 2026). SQLite has no width, so dev and the suite
+     *     never saw it. The column is TEXT now (2027_05_09_event_link_columns_widen.php);
+     *     MAX_LINK still bounds it, because a link longer than that is not one a browser shares;
+     *   · Google's "Embed a map" code, `<iframe src="…">`, because the field used to be called
+     *     map_embed. The address inside it is kept; nothing is embedded;
+     *   · anything that is not an http(s) address — `javascript:` above all, since this value
+     *     is an `href` on the public event page.
+     *
+     * @return array{url:?string, error:string} url null with an error when it cannot be kept
+     */
+    public static function mapLink(string $raw): array
+    {
+        $v = trim($raw);
+        if ($v === '') return ['url' => null, 'error' => ''];
+        if (preg_match('~<iframe\b[^>]*\bsrc\s*=\s*["\']([^"\']+)["\']~i', $v, $m)) {
+            $v = html_entity_decode(trim($m[1]), ENT_QUOTES | ENT_HTML5);
+        }
+        if (strlen($v) > self::MAX_LINK) {
+            return ['url' => null, 'error' => 'The map link was not saved: it is longer than any map link a browser shares. Use the Share → Copy link button in Google Maps, which gives a short maps.app.goo.gl address.'];
+        }
+        $ok = self::link($v);
+        if ($ok === '') {
+            return ['url' => null, 'error' => 'The map link was not saved: it is not a web address starting with https://. In Google Maps, use Share → Copy link and paste that.'];
+        }
+        return ['url' => $ok, 'error' => ''];
+    }
+
     /**
      * A stored URL, re-validated on the way OUT: http(s) only, parsed, never trusted because
      * it was checked when it was saved (CLAUDE.md, OrgBrand). '' when it is not a link.
@@ -507,6 +550,32 @@ final class EventsFront
                 }
             }
         }
+        return $out;
+    }
+
+    /**
+     * The edition each award this event presents is on now: the newest cycle of every active
+     * programme linked to the event, cycle id => "Programme year". One answer for every reader
+     * that asks "whose night is this", so the event's nominees and its outreach cannot disagree.
+     *
+     * @return array<int,string>
+     */
+    public static function cyclesFor(int $eventId): array
+    {
+        if ($eventId < 1 || !SchemaHas::table('gates_event_programmes')) return [];
+        $out = [];
+        $seen = [];
+        try {
+            foreach (DB::table('gates_event_programmes as ep')->join('gates_award_programmes as p', 'p.id', '=', 'ep.programme_id')
+                         ->join('gates_award_cycles as c', 'c.programme_id', '=', 'p.id')
+                         ->where('ep.event_id', $eventId)->where('p.is_active', 1)
+                         ->orderByDesc('c.year')->orderByDesc('c.id')
+                         ->get(['c.id', 'c.year', 'p.id as pid', 'p.title']) as $c) {
+                if (isset($seen[(int) $c->pid])) continue;
+                $seen[(int) $c->pid] = true;
+                $out[(int) $c->id] = trim((string) $c->title . ' ' . (string) $c->year);
+            }
+        } catch (\Throwable) {}
         return $out;
     }
 }

@@ -175,7 +175,7 @@ final class ShopCheckoutController
      *                code_id:int, note:string, shipping_why:string, free_over:?int, short_by:int}
      */
     public static function totals(array $priced, string $region, string $discountCode = '',
-                                  string $email = ''): array
+                                  string $email = '', ?object $pickup = null): array
     {
         $goods = (int) $priced['subtotal'];
         $lines = $priced['lines'];
@@ -196,6 +196,11 @@ final class ShopCheckoutController
         // threshold that ignored a discount would promise free delivery on an order that no
         // longer reaches it — and the buyer would be right to be annoyed.
         $ship = ShopShipping::quote($lines, $region, max(0, $goods - $off));
+        // Collected in person: nothing to deliver, so nothing to charge for it (phase 4).
+        if ($pickup !== null) {
+            $ship = ['naira' => 0, 'why' => 'Collect from ' . (string) $pickup->name . ' — no delivery charge.',
+                     'free_over' => null, 'short_by' => 0];
+        }
         $shipping = $freeShip ? 0 : (int) $ship['naira'];
 
         return [
@@ -223,6 +228,9 @@ final class ShopCheckoutController
         $address  = trim((string)($b['address'] ?? ''));
         $region   = trim((string)($b['region'] ?? ''));
         $ip       = (string)($req->getServerParams()['REMOTE_ADDR'] ?? '');
+        // A collection point instead of delivery (phase 4). 0/absent = delivery, as before.
+        $pickupId = (int) ($b['pickup'] ?? 0);
+        $pickup   = $pickupId > 0 ? \AfricaGates\Services\ShopPickup::usable($pickupId) : null;
 
         // Every bail below is somebody's half-finished order. Remember it, then bounce:
         // the delivery details are re-typed on a PHONE otherwise, five fields at a time,
@@ -250,6 +258,9 @@ final class ShopCheckoutController
 
         $cart = json_decode((string)($b['cart'] ?? '[]'), true);
         if (!is_array($cart)) return $bail('empty');
+        // A point that is unknown or switched off is refused, never quietly turned into a
+        // delivery — the buyer would be charged for a courier they did not choose.
+        if ($pickupId > 0 && $pickup === null) return $bail('pickup');
 
         // Delivery region — required + recognised. Validated BEFORE pricing because
         // it now drives location-based pricing as well as the ship-to check. Checked
@@ -265,8 +276,9 @@ final class ShopCheckoutController
             return $bail($priced['adjusted'] !== [] ? 'gone' : 'empty');
         }
 
-        // A region-restricted product can't ship outside its delivery regions.
-        foreach ($priced['lines'] as $l) {
+        // A region-restricted product can't ship outside its delivery regions. A collection
+        // ships nowhere, so the restriction does not apply to it.
+        foreach ($pickup !== null ? [] : $priced['lines'] as $l) {
             $allowed = $l['delivery_regions'] ?? [];
             if (!empty($allowed) && !in_array($region, $allowed, true)) {
                 return $bail('noship');
@@ -275,11 +287,16 @@ final class ShopCheckoutController
 
         if (!$this->payments->isEnabled($provider)) return $bail('unavailable');
         if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) return $bail('email');
-        if ($name === '' || $address === '') return $bail('details');
+        if ($name === '' || ($address === '' && $pickup === null)) return $bail('details');
+        if ($pickup !== null) {
+            $address = 'Collect from: ' . (string) $pickup->name
+                     . (trim((string) ($pickup->address ?? '')) !== '' ? ' — ' . $pickup->address : '')
+                     . ($address !== '' ? "\n" . $address : '');
+        }
 
         // Delivery and any code, priced here and nowhere else. What the browser was shown is
         // a preview; this is the number that reaches the gateway.
-        $t = self::totals($priced, $region, trim((string) ($b['discount'] ?? '')), $email);
+        $t = self::totals($priced, $region, trim((string) ($b['discount'] ?? '')), $email, $pickup);
         if ($t['charged'] < 1) return $bail('empty');
 
         $reference = 'AFG-SHP-' . bin2hex(random_bytes(6));
@@ -294,7 +311,7 @@ final class ShopCheckoutController
         $codeRefusal = '';
         try {
             DB::transaction(function () use (&$codeRefusal, $t, $email, $reference, $name, $phone,
-                                             $region, $address, $priced, $provider, $ip): void {
+                                             $region, $address, $priced, $provider, $ip, $pickup): void {
                 if ($t['code_id'] > 0) {
                     $codeRefusal = ShopDiscount::claim((int) $t['code_id'], $email);
                     if ($codeRefusal !== '') return;
@@ -330,8 +347,9 @@ final class ShopCheckoutController
                     'referral_code'  => self::referralFor($email),
                     'ip_hash'        => $ip ? hash('sha256', $ip) : null,
                     'created_at'     => Carbon::now()->toDateTimeString(),
+                    'pickup_point_id' => $pickup !== null ? (int) $pickup->id : null,
                 ], ['goods_naira', 'shipping_naira', 'discount_naira', 'discount_code', 'fulfilment',
-                    'referral_code']));
+                    'referral_code', 'pickup_point_id']));
             });
         } catch (\Throwable $e) {
             $this->log?->error('[shop] could not persist order', ['err' => $e->getMessage()]);
@@ -566,8 +584,10 @@ final class ShopCheckoutController
 
         $cart = json_decode((string) ($b['cart'] ?? '[]'), true);
         $priced = self::priceCart(is_array($cart) ? $cart : [], $region);
+        $pickupId = (int) ($b['pickup'] ?? 0);
         $t = self::totals($priced, $region, trim((string) ($b['discount'] ?? '')),
-                          trim((string) ($b['email'] ?? '')));
+                          trim((string) ($b['email'] ?? '')),
+                          $pickupId > 0 ? \AfricaGates\Services\ShopPickup::usable($pickupId) : null);
 
         $res->getBody()->write((string) json_encode([
             'success'  => true,
@@ -585,6 +605,12 @@ final class ShopCheckoutController
             // quantity trimmed. Silence here is how a total stops matching the last screen.
             'adjusted' => $priced['adjusted'],
             'count'    => $priced['count'],
+            // Where an order can be collected instead (phase 4): the public checkout's rebuild
+            // offers these as the alternative to delivery and posts the chosen id as `pickup`.
+            'pickup_points' => array_map(static fn (array $p): array => [
+                'id' => (int) $p['id'], 'name' => (string) $p['name'],
+                'address' => (string) ($p['address'] ?? ''), 'hours' => (string) ($p['hours'] ?? ''),
+            ], \AfricaGates\Services\ShopPickup::points(true)),
         ]));
         return $res->withHeader('Content-Type', 'application/json');
     }

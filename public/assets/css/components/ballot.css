@@ -23,11 +23,41 @@
 }
 .vn-top{ display:flex; flex-direction:column; gap:16px; min-width:0 }
 /* 4:3 on a phone, not square: a square portrait was the whole first screen. The crop keeps the
-   upper part, where a face is. */
+   TOP of the photo, where a face is. It was 22% down, which took the crown off anybody whose
+   photo is framed with the head near the top edge — a studio headshot, most of what nominees
+   upload (owner, 5 Nov 2026: "her head is cut off"). A photo with room above the head loses
+   only that room. */
 .vn-photo{ position:relative; aspect-ratio:4 / 3; margin:0 -16px; border-radius:0 0 var(--ag-r-24) var(--ag-r-24); overflow:hidden; background:var(--ag-line); container-type:inline-size }
-.vn-photo img{ object-position:50% 22% }
+.vn-photo img{ object-position:50% 0 }
 .vn-photo .ag-photo{ position:absolute; inset:0 }
 .vn-photo--none{ aspect-ratio:16 / 7; display:flex; align-items:center; justify-content:center }
+/* Several photographs: a scroll-snap row in the portrait's own slot (vote-nominee.twig), so
+   it swipes with no script. A count at the top, a dot per photograph at the foot — each dot
+   a 24px target (WCAG 2.5.8), drawn smaller inside it. Over a photograph, so every mark
+   carries a ring of ink to stay visible on a white background. */
+.vn-photo__track{
+  position:absolute; inset:0; display:flex; margin:0; padding:0; list-style:none;
+  overflow-x:auto; overflow-y:hidden; scroll-snap-type:x mandatory; overscroll-behavior-x:contain;
+  scrollbar-width:none;
+}
+.vn-photo__track::-webkit-scrollbar{ display:none }
+.vn-photo__track:focus-visible{ outline:3px solid var(--ag-green); outline-offset:-3px }
+.vn-photo__slide{ position:relative; flex:0 0 100%; scroll-snap-align:start; scroll-snap-stop:always }
+.vn-photo__n{
+  position:absolute; top:10px; inset-inline-end:10px; padding:2px 9px; border-radius:var(--ag-r-pill);
+  background:color-mix(in srgb, var(--ag-ink) 64%, transparent); color:var(--ag-surface);
+  font-size:var(--ag-fs-12-5); font-weight:600; line-height:1.5; pointer-events:none;
+}
+.vn-photo__dots{ position:absolute; inset-inline:0; bottom:4px; display:flex; justify-content:center }
+.vn-photo__dot{ display:flex; align-items:center; justify-content:center; width:24px; height:24px }
+.vn-photo__dot::before{
+  content:""; width:7px; height:7px; border-radius:var(--ag-r-pill);
+  background:color-mix(in srgb, var(--ag-surface) 70%, transparent);
+  box-shadow:0 0 0 1px color-mix(in srgb, var(--ag-ink) 35%, transparent);
+  transition:width var(--ag-dur-1) var(--ag-ease);
+}
+.vn-photo__dot[aria-current="true"]::before{ width:16px; background:var(--ag-surface) }
+.vn-photo__dot:focus-visible{ outline:2px solid var(--ag-surface); outline-offset:-2px; border-radius:var(--ag-r-pill) }
 .vn-photo__av{ position:relative; display:flex; border-radius:50%; box-shadow:0 0 0 4px var(--ag-surface) }
 .vn-photo__av--l{ display:none }
 .vn__rail, .vn__ballot--wide{ display:none }
@@ -87,13 +117,22 @@
 .vn-other__t span{ font-size:var(--ag-fs-12); color:var(--ag-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 
 .vn-bar{ flex:none; display:flex; gap:8px; padding:12px 16px calc(12px + env(safe-area-inset-bottom, 0px) + 16px); background:var(--ag-bar); border-top:1px solid var(--ag-line-2) }
+/* vote.js: away while the ballot it leads to is already on screen. */
+.vn-bar--away{ display:none }
 .vn-bar__share{ flex:none; width:52px; height:52px; border:1px solid var(--ag-line-2); border-radius:50%; background:var(--ag-surface); color:var(--ag-ink); display:flex; align-items:center; justify-content:center; cursor:pointer }
 .vn-bar__go{ flex:1; display:flex; align-items:center; justify-content:center; height:52px; border-radius:var(--ag-r-pill); background:var(--ag-green); color:var(--ag-surface); font-weight:700; font-size:var(--ag-fs-16); text-decoration:none }
 .vn-bar__go--line{ background:var(--ag-surface); color:var(--ag-ink); border:1px solid var(--ag-line-2) }
+/* The bar's countdown: a second line under the label, in the button's own colour. */
+.vn-bar__go--clock{ flex-direction:column; gap:1px; line-height:1.15 }
+.vn-bar__left{ font-size:var(--ag-fs-12-5); font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap }
+.vn-bar__left b{ font-weight:700 }
 
 /* ── The ballot ─────────────────────────────────────────────────────────────── */
 .vb{ display:flex; flex-direction:column; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-20); overflow:hidden; scroll-margin-top:16px }
 .vb__head{ padding:18px 20px; background:var(--ag-green-wash); border-bottom:1px solid var(--ag-green-edge) }
+/* The last-three-days countdown in the ballot's top line: the figure is the point. */
+.vb__left{ white-space:nowrap; font-variant-numeric:tabular-nums }
+.vb__left b{ font-weight:700 }
 .vb__head--closed{ background:var(--ag-ground); border-bottom-color:var(--ag-line) }
 .vb__k{ margin:0; display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:var(--ag-fs-12-5); font-weight:700; color:var(--ag-green-deep) }
 .vb__head--closed .vb__k{ color:var(--ag-ink-2) }
@@ -123,6 +162,9 @@
 .vb-tier:has(input:focus-visible){ outline:3px solid var(--ag-green); outline-offset:2px }
 .vb-tier__q{ font-weight:700; font-size:var(--ag-fs-15); font-variant-numeric:tabular-nums }
 .vb-tier__p{ font-size:var(--ag-fs-11-5); color:var(--ag-soft) }
+/* `soft` is 4.80:1 on the ground and 4.38 on `tint` (Accent::words leaves tint out of its row),
+   so the chosen tier's price, drawn on tint, takes ink-2. */
+.vb-tier:has(input:checked) .vb-tier__p{ color:var(--ag-ink-2) }
 .vb-field{ display:flex; flex-direction:column; gap:5px }
 .vb-label{ font-weight:600; font-size:var(--ag-fs-13); color:var(--ag-ink) }
 .vb-label__o{ font-weight:400; color:var(--ag-soft) }
@@ -162,6 +204,16 @@
 .vb-btn[aria-busy="true"]{ opacity:.7; pointer-events:none }
 .vb-ts{ min-height:65px }
 .vb-done{ display:flex; flex-direction:column; gap:12px }
+/* The celebration inside the ballot's own card: no second border or tint (a card in a card),
+   and stacked — the ring above the words — because the ballot column is narrow at every
+   width and the words beside an 88px ring wrapped to three short lines. */
+.vb-done .ag-cel--inline{ border:0; border-radius:0; padding:12px 0 0; background:none; overflow:visible }
+.vb-done .ag-cel--inline .ag-cel__actions{ grid-template-columns:minmax(0,1fr) }
+.vb-offer{ align-self:center; display:inline-flex; align-items:center; min-height:44px; color:var(--ag-ink); font-weight:700; font-size:var(--ag-fs-15); text-decoration:underline; text-underline-offset:3px }
+.vb-offer:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
+.vb-done .ag-cel--inline .ag-cel__sub{ margin-bottom:4px }
+.vb-done + *{ border-top:1px solid var(--ag-line); padding-top:16px }
+button.vn-bar__go{ border:0; cursor:pointer; font-family:inherit }
 
 @media (min-width:600px){
   .vn{ max-width:760px; padding:28px 28px 48px }
@@ -182,7 +234,23 @@
   .vn-head__h1{ font-size:var(--ag-fs-44) }
   /* The ballot beside the page and in view while it is read. Its own scroll only if a long
      paid form outgrows the screen. */
-  .vn__rail{ display:block; position:sticky; top:24px; max-height:calc(100dvh - 120px); overflow:auto; overscroll-behavior:contain }
+  /* 200px, not 120: before the page scrolls the rail starts under the 105px header, and at
+     120 its foot ran under the floating Ask Gee button — which sat on the Vote button. */
+  .vn__rail{ display:block; position:sticky; top:24px; max-height:calc(100dvh - 200px - var(--ag-bottom-ui, 0px)); overflow:auto; overscroll-behavior:contain }
+  /* THE VOTE BUTTON IS ALWAYS IN VIEW. On a laptop the free form outgrows the rail and the
+     button was the part scrolled out of sight — the one control the card exists for, below
+     three fields, a link and a checkbox, with nothing on screen saying it was there. It now
+     sticks to the foot of the rail, on a band of the card's own white so the fields scroll
+     away under it rather than through it. */
+  .vn__rail .vb-free [data-step="form"] > .vb-btn--go,
+  .vn__rail .vb-free [data-step="otp"] > .vb-btn--go{
+    position:sticky; bottom:12px; z-index:1; box-shadow:0 0 0 12px var(--ag-surface);
+  }
+  /* `clip`, not `hidden`: hidden makes the card a scroll container, and a sticky child then
+     sticks to the card (which never scrolls) instead of the rail. Clip keeps the corners. */
+  .vn__rail .vb{ overflow:clip }
+  .vn__rail .vb__head{ padding:14px 20px }
+  .vn__rail .vb__body{ gap:10px; padding:16px 20px 20px }
   .vn__ballot--wide{ display:block }
   .vn__ballot--phone{ display:none }
   .vn-bar{ display:none }
@@ -214,6 +282,20 @@
 
 /* "Bring your people" — the voter's own link after a confirmed vote (VoteRecruit). A quiet
    card under the celebration: the link to copy, three ways to send it, and the count. */
+/* "I backed …" — the supporter's card, shown as it will look when posted, then the download.
+   The same quiet card as "Bring your people" beside it; the image carries the colour. */
+.vb-card{ display:flex; flex-direction:column; gap:10px; margin:0 0 4px; padding:14px; border:1px solid var(--ag-line); border-radius:var(--ag-r-14); background:var(--ag-surface) }
+.vb-card__img{ display:block; width:100%; height:auto; aspect-ratio:1200 / 630; border-radius:var(--ag-r-10); background:var(--ag-ground) }
+.vb-card .vb-btn{ align-self:flex-start }
+.vb-follow__msg{ margin:0; font-size:var(--ag-fs-14); line-height:1.5; color:var(--ag-ink) }
+.vb-follow__msg.is-bad{ color:var(--ag-error) }
+/* The nominee's thank-you: their words, set off by a hairline rule, at reading size. */
+.vn-thanks__q{ margin:0; padding:2px 0 2px 16px; border-left:3px solid var(--ag-line-2); font-size:var(--ag-fs-17); line-height:1.6; color:var(--ag-ink); white-space:pre-line; overflow-wrap:anywhere }
+.vn-voice__a{ display:block; width:100%; max-width:480px; min-height:44px }
+.vn-upd__l{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:14px }
+.vn-upd__i{ display:flex; flex-direction:column; gap:4px; padding-left:16px; border-left:3px solid var(--ag-line-2) }
+.vn-upd__d{ font-size:var(--ag-fs-13); color:var(--ag-soft) }
+.vn-upd__b{ margin:0; font-size:var(--ag-fs-16); line-height:1.6; color:var(--ag-ink); white-space:pre-line; overflow-wrap:anywhere }
 .vb-bring{ display:flex; flex-direction:column; gap:10px; margin:0 0 4px; padding:14px; border:1px solid var(--ag-line); border-radius:var(--ag-r-14); background:var(--ag-surface) }
 .vb-bring__h{ margin:0; font-size:var(--ag-fs-15-5); font-weight:700 }
 .vb-bring__row{ display:flex; gap:8px }
@@ -225,3 +307,8 @@
 @media (hover:hover){
   .vb-bring__a:hover{ background:var(--ag-bar); border-color:var(--ag-mute); color:var(--ag-ink) }
 }
+
+/* The first supporters on a nominee's page: a face and a name each, in a wrapping row. */
+.vn-first{ margin:0; padding:0; list-style:none; display:flex; flex-wrap:wrap; gap:10px 16px }
+.vn-first__i{ display:flex; align-items:center; gap:8px; min-height:44px; font-size:var(--ag-fs-14-5); color:var(--ag-ink) }
+.vn-first__i .ag-avatar{ flex:none; border-radius:50%; box-shadow:0 0 0 2px var(--ag-surface), 0 0 0 4px var(--ag-gold) }

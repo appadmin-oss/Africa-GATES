@@ -24,7 +24,7 @@ final class PhoneDeclutterTest extends TestCase
                 $t, "column $h does not fold, or ships closed (a page without script would hide its links)");
         }
         $js = ChromeRender::code('public/assets/js/shell.js');
-        $this->assertMatchesRegularExpression("~details\[data-ag-foot\].*matchMedia\('\(min-width: 600px\)'\).*\.open = wideFoot\.matches~s", $js, 'nothing closes the folds on a phone');
+        $this->assertMatchesRegularExpression("~matchMedia\('\(min-width: 600px\)'\).*details\[data-ag-foot\].*\.open = wideFoot\.matches~s", $js, 'nothing closes the folds on a phone');
 
         $css = ChromeRender::code('public/assets/css/components/footer.css');
         $this->assertMatchesRegularExpression('~@media \(max-width:599px\)\{[^@]*\.ag-foot__h\{[^}]*min-height:52px~s', $css);

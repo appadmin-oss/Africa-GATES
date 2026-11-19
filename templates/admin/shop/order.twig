@@ -1,0 +1,279 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  ONE SHOP ORDER (shop upgrade, 18 Nov 2026).
+
+  Everything about one order on one page, and the only place money moves on it: a refund (all or
+  part, through the gateway or recorded as returned by hand) and cancelling. "Cancelled" used to
+  be a delivery label that moved neither money nor stock; it is an act here, and it refunds.
+
+  A refund is marked refunded only when the gateway says `refund.processed` — the list below
+  shows each one waiting until then — and the units ticked to return go back on the shelf at the
+  same moment, never before.
+#}
+
+{% block head_styles %}{% include 'admin/shop/_styles.twig' %}{% endblock %}
+
+{% block topbar_title %}Order {{ o.reference }}{% endblock %}
+{% block topbar_actions %}
+  <a class="ad-btn" href="/admin/shop/orders">All orders</a>
+  <a class="ad-btn" href="/shop/order/{{ o.reference|url_encode }}" target="_blank" rel="noopener noreferrer">Buyer's page</a>
+{% endblock %}
+
+{% block content %}
+{% set state = o.fulfilment|default('unfulfilled') ?: 'unfulfilled' %}
+<p class="sh-sub">
+  {% if o.status == 'paid' %}<span class="sh-tag sh-tag--ok">Paid</span>
+  {% elseif o.status == 'pending' %}<span class="sh-tag sh-tag--wait">Waiting for payment</span>
+  {% elseif o.status == 'refunded' %}<span class="sh-tag sh-tag--no">Refunded</span>
+  {% elseif o.status == 'cancelled' %}<span class="sh-tag sh-tag--no">Cancelled</span>
+  {% else %}<span class="sh-tag sh-tag--no">{{ o.status|capitalize }}</span>{% endif %}
+  <span class="sh-tag">{{ fulfilments[state]|default(state) }}</span>
+  · placed {{ o.created_at }}{% if o.paid_at|default('') %} · paid {{ o.paid_at }}{% endif %}
+  {% if o.provider|default('') %} · {{ o.provider }}{% endif %}
+</p>
+
+{% if o.stock_short|default(0) and o.status == 'paid' %}
+<div class="sh-warn">Paid but short of stock — contact the buyer before it becomes a complaint.</div>
+{% endif %}
+
+<div class="sh-grid">
+  <section class="sh-sec" aria-labelledby="soBuyer">
+    <h2 id="soBuyer">Buyer</h2>
+    <dl class="sh-dl">
+      <dt>Name</dt><dd>{{ o.name }}</dd>
+      <dt>Email</dt><dd>{{ o.email }}</dd>
+      {% if o.phone|default('') %}<dt>Phone</dt><dd>{{ o.phone }}</dd>{% endif %}
+      <dt>Deliver to</dt><dd class="sh-small">{{ o.address|default('')|nl2br }}</dd>
+      {% if o.tracking_note|default('') %}<dt>Tracking</dt><dd>{{ o.tracking_note }}</dd>{% endif %}
+    </dl>
+  </section>
+
+  <section class="sh-sec" aria-labelledby="soMoney">
+    <h2 id="soMoney">Money</h2>
+    <dl class="sh-dl">
+      {% if o.goods_naira is defined and o.goods_naira is not null %}
+        <dt>Goods</dt><dd>₦{{ o.goods_naira|number_format }}</dd>
+        {% if (o.discount_naira|default(0)) > 0 %}<dt>Discount {{ o.discount_code|default('') }}</dt><dd>−₦{{ o.discount_naira|number_format }}</dd>{% endif %}
+        <dt>Delivery</dt><dd>{{ (o.shipping_naira|default(0)) > 0 ? '₦' ~ o.shipping_naira|number_format : 'free' }}</dd>
+      {% endif %}
+      <dt class="is-total">Charged</dt><dd class="is-total">₦{{ o.subtotal_naira|number_format }}</dd>
+      <dt>Refunded</dt><dd>₦{{ (o.refunded_naira|default(0))|number_format }}</dd>
+      {% if o.status == 'paid' %}<dt>Left to refund</dt><dd>₦{{ refundable|number_format }}</dd>{% endif %}
+    </dl>
+  </section>
+</div>
+
+<section class="sh-sec" aria-labelledby="soLines">
+  <h2 id="soLines">What was bought</h2>
+  <div class="ad-table-wrap">
+    <table class="sh-list">
+      <thead><tr><th scope="col">Item</th><th scope="col">Option</th><th scope="col" class="is-num">Qty</th><th scope="col" class="is-num">Taken from stock</th><th scope="col" class="is-num">Returned</th><th scope="col" class="is-num">Line</th></tr></thead>
+      <tbody>
+        {% for l in o.lines %}
+        <tr>
+          <td>{{ l.name|default(l.slug|default('?')) }}</td>
+          <td>{{ l.variant|default('') ?: '—' }}</td>
+          <td class="is-num">{{ l.qty|default(0) }}</td>
+          <td class="is-num">{{ l.drawn is defined ? l.drawn : '—' }}</td>
+          <td class="is-num">{{ l.restocked|default(0) }}</td>
+          <td class="is-num">₦{{ (l.line_total|default(0))|number_format }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="sh-muted">No lines recorded on this order.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+{% if pickup is not null %}
+<section class="sh-sec" aria-labelledby="soPick">
+  <h2 id="soPick">Collection</h2>
+  <p>
+    To be collected from <strong>{{ pickup.name|default('a collection point that no longer exists') }}</strong>{% if pickup.address|default('') %}, {{ pickup.address }}{% endif %}.
+    {% if o.pickup_code|default('') %}The buyer has a six-digit code; it is not shown here, because it is what proves the person in front of you is them.{% endif %}
+  </p>
+  {% if state == 'collected' %}
+  <p><span class="sh-tag sh-tag--ok">Collected</span> {{ o.collected_at|default('') }}{% if o.collect_override|default('') %} — handed over without the code: {{ o.collect_override }}{% endif %}</p>
+  {% elseif o.status == 'paid' and state != 'cancelled' %}
+    {% if state != 'ready' %}
+    <form method="post" action="/admin/shop/orders/{{ o.id }}/ready" class="sh-row">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <button class="sh-btn" type="submit">Ready to collect — email the buyer</button>
+    </form>
+    {% endif %}
+    <form method="post" action="/admin/shop/orders/{{ o.id }}/collect">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <div class="sh-row">
+        <label class="sh-field">Buyer's code<input name="code" inputmode="numeric" autocomplete="off" maxlength="12" class="sh-num"></label>
+        <label class="sh-field sh-grow">Or, without the code, why you are handing it over (at least {{ override_min }} characters)
+          <input name="override" maxlength="300" placeholder="Saw their ID: Ada Obi, NIN ending 4410">
+        </label>
+      </div>
+      <div class="sh-row"><button class="sh-btn" type="submit">Hand it over</button></div>
+    </form>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if o.status == 'paid' and state != 'cancelled' %}
+<section class="sh-sec" aria-labelledby="soMove">
+  <h2 id="soMove">Delivery</h2>
+  <p>Shipped and delivered each email the buyer; the note goes on their tracking page and in the shipped email.</p>
+  <form method="post" action="/admin/shop/orders/fulfil" class="sh-row">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <input type="hidden" name="id" value="{{ o.id }}">
+    <input type="hidden" name="back" value="order">
+    <label class="sh-field">State
+      <select name="fulfilment">
+        {% for key, label in fulfilments|filter((v, k) => k not in ['cancelled', 'collected'] and (pickup is not null or k != 'ready')) %}
+        <option value="{{ key }}" {% if key == state %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="sh-field sh-grow">Tracking or a note<input name="tracking_note" maxlength="500" value="{{ o.tracking_note|default('') }}"></label>
+    <button class="sh-btn" type="submit">Save</button>
+  </form>
+</section>
+{% endif %}
+
+{% if not refunds_ready %}
+<section class="sh-sec sh-sec--warn">
+  <h2>One step outstanding on the server</h2>
+  <p>Refunds need the latest database update. Run <strong>/__setup/migrate</strong>.</p>
+</section>
+{% endif %}
+
+{% if refunds_ready and o.status == 'paid' and refundable > 0 and not can_money %}
+<section class="sh-sec">
+  <h2>Refund</h2>
+  <p>Refunding and cancelling a paid order need the shop-money permission on your account. A superadmin can grant it under Admins.</p>
+</section>
+{% endif %}
+
+{% if refunds_ready and o.status == 'paid' and refundable > 0 and can_money %}
+<section class="sh-sec" aria-labelledby="soRefund">
+  <h2 id="soRefund">Refund</h2>
+  <p>
+    Through the gateway, the money goes back to the card or account the buyer paid with; it is
+    marked refunded when the gateway confirms it, and the buyer is emailed then. If you returned the
+    money yourself — cash, a transfer — record it as refunded outside the gateway instead.
+    Paystack may not be able to refund a bank-transfer or USSD payment automatically; if it refuses,
+    it says so here and nothing is sent.
+  </p>
+  <form method="post" action="/admin/shop/orders/{{ o.id }}/refund"
+        data-confirm="Refund this order? The amount and the units you ticked are recorded against your name.">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <div class="sh-row">
+      <label class="sh-field">Amount (₦)
+        <input type="number" name="amount" min="1" max="{{ refundable }}" step="1" class="sh-num" placeholder="{{ refundable }}" aria-describedby="soAmtHelp">
+      </label>
+      <label class="sh-field">How
+        <select name="method">
+          <option value="gateway">Through the gateway</option>
+          <option value="manual">Refunded outside the gateway</option>
+        </select>
+      </label>
+    </div>
+    <p id="soAmtHelp" class="sh-small">Leave the amount blank to refund everything left (₦{{ refundable|number_format }}).</p>
+    {% if o.lines|length %}
+    <p class="sh-small">Units coming back to the shelf, if any{% if has_left %} — this order has left us, so only count what was actually returned{% endif %}:</p>
+    <div class="sh-row">
+      {% for l in o.lines %}
+        {% set out = (l.drawn is defined ? l.drawn : l.qty|default(0)) - l.restocked|default(0) %}
+        {% if out > 0 %}
+        <label class="sh-field">{{ l.name|default(l.slug|default('?')) }}{% if l.variant|default('') %} ({{ l.variant }}){% endif %}
+          <input type="number" name="restock[{{ loop.index0 }}]" min="0" max="{{ out }}" value="0" class="sh-num">
+        </label>
+        {% endif %}
+      {% endfor %}
+    </div>
+    {% endif %}
+    <div class="sh-row"><button class="sh-btn" type="submit">Refund</button></div>
+  </form>
+</section>
+{% endif %}
+
+{% if refunds|length %}
+<section class="sh-sec" aria-labelledby="soRefunds">
+  <h2 id="soRefunds">Refunds on this order</h2>
+  <div class="ad-table-wrap">
+    <table class="sh-list">
+      <thead><tr><th scope="col">When</th><th scope="col" class="is-num">Amount</th><th scope="col">How</th><th scope="col">State</th><th scope="col">Why</th><th scope="col">By</th></tr></thead>
+      <tbody>
+        {% for r in refunds %}
+        <tr>
+          <td>{{ r.created_at }}{% if r.processed_at %}<div class="sh-small sh-muted">settled {{ r.processed_at }}</div>{% endif %}</td>
+          <td class="is-num">₦{{ r.amount_naira|number_format }}</td>
+          <td>{{ r.method == 'manual' ? 'Outside the gateway' : 'Gateway' }}</td>
+          <td>
+            {% if r.status == 'processed' %}<span class="sh-tag sh-tag--ok">{{ r.label }}</span>
+            {% elseif r.status == 'failed' %}<span class="sh-tag sh-tag--no">{{ r.label }}</span>
+            {% else %}<span class="sh-tag sh-tag--wait">{{ r.label }}</span>{% if r.gateway_status %} <span class="sh-small sh-muted">{{ r.gateway_status }}</span>{% endif %}{% endif %}
+            {% if r.failure %}<div class="sh-small sh-muted">{{ r.failure }}</div>{% endif %}
+          </td>
+          <td class="sh-small">{{ r.reason }}</td>
+          <td class="sh-small">{{ r.admin_name|default('') ?: 'The platform' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+{% if o.status in ['pending', 'failed', 'paid'] and state != 'cancelled' and (o.status != 'paid' or can_money) %}
+<section class="sh-sec sh-sec--danger" aria-labelledby="soCancel">
+  <h2 id="soCancel">Cancel this order</h2>
+  {% if o.status == 'paid' %}
+  <p>
+    Cancelling a paid order refunds whatever is left (₦{{ refundable|number_format }}) and, if you
+    leave the box ticked, puts its units back on the shelf when the refund settles. The buyer is
+    emailed with the reason you give.
+  </p>
+  {% else %}
+  <p>
+    No money has been taken. The gateway is asked first — if the buyer did in fact pay, the order is
+    confirmed instead. A discount code used on it gets its use back.
+  </p>
+  {% endif %}
+  <form method="post" action="/admin/shop/orders/{{ o.id }}/cancel"
+        data-confirm="Cancel order {{ o.reference }}? The reason you give is emailed to the buyer.">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    {% if o.status == 'paid' %}
+    <div class="sh-row">
+      <label class="sh-field">Refund
+        <select name="method">
+          <option value="gateway">Through the gateway</option>
+          <option value="manual">Already returned outside the gateway</option>
+        </select>
+      </label>
+      <label class="sh-row sh-small"><input type="checkbox" class="sh-check" name="restock" value="1" {% if not has_left %}checked{% endif %}> Return its units to stock</label>
+    </div>
+    {% endif %}
+    <div class="sh-row"><button class="sh-btn sh-btn--danger" type="submit">Cancel order</button></div>
+  </form>
+</section>
+{% endif %}
+
+<section class="sh-sec" aria-labelledby="soHistory">
+  <h2 id="soHistory">History</h2>
+  {% if history|length %}
+  <ol class="sh-tl">
+    {% for h in history %}
+    <li><strong>{{ h.label }}</strong> — {{ h.body }}<div class="sh-tl__meta">{{ h.by }} · {{ h.at }}</div></li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <p>Nothing recorded yet beyond the order itself.</p>
+  {% endif %}
+  <form method="post" action="/admin/shop/orders/{{ o.id }}/note">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <label class="sh-field">Add a staff note (not shown to the buyer)
+      <textarea name="note" maxlength="{{ note_max }}" required placeholder="Called the buyer, swapping to a large…"></textarea>
+    </label>
+    <div class="sh-row"><button class="sh-btn sh-btn--ghost" type="submit">Add note</button></div>
+  </form>
+</section>
+{% endblock %}

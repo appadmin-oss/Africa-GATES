@@ -211,10 +211,18 @@ final class StandFee
     // PAYING
     // ═══════════════════════════════════════════════════════════════════════
 
+    public const REF_PREFIX = 'AFG-STAND-';
+
+    /** Is this one of ours? The webhook asks, because stand money arrives in the events stream. */
+    public static function isReference(string $reference): bool
+    {
+        return str_starts_with(strtoupper(trim($reference)), self::REF_PREFIX);
+    }
+
     /** The reference we mint and hand to the gateway. */
     public static function reference(int $appId): string
     {
-        return 'AFG-STAND-' . $appId . '-' . strtoupper(bin2hex(random_bytes(4)));
+        return self::REF_PREFIX . $appId . '-' . strtoupper(bin2hex(random_bytes(4)));
     }
 
     /**
@@ -230,6 +238,12 @@ final class StandFee
                 'payment_ref'  => $reference,
                 'fee_provider' => $provider,
             ]);
+            // Every reference minted stays matchable, not only the latest: a second tab's
+            // Pay used to overwrite the first, and the first payment then belonged to nobody.
+            if (self::hasPaymentLedger()) {
+                DB::table('gates_stand_payments')->insert(['application_id' => $appId, 'reference' => $reference,
+                    'provider' => $provider !== '' ? $provider : null, 'status' => 'started', 'created_at' => date('Y-m-d H:i:s')]);
+            }
             return true;
         } catch (\Throwable $e) {
             error_log('[stand-fee] could not begin payment: ' . $e->getMessage());
@@ -261,6 +275,8 @@ final class StandFee
             return ['ok' => false, 'credited' => 0, 'message' => 'Nothing to credit.'];
         }
 
+        if (self::hasPaymentLedger()) return self::confirmLedgered($ref, $paidNaira, $provider);
+
         try {
             $app = DB::table('gates_stand_applications')->where('payment_ref', $ref)->first();
         } catch (\Throwable) {
@@ -290,6 +306,55 @@ final class StandFee
         }
 
         return ['ok' => true, 'credited' => $paidNaira, 'message' => 'Payment recorded.'];
+    }
+
+    private static function hasPaymentLedger(): bool
+    {
+        return \AfricaGates\Support\SchemaHas::table('gates_stand_payments');
+    }
+
+    /**
+     * confirm() on the per-payment ledger (2027_05_21_stand_payments.php). Each reference is
+     * credited once — the claim `started → paid` decides which report of it counts — and its
+     * amount is ADDED to what the stand has paid, so a deposit and a balance make the sum.
+     *
+     * @return array{ok:bool, message:string, credited:int}
+     */
+    private static function confirmLedgered(string $ref, int $paidNaira, string $provider): array
+    {
+        try {
+            $pay = DB::table('gates_stand_payments')->where('reference', $ref)->first();
+            if (!$pay) {
+                // A reference minted before the ledger existed: only the latest is known.
+                $appId = (int) DB::table('gates_stand_applications')->where('payment_ref', $ref)->value('id');
+                if ($appId < 1) {
+                    return ['ok' => false, 'credited' => 0, 'message' => 'That payment reference does not belong to a stand.'];
+                }
+                try {
+                    DB::table('gates_stand_payments')->insert(['application_id' => $appId, 'reference' => $ref,
+                        'provider' => $provider !== '' ? $provider : null, 'status' => 'started', 'created_at' => date('Y-m-d H:i:s')]);
+                } catch (\Throwable) {
+                    // Inserted by a concurrent report of the same payment; the claim below decides.
+                }
+                $pay = DB::table('gates_stand_payments')->where('reference', $ref)->first();
+                if (!$pay) return ['ok' => false, 'credited' => 0, 'message' => 'That could not be checked.'];
+            }
+
+            return DB::connection()->transaction(static function () use ($pay, $ref, $paidNaira, $provider): array {
+                $won = DB::table('gates_stand_payments')->where('id', (int) $pay->id)->where('status', 'started')->update([
+                    'status' => 'paid', 'amount_naira' => $paidNaira, 'paid_at' => date('Y-m-d H:i:s'),
+                    'provider' => $provider !== '' ? $provider : $pay->provider,
+                ]) > 0;
+                if (!$won) return ['ok' => true, 'credited' => 0, 'message' => 'Already recorded.'];
+                $upd = ['paid_naira' => DB::raw('COALESCE(paid_naira, 0) + ' . (int) $paidNaira), 'paid_at' => date('Y-m-d H:i:s')];
+                if ($provider !== '') $upd['fee_provider'] = $provider;
+                DB::table('gates_stand_applications')->where('id', (int) $pay->application_id)->update($upd);
+                return ['ok' => true, 'credited' => $paidNaira, 'message' => 'Payment recorded.'];
+            });
+        } catch (\Throwable $e) {
+            error_log('[stand-fee] could not credit ' . $ref . ': ' . $e->getMessage());
+            return ['ok' => false, 'credited' => 0, 'message' => 'That could not be recorded.'];
+        }
     }
 
     /**

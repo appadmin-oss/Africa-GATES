@@ -51,6 +51,7 @@ final class Workspace
     /** Root pages, their rail label and icon (handoff §6.1, `nav-volunteer.json`). */
     public const ROOT = [
         'home'     => ['Today', 'home'],
+        'nominees' => ['Nominees', 'contact'],
         'tasks'    => ['Tasks', 'list'],
         'meetings' => ['Meetings', 'video'],
         'hours'    => ['Hours', 'clock'],
@@ -60,13 +61,39 @@ final class Workspace
         'requests' => ['Requests', 'list'],
     ];
 
-    /** Which root pages each role's rail carries, grouped in the handoff's order. */
+    /**
+     * ONE MENU, EVERYWHERE (owner, 16 Nov 2026: "the navigation even for users that can see is
+     * actually quite poor … it is properly confusing … especially mobile").
+     *
+     * It used to be two menus. The root rail listed the person's awards as drill-ins, and opening
+     * one REPLACED the whole rail with that award's own (Overview, Nominees, Tasks, Role guide…)
+     * behind "Back to my volunteering" — and on a phone the bottom tab bar, which is built from
+     * the rail, changed all four of its tabs under the person's thumb. The job most volunteers
+     * come to do, reaching nominees and logging the contact (their "report"), sat two levels
+     * down, behind an award's name, on a menu that then disappeared.
+     *
+     * So the rail is the same on every page: the person's main jobs first — Nominees among them,
+     * with every follow-up and update due counted on it — then the places they help, where the
+     * place they are in opens IN PLACE to show its own pages, then their team, their progress,
+     * and help and settings. Group names say what is in them; "Grow" and "You" said nothing.
+     */
     private const RAIL = [
-        'active'    => [[null, ['home', 'tasks', 'meetings', 'hours']], ['@where', []], ['Grow', ['training', 'record']], ['You', ['requests', '@guide', '@me']]],
-        'lead'      => [[null, ['home', 'tasks', 'meetings', 'hours']], ['@where', []], ['Your team', ['team']], ['Grow', ['training', 'record']], ['You', ['requests', '@guide', '@me']]],
-        'new'       => [[null, ['home', 'tasks', 'meetings', 'training']], ['@where', []], ['You', ['requests', '@guide', '@me']]],
-        'applicant' => [[null, ['home', 'training']], ['You', ['@guide', '@me']]],
+        'active'    => [[null, ['home', '@nominees', 'tasks', 'meetings', 'hours']], ['@where', []], ['Your progress', ['training', 'record']], ['Help and settings', ['requests', '@guide', '@me']]],
+        'lead'      => [[null, ['home', '@nominees', 'tasks', 'meetings', 'hours']], ['Your team', ['team']], ['@where', []], ['Your progress', ['training', 'record']], ['Help and settings', ['requests', '@guide', '@me']]],
+        'new'       => [[null, ['home', '@nominees', 'tasks', 'meetings', 'training']], ['@where', []], ['Help and settings', ['requests', '@guide', '@me']]],
+        'applicant' => [[null, ['home', 'training']], ['Help and settings', ['@guide', '@me']]],
     ];
+
+    /**
+     * Where Nominees goes: straight to the award's list when the person reaches nominees on one
+     * award (nearly everybody), and to the list of their awards when they reach them on several.
+     */
+    public static function nomineesHref(object $v): ?string
+    {
+        $awards = Outreach::awards($v);
+        if ($awards === []) return null;
+        return count($awards) === 1 ? '/volunteer/cycle/' . array_key_first($awards) . '/nominees' : '/volunteer/nominees';
+    }
 
     /** Tabs per root page (handoff TABS); the first is the default. */
     public const TABS = [
@@ -74,7 +101,7 @@ final class Workspace
         'hours'    => ['summary' => 'Summary', 'review' => 'In review', 'log' => 'Log hours'],
         'training' => ['next' => 'Next for you', 'passed' => 'Passed'],
         'record'   => ['overview' => 'Overview', 'rewards' => 'Rewards', 'badges' => 'Badges', 'refs' => 'Reference letters'],
-        'team'     => ['roster' => 'Roster', 'approvals' => 'To confirm', 'reports' => 'Contact reports', 'requests' => 'Requests'],
+        'team'     => ['roster' => 'Roster', 'approvals' => 'To confirm', 'reports' => 'Contact reports', 'updates' => 'Status updates', 'requests' => 'Requests'],
         'requests' => ['open' => 'Open', 'decided' => 'Decided'],
         'meetings' => ['coming' => 'Coming up', 'new' => 'Schedule', 'past' => 'Past'],
     ];
@@ -92,6 +119,7 @@ final class Workspace
     /** Purpose lines, verbatim from the handoff's PURP table. */
     public const PURPOSE = [
         'root.home'      => 'What’s next for you, and how the awards you help on are doing.',
+        'root.nominees'  => 'The awards you reach nominees on. Open one to see its nominees, log a contact or send an update.',
         'root.tasks'     => 'Work you can do from anywhere. Each task says how it’s checked.',
         'root.hours'     => 'Checking in and out at an event, and accepted tasks, count by themselves. Log hours by hand only for work nobody saw; a lead confirms them.',
         'root.training'  => 'Short modules. Each one unlocks roles.',
@@ -125,7 +153,7 @@ final class Workspace
         'cycle' => [[null, ['overview' => ['Overview', 'home']]], ['Your work', ['tasks' => ['Tasks', 'list']]],
                     ['Know', ['guide' => ['Role guide', 'book'], 'access' => ['Your access', 'shield']]]],
         'event' => [[null, ['today' => ['Today', 'home']]], ['Your work', ['tasks' => ['Tasks', 'list']]],
-                    ['The night', ['brief' => ['Briefing', 'doc'], 'team' => ['Who’s on', 'users']]], ['Know', ['access' => ['Your access', 'shield']]]],
+                    ['The night', ['brief' => ['Briefing', 'doc'], 'nominees' => ['Nominees', 'contact'], 'team' => ['Who’s on', 'users']]], ['Know', ['access' => ['Your access', 'shield']]]],
     ];
 
     /** Award work each grant adds, in the order the rail shows it (nav-volunteer.json). */
@@ -138,7 +166,7 @@ final class Workspace
     /** Tabs on a place's pages (nav-volunteer.json). */
     public const SCOPE_TABS = [
         'queue'    => ['check' => 'To check', 'done' => 'Done', 'agree' => 'Agreement'],
-        'nominees' => ['all' => 'All', 'due' => self::REPORT['due'], 'new' => 'Not reached yet'],
+        'nominees' => ['all' => 'All', 'due' => self::REPORT['due'], 'new' => 'Not reached yet', 'update' => 'Status updates'],
     ];
 
     /** A place's rail groups, with the award work its grants carry. */
@@ -181,6 +209,20 @@ final class Workspace
             if (!in_array($label, $out[$k]['roles'], true)) $out[$k]['roles'][] = $label;
             if ((string) $g->expires_at > (string) $out[$k]['ends']) $out[$k]['ends'] = (string) $g->expires_at;
         }
+        // Nominee outreach given at an EVENT is outreach on the awards that night presents, so
+        // those awards are places this person can open — carrying that one role and no other.
+        foreach ($out as $k => $p) {
+            if ($p['kind'] !== 'event' || !in_array(Outreach::CAPABILITY, $p['caps'], true)) continue;
+            foreach (\AfricaGates\Services\EventsFront::cyclesFor((int) $p['id']) as $cid => $name) {
+                $ck = 'cycle:' . $cid;
+                $out[$ck] ??= ['kind' => 'cycle', 'id' => (int) $cid, 'name' => Workspace::scopeName('cycle', (int) $cid), 'roles' => [], 'caps' => [],
+                               'ends' => $p['ends'], 'href' => '/volunteer/cycle/' . $cid];
+                if (!in_array(Outreach::CAPABILITY, $out[$ck]['caps'], true)) {
+                    $out[$ck]['caps'][] = Outreach::CAPABILITY;
+                    $out[$ck]['roles'][] = Grants::CAPABILITIES[Outreach::CAPABILITY];
+                }
+            }
+        }
         $out = array_values($out);
         usort($out, static fn ($a, $b) => strcmp((string) ($a['ends'] ?? '9999'), (string) ($b['ends'] ?? '9999')));
         return $out;
@@ -216,73 +258,99 @@ final class Workspace
             $n = count(NominationChecks::queue($v, (int) $p['id']));
             if ($n > 0 && !isset($c[$k])) $c[$k] = ['n' => $n, 'tone' => 'warn'];
         }
-        // Follow-ups due on the awards this person reaches nominees on, added to the same count:
-        // the award's entry in the rail says how much on it is waiting for them, whatever kind.
-        foreach (Outreach::awards($v) as $cid => $_) {
-            $n = count(Outreach::nominees($v, $cid, '', 'due'));
-            if ($n > 0) $c['@cycle:' . $cid] = ['n' => ($c['@cycle:' . $cid]['n'] ?? 0) + $n, 'tone' => 'warn'];
-        }
+        // Follow-ups due, and nominees still owed an update a lead asked for, on every award this
+        // person reaches nominees on — counted on Nominees, the one entry for that work.
+        $n = 0;
+        foreach (Outreach::awards($v) as $cid => $_) $n += self::nomineesWaiting($v, (int) $cid);
+        $add('nominees', $n, 'warn');
         return $c;
     }
 
     /**
-     * The rail for the root and for Profile and access.
+     * On one award, the NOMINEES waiting for this person: a follow-up due, or no update since
+     * the open request. One nominee who is both is one, not two — the number is people to reach.
+     */
+    public static function nomineesWaiting(object $v, int $cycleId): int
+    {
+        $waiting = [];
+        foreach (Outreach::nominees($v, $cycleId, '', 'due') as $r) $waiting[(int) $r->id] = true;
+        $req = NomineeStatus::open($cycleId);
+        if ($req) {
+            $all = array_map(static fn ($r) => (int) $r->id, Outreach::nominees($v, $cycleId));
+            $latest = NomineeStatus::latest($all);
+            foreach ($all as $id) if (!NomineeStatus::answered($req, $latest[$id] ?? null)) $waiting[$id] = true;
+        }
+        return count($waiting);
+    }
+
+    /**
+     * The rail, on every page of the workspace.
+     *
+     * `$here` says which page of a PLACE or of Profile and access is open — ['kind' => 'cycle',
+     * 'id' => 4, 'page' => 'tasks', 'caps' => [...], 'counts' => [...]] or ['kind' => 'me',
+     * 'page' => 'privacy'] — so that entry opens to show its own pages, the current one marked.
+     * An award's Nominees page is not repeated under the award: it is the Nominees entry at the
+     * top, marked current there.
      *
      * @return list<array{label:?string, items:list<array>}>
      */
-    public static function rootNav(object $v, string $role, string $current, array $counts): array
+    public static function rootNav(object $v, string $role, string $current, array $counts, array $here = []): array
     {
+        $hk = (string) ($here['kind'] ?? '');
+        $hp = (string) ($here['page'] ?? '');
         $groups = [];
         foreach (self::RAIL[$role] ?? self::RAIL['new'] as [$label, $keys]) {
             if ($label === '@where') {
                 $items = [];
                 foreach (self::places($v) as $p) {
                     $k = '@' . $p['kind'] . ':' . $p['id'];
-                    $items[] = ['key' => $k, 'label' => $p['name'], 'icon' => $p['kind'] === 'event' ? 'ticket' : 'trophy', 'href' => $p['href'],
-                                'current' => false, 'drill' => true, 'count' => $counts[$k] ?? null];
+                    $in = $hk === $p['kind'] && (int) ($here['id'] ?? 0) === $p['id'];
+                    $first = array_key_first(self::SCOPE_PAGES[$p['kind']][0][1]);
+                    $children = [];
+                    if ($in) {
+                        foreach (self::scopePageList($p['kind'], $p['caps']) as $pk => [$pl, $pi]) {
+                            if ($pk === $first || ($p['kind'] === 'cycle' && $pk === 'nominees')) continue;
+                            $children[] = ['key' => $pk, 'label' => $pl, 'icon' => $pi, 'href' => $p['href'] . '/' . $pk,
+                                           'current' => $pk === $hp, 'count' => ($here['counts'] ?? [])[$pk] ?? null];
+                        }
+                    }
+                    // From inside another place of the same kind, the link keeps the page open
+                    // there when this place has it (Briefing to Briefing), as the switcher did.
+                    $keep = !$in && $hk === $p['kind'] && $hp !== $first && isset(self::scopePageList($p['kind'], $p['caps'])[$hp]);
+                    $items[] = ['key' => $k, 'label' => $p['name'], 'icon' => $p['kind'] === 'event' ? 'ticket' : 'trophy', 'href' => $p['href'] . ($keep ? '/' . $hp : ''),
+                                'current' => $in && $hp === $first, 'open' => $in, 'drill' => !$in, 'count' => $counts[$k] ?? null, 'children' => $children];
                 }
                 if ($items !== []) $groups[] = ['label' => 'Where you help', 'items' => $items];   // no grants: hidden (§8)
                 continue;
             }
             $items = [];
             foreach ($keys as $k) {
+                if ($k === '@nominees') {
+                    $href = self::nomineesHref($v);
+                    if ($href === null) continue;   // no outreach role: there are no nominees to reach
+                    $items[] = ['key' => 'nominees', 'label' => self::ROOT['nominees'][0], 'icon' => self::ROOT['nominees'][1], 'href' => $href,
+                                'current' => $current === 'nominees' || ($hk === 'cycle' && $hp === 'nominees'), 'drill' => false, 'count' => $counts['nominees'] ?? null];
+                    continue;
+                }
                 if ($k === '@guide') {
                     // The guide leaves the workspace for a public page, so it is a link and never "current".
                     $items[] = ['key' => 'guide', 'label' => self::GUIDE['label'], 'icon' => self::GUIDE['icon'], 'href' => self::GUIDE['href'], 'current' => false, 'drill' => false, 'count' => null];
                     continue;
                 }
                 if ($k === '@me') {
-                    $items[] = ['key' => 'me', 'label' => 'Profile and access', 'icon' => 'gear', 'href' => '/volunteer/me', 'current' => false, 'drill' => true, 'count' => null];
+                    $in = $hk === 'me';
+                    $children = [];
+                    if ($in) foreach (self::ME as $mk => [$ml, $mi]) {
+                        $children[] = ['key' => $mk, 'label' => $ml, 'icon' => $mi, 'href' => '/volunteer/me/' . $mk, 'current' => $mk === $hp, 'count' => null];
+                    }
+                    $items[] = ['key' => 'me', 'label' => 'Profile and access', 'icon' => 'gear', 'href' => '/volunteer/me', 'current' => false,
+                                'open' => $in, 'drill' => !$in, 'count' => null, 'children' => $children];
                     continue;
                 }
                 $label2 = $k === 'home' && $role === 'applicant' ? 'Application' : self::ROOT[$k][0];
                 $items[] = ['key' => $k, 'label' => $label2, 'icon' => $k === 'home' && $role === 'applicant' ? 'noms' : self::ROOT[$k][1],
-                            'href' => $k === 'home' ? '/volunteer' : '/volunteer/' . $k, 'current' => $k === $current, 'drill' => false,
+                            'href' => $k === 'home' ? '/volunteer' : '/volunteer/' . $k, 'current' => $k === $current && $hk === '', 'drill' => false,
                             'count' => $counts[$k] ?? null];
-            }
-            $groups[] = ['label' => $label, 'items' => $items];
-        }
-        return $groups;
-    }
-
-    /** The rail inside a scope (cycle, event) or inside Profile and access. */
-    public static function scopeNav(string $kind, int $id, string $current, array $caps = [], array $counts = []): array
-    {
-        if ($kind === 'me') {
-            $groups = [];
-            foreach (self::ME as $k => [$label, $icon, $group]) {
-                $groups[$group] ??= ['label' => $group, 'items' => []];
-                $groups[$group]['items'][] = ['key' => $k, 'label' => $label, 'icon' => $icon, 'href' => '/volunteer/me/' . $k,
-                                              'current' => $k === $current, 'drill' => false, 'count' => null];
-            }
-            return array_values($groups);
-        }
-        $groups = [];
-        foreach (self::scopePages($kind, $caps) as [$label, $pages]) {
-            $items = [];
-            foreach ($pages as $k => [$l, $icon]) {
-                $items[] = ['key' => $k, 'label' => $l, 'icon' => $icon, 'href' => '/volunteer/' . $kind . '/' . $id . ($k === array_key_first(self::SCOPE_PAGES[$kind][0][1]) ? '' : '/' . $k),
-                            'current' => $k === $current, 'drill' => false, 'count' => $counts[$k] ?? null];
             }
             $groups[] = ['label' => $label, 'items' => $items];
         }
@@ -343,25 +411,6 @@ final class Workspace
         }
         foreach (self::ME as $k => [$l]) $out[] = ['t' => $l, 'sub' => 'Profile and access', 'href' => '/volunteer/me/' . $k, 'kind' => 'Page'];
         $out[] = ['t' => 'How to use this portal', 'sub' => self::GUIDE['label'] . ' · help, guide, step by step', 'href' => self::GUIDE['href'], 'kind' => 'Guide'];
-        return $out;
-    }
-
-    /**
-     * The switcher (§1): the person's other places, each opened on the same page when that
-     * kind of place has it, and on its first page when it does not.
-     *
-     * @return list<array{name:string, sub:string, ini:string, href:string, current:bool}>
-     */
-    public static function siblings(object $v, string $kind, int $id, string $page): array
-    {
-        $out = [];
-        foreach (self::places($v) as $p) {
-            $pages = self::scopePageList($p['kind'], $p['caps']);
-            $first = array_key_first(self::SCOPE_PAGES[$p['kind']][0][1]);
-            $keep = isset($pages[$page]) && $page !== $first;
-            $out[] = ['name' => $p['name'], 'sub' => $p['kind'] === 'event' ? 'Event' : 'Award', 'ini' => self::initials($p['name']),
-                      'href' => $p['href'] . ($keep ? '/' . $page : ''), 'current' => $p['kind'] === $kind && $p['id'] === $id];
-        }
         return $out;
     }
 

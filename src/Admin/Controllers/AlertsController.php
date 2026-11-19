@@ -108,6 +108,9 @@ final class AlertsController
             'may'        => $may,
             'services'   => self::services(),
             'can_write'  => Permissions::canWrite($role),
+            // The errors page is held to superadmin (unmapped); its link is drawn only where
+            // the guard will let this role through.
+            'can_errors' => Permissions::canOpen($role, '/admin/errors'),
             'admin_id'   => (int) ($_SESSION['admin_id'] ?? 0),
             'logged'     => ConsoleAlertLog::ready(),
             'params'     => array_filter(['tab' => $tab === 'resolved' ? 'resolved' : null, 'severity' => $severity ?: null,

@@ -114,17 +114,28 @@ final class GeeTest extends TestCase
      * §7.7: every page except Pulse. The desk's own pages and a page without chrome keep
      * the old layout's reasons. Asked of the layout itself, rendered by the app's own Twig.
      */
-    public function test_gee_is_not_mounted_on_pulse_the_support_pages_or_a_chromeless_page(): void
+    /**
+     * Gee is not OFFERED on Pulse or the support pages — but it is in them, hidden
+     * (`data-gee-away`), so their shell matches every other page's and site-nav can swap into
+     * and out of them (owner, 16 Nov 2026: "fix the full reload issues"; FullReloadTest).
+     * A chromeless page has no shell to share, and still mounts nothing.
+     */
+    public function test_gee_is_away_on_pulse_and_the_support_pages_and_absent_from_a_chromeless_page(): void
     {
         $twig = $this->appTwig();
         $render = static fn (array $vars): string => $twig->createTemplate("{% extends 'layout/shell.twig' %}")->render($vars);
 
-        $this->assertStringContainsString('data-gee', $render(['page_title' => 'Any page']));
-        foreach ([['gates_page' => 'pulse'], ['tab' => 'pulse'], ['gates_page' => 'support'], ['hide_chrome' => true]] as $v) {
+        $any = $render(['page_title' => 'Any page']);
+        $this->assertStringContainsString('data-gee', $any);
+        $this->assertDoesNotMatchRegularExpression('~\sdata-gee-away[\s>]~', $any, 'Gee hidden on an ordinary page');
+        foreach ([['gates_page' => 'pulse'], ['tab' => 'pulse'], ['gates_page' => 'support']] as $v) {
             $html = $render($v + ['page_title' => 'X']);
-            $this->assertStringNotContainsString('data-gee', $html, 'Gee mounted with ' . json_encode($v));
-            $this->assertStringNotContainsString('/assets/js/gee.js', $html, 'gee.js loaded with ' . json_encode($v));
+            $this->assertMatchesRegularExpression('~<div class="gee" data-gee [^>]*\sdata-gee-away\s~', $html, 'Gee not marked away with ' . json_encode($v));
+            $this->assertStringContainsString('/assets/js/gee.js', $html, 'the shell differs without gee.js with ' . json_encode($v));
         }
+        $bare = $render(['hide_chrome' => true, 'page_title' => 'X']);
+        $this->assertStringNotContainsString('data-gee', $bare);
+        $this->assertStringNotContainsString('/assets/js/gee.js', $bare);
     }
 
     private function appTwig(): \Twig\Environment
@@ -167,8 +178,11 @@ final class GeeTest extends TestCase
         // the panel fills it with rounded top corners and a scrim behind, and it covers the
         // tab bar ON PURPOSE: a modal sheet over the bars, which is what §7.4 draws a sheet as.
         // The formula above still positions the launcher and the desktop panel.
-        $this->assertMatchesRegularExpression('~@media \(max-width:599\.98px\)\{\s*\.gee__layer\{ inset:0; padding-top:calc\(env\(safe-area-inset-top\) \+ 8px\) \}~', $css);
-        $this->assertStringContainsString('.gee__foot{ padding-bottom:calc(10px + env(safe-area-inset-bottom)) }', $css,
+        // Since 9 Nov 2026 ("fix its adaptability and full screen display on mobiles") the sheet
+        // is the whole screen — no gap under the status bar, no scrim strip, no corners — and a
+        // landscape phone gets it too. GeeFullScreenTest holds that block in detail.
+        $this->assertMatchesRegularExpression('~@media \(max-width:599\.98px\), \(max-height:499\.98px\) and \(pointer:coarse\)\{\s*\.gee__layer\{~', $css);
+        $this->assertMatchesRegularExpression('~\.gee__foot\{\s*padding-bottom:calc\(10px \+ env\(safe-area-inset-bottom\)\)~', $css,
             'the composer clears the home indicator on the sheet');
     }
 
@@ -441,8 +455,11 @@ final class GeeTest extends TestCase
             'the waiting line never touches a step');
         // The launcher's hide-on-scroll has one timer too (it comes back when scrolling
         // stops), allowed by name on the same terms: it touches the launcher and nothing else.
+        // The second is the one late look after a page's entrance animations (a celebration's
+        // buttons rise into place after the first look), and it only calls look().
         $this->assertSame(1, preg_match('/function tuckOnScroll\(\) \{(.*?)\n  \}/s', $js, $tuck));
-        $this->assertSame(1, substr_count($tuck[1], 'setTimeout('));
+        $this->assertSame(2, substr_count($tuck[1], 'setTimeout('));
+        $this->assertStringContainsString('setTimeout(look, 1600)', $tuck[1]);
         $this->assertDoesNotMatchRegularExpression('/data-state|stepRow|finishWork|step-/', $tuck[1],
             'the launcher\'s timer never touches a step');
         // And Copy's "Copied" lasts a moment, then the button says Copy again: it touches the
@@ -451,7 +468,12 @@ final class GeeTest extends TestCase
         $this->assertSame(1, substr_count($tools[1], 'setTimeout('));
         $this->assertMatchesRegularExpression("/setTimeout\(function \(\) \{ copy\.removeAttribute\('data-done'\); copy\.setAttribute\('aria-label', M\('copy'\)\); \}, 1600\)/", $tools[1],
             'the copy timer only puts the copy button back');
-        $this->assertSame(1, substr_count(str_replace([$wait[1], $tuck[1], $tools[1]], '', $js), 'setTimeout('), 'the only other timer is the focus hand-off on open');
+        // The focus hand-off on open is the only other timer: one path for a keyboard (the
+        // composer), the other for touch (the panel itself), never both.
+        $rest = str_replace([$wait[1], $tuck[1], $tools[1]], '', $js);
+        $this->assertSame(2, substr_count($rest, 'setTimeout('), 'the only other timers are the focus hand-off on open');
+        $this->assertMatchesRegularExpression('/setTimeout\(function \(\) \{ input\.focus\(\); \}, 0\);\s*(?:\/\*.*?\*\/\s*)?else setTimeout\(function \(\) \{ panel\.focus\(\{ preventScroll: true \}\); \}, 0\);/s', $rest,
+            'both timers are the focus hand-off, and they are alternatives');
     }
 
     // ══ THE DESK ═════════════════════════════════════════════════════════════

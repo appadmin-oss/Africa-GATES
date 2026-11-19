@@ -34,7 +34,7 @@ final class SpeedAuditTest extends TestCase
 
     public function test_every_homepage_photo_is_one_url(): void
     {
-        foreach (HomeFront::honourTiles() as $t) {
+        foreach ((new \AfricaGates\Services\ImageCatalog())->photos() as $t) {
             foreach (explode(',', $t['srcset']) as $c) {
                 $u = trim(explode(' ', trim($c))[0]);
                 $this->assertSame(Assets::url(preg_replace('~\?.*$~', '', $u)), $u, 'a srcset entry that is not the URL asset() gives — downloaded twice beside a versioned src');

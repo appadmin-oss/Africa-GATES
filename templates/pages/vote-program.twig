@@ -14,11 +14,16 @@
     decrements), the meta line, full-width 52px tabs Vote | About the award, and the sticky
     category chip row at top:52px under them.
   · Desktop: the dark hero band, then categories · race · the sticky ballot rail.
-  · Tabs and categories are LINKS (`?tab=about`, `?cat=`), so every view has an address and
-    works with no script. One category is drawn at a time, as the DC does.
+  · Tabs are LINKS (`?tab=about`), so every view has an address and works with no script.
+  · ALL FIRST. The award is decided across the whole edition, so the first view (and the one
+    drawn without ?cat=) ranks every nominee in the edition by public votes, each row naming
+    its category. The page used to draw one category and nothing else, so a voter had to tap
+    each chip to find out who was in it. The category chips filter to one category; they are
+    links (`?cat={id}`, the base URL for All), so a view has an address and works with no
+    script, and vote.js switches views in place without a reload. One category: no All.
   · Race rows: rank, name, meta, a bar against the LEADER, the live count and the gap to the
-    position above (RaceService: ties share a rank, a gap skips ties). The headline banner is
-    absent, not empty, when there is no race yet (the destroyed page's rule).
+    position above (RaceService: ties share a rank, a gap skips ties). No "X leads Y by N"
+    line above a list: names run long enough to wrap it, and the rows already say who leads.
   · "Shortlisted" comes from the PUBLISHED snapshot only — never a live threshold.
   · The bottom bar counts what THIS DEVICE recorded (see vote.twig); Review votes is
     disabled (tint / mute) until there is one, and lists those votes with links back.
@@ -31,10 +36,10 @@
 {% set _p = programme %}
 {% set _f = front %}
 {% set _cur = _f.current %}
-{% set app_bar = {variant: 'child', title: _p.title, sub: _f.sub, back: '/vote'} %}
+{% set app_bar = {variant: 'child', title: _p.title, sub: _f.sub, back: '/vote', share: true} %}
 {% set _base = '/vote/' ~ _p.slug %}
 
-{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/vote.css') }}">{% include 'partials/seo-head.twig' %}{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/vote.css') }}">{% endblock %}
 
 {% macro clock(left, cls) %}
   <span class="{{ cls }}" role="timer" dir="ltr" data-tick data-tick-left="{{ left }}"
@@ -44,11 +49,57 @@
     <span class="vp-clock__c"><b data-tick-m>{{ '%02d'|format((left % 3600) // 60) }}</b><span>{{ 'mins'|trans }}</span></span>
   </span>
 {% endmacro %}
+{% macro row(n, open, in_all) %}
+  <li>
+    <a class="vp-row" href="{{ n.url }}" data-nominee="{{ n.id }}">
+      <span class="vp-row__av">{% include 'partials/photo.twig' with {kind: 'person', src: n.photo_path, name: n.name} only %}</span>
+      <span class="vp-row__main">
+        {# The row is one link, and its visible "Vote" pill is decorative, so the action is
+           said FIRST for a screen reader: without it the link read "#1 Funmilayo Adebayo 230
+           votes Leading" and never what pressing it does. #}
+        <span class="ag-sr">{{ open ? 'Vote for'|trans : 'See'|trans }} </span>
+        <span class="vp-row__name"><span class="vp-row__rank" data-rank>#{{ n.rank }}</span><span class="vp-row__n">{{ n.name }}</span></span>
+        <span class="vp-row__meta">
+          {{- in_all ? n.category_title : (n.tagline ?: n.organisation) -}}
+          {%- if n.shortlisted|default(false) %} · {{ 'Shortlisted'|trans }}{% endif -%}
+        </span>
+        {% if n.field > 1 %}<span class="vp-row__bar" role="img" aria-label="{{ '%n%% of the leader’s total'|trans({'%n%': n.pct}) }}"><span aria-hidden="true" data-bar style="width:{{ n.pct }}%" class="{{ n.is_leader ? 'is-lead' }}"></span><span class="ag-sr">{{ '%n%% of the leader’s total'|trans({'%n%': n.pct}) }}</span></span>{% endif %}
+        <span class="vp-row__figs vp-row__figs--in">
+          <span class="vp-row__tally"><b data-votes>{{ n.vote_count|number_format }}</b> {{ n.vote_count == 1 ? 'vote'|trans : 'votes'|trans }}</span>
+          {% if n.field > 1 %}<span class="vp-row__gap{{ n.is_leader ? ' is-lead' }}" data-gap data-gap-n="{{ n.gap ?? '' }}" data-gap-r="{{ n.next_rank ?? '' }}">{{ n.is_leader ? 'Leading'|trans : '%n% behind #%r%'|trans({'%n%': n.gap|number_format, '%r%': n.next_rank}) }}</span>{% endif %}
+        </span>
+      </span>
+      <span class="vp-row__figs vp-row__figs--side">
+        <b><span data-votes>{{ n.vote_count|number_format }}</span> {{ n.vote_count == 1 ? 'vote'|trans : 'votes'|trans }}</b>
+        {% if n.field > 1 %}<span class="vp-row__gap{{ n.is_leader ? ' is-lead' }}" data-gap data-gap-n="{{ n.gap ?? '' }}" data-gap-r="{{ n.next_rank ?? '' }}">{{ n.is_leader ? 'Leading'|trans : '%n% behind #%r%'|trans({'%n%': n.gap|number_format, '%r%': n.next_rank}) }}</span>{% endif %}
+      </span>
+      <span class="vp-row__go{{ open ? '' : ' vp-row__go--view' }}" aria-hidden="true">{{ open ? 'Vote'|trans : 'View'|trans }}</span>
+    </a>
+  </li>
+{% endmacro %}
+
+{% macro race(id, title, count) %}
+  <div class="vp-race__head" data-cat="{{ id }}">
+    <div class="vp-race__row">
+      <h2 class="vp-race__t" id="view-{{ id }}-t">{{ title }}</h2>
+      <span class="vp-race__n">{{ count == 1 ? '1 nominee'|trans : '%n% nominees'|trans({'%n%': count}) }}</span>
+    </div>
+  </div>
+{% endmacro %}
+{# "That's you": a signed-in member's own entry on the Spotlight, with the one tap off it. #}
 {% import _self as m %}
 
 {% block content %}
+{# The words the script writes, translated here (vote.js reads them; it types no copy). #}
 <div class="vp" data-vote-page data-programme="{{ _p.id }}" data-slug="{{ _p.slug }}" data-categories="{{ _f.categories }}"
-     {% if _f.open %}data-tallies="{{ _base }}/tallies"{% endif %}>
+     {% if _f.open %}data-tallies="{{ _base }}/tallies" data-open{% endif %} data-award="{{ _p.title }}"
+     data-w-lead="{{ 'Leading'|trans }}" data-w-behind="{{ '%n% behind #%r%'|trans }}"
+     data-w-up="{{ 'Up %n%'|trans }}" data-w-down="{{ 'Down %n%'|trans }}" data-w-plus="{{ '+%n% votes'|trans }}" data-w-plus1="{{ '+1 vote'|trans }}"
+     data-w-since="{{ '%what% since your last visit'|trans }}"
+     data-w-pick="{{ 'Your pick'|trans }}" data-w-pick-lead="{{ 'They’re leading. Share their link to keep them there.'|trans }}"
+     data-w-pick-behind="{{ 'Help them reach #%r%: share their link with people who’d back them.'|trans }}"
+     data-w-share="{{ 'Share their link'|trans }}" data-w-copied="{{ 'Link copied'|trans }}" data-w-share-text="{{ 'Vote for %name% in %award%'|trans }}"
+     data-w-found="{{ '%n% nominees match'|trans }}" data-w-found1="{{ '1 nominee matches'|trans }}">
 
   {# ── The hero: light on a phone, the dark band from 600px ─────────────────── #}
   <div class="vp-hero">
@@ -57,7 +108,7 @@
        assistive technology, and the band's own <h1> takes over from 600px. #}
     <h1 class="ag-sr vp-hero__h1-sr">{{ _p.title }}</h1>
     <div class="vp-hero__media">
-      {% include 'partials/photo.twig' with {kind: 'thing', subject: 'award', src: _f.cover, name: _p.title, eager: true} only %}
+      {% include 'partials/photo.twig' with {identity: _p.id|default(null), kind: 'thing', subject: 'award', src: _f.cover, name: _p.title, eager: true} only %}
       <span class="vp-hero__chip vp-hero__chip--{{ _f.open ? 'live' : 'quiet' }}"><span class="vp-hero__dot" aria-hidden="true"></span>{{ _f.chip }}</span>
     </div>
     <div class="vp-hero__band">
@@ -82,7 +133,65 @@
     <p class="vp-hero__line">{{ _f.meta }}</p>
   </div>
 
-  <nav class="vp-tabs" aria-label="{{ 'Vote sections'|trans }}">
+  {# ── WHY VOTE: the award's campaign, as a celebration card (Support\AwardCampaign) ──
+     The handoff's celebration card (Celebration.dc.html, `win`: gold wash, the white kicker
+     pill, the Playfair title, white stat tiles) carrying what is TRUE right now — what the
+     named beneficiary has received from verified votes, how many people have backed their
+     own, who is today's champion — then the one nudge that turns reading into voting, and
+     the next step. Every figure comes off the ledger; nothing here is a default claim. #}
+  {% set _c = campaign %}
+  {% set _place = _c.community %}
+  {% set _first_rung = _c.ladder|first %}
+  {% if _c.rally or _c.promise or impact or raised > 0 or supporters > 0 %}
+  <section class="vp-why" aria-labelledby="vp-why-h">
+    <div class="vp-why__in">
+      <p class="vp-why__kicker"><span class="vp-why__dot" aria-hidden="true"></span>{{ _place ? '%place% is celebrating its own'|trans({'%place%': _place}) : 'Celebrate your own'|trans }}</p>
+      <h2 class="vp-why__h" id="vp-why-h">{{ _c.rally ?: 'Celebrate your own'|trans }}</h2>
+      <p class="vp-why__sub">{{ _c.promise ?: 'Every vote here is somebody backing one of their own, and every one of them is celebrated.'|trans }}</p>
+
+      {% if raised > 0 or supporters > 0 or champion %}
+      <ul class="vp-why__stats">
+        {% if raised > 0 %}<li class="vp-why__stat"><b>₦{{ raised|number_format }}</b><span>{{ 'for %who% so far'|trans({'%who%': _c.beneficiary}) }}</span></li>{% endif %}
+        {% if supporters > 0 %}<li class="vp-why__stat"><b>{{ supporters|number_format }}</b><span>{{ supporters == 1 ? 'person backing their own'|trans : 'people backing their own'|trans }}</span></li>{% endif %}
+        {% if champion %}
+        <li class="vp-why__stat vp-why__stat--who">
+          {% include 'partials/avatar.twig' with {name: champion.name ?: 'A proud supporter'|trans, id: champion.uid ?: null, src: champion.photo|default(''), size: 44, named: true} only %}
+          <span class="vp-why__who"><b>{{ champion.name ?: 'A proud supporter'|trans }}</b><span>{{ 'Today’s champion · %n%'|trans({'%n%': champion.votes == 1 ? '1 vote'|trans : '%n% votes'|trans({'%n%': champion.votes|number_format})}) }}</span></span>
+        </li>
+        {% endif %}
+      </ul>
+      {% endif %}
+
+      {# The invitation: join the people already celebrating, and what even one vote does.
+         It used to dangle the champion's crown ("61 votes would make you today's champion"),
+         which made backing your own a contest with your neighbour — the owner called it
+         petty. Everybody who votes is on the wall below. #}
+      {% if _f.open %}
+        <p class="vp-why__nudge">
+          {%- if supporters > 0 -%}
+            {%- if supporters == 1 -%}
+              {{ _place ? 'Join the first person celebrating %place%’s own. Every vote puts you on the wall.'|trans({'%place%': _place}) : 'Join the first person backing their own here. Every vote puts you on the wall.'|trans }}
+            {%- else -%}
+              {{ _place ? 'Join %n% people celebrating %place%’s own. Every vote puts you on the wall.'|trans({'%n%': supporters|number_format, '%place%': _place}) : 'Join %n% people backing their own. Every vote puts you on the wall.'|trans({'%n%': supporters|number_format}) }}
+            {%- endif -%}
+          {%- else -%}
+            {{ 'Be the first to back your own here. Every vote puts you on the wall.'|trans }}
+          {%- endif -%}
+          {% if _first_rung %} {{ _first_rung.votes == 1 ? 'One vote unlocks %b%.'|trans({'%b%': _first_rung.benefit|lower}) : '%n% votes unlock %b%.'|trans({'%n%': _first_rung.votes|number_format, '%b%': _first_rung.benefit|lower}) }}{% endif %}
+        </p>
+        <div class="vp-why__do">
+          <a class="ag-btn ag-btn--primary ag-btn--pill" href="#vp-race">{{ 'Choose who to back'|trans }}</a>
+          {% if spotlight and spotlight.people > 0 %}<a class="ag-btn ag-btn--secondary ag-btn--pill" href="{{ _base }}/spotlight">{{ 'See the Spotlight'|trans }}</a>{% endif %}
+          <a class="ag-btn ag-btn--secondary ag-btn--pill" href="{{ _base }}/offer">{{ 'What your vote unlocks'|trans }}</a>
+        </div>
+      {% endif %}
+
+      {% if impact %}<p class="vp-why__impact">{{ impact }}{% if _c.remainder_note %} {{ _c.remainder_note }}{% endif %}</p>{% endif %}
+    </div>
+  </section>
+  {% endif %}
+
+  <nav class="vp-tabs" aria-label="{{ 'Vote sections'|trans }}" data-tabs="vote">
     <div class="vp-tabs__in">
       <a class="vp-tab" href="{{ _base }}"{% if tab == 'vote' %} aria-current="page"{% endif %}>{{ 'Vote'|trans }}</a>
       <a class="vp-tab" href="{{ _base }}?tab=about"{% if tab == 'about' %} aria-current="page"{% endif %}>{{ 'About the award'|trans }}</a>
@@ -90,69 +199,91 @@
   </nav>
 
   {% if tab == 'vote' %}
-  <div class="vp-body">
-    {% if categories|length %}
+  {# One category draws no category rail, and the desktop grid's first column is the rail's
+     200px: the whole race fell into it, a 200px column of names beside an empty page.
+     `vp-body--one` drops the rail's column. #}
+  <div class="vp-body{{ categories|length <= 1 ? ' vp-body--one' }}">
+    {% set _many = overall is not null %}
+    {% set _view = cat_view ?: (_many ? 'all' : (categories|length ? (categories|first).category.id : null)) %}
+    {% if categories|length > 1 %}
     <nav class="vp-cats" aria-label="{{ 'Categories'|trans }}">
       <span class="vp-cats__k">{{ 'Categories'|trans }}</span>
+      <a class="vp-cats__a" href="{{ _base }}" data-view-link="all"{% if _view == 'all' %} aria-current="true"{% endif %}><span>{{ 'All'|trans }}</span></a>
       {% for c in categories %}
-        <a class="vp-cats__a" href="{{ _base }}?cat={{ c.category.id }}" data-cat-link="{{ c.category.id }}"{% if _cur and c.category.id == _cur.category.id %} aria-current="true"{% endif %}>
+        <a class="vp-cats__a" href="{{ _base }}?cat={{ c.category.id }}" data-cat-link="{{ c.category.id }}" data-view-link="{{ c.category.id }}"{% if _view == c.category.id %} aria-current="true"{% endif %}>
           <span>{{ c.category.title }}</span>
           <svg class="vp-done" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden><path d="m5 12.5 4.5 4.5L19 7"/></svg>
         </a>
       {% endfor %}
     </nav>
     <div class="vp-chips" role="navigation" aria-label="{{ 'Categories'|trans }}">
+      <a class="ag-chip vp-chip" href="{{ _base }}" data-view-link="all"{% if _view == 'all' %} aria-current="true"{% endif %}>{{ 'All'|trans }}</a>
       {% for c in categories %}
-        <a class="ag-chip vp-chip" href="{{ _base }}?cat={{ c.category.id }}" data-cat-link="{{ c.category.id }}"{% if _cur and c.category.id == _cur.category.id %} aria-current="true"{% endif %}>
+        <a class="ag-chip vp-chip" href="{{ _base }}?cat={{ c.category.id }}" data-cat-link="{{ c.category.id }}" data-view-link="{{ c.category.id }}"{% if _view == c.category.id %} aria-current="true"{% endif %}>
           {{ c.category.title }}<svg class="vp-done" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden><path d="m5 12.5 4.5 4.5L19 7"/></svg>
         </a>
       {% endfor %}
     </div>
     {% endif %}
 
-    <div class="vp-race-wrap">
-      {% if _cur %}
-      {% set _h = _cur.headline %}
-      <div class="vp-race__head" data-cat="{{ _cur.category.id }}">
-        <div class="vp-race__row">
-          <h2 class="vp-race__t">{{ _cur.category.title }}</h2>
-          <span class="vp-race__n">{{ _cur.nominees|length == 1 ? '1 nominee'|trans : '%n% nominees'|trans({'%n%': _cur.nominees|length}) }}</span>
-        </div>
-        {% if _h %}
-          <span class="vp-race__hl" data-headline>
-            {%- if _f.open %}<span class="vp-race__dot" aria-hidden="true"></span>{% endif -%}
-            {%- if _h.lead > 0 %}{{ '%a% leads %b% by %n% votes'|trans({'%a%': _h.leader, '%b%': _h.chaser, '%n%': _h.lead|number_format}) }}
-            {%- else %}{{ 'The leaders are level'|trans }}{% endif -%}
-          </span>
-        {% endif %}
+    <div class="vp-race-wrap" id="vp-race">
+      {% set _count = 0 %}{% for c in categories %}{% set _count = _count + c.nominees|length %}{% endfor %}
+      {% if _count >= 6 %}
+      {# Find your nominee: most people arrive to back ONE person, and with several categories
+         finding them was a scan of every list. Drawn hidden and revealed by vote.js, which
+         filters the rows already here; with no script the full list is the answer. #}
+      <div class="vp-find" data-find hidden>
+        <label class="ag-sr" for="vpFindQ">{{ 'Find a nominee'|trans }}</label>
+        <svg class="vp-find__ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input class="vp-find__q" id="vpFindQ" type="search" placeholder="{{ 'Find a nominee by name'|trans }}" autocomplete="off" enterkeyhint="search" data-find-q>
+        <p class="ag-sr" role="status" aria-live="polite" data-find-said></p>
       </div>
-      <ol class="vp-race" data-race="{{ _cur.category.id }}">
-        {% for n in _cur.nominees %}
-          <li>
-            <a class="vp-row" href="{{ n.url }}" data-nominee="{{ n.id }}">
-              <span class="vp-row__av">{% include 'partials/photo.twig' with {kind: 'person', src: n.photo_path, name: n.name} only %}</span>
-              <span class="vp-row__main">
-                <span class="vp-row__name"><span class="vp-row__rank" data-rank>#{{ n.rank }}</span><span class="vp-row__n">{{ n.name }}</span></span>
-                <span class="vp-row__meta">
-                  {{- n.tagline ?: n.organisation -}}
-                  {%- if n.shortlisted|default(false) %} · {{ 'Shortlisted'|trans }}{% endif -%}
-                </span>
-                {% if n.field > 1 %}<span class="vp-row__bar" role="img" aria-label="{{ '%n%% of the leader’s total'|trans({'%n%': n.pct}) }}"><span aria-hidden="true" data-bar style="width:{{ n.pct }}%" class="{{ n.is_leader ? 'is-lead' }}"></span><span class="ag-sr">{{ '%n%% of the leader’s total'|trans({'%n%': n.pct}) }}</span></span>{% endif %}
-                <span class="vp-row__figs vp-row__figs--in">
-                  <span class="vp-row__tally"><b data-votes>{{ n.vote_count|number_format }}</b> {{ n.vote_count == 1 ? 'vote'|trans : 'votes'|trans }}</span>
-                  {% if n.field > 1 %}<span class="vp-row__gap{{ n.is_leader ? ' is-lead' }}" data-gap>{{ n.is_leader ? 'Leading'|trans : '%n% behind #%r%'|trans({'%n%': n.gap|number_format, '%r%': n.next_rank}) }}</span>{% endif %}
-                </span>
-              </span>
-              <span class="vp-row__figs vp-row__figs--side">
-                <b><span data-votes>{{ n.vote_count|number_format }}</span> {{ n.vote_count == 1 ? 'vote'|trans : 'votes'|trans }}</b>
-                {% if n.field > 1 %}<span class="vp-row__gap{{ n.is_leader ? ' is-lead' }}" data-gap>{{ n.is_leader ? 'Leading'|trans : '%n% behind #%r%'|trans({'%n%': n.gap|number_format, '%r%': n.next_rank}) }}</span>{% endif %}
-              </span>
-              <span class="vp-row__go{{ _f.open ? '' : ' vp-row__go--view' }}" aria-hidden="true">{{ _f.open ? 'Vote'|trans : 'View'|trans }}</span>
-            </a>
-          </li>
-        {% endfor %}
-      </ol>
+      <div class="vp-find__none" data-find-none hidden>
+        <p class="vp-find__none-t" data-find-none-t data-t="{{ 'No nominee matches “%q%”.'|trans }}"></p>
+        <p class="vp-find__none-s">{{ 'Check the spelling, or try part of the name.'|trans }}</p>
+        <button class="ag-btn ag-btn--secondary ag-btn--pill" type="button" data-find-clear>{{ 'Clear the search'|trans }}</button>
+      </div>
+      {% endif %}
+      {% if categories|length %}
+      {% if _many %}
+      <section class="vp-view" data-view="all" aria-labelledby="view-all-t"{% if _view != 'all' %} hidden{% endif %}>
+        {{ m.race('all', 'All nominees'|trans, overall.nominees|length) }}
+        <p class="vp-note">{{ 'Every category in this edition, ranked by public votes.'|trans }}</p>
+        <ol class="vp-race" data-race="all">
+          {% for n in overall.nominees %}{{ m.row(n, _f.open, true) }}{% endfor %}
+        </ol>
+      </section>
+      {% endif %}
+      {% for c in categories %}
+      <section class="vp-view" data-view="{{ c.category.id }}" aria-labelledby="view-{{ c.category.id }}-t"{% if _view != c.category.id %} hidden{% endif %}>
+        {{ m.race(c.category.id, c.category.title, c.nominees|length) }}
+        <ol class="vp-race" data-race="{{ c.category.id }}">
+          {% for n in c.nominees %}{{ m.row(n, _f.open, false) }}{% endfor %}
+        </ol>
+      </section>
+      {% endfor %}
       <p class="vp-note">{{ 'Public votes are one part of the score; the judges decide the rest.'|trans }}</p>
+
+      {# The Supporter Spotlight has its own page since 16 Nov 2026 (VoteController::spotlight,
+         pages/vote-spotlight.twig): a section here at the foot of every race was the "terrible"
+         part. The campaign card above links to it. #}
+
+      {# ── What a supporter's votes unlock — the host's own ladder, never a default ── #}
+      {% if _c.ladder|length %}
+      <section class="vp-ladder" aria-labelledby="vp-ladder-h">
+        <h2 class="vp-spot__h" id="vp-ladder-h">{{ 'What your votes unlock'|trans }}</h2>
+        <p class="vp-spot__sub">{{ 'Counted across everything you give in this edition.'|trans }}</p>
+        <ol class="vp-ladder__list">
+          {% for s in _c.ladder %}
+          <li class="vp-ladder__row">
+            <span class="vp-ladder__at"><b>{{ s.votes == 1 ? '1 vote'|trans : '%n% votes'|trans({'%n%': s.votes|number_format}) }}</b>{% if vote_price > 0 %}<span>₦{{ (s.votes * vote_price)|number_format }}</span>{% endif %}</span>
+            <span class="vp-ladder__b">{{ s.benefit }}</span>
+          </li>
+          {% endfor %}
+        </ol>
+        {% if _c.ladder_note %}<p class="vp-note">{{ _c.ladder_note }}</p>{% endif %}
+      </section>
+      {% endif %}
       {% else %}
       <div class="vp-empty">
         <h2 class="vp-race__t">{{ 'Nominees coming soon'|trans }}</h2>
@@ -243,7 +374,7 @@
 
 {% block bottom_bar %}
   {% if tab == 'vote' and _f.open %}
-  <div class="vp-bar" data-bottom-ui>
+  <div class="vp-bar" data-bottom-ui role="region" aria-label="{{ 'Your ballot'|trans }}">
     <span class="vp-bar__t">
       <span class="vp-bar__w" data-ballot-words data-of="{{ '%n% of %m% categories voted'|trans }}">{{ '%n% of %m% categories voted'|trans({'%n%': 0, '%m%': _f.categories}) }}</span>
       <span class="vp-bar__bar" aria-hidden="true"><span title="{{ 'Categories voted on this device'|trans }}" data-ballot-fill></span></span>
@@ -253,4 +384,4 @@
   {% endif %}
 {% endblock %}
 
-{% block foot_scripts %}<script defer src="{{ asset('/assets/js/awards.js') }}"></script><script defer src="{{ asset('/assets/js/vote.js') }}"></script>{% endblock %}
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/awards.js') }}" data-nav="rerun"></script><script defer src="{{ asset('/assets/js/vote.js') }}" data-nav="rerun"></script>{% endblock %}

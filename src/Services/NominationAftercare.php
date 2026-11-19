@@ -139,9 +139,16 @@ final class NominationAftercare
         $catName = self::listOf($catNames);
         $catLine = $catName !== '' ? ($progName . ' · ' . $catName) : $progName;
 
+        // The nominee's own "yes, that's me, and I agree" — NomineeConfirmation, which had
+        // no caller: its link was minted by nothing, the email below went out with an empty
+        // `confirm_url`, and so no nomination could ever reach `verified` and no challenge
+        // could pay. The link travels in the messages the nominee already gets, never a
+        // second one; '' where there is nobody to ask or the window is spent.
+        $confirmUrl = '';
+        try { $confirmUrl = NomineeConfirmation::linkFor($nominationId); } catch (\Throwable) {}
         self::email($data, $mailer, $files, $baseUrl, $reference,
-                    $nomName, $nomEmail, $byName, $byEmail, $catLine, $watchUrl, $catTitles, $nominationId);
-        self::text($data, $reference, $nomName, $nomEmail, $catLine, $watchUrl);
+                    $nomName, $nomEmail, $byName, $byEmail, $catLine, $watchUrl, $catTitles, $nominationId, $confirmUrl);
+        self::text($data, $reference, $nomName, $nomEmail, $catLine, $watchUrl, $confirmUrl);
 
         // Advisory AI triage (score / summary / duplicates) for the review desk.
         try { NominationTriageService::enqueue($nominationId); } catch (\Throwable) {}
@@ -253,7 +260,7 @@ final class NominationAftercare
     private static function email(
         array $data, ?OtpService $mailer, array $files, string $baseUrl, string $reference,
         string $nomName, string $nomEmail, string $byName, string $byEmail,
-        string $catLine, string $watchUrl, array $catTitles = [], int $nominationId = 0,
+        string $catLine, string $watchUrl, array $catTitles = [], int $nominationId = 0, string $confirmUrl = '',
     ): void {
         if ($mailer === null) return;
 
@@ -363,7 +370,8 @@ final class NominationAftercare
                     'first_name' => $nomFirst,
                     'quote'      => '',
                     'quote_by'   => '',
-                    'confirm_url' => '',
+                    'confirm_url' => $confirmUrl,
+                    'confirm_days' => NomineeConfirmation::TTL_DAYS,
                     'watch_url'  => $watchUrl,
                     'help_url'   => $base . '/support',
                     'site_url'   => $base,
@@ -381,7 +389,7 @@ final class NominationAftercare
      */
     private static function text(
         array $data, string $reference, string $nomName, string $nomEmail,
-        string $catLine, string $watchUrl,
+        string $catLine, string $watchUrl, string $confirmUrl = '',
     ): void {
         try {
             $sms = SmsService::boot();
@@ -392,7 +400,8 @@ final class NominationAftercare
             if ($nomPhone !== null) {
                 $plan = SmsService::channelPlan($nomEmail ?: null, $nomPhone, $sms);
                 $msg  = 'Africa GATES: ' . $nomName . ', you have been nominated for ' . $catLine
-                      . ' (ref ' . $reference . '). Our panel reviews every profile before it goes live. ' . $watchUrl;
+                      . ' (ref ' . $reference . '). Our panel reviews every profile before it goes live. '
+                      . ($confirmUrl !== '' ? 'Confirm it is you and you agree: ' . $confirmUrl . ' ' : '') . $watchUrl;
                 if (in_array('sms', $plan, true))      $sms->sendSms($nomPhone, $msg, 'nomination_nominee');
                 if (in_array('whatsapp', $plan, true)) $sms->sendWhatsApp($nomPhone, $msg, 'nomination_nominee');
             }

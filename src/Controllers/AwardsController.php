@@ -72,6 +72,9 @@ final class AwardsController
         unset($_SESSION['aw_alert_said']);
 
         return $this->view->render($res, 'pages/awards/programme.twig', [
+            // How many people have looked at the award's page (Services\PageViews). The
+            // award, never a nominee in it: the count is the programme's.
+            'views'            => \AfricaGates\Services\PageViews::forPage('award', (int) ($a['id'] ?? 0)),
             'page_title'       => $a['title'] . ' — Africa GATES',
             'meta_description' => $blurb !== '' ? mb_strimwidth($blurb, 0, 160, '…')
                                   : Translator::t('An award on Africa GATES, decided by community votes and an independent jury.'),

@@ -32,13 +32,14 @@ final class HomeController
         // "Happening now" and "Who recognises" are gone with the V3 layout. What is still
         // read is real records — decided awards for the hero and the closing band, the open
         // challenge, the featured campaign — and each block follows LOW-DATA-RULES.md.
-        $front = $this->cache->remember('home:front:v7', 300, static fn (): array => [
+        $front = $this->cache->remember('home:front:v8', 300, static fn (): array => [
             'decided'   => HomeFront::decided(),
             'campaign'  => HomeFront::campaign(),
             'challenge' => HomeFront::featuredChallenge(),
             // V7's counter. Shown as a number only from 1,000 — below that the DC's own
             // fallback headline stands in, so a young platform never boasts a small figure.
             'honoured'  => \AfricaGates\Services\Recognitions::peopleCount(),
+            'frames'    => HomeFront::framesOnSale(),
         ], ['leaderboard', 'registry']);
 
         $band = $this->cache->remember('home:globe', 900, static fn (): array => [
@@ -55,10 +56,15 @@ final class HomeController
                 . NationsLive::phrase() . '.',
             'gates_page'       => 'home',
             'tab'              => 'home',
+            // One ad, paid or our own (AdRules::PAID_ONLY): the homepage band (owner, 4 Nov
+            // 2026). Never a trial, never our "advertise here" notice, never a nominee's while
+            // their award is open (AdDelivery).
+            'ad'               => \AfricaGates\Services\Ads\AdDelivery::forRequest('home', $req),
             'hero_slides'      => HomeFront::heroSlides($front['decided']),
             'honour'           => HomeFront::honourTiles(),
             'challenge'        => $front['challenge'],
             'honoured'         => (int) ($front['honoured'] ?? 0),
+            'frames_on_sale'   => (bool) ($front['frames'] ?? false),
             'campaign'         => $front['campaign'],
             // The closing band's three portraits: real winners with photos when there are
             // three, otherwise the owner's honour photographs. Never a stock face.

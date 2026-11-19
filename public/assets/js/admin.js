@@ -207,15 +207,15 @@
     document.addEventListener('click', function (e) { if (!e.target.closest('.cn-acct')) closeAcct(); });
   }
 
-  // ── THE PRODUCT SWITCHER (a <details>): a click outside or Escape closes it, and Escape
+  // ── THE ROLE SWITCH (a <details>, partials/role-switch.twig): a click outside or Escape closes it, and Escape
   // hands focus back to the button that opened it.
   document.addEventListener('click', function (e) {
-    var p = document.querySelector('.cn-prod[open]');
+    var p = document.querySelector('.rs[open]');
     if (p && !p.contains(e.target)) p.open = false;
   });
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
-    var p = document.querySelector('.cn-prod[open]');
+    var p = document.querySelector('.rs[open]');
     if (p) { p.open = false; p.querySelector('summary').focus(); }
   });
 
@@ -463,22 +463,29 @@
     const preview = zone.parentElement.querySelector('[data-file-preview]');
     if (!input) return;
     zone.setAttribute('data-mounted', '');
-    zone.addEventListener('click', () => input.click());
+    // The zone is a native label; the visible input also supports keyboard users.
+    let photoUrls = [];
+    const releasePhotos = () => { photoUrls.forEach(url => URL.revokeObjectURL(url)); photoUrls = []; };
+    window.cnPage?.leave(releasePhotos);
     zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.borderColor = 'var(--cn-ink)'; });
     zone.addEventListener('dragleave', () => { zone.style.borderColor = ''; });
     zone.addEventListener('drop', e => {
       e.preventDefault(); zone.style.borderColor = '';
-      input.files = e.dataTransfer.files;
-      renderPreviews();
+      const dropped = new DataTransfer();
+      Array.from(e.dataTransfer.files).slice(0, input.multiple ? undefined : 1).forEach(file => dropped.items.add(file));
+      input.files = dropped.files;
+      input.dispatchEvent(new Event('change', {bubbles: true}));
     });
     input.addEventListener('change', renderPreviews);
     function renderPreviews() {
       if (!preview) return;
+      releasePhotos();
       preview.innerHTML = '';
       Array.from(input.files || []).forEach(f => {
         if (!f.type.startsWith('image/')) return;
         const img = document.createElement('img');
-        img.src = URL.createObjectURL(f);
+        const url = URL.createObjectURL(f); photoUrls.push(url);
+        img.src = url;
         img.alt = f.name;
         preview.appendChild(img);
       });
@@ -490,48 +497,6 @@
   // NProgress-style top loading bar on form submit
   if (window.NProgress) {
     document.addEventListener('submit', () => window.NProgress.start());
-  }
-
-  // Keyboard access to horizontally scrolling tables (WCAG 2.1.1)
-  //
-  // .ad-table-wrap is `overflow-x:auto`, and 26 admin screens use it. A scroll
-  // container that cannot take focus cannot be scrolled from the keyboard: Firefox
-  // makes them focusable itself, Chrome and Safari do not, so on the wider tables
-  // — registrations, finance, the nominee list — the right-hand columns were simply
-  // unreachable without a mouse.
-  //
-  // Conditional rather than a `tabindex="0"` typed into 26 templates, because whether
-  // a table overflows is a function of viewport width, not of the table: a static
-  // attribute is wrong in one direction on a phone and the other on a wide monitor.
-  // A region that does not scroll gets no tab stop; one that starts scrolling on
-  // resize gains one. The name comes from the table's own caption or the card title
-  // above it, so the announcement is "Judges, region" rather than "region".
-  {
-    const sync = (el) => {
-      const scrolls = el.scrollWidth > el.clientWidth + 1;
-      if (scrolls === el.hasAttribute('tabindex')) return;
-      if (scrolls) {
-        el.setAttribute('tabindex', '0');
-        el.setAttribute('role', 'region');
-        if (!el.hasAttribute('aria-label')) {
-          const cap = el.querySelector('caption');
-          const title = el.closest('.ad-card')?.querySelector('.ad-card__title');
-          const name = (cap?.textContent || title?.textContent || '').trim().split('\n')[0];
-          if (name) el.setAttribute('aria-label', name);
-        }
-      } else {
-        el.removeAttribute('tabindex');
-        el.removeAttribute('role');
-      }
-    };
-    const ro = window.ResizeObserver ? new ResizeObserver(entries => entries.forEach(e => sync(e.target))) : null;
-    const mountScrollers = () => {
-      const scrollers = document.querySelectorAll('.ad-table-wrap:not([data-mounted])');
-      scrollers.forEach(el => { el.setAttribute('data-mounted', ''); sync(el); if (ro) ro.observe(el); });
-    };
-    mountScrollers();
-    document.addEventListener('cn:load', mountScrollers);
-    if (!ro) window.addEventListener('resize', () => document.querySelectorAll('.ad-table-wrap').forEach(sync));
   }
 
   // ── THE TIER COLOUR DOT ─────────────────────────────────────────────────
@@ -591,6 +556,21 @@
     // requestSubmit, not submit(): submit() skips the submit event, so the form bypassed
     // the confirm, the one-press guard and console-nav.js, and reloaded the whole console.
     if (el && el.form) { if (el.form.requestSubmit) el.form.requestSubmit(); else el.form.submit(); }
+  });
+
+  // ── THE SUGGESTED PRIZES ───────────────────────────────────────────────────
+  //
+  // The Campaign form's "Fill in the suggested prizes": each prize list carries its
+  // suggestion in `data-suggest`, and only a list that is still EMPTY takes it — a host's own
+  // words are never overwritten. Nothing is saved until the form is.
+  document.addEventListener('click', function (e) {
+    const b = e.target.closest('[data-ag-do="fill-suggested"]');
+    if (!b || !b.form) return;
+    let n = 0;
+    b.form.querySelectorAll('textarea[data-suggest]').forEach(function (t) {
+      if (t.value.trim() === '') { t.value = t.getAttribute('data-suggest'); n++; }
+    });
+    b.textContent = n ? 'Filled in. Edit them, then save' : 'Your lists already have prizes';
   });
 
   // ── ONE MORE PRIZE PLACE ──────────────────────────────────────────────────

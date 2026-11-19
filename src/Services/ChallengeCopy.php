@@ -374,6 +374,25 @@ final class ChallengeCopy
      *
      * @return array{big:string,unit:string}
      */
+    /**
+     * What ONE winner receives, as printed. A shared pool used to be quoted to each winner
+     * as the whole pool ("That is ₦100,000 shared") — a message telling five people they
+     * had each won what one of them would. The pool is divided by the places it is shared
+     * across, rounded down to the naira so the shares never add up to more than the pool.
+     */
+    public static function perWinner(array $c): string
+    {
+        $type = (string) ($c['prize_type'] ?? E::PRIZE_CASH_EACH);
+        if ($type !== E::PRIZE_CASH_POOL) {
+            $p = self::prize($c);
+            return trim($p['big'] . ($type === E::PRIZE_CASH_EACH ? '' : ' ' . $p['unit']));
+        }
+        $places = (string) ($c['mode'] ?? '') === E::MODE_DRAW ? (int) ($c['draw_count'] ?? 0) : (int) ($c['cap'] ?? 0);
+        $amount = (int) ($c['prize_amount'] ?? 0);
+        $share  = $places > 0 ? intdiv($amount, $places) : $amount;
+        return self::symbol((string) ($c['prize_currency'] ?? '')) . self::fmt($share);
+    }
+
     private static function prize(array $c): array
     {
         $type   = (string) ($c['prize_type'] ?? E::PRIZE_CASH_EACH);

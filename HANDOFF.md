@@ -905,3 +905,185 @@ to answer it at all — the simulation cannot stand in for a handset.
 **The short URL beside the QR** needs a shortener decision. The full typeable event address
 ships as text in the meantime, which covers the screenshot and cannot-scan cases for the open
 flier; a confirmed flier's referral parameter is still only carried by the code.
+
+---
+
+## Shop management upgrade (18 Nov 2026, branch `afv/shop-upgrade`)
+
+Owner's ask: "Upgrade the shop massively … for better and effective management." Brief:
+`SHOP-MANAGEMENT-PLAN.md` §1 (research) and §3 (this repo's audit and build order), kept in the
+NGG repository. Built in the brief's order, one commit per phase, each green. Baseline before
+any change: `./vendor/bin/phpunit --no-coverage` → 8214 tests, 8 failures, all
+`PasskeyTest` (`ReflectionProperty::isProtectedSet()` is PHP 8.4; this container is 8.3).
+
+### Phase 1 — refunds and cancelling from the console
+
+- `gates_shop_refunds` (one row per refund, `status` pending → processed | failed,
+  `method` gateway | manual) and `gates_shop_order_events` (the order's history);
+  `gates_orders.refunded_naira` and `cancelled_at`. Migration `2027_06_03_shop_refunds.php`.
+- `Services\ShopRefunds`: `request()` asks Paystack through `PaymentService::refund()` (a whole
+  refund sends no amount, a partial one names it in naira → kobo); `recordManual()` records money
+  returned outside the gateway; `cancel()`; `applyWebhook()` for `refund.*`.
+- **Decisions.** A refund is settled ONLY by `refund.processed` — including when the API's first
+  answer is "processed" or "already refunded"; the gateway sends the event for those too. Total
+  refunds ≤ charge: pending + processed count against the ceiling, the row is written first and
+  the sum re-read, so two operators cannot both fit. A definite refusal releases the amount; an
+  unknown outcome (gateway unreachable) does not. Stock returns when the money does, and only the
+  units the operator entered — each order line remembers `restocked`, so a partial refund and a
+  later chargeback cannot return the same unit twice. A refund made on the Paystack dashboard is
+  recorded when its `refund.processed` arrives (partial stays partial — it used to reverse the
+  whole order). Bank-transfer/USSD auto-refund is unconfirmed, so the gateway's refusal is shown
+  in its own words and "Refunded outside the gateway" is always offered.
+- Cancelling: a pending order is checked with the gateway first (a paid one is confirmed, not
+  cancelled), becomes `status = cancelled`, and its discount use is released on the transition
+  only. A paid order is cancelled THROUGH a full refund of what is left, restocking by default
+  unless the goods have left. "Cancelled" is no longer a label the orders list can set. A payment
+  landing on a cancelled order is never fulfilled; staff are alerted and it is in the history.
+- Fixed on the way: `ShopOrderService::reverse()` tested `fulfilment = 'fulfilled'`, a value the
+  console never wrote, so a chargeback on a delivered parcel restocked it.
+- Screen: `/admin/shop/orders/{id}` (linked from each reference on the orders list). Buyer
+  emails: `Services\ShopMail` (inline from the console; queued as `shop.mail` from the webhook).
+- Tests: `tests/Unit/ShopRefundsTest.php` (16). `AdminPagesRenderTest` now seeds one order so the
+  order page is rendered by the sweep rather than raising its unreached ceiling.
+
+### Phase 2 — stock ledger, stock-take, low-stock levels, daily digest
+
+- `gates_shop_stock_moves` (product, variant, signed `delta`, `after_qty`, `reason`, note, order,
+  admin, time) and `low_stock` on variants and products. Migration `2027_06_04_shop_stock_ledger.php`.
+- `Services\ShopStock` is the one writer: `move()` (reason-coded ± units, compare-and-set,
+  never below zero except for the till), `set()` (a counted number; the difference is recorded),
+  `recordLine()` (sales, inside the confirm transaction). Reasons are a closed list in code
+  (`REASONS`) — the column is a VARCHAR, never an ENUM. Untracked (NULL) stays untracked.
+- Every count change now writes a row: online sale, refund/cancel restock, the product form (as
+  `correction` — the form no longer writes the column directly; `ShopStockLedgerTest` sweeps for
+  that), stock-take (`recount`), received / damaged / given away.
+- Levels: per option (`low_stock`), else the shop-wide `shop_low_stock_default` setting
+  (default 3, one resolver `ShopStock::lowLevel()`), settable in bulk from the stock-take.
+- Screens: `/admin/shop/stock` (running low, adjust, stock-take with per-option levels) and
+  `/admin/shop/products/{id}/stock` (one product's ledger). In the rail under Shop orders.
+- Daily digest: the `shop-stock-digest` maintenance task runs every tick and sends at most one
+  email a day after 07:00 (the day is claimed in `gates_settings` first; a day with nothing
+  low is claimed and sends nothing).
+- Known limit: the product form still saves the count it loaded, so a sale between loading and
+  saving the form is overwritten — now recorded as a correction with a name, where before it
+  was silent. Use the stock-take or adjust for counts.
+- Tests: `tests/Unit/ShopStockLedgerTest.php` (9).
+
+### Phase 3 — the orders desk
+
+- Orders list: paging (`PAGE_SIZE` 50) with the filter's true total — the 300-row ceiling is
+  gone; a date range (from/to, whole days, plain `Y-m-d H:i:s` bounds); unknown filter values
+  fall back to "any"; an honest error with a retry instead of a silent empty table.
+- Bulk: one op `POST /admin/shop/orders/bulk`, declared actions (mark packed / shipped /
+  delivered, pick list, packing slips), capped at `BULK_MAX` 200 and named, validated before any
+  write, per-row verdicts (a partial run is reported as partial; `unchanged` apart from applied),
+  ONE audit event per run (`order.fulfil.bulk`). It delegates to the same single-row
+  `applyFulfilment()` the list and the order page use. Only a paid, uncancelled order moves.
+- `/admin/shop/orders/print?kind=pick|slips[&ids=…]`: the pick list sums each product × option
+  (one SKU query, not one per line); slips are one page per order. With no ids: every paid order
+  not yet sent. Standalone page (no console chrome), opened in a new tab.
+- Order page gains the delivery move and staff notes (`gates_shop_order_events`, kind `note`).
+- Buyer emails: delivered (new) and cancelled (phase 1), through `ShopMail`; each sent message
+  is written on the order's history.
+- NOT built here, and why: `templates/pages/shop/order.twig` (the buyer's own order page, which
+  every email links to) is one of the public pages destroyed on 3 Oct 2026 and owed by the
+  public rebuild (docs/handoff/DESTROYED.md, Phase 7 · ShopPage). It still 500s; the emails
+  carry the order details in their own text so they stand without it.
+- Tests: `tests/Unit/ShopOrdersDeskTest.php` (8). `AdminNavTest::BEFORE` records the two new
+  pages with the shop's existing `content` gate.
+
+### Phase 4 — collection points and the pickup code
+
+- `gates_shop_pickup_points` (name, address, hours, on/off, order) and on `gates_orders`:
+  `pickup_point_id`, `pickup_code` (TEXT so a leading zero survives), `collected_at`,
+  `collected_by`, `collect_override`. Migration `2027_06_05_shop_pickup.php`. Fulfilment gains
+  `ready` (Ready to collect) and `collected`.
+- `Services\ShopPickup`: the code is six digits from `random_int()`, issued once when the order is
+  paid (in `ShopOrderService::fulfil()`), quoted in the receipt and the "ready" email, and never
+  shown on the staff order page or the packing slip — it is what proves the person collecting is
+  the buyer. "Collected" needs the code typed back (spaces/dashes ignored, `hash_equals`) or a
+  reason of at least 8 characters, recorded with the staff member's name. Refused for unpaid or
+  cancelled orders; cannot be set from the list or bulk (only "Ready to collect" can).
+- Checkout: `pickup=<id>` on `/shop/quote` and `/shop/checkout` prices with no delivery charge,
+  makes the address optional and skips delivery-region restrictions; an unknown or switched-off
+  point is refused (`?checkout=pickup`), never turned into a delivery. `/shop/quote` lists the
+  active points. The public checkout page is one of the destroyed templates, so the choice is
+  documented for its rebuild in `docs/handoff/inventory/pages--shop--index.md`.
+- Screens: `/admin/shop/pickup` (add / edit / switch off — never delete; orders name their point),
+  and a Collection panel on the order page. Tests: `tests/Unit/ShopPickupTest.php` (10).
+
+### Phase 5 — the till (in-person sales) and the cash drawer
+
+- `gates_shop_cash_sessions` (label, float, opened/closed by and when, expected, counted,
+  difference, note); on `gates_orders`: `channel` (`pos`), `pos_method` (cash | transfer |
+  terminal), `cash_session_id`. Migration `2027_06_06_shop_pos.php`.
+- `Services\ShopPos`: a till sale is a `gates_orders` row (`AFG-SHP-POS-…`, so it is in the shop
+  stream), paid and collected on the spot, priced from the catalogue (base price + the option's
+  delta; no regional multiplier — the buyer is standing there). Stock goes through the ledger as
+  `pos` and MAY go below zero (decision, per the research: a queue must not stall on a miscount);
+  the sale is still recorded and the screen names every count that went negative. The whole
+  basket is validated before anything is written. Cash needs an open session.
+- Drawer: expected = float + cash sales − cash refunded outside the gateway on that session's
+  cash sales. Closing stores expected, counted and the difference; a drawer that does not balance
+  needs a note, and a short/over close alerts the operators.
+- A till sale is refunded from its order page "outside the gateway" (the gateway route refuses —
+  it never went through one).
+- Screen: `/admin/shop/till` (quick sale, open/close a session with its summary, recent sales,
+  session list). Tests: `tests/Unit/ShopPosTest.php` (5).
+
+### Phase 6 — shop today, reports and CSV
+
+- `gates_orders.fee_naira` (migration `2027_06_07_shop_fees.php`): the fee the gateway actually
+  reported for the charge, stored at confirmation. `PaymentService::verify()` for Paystack now
+  also returns `fees` (kobo → naira, null when absent).
+- `Services\ShopReports`: definitions, each stated once — gross = charged on orders PAID in the
+  range; refunds = refunds SETTLED in the range; fees = reported fee, or an estimate from
+  `GatewayFee` where none was reported (counted separately and labelled "estimated"); a till sale
+  has no gateway fee; net = gross − refunds − fees. Per product/option: units, units returned,
+  takings (line totals before order-level discount and delivery), orders; best sellers first.
+  Range clamped to `MAX_DAYS` 366, default the last 30 days; an unparseable date falls back.
+- `/admin/shop/today`: to prepare, out but not received (ready / shipped), out / low stock,
+  paid-but-short, sales today and this week (from Monday) net of refunds and fees, pending
+  payments and refunds waiting on the gateway. `/admin/shop/reports` and
+  `/admin/shop/reports.csv?kind=orders|products` (cells through `Support\Csv`, formula-safe; one
+  audit event per export).
+- Staff screens say "gateway fees" (a fact for staff). Nothing buyer-facing was added in this
+  phase; the owner's rule for buyer copy — "payment processing fee charged by our payment
+  provider", never the provider's name — applies to anything that later shows a buyer the fee.
+- Tests: `tests/Unit/ShopReportsTest.php` (6).
+
+### Phase 7 — catalogue search, archive, duplicate; a separate shop-money permission
+
+- Products list: search by name or slug (through `Support\Like`), filter on sale / hidden /
+  low or out / archived and by category; unknown filter values fall back. A product that has been
+  ordered is **archived, never deleted** (delete refuses and names archive); archive takes it off
+  the shop and out of the stock lists, restore brings it back hidden. Duplicate copies the
+  product, its active options and its gallery — hidden, uncounted (stock NULL), sales count reset.
+- **Shop money** (`Admin\Support\ShopMoney`, `gates_admins.shop_money`, migration
+  `2027_06_08_shop_money_archive.php`): refunds, cancelling a PAID order, and the till (open,
+  sale, close) need it in addition to the shop's `content` section. DECISIONS: (1) nobody lost
+  access — the migration grants it to every existing `superadmin`, `admin` and `editor` account,
+  which are exactly the roles that could write and open the shop before (a test reads the
+  migration's list and compares it with `Permissions`); the grant runs only when the column is
+  added, so a re-run never re-grants a flag a superadmin removed. (2) A superadmin always holds
+  it, so nobody can be left unable to refund. (3) Accounts created from now on start WITHOUT it;
+  a superadmin ticks "May move shop money" under Admins (that screen is superadmin-only). (4)
+  Before the migration runs the old rule stands, so deploying code ahead of the migration takes
+  nothing from anybody. Reports and the CSV stay readable to anyone who opens the shop.
+- Handbook §7 gains "Running the shop", its figures read from the code
+  (`HandbookController::shopFacts()`).
+- Tests: `tests/Unit/ShopMoneyAndCatalogueTest.php` (6).
+
+### Where this leaves things
+
+- Full suite after phase 7: `rm -f var/data/.gates-maintenance.lock var/data/.maintenance_tick &&
+  ./vendor/bin/phpunit --no-coverage` → 8274 tests, 8 failures — the same 8 `PasskeyTest`
+  failures as the baseline (PHP 8.3 container). 60 new tests across seven files.
+- No MySQL parity run was possible here. Every new column is VARCHAR/INT (no ENUM), dates are
+  plain `Y-m-d H:i:s`, indexes go through `SchemaIndex`, and new money columns that can be
+  negative are signed — but run `scripts/mysql-parity.sh` before deploying.
+- No public JavaScript was changed, so no minified twins needed rebuilding.
+- Owed by the public rebuild: the buyer's order page (`pages/shop/order.twig`, destroyed) and the
+  delivery-or-collect choice at checkout (documented in the inventory). Any buyer-facing copy
+  about the fee must say "payment processing fee charged by our payment provider" and must not
+  name the provider (owner, 18 Nov 2026).

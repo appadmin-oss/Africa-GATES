@@ -382,18 +382,27 @@ final class ReferralPayout
         }
 
         try {
-            // The credits first. If this succeeds and the status write fails, the request
-            // shows as open against credits already cleared — visible and fixable. The
-            // other order would report a payment whose credits are still owed, which reads
-            // as money that has to be paid twice.
-            if ($ids !== []) {
-                DB::table('gates_referral_credits')->whereIn('id', $ids)
-                    ->whereNull('paid_out_at')->update(['paid_out_at' => $now]);
-            }
-            DB::table('gates_referral_payouts')->where('id', $id)->update([
-                'status' => 'paid', 'payment_ref' => mb_substr($reference, 0, 120),
-                'settled_at' => $now, 'settled_by' => $adminId ?: null,
-            ]);
+            // ONE transaction, and the request is CLAIMED before its credits are touched: only
+            // a row still `requested` (and, by hand, one the automatic sender has not taken)
+            // becomes paid. Both writes used to be plain updates by id, so a person pressing
+            // "Record as paid" while another pressed "Refuse" could end with a refused request
+            // whose credits were stamped paid — "ask again" for money that could never be
+            // asked for again — and two people recording one payment both succeeded.
+            DB::transaction(static function () use ($id, $ids, $now, $reference, $adminId, $alreadySent): void {
+                $q = DB::table('gates_referral_payouts')->where('id', $id)->where('status', 'requested');
+                if (!$alreadySent) {
+                    $q->where(static fn ($x) => $x->whereNull('auto_state')->orWhereIn('auto_state', [WalletAutoPay::A_HELD, WalletAutoPay::A_FAILED]));
+                }
+                $n = $q->update([
+                    'status' => 'paid', 'payment_ref' => mb_substr($reference, 0, 120),
+                    'settled_at' => $now, 'settled_by' => $adminId ?: null,
+                ]);
+                if ($n !== 1) throw new \RuntimeException('That request has just been settled or refused by somebody else. Reload it.');
+                if ($ids !== []) {
+                    DB::table('gates_referral_credits')->whereIn('id', $ids)
+                        ->whereNull('paid_out_at')->update(['paid_out_at' => $now]);
+                }
+            });
         } catch (\Throwable $e) {
             return ['ok' => false, 'message' => 'Could not record it: ' . $e->getMessage()];
         }
@@ -429,10 +438,14 @@ final class ReferralPayout
         if ($busy = WalletAutoPay::busy($p, $ps)) return ['ok' => false, 'message' => $busy];
 
         try {
-            DB::table('gates_referral_payouts')->where('id', $id)->update([
-                'status' => 'rejected', 'note' => mb_substr($why, 0, 400),
-                'settled_at' => Carbon::now()->toDateTimeString(), 'settled_by' => $adminId ?: null,
-            ]);
+            // Only a request still open, and not one the automatic sender has taken.
+            $n = DB::table('gates_referral_payouts')->where('id', $id)->where('status', 'requested')
+                ->where(static fn ($x) => $x->whereNull('auto_state')->orWhereIn('auto_state', [WalletAutoPay::A_HELD, WalletAutoPay::A_FAILED]))
+                ->update([
+                    'status' => 'rejected', 'note' => mb_substr($why, 0, 400),
+                    'settled_at' => Carbon::now()->toDateTimeString(), 'settled_by' => $adminId ?: null,
+                ]);
+            if ($n !== 1) return ['ok' => false, 'message' => 'That request has just been settled or refused by somebody else. Reload it.'];
         } catch (\Throwable $e) {
             return ['ok' => false, 'message' => 'Could not record it: ' . $e->getMessage()];
         }

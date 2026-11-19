@@ -62,6 +62,23 @@ final class ChallengeAftercareTest extends TestCase
             'it was withheld silently, with nothing to say why');
     }
 
+    /**
+     * Qualifying for a place is what tells somebody. tellWinner() was complete, idempotent
+     * and called by nothing, so nobody who won a challenge was ever told.
+     */
+    public function test_taking_a_place_tells_the_winner_once(): void
+    {
+        $ch   = $this->challenge();
+        $user = (int) DB::table('gates_users')->insertGetId(['name' => 'Ada Obi', 'email' => 'a' . bin2hex(random_bytes(4)) . '@example.test', 'status' => 'active']);
+        $e    = (int) CS::join($ch, $user, '+2348039876543')['entry']->id;
+        DB::table('gates_nominations')->insert(['cycle_id' => 1, 'nominee_name' => 'N', 'nominator_name' => 'A',
+            'nominator_email' => 'a@example.test', 'status' => 'verified', 'nominee_confirmed_at' => date('Y-m-d H:i:s'),
+            'challenge_entry_id' => $e, 'nominee_identity_hash' => hash('sha256', 'x' . $e)]);
+        CS::recount($e);
+        CS::recount($e);
+        self::assertCount(1, $this->events($ch, 'won_notified'), 'a winner was never told, or told twice');
+    }
+
     /** Inside the window it goes out. */
     public function test_a_recent_challenge_is_announced(): void
     {
@@ -305,6 +322,9 @@ final class ChallengeAftercareTest extends TestCase
         CS::recount($entry);
 
         self::assertNotNull(CS::entry($entry)->standing, 'fixture did not qualify');
+        // recount() now tells a new place-holder itself (see the test below); the cases in
+        // this file ask what a LATER call does, so the claim it made is cleared here.
+        DB::table('gates_challenge_events')->where('entry_id', $entry)->where('kind', 'like', 'won_notified%')->delete();
 
         return [$ch, $entry];
     }

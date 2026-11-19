@@ -83,8 +83,6 @@
   --ag-fs-18:1.125rem;  --ag-fs-19:1.1875rem; --ag-fs-20:1.25rem;   --ag-fs-22:1.375rem;
   --ag-fs-23:1.4375rem; --ag-fs-24:1.5rem;    --ag-fs-32:2rem;      --ag-fs-34:2.125rem;
   --ag-fs-44:2.75rem;   --ag-fs-48:3rem;
-  /* Gee (Phase 3, Gee.dc.html): 25 the panel's greeting, Playfair (§8.22 "Playfair 25"). */
-  --ag-fs-25:1.5625rem;
   /* Home (Phase 4, HomePageV3.dc.html + WeAreAfrica.dc.html): 26 → 30 → 34 a section
      headline (phone, tablet, desktop), 28 → 30 → 36 a live stat's figure, 40 the tablet
      H1, 38 → 64 "We are Africa". */

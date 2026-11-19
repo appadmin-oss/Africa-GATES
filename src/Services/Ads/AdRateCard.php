@@ -8,6 +8,10 @@ use Illuminate\Database\Capsule\Manager as DB;
 /**
  * The published price of each placement, per 1,000 views, in naira.
  *
+ * Since 3 Nov 2026 the console's number is the BASE and the day's price is the market's
+ * (AdMarket: base × measured quality × demand, one price a day for everybody). The
+ * paragraph below is why it is still a card and not an auction.
+ *
  * A rate card rather than an auction (owner, 27 Oct 2026): with few advertisers an auction
  * settles at its minimum every time, so it is a rate card that is harder to explain. Every
  * advertiser pays the same price for the same placement, the price is on /advertise before
@@ -25,8 +29,19 @@ final class AdRateCard
 {
     public const KEY_PREFIX = 'ads_cpm_';
 
-    /** Naira per 1,000 views, or null when the placement is not on sale. */
+    /**
+     * TODAY'S price per 1,000 views, in naira, or null when the placement is not on sale.
+     * The console's figure is the base; the market moves it by what the placement delivers
+     * and how full it is (AdMarket). One reader, so /advertise, the builder's quote and the
+     * rate a campaign is booked at cannot disagree.
+     */
     public static function naira(string $placement): ?int
+    {
+        return AdMarket::price($placement);
+    }
+
+    /** The console's base price, naira per 1,000 views, or null when not on sale. */
+    public static function base(string $placement): ?int
     {
         if (!isset(AdRules::PLACEMENTS[$placement])) return null;
         try {
@@ -38,11 +53,19 @@ final class AdRateCard
         return $n > 0 ? $n : null;
     }
 
-    /** @return array<string,?int> every placement, naira per 1,000 views or null */
+    /** @return array<string,?int> every placement, today's naira per 1,000 views or null */
     public static function all(): array
     {
         $out = [];
         foreach (array_keys(AdRules::PLACEMENTS) as $p) $out[$p] = self::naira($p);
+        return $out;
+    }
+
+    /** @return array<string,?int> every placement's console base, for the settings form */
+    public static function bases(): array
+    {
+        $out = [];
+        foreach (array_keys(AdRules::PLACEMENTS) as $p) $out[$p] = self::base($p);
         return $out;
     }
 

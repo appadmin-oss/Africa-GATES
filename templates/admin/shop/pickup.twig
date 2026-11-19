@@ -1,0 +1,61 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  COLLECTION POINTS (shop upgrade, 18 Nov 2026). Where a buyer can collect an order instead of
+  having it delivered — the office, an event stand, a partner's front desk. A point is switched
+  off rather than deleted: orders name their point, and an order must always be able to say
+  where it is waiting.
+#}
+
+{% block head_styles %}{% include 'admin/shop/_styles.twig' %}{% endblock %}
+
+{% block topbar_title %}Collection points{% endblock %}
+{% block topbar_actions %}
+  <a class="ad-btn" href="/admin/shop/orders">Orders</a>
+{% endblock %}
+
+{% block content %}
+<p class="sh-sub">A collection order carries no delivery charge. The buyer is emailed a six-digit code when they pay, and staff type it back when they hand the order over.</p>
+
+{% if not ready %}
+<section class="sh-sec sh-sec--warn">
+  <h2>One step outstanding on the server</h2>
+  <p>Collection points need the latest database update. Run <strong>/__setup/migrate</strong>.</p>
+</section>
+{% else %}
+
+{% for p in points %}
+<section class="sh-sec" aria-label="Collection point {{ p.name }}">
+  <form method="post" action="/admin/shop/pickup">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <input type="hidden" name="point_id" value="{{ p.id }}">
+    <div class="sh-row">
+      <label class="sh-field sh-grow">Name<input name="name" maxlength="120" required value="{{ p.name }}"></label>
+      <label class="sh-field">Order on the list<input type="number" name="sort_order" class="sh-num" value="{{ p.sort_order }}"></label>
+      <label class="sh-row sh-small"><input type="checkbox" class="sh-check" name="is_active" value="1" {% if p.is_active %}checked{% endif %}> Taking orders</label>
+    </div>
+    <label class="sh-field">Address<input name="address" maxlength="300" value="{{ p.address|default('') }}"></label>
+    <label class="sh-field">When to come<input name="hours" maxlength="200" value="{{ p.hours|default('') }}" placeholder="Weekdays 10:00–16:00"></label>
+    <div class="sh-row"><button class="sh-btn sh-btn--ghost" type="submit">Save</button></div>
+  </form>
+</section>
+{% else %}
+<section class="sh-sec"><p>No collection points yet. Add the first below; until one is taking orders, every order is delivered.</p></section>
+{% endfor %}
+
+<section class="sh-sec" aria-labelledby="ppNew">
+  <h2 id="ppNew">Add a collection point</h2>
+  <form method="post" action="/admin/shop/pickup">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <div class="sh-row">
+      <label class="sh-field sh-grow">Name<input name="name" maxlength="120" required placeholder="Africa GATES office, Ikeja"></label>
+      <label class="sh-field">Order on the list<input type="number" name="sort_order" class="sh-num" value="0"></label>
+      <label class="sh-row sh-small"><input type="checkbox" class="sh-check" name="is_active" value="1" checked> Taking orders</label>
+    </div>
+    <label class="sh-field">Address<input name="address" maxlength="300"></label>
+    <label class="sh-field">When to come<input name="hours" maxlength="200" placeholder="Weekdays 10:00–16:00"></label>
+    <div class="sh-row"><button class="sh-btn" type="submit">Add</button></div>
+  </form>
+</section>
+{% endif %}
+{% endblock %}

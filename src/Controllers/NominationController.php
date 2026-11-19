@@ -561,6 +561,8 @@ class NominationController {
         catch(\RuntimeException $e){ return $rerender(\AfricaGates\Support\PublicFault::line($e,
             'We could not record that nomination. Nothing was saved, so trying once more is safe.',
             'nomination submit')); }
+        // Credited to the announcement that brought them, if one did (Mail\MailTraction).
+        \AfricaGates\Services\Mail\MailTraction::converted('nominate', (string) $nominationId);
 
         // ── SUPPORTING FILES ────────────────────────────────────────────────
         //

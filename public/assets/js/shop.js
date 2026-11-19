@@ -13,6 +13,9 @@
    trimmed for stock are the server's words, not this file's. */
 (function () {
   'use strict';
+  // Page-wide listeners and timers go through agPage (layout/shell.twig), which site-nav.js
+  // undoes when this page is swapped away; elsewhere they are plain (SiteNavTest).
+  var pg = window.agPage || { on: function (t, y, f, o) { t.addEventListener(y, f, o); }, every: function (f, ms) { return setInterval(f, ms); }, leave: function () {} };
 
   var KEY = 'ag-cart';
   var $ = function (s, r) { return (r || document).querySelector(s); };
@@ -268,7 +271,7 @@
     addedTimer = setTimeout(function () { added.hidden = true; }, 200);
   }
 
-  document.addEventListener('click', function (e) {
+  pg.on(document, 'click', function (e) {
     var t = e.target.closest ? e.target : e.target.parentElement;
     if (!t) return;
     var el;
@@ -306,7 +309,7 @@
     if ((el = t.closest('[data-sp-more-go]'))) { e.preventDefault(); more(el); return; }
   });
 
-  document.addEventListener('keydown', function (e) {
+  pg.on(document, 'keydown', function (e) {
     if (e.key === 'Tab') {
       if (drawer && !drawer.hidden) trapTab(e, drawer);
       else if (rail && rail.classList.contains('is-open') && phone.matches) trapTab(e, rail);
@@ -327,7 +330,7 @@
   }
 
   // Another tab added something: the badge follows.
-  window.addEventListener('storage', function (e) { if (e.key === KEY) paint(); });
+  pg.on(window, 'storage', function (e) { if (e.key === KEY) paint(); });
 
   /* ── The index: submit on change, the sheet, Load more ──────────────────── */
 
@@ -483,7 +486,10 @@
       $$('[data-sp-qty]', root.ownerDocument).forEach(function (q) { q.textContent = qty; });
       var miss = missing();
       var addLabel = miss ? put(IW.choose, { axis: nameOf(miss).toLowerCase() }) : IW.add;
-      $$('[data-sp-add-item]').forEach(function (b) { b.textContent = addLabel; });
+      // One prompt per screen: the big button asks for the size; the cart button beside it
+      // keeps its own name (both used to read "Choose a size", which looked like a fault).
+      // The phone's buy bar has only the one button, so that one asks.
+      $$('[data-sp-add-item]').forEach(function (b) { b.textContent = b.closest('.sp-ctas') ? IW.add : addLabel; });
       $$('[data-sp-buy]', root).forEach(function (b) {
         b.textContent = miss ? addLabel : put(IW.buy, { amount: money(price * qty) });
       });
@@ -521,7 +527,7 @@
       if (thenCheckout) open('checkout'); else confirmAdd(l, qty);
     }
 
-    root.ownerDocument.addEventListener('click', function (e) {
+    pg.on(root.ownerDocument, 'click', function (e) {
       var t = e.target.closest ? e.target : e.target.parentElement;
       if (!t) return;
       var b;

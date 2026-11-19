@@ -57,6 +57,7 @@ final class LegalDocument
         if (($doc['slug'] ?? '') === 'privacy') {
             $html .= self::disclosureHtml();
             $html .= self::voiceHtml();
+            $html .= self::thirdPartiesHtml();
         }
         if (($doc['slug'] ?? '') === 'cookies') {
             $html .= self::cookiesHtml();
@@ -65,6 +66,45 @@ final class LegalDocument
             $html .= self::advertisingHtml();
         }
         return $html;
+    }
+
+    /**
+     * Every outside service that can receive somebody's data, generated from
+     * {@see ThirdParties} — the payment gateways, SMS and email, the image host, the
+     * calendar, the bot check, the speech service at an event door. Here rather than in
+     * the template for the reason the AI section is: /privacy.txt and /privacy.md carry it.
+     *
+     * @param list<array<string,mixed>>|null $services injectable so the escaping can be
+     *        tested with a hostile value
+     */
+    public static function thirdPartiesHtml(?array $services = null): string
+    {
+        $services ??= ThirdParties::services();
+        if ($services === []) return '';
+        $e = static fn (string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
+
+        $h = [];
+        $h[] = '<h2 id="services">Other services that handle your data</h2>';
+        $h[] = '<p>Some things this platform does need another company&rsquo;s service: taking a '
+             . 'payment, sending a text message, storing a photo. Each one below receives only what '
+             . 'it needs for that job, and only at the moment described. This list is generated from '
+             . 'the platform&rsquo;s own code, so a service cannot be added without appearing here.</p>';
+        $h[] = '<ul>';
+        foreach ($services as $s) {
+            $see = (string) ($s['see'] ?? '');
+            $more = $see === '' ? ''
+                : ' <a href="' . ($see === 'cookies' ? '/cookies' : '#' . $e($see)) . '">More detail</a>.';
+            $h[] = '<li><strong>' . $e((string) $s['name']) . '</strong> &mdash; ' . $e((string) $s['for'])
+                 . '<br>What it receives: ' . $e((string) $s['gets'])
+                 . '<br>When: ' . $e((string) $s['when']) . $more . '</li>';
+        }
+        $h[] = '</ul>';
+        $h[] = '<p>Where each service keeps what it receives, and for how long, is set by its own '
+             . 'terms rather than ours. If that matters to you, email '
+             . '<a href="mailto:privacy@afrovanguard.org.ng">privacy@afrovanguard.org.ng</a> and we '
+             . 'will tell you what we know.</p>';
+
+        return implode("\n", $h);
     }
 
     /**
@@ -100,6 +140,16 @@ final class LegalDocument
              . $R::TRIAL_DAYS . ' days, from when it is approved.</li>'
              . '<li>One person sees the same ad at most ' . $R::FREQUENCY_CAP . ' times a day.</li>'
              . '<li>A campaign can be booked for up to ' . $R::MAX_DAYS . ' days.</li>'
+             // How a price is set, from the constants the market runs on (AdMarket), so the
+             // policy cannot describe a different rule from the one charging people.
+             . (\AfricaGates\Services\Ads\AdMarket::dynamic()
+                 ? '<li>Prices are set each day for each place: its starting price, moved by how often people act on ads there against the site average and by how much of the next ' . \AfricaGates\Services\Ads\AdMarket::HORIZON . ' days paid campaigns have booked, never below ' . (int) round(100 * \AfricaGates\Services\Ads\AdMarket::FLOOR) . '% or above ' . (int) round(100 * \AfricaGates\Services\Ads\AdMarket::CEIL) . '% of the starting price. Until a place has ' . number_format(\AfricaGates\Services\Ads\AdMarket::MIN_VIEWS) . ' views to measure, its price is its starting price. Everyone booking on the same day pays the same price, and a campaign keeps the price it was booked at.</li>'
+                 : '<li>Prices are fixed per place, the same every day, and a campaign keeps the price it was booked at.</li>')
+             . '<li>Paid campaigns are shown before free trials.</li>'
+             . (\AfricaGates\Services\Ads\AdCheckout::vatBps() > 0
+                 ? '<li>Prices do not include VAT. VAT at ' . rtrim(rtrim(number_format(\AfricaGates\Services\Ads\AdCheckout::vatBps() / 100, 2), '0'), '.') . '% is added at checkout, shown as its own line, and printed on the receipt.</li>'
+                 : '')
+             . '<li>The smallest budget is ₦' . number_format(\AfricaGates\Services\Ads\AdCheckout::MIN_BUDGET_NAIRA) . '. A paid campaign starts when it is both paid for and approved, and runs the days bought from then. What it does not spend goes back, with its VAT, when it ends or is cancelled.</li>'
              . '</ul><p>This section is generated from the rules the site runs, so it is always current.</p>';
         return implode("\n", $h);
     }

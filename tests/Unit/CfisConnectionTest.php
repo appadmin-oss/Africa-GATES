@@ -56,7 +56,12 @@ final class CfisConnectionTest extends TestCase
         $id = (int) DB::table('gates_donations')->insertGetId(['donor_name' => 'Chidi', 'donor_email' => 'chidi@example.com',
             'amount_naira' => $naira, 'tier' => 'paid-vote', 'bonus_votes' => 0, 'votes_used' => 1, 'intent_nominee_id' => 1,
             'payment_ref' => $ref, 'status' => 'confirmed', 'created_at' => Carbon::now()->toDateTimeString()]);
-        if ($accrue) $this->assertTrue(Ret::accrue($id)['ok']);
+        if ($accrue) {
+            $this->assertTrue(Ret::accrue($id)['ok']);
+            // Older than the push's commit margin (CfisReturns: rows under two minutes old wait
+            // for the next push, so one still inside its transaction is never stepped over).
+            DB::table('gates_community_returns')->where('donation_id', $id)->update(['created_at' => Carbon::now()->subMinutes(5)->toDateTimeString()]);
+        }
         return $id;
     }
 
@@ -105,6 +110,9 @@ final class CfisConnectionTest extends TestCase
         $this->assertSame(0, CfisReturns::push(), 'nothing changed, nothing sent');
 
         Ret::reverse($a, 'refunded');
+        $this->assertSame(0, CfisReturns::push(), 'a row still inside its two-minute commit margin was reported (or stepped over)');
+        DB::table('gates_community_returns')->where('donation_id', $a)->where('entry_type', 'reversal')
+            ->update(['created_at' => Carbon::now()->subMinutes(5)->toDateTimeString()]);
         $this->assertSame(1, CfisReturns::push());
         $this->assertSame([['reference' => 'AFG-A', 'amount_minor' => 0, 'to' => 'returns']], $this->sent[1]['claims']['returns'], 'a refund reports 0, not silence');
     }

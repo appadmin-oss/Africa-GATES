@@ -132,10 +132,12 @@ class OtpService
         // `.env`'s own login, tried after a different one stored in Settings — see
         // MailConfig::load(). Only where SMTP is a road at all.
         $env  = $smtp && is_array($this->smtp['smtp_env'] ?? null);
-        // Apps Script carries one-to-one mail only: MailApp's allowance is about 100
-        // recipients a day, and a newsletter spending it is a sign-in code that cannot go.
+        // Apps Script: one-to-one mail always; an announcement only while more than the
+        // reserve kept for sign-in codes is left (Mail\RoadCapacity::gasMayCarryBulk). It used
+        // to carry no announcement at all, which stranded every campaign and newsletter on a
+        // deployment where Apps Script is the road that works.
         $gasSet = array_key_exists('gas', $this->smtp) ? (bool) $this->smtp['gas'] : AppsScriptMail::configured();
-        $gas  = !$bulk && $gasSet;
+        $gas  = $gasSet && (!$bulk || \AfricaGates\Services\Mail\RoadCapacity::gasMayCarryBulk());
 
         /* ── THIS SERVER'S OWN MAIL IS NOT A FALLBACK ─────────────────────────────
          *
@@ -167,7 +169,10 @@ class OtpService
             $out = array_merge(array_values(array_diff($out, ['smtp', 'smtp-env'])),
                                array_values(array_intersect($out, ['smtp', 'smtp-env'])));
         }
-        return $out;
+        // And a road that has spent its day's allowance, or just said "quota", goes behind
+        // the roads that still have room (Mail\RoadCapacity) — never removed, so a lone road
+        // is still tried.
+        return \AfricaGates\Services\Mail\RoadCapacity::order($out);
     }
 
     /**
@@ -420,6 +425,9 @@ class OtpService
             $m->Subject = $subject;
             $build($m);
             $this->headers($m, $category, $unsubscribeUrl);
+            // Our own images ride inside the message, so a client that blocks linked images
+            // (Outlook, Yahoo, most work mail) still shows them (InlineImages).
+            \AfricaGates\Services\Mail\InlineImages::embed($m, $this->base());
         } catch (MailException|\Throwable $e) {
             // A message that cannot even be built (an address PHPMailer rejects) is not a
             // road problem, and no other road would fix it.
@@ -448,11 +456,14 @@ class OtpService
                 if ($road === 'smtp') self::restSmtp(false);
                 $note = $failed === [] ? null : 'via ' . $road . ' after: ' . implode(' | ', $failed);
                 $this->log?->info('[mail] sent', ['to' => $to, 'subject' => $subject, 'via' => $road]);
-                MailLog::write($to, $subject, $category, MailLog::SENT, $note, $bulk);
+                MailLog::write($to, $subject, $category, MailLog::SENT, $note, $bulk, $road);
                 return ['success' => true, 'via' => $road];
             } catch (MailException|\Throwable $e) {
                 $err = $e->getMessage();
                 $cause = MailFailure::classify($err);
+                // "Quota": this road's day is spent. Rest it, so every following message goes
+                // straight to a road with room instead of paying for a refusal first.
+                if ($cause === MailFailure::QUOTA) \AfricaGates\Services\Mail\RoadCapacity::rest($road);
                 $this->log?->error('[mail] send failed via ' . $road . ': ' . $err, ['to' => $to]);
                 if ($cause === MailFailure::RECIPIENT || $i === count($routes) - 1) {
                     $all = $failed === [] ? $err : implode(' | ', array_merge($failed, [$road . ': ' . $err]));
@@ -629,7 +640,18 @@ class OtpService
             'created_at' => Carbon::now()->toDateTimeString(),
         ]);
 
-        $sent = $this->sendOtpEmail($email, $code);
+        // The voter's own "what your vote unlocks" link rides in the code email they are
+        // already opening, rather than in a second message (OfferLink).
+        $offer = null;
+        try {
+            $slug = (string) (DB::table('gates_nominees as n')->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+                ->join('gates_award_cycles as y', 'y.id', '=', 'c.cycle_id')->join('gates_award_programmes as p', 'p.id', '=', 'y.programme_id')
+                ->where('n.id', $nomineeId)->where('p.is_active', 1)->value('p.slug') ?? '');
+            if ($slug !== '') $offer = $this->base() . OfferLink::path($slug, VoteService::voterHash($email));
+        } catch (\Throwable) {
+            $offer = null;
+        }
+        $sent = $this->sendOtpEmail($email, $code, $offer);
 
         // ── RECORD WHETHER THE CODE ACTUALLY LEFT THE BUILDING ───────────────
         //
@@ -674,9 +696,13 @@ class OtpService
         } catch (\Throwable) { /* see the note above: silence here only costs recoverability */ }
     }
 
-    private function sendOtpEmail(string $to, string $code): array
+    private function sendOtpEmail(string $to, string $code, ?string $offer = null): array
     {
         $mins = self::VOTE_CODE_MINUTES;
+        $offerH = $offer !== null
+            ? '<p style="margin:16px 0 0;font-size:14px;line-height:1.6;color:' . \AfricaGates\Support\Accent::hex('ink-2') . '">After you vote: <a href="' . htmlspecialchars($offer, ENT_QUOTES, 'UTF-8') . '" style="color:' . \AfricaGates\Support\Accent::hex('ink') . ';font-weight:700">see what your votes unlock</a>.</p>'
+            : '';
+        $offerP = $offer !== null ? "\n\nAfter you vote, see what your votes unlock: " . $offer : '';
         $html = <<<HTML
 <h1 style="margin:0;font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:26px;color:#10292C;letter-spacing:-.01em">Confirm it's you</h1>
 <p style="margin:13px 0 0;font-size:15px;line-height:1.65;color:#4a5256">Enter this one-time code to verify your email and cast your vote. It expires in <strong style="color:#10292C">{$mins} minutes</strong>.</p>
@@ -687,13 +713,14 @@ class OtpService
   </td></tr>
 </table>
 <p style="margin:0;font-size:13px;line-height:1.6;color:#92a6a7">Didn't request this? Ignore this email — no one can vote as you, and your account stays secure. One vote per email per category.</p>
+{$offerH}
 HTML;
 
         return $this->sendBranded(
             $to,
             'Africa GATES — your verification code',
             $html,
-            "Africa GATES verification code: $code\n\nExpires in " . self::VOTE_CODE_MINUTES . " minutes. One vote per email per category.\n\nDidn't request this? Ignore this email.",
+            "Africa GATES verification code: $code\n\nExpires in " . self::VOTE_CODE_MINUTES . " minutes. One vote per email per category.\n\nDidn't request this? Ignore this email." . $offerP,
             'Security',
             $this->base() . '/assets/img/illustrations/illo-envelope.jpg'
         );
@@ -751,6 +778,36 @@ HTML;
      * (Outlook, Gmail app, Apple Mail, Yahoo Mail).
      */
     /**
+     * The height attribute for a hero drawn 600 wide: from the IMAGE when it is one of
+     * ours, else the caller's figure, else 260.
+     *
+     * `height` is not a hint to Outlook desktop — it is the size the image is drawn at,
+     * `height:auto` notwithstanding. Every hero was given 260, which is right for the
+     * 1200×520 illustrations and wrong for the older 1344×768 ones (and for an event cover
+     * cut to its own shape): those were drawn squashed to a 2.3:1 band in the client a
+     * large share of Nigerian offices read mail in, while every webmail scaled them
+     * correctly — so nobody checking in a browser ever saw it. Measured from the file in
+     * `public/`, never typed per image: the next illustration added at another size is
+     * then right without anybody remembering this.
+     */
+    public static function heroHeight(string $hero, int $given = 0): int
+    {
+        static $memo = [];
+        $fallback = $given > 0 ? $given : 260;
+        $path = (string) (parse_url($hero, PHP_URL_PATH) ?? '');
+        // Our own files only: the shipped illustrations and an uploaded cover. Anything
+        // else is somebody else's server, and is not fetched to measure it.
+        if ($path === '' || !preg_match('~^/(assets|uploads)/~', $path) || str_contains($path, '..')) return $fallback;
+        if (!array_key_exists($path, $memo)) {
+            $root = realpath(dirname(__DIR__, 2) . '/public') ?: '';
+            $file = realpath($root . rawurldecode($path)) ?: '';
+            $size = ($root !== '' && $file !== '' && str_starts_with($file, $root . '/') && is_file($file)) ? @getimagesize($file) : false;
+            $memo[$path] = ($size && $size[0] > 0 && $size[1] > 0) ? (int) round(600 * $size[1] / $size[0]) : 0;
+        }
+        return $memo[$path] > 0 ? $memo[$path] : $fallback;
+    }
+
+    /**
      * The house shell every branded email arrives in.
      *
      * PUBLIC, and not for a test: the admin preview has to show what the RECIPIENT gets.
@@ -794,7 +851,7 @@ HTML;
         //    file is 192px, so it is sharp at 2x and better on a phone);
         //  · the hero keeps a HEIGHT even when the caller has none: Outlook desktop blocks
         //    remote images by default, and a blocked image with no height collapses the band
-        //    it is the only thing in — 260 is the shipped 600×260 crop;
+        //    it is the only thing in — and the height is the image's own (heroHeight());
         //  · the preheader falls back to the subject — without one, every message here
         //    previewed as the first words of the masthead;
         //  · the footer says who sent it and where they are (MailConfig::postal()). It used
@@ -806,7 +863,7 @@ HTML;
             'preheader'       => $preheader !== '' ? $preheader : $subject,
             'category'        => $category,
             'hero'            => $hero,
-            'hero_height'     => $heroHeight > 0 ? $heroHeight : 260,
+            'hero_height'     => self::heroHeight($hero, $heroHeight),
             'body'            => $body,
             'why'             => $why,
             'logo'            => Brand::markUrl($this->base()),

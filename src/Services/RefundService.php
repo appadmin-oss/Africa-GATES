@@ -977,6 +977,13 @@ final class RefundService
     {
         $ref = PaymentLookup::canonical(trim($reference));
         if ($ref === '') return ['found' => false, 'say' => 'A payment reference is needed.'];
+        // A stand fee is not a vote payment and nothing refunds it automatically; saying "no
+        // payment matching that" about one the vendor can see on their bank alert is wrong.
+        if (StandFee::isReference($ref)) {
+            return ['found' => true, 'state' => 'manual', 'settled' => false,
+                    'say' => 'That is a stand fee. Stand fees are not refunded automatically: the events team decides, '
+                           . 'so the request goes to them with this reference.'];
+        }
 
         try {
             $d = DB::table('gates_donations')->where('payment_ref', $ref)->first();

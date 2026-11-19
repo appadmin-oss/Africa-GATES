@@ -67,7 +67,6 @@
     {{ art.rail(d) }}
     <article class="dp-doc" data-doc-article>
       {{ art.masthead(d) }}
-      {{ art.aside(d, 'inline') }}
       <div data-doc-read>
         {% if terms %}
           {% if doc_lead %}<div class="dp-lead dp-rich">{{ doc_lead|raw }}</div>{% endif %}
@@ -98,4 +97,4 @@
 
 {% block sheets %}{{ parent() }}{{ art.sheet(d) }}{% endblock %}
 
-{% block foot_scripts %}<script defer src="{{ asset('/assets/js/doc.js') }}"></script>{% endblock %}
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/doc.js') }}" data-nav="rerun"></script>{% endblock %}

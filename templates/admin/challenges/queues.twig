@@ -144,7 +144,7 @@
     <form method="post" action="/admin/challenges/{{ c.id }}/draw"
           data-confirm="Run the draw? The seed is recorded and the result cannot be re-rolled.">
       <input type="hidden" name="_token" value="{{ csrf_token }}">
-      <button class="qq-b" type="submit">{{ drawn ? 'Re-show the draw' : 'Run the draw' }}</button>
+      <button class="qq-b" type="submit">{{ drawn ? 'Show the draw' : 'Run the draw' }}</button>
     </form>
   </div>
 {% endif %}

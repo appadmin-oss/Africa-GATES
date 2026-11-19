@@ -97,7 +97,7 @@
             {% for p in programmes %}
               {% set _days = p.phase.seconds_left ? (p.phase.seconds_left // 86400) : null %}
               <a class="nh-card" href="/nominate/{{ p.slug }}{{ _q }}">
-                <span class="nh-card__media">{% include 'partials/photo.twig' with {kind: 'thing', subject: 'award', name: p.title} only %}</span>
+                <span class="nh-card__media">{% include 'partials/photo.twig' with {identity: p.id|default(null), kind: 'thing', subject: 'award', name: p.title} only %}</span>
                 <span class="nh-card__b">
                   <b class="nh-card__t">{{ p.title }}</b>
                   <span class="nh-card__l">{{ p.edition_line }}</span>
@@ -182,7 +182,7 @@
 
 {% block bottom_bar %}
   {% if programmes|length %}
-    <div class="nh-cta" data-bottom-ui><a class="nh-cta__go" href="{{ _start }}">{{ _startLabel }}</a></div>
+    <div class="nh-cta" data-bottom-ui role="region" aria-label="{{ 'Start a nomination'|trans }}"><a class="nh-cta__go" href="{{ _start }}">{{ _startLabel }}</a></div>
   {% endif %}
   {{ parent() }}
 {% endblock %}

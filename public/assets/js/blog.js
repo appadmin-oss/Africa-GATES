@@ -8,6 +8,9 @@
    of the two exists. */
 (function () {
   'use strict';
+  // Page-wide listeners and timers go through agPage (layout/shell.twig), which site-nav.js
+  // undoes when this page is swapped away; elsewhere they are plain (SiteNavTest).
+  var pg = window.agPage || { on: function (t, y, f, o) { t.addEventListener(y, f, o); }, every: function (f, ms) { return setInterval(f, ms); }, leave: function () {} };
   var root = document.querySelector('[data-blog]');
   if (!root) return;
   var main = document.querySelector('.ag-main') || document.scrollingElement;
@@ -22,7 +25,7 @@
     if (fill) fill.style.setProperty('--p', (p * 100).toFixed(1) + '%');
     if (bar) bar.setAttribute('aria-valuenow', String(Math.round(p * 100)));
   }
-  main.addEventListener('scroll', function () { if (!tick) { tick = true; requestAnimationFrame(measure); } }, { passive: true });
+  pg.on(main, 'scroll', function () { if (!tick) { tick = true; requestAnimationFrame(measure); } }, { passive: true });
   measure();
 
   var btn = root.querySelector('[data-blog-listen]');
@@ -92,5 +95,5 @@
     });
     state = 'playing'; show(state);
   });
-  window.addEventListener('pagehide', function () { synth.cancel(); });
+  pg.on(window, 'pagehide', function () { synth.cancel(); });
 })();

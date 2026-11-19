@@ -54,6 +54,7 @@
 {% endblock %}
 
 {% block content %}
+{% include 'admin/events/navigation.twig' with {event_id: event.id, current: 'invites'} only %}
 <h1>Invitations</h1>
 <p class="iv-sub">{{ event.title }} · {{ event.event_date|when_zoned }}
   · <a href="/admin/events/{{ event.id }}">back to the event</a></p>

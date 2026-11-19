@@ -56,6 +56,7 @@ final class PhilosophyDocumentTest extends TestCase
             'return_threshold' => $ret['threshold'],
             'return_cap_pct'   => $ret['cap_pct'],
             'return_people'    => $ret['min_supporters'],
+            'return_sentence'  => $ret['sentence'],
         ];
     }
 
@@ -108,7 +109,7 @@ final class PhilosophyDocumentTest extends TestCase
     {
         $blob = json_encode(Doc::sections());
 
-        foreach (['{community_pct}', '{judge_pct}', '{return_pct}', '{return_threshold}'] as $token) {
+        foreach (['{community_pct}', '{judge_pct}', '{return_sentence}'] as $token) {
             $this->assertStringContainsString($token, (string) $blob,
                 "{$token} is never used — a figure it should drive is probably typed in");
         }

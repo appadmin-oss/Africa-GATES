@@ -82,6 +82,12 @@
 .ag-foot__rule{ display:none; width:1px; height:18px; background:var(--ag-line-2) }
 .ag-foot__legal{ display:flex; align-items:center; gap:0 18px; flex-wrap:wrap }
 .ag-foot__legal a{ display:inline-block; padding-block:4px; font-size:var(--ag-fs-13); color:var(--ag-soft) }
+/* To a finger, every footer link is 44px tall (they were 25): Privacy and Terms sat a
+   thumb's width apart on six lines of small type. A pointer keeps the tighter rows. */
+@media (pointer:coarse){
+  .ag-foot__legal a{ display:inline-flex; align-items:center; min-height:44px; padding-block:0 }
+  .ag-foot__logo{ min-height:44px }
+}
 
 /* A phone folds each column to one 52px row (site-footer.twig says why); from 600 the
    summary is a plain heading again and the fold is held open (shell.js). */

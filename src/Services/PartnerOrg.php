@@ -1272,6 +1272,35 @@ final class PartnerOrg
      * raised for THEM. `0` on a database that has not taken the tip migration, where no tip
      * was ever recorded.
      */
+    /** The donors' fee covers, summed: the gateway's money, never "raised". */
+    public static function coverSumSql(): string
+    {
+        return \AfricaGates\Support\SchemaHas::column('gates_donations', 'fee_cover_naira')
+            ? 'COALESCE(SUM(fee_cover_naira),0)' : '0';
+    }
+
+    /** The gateway's fees the organisation bore, summed: off what they are owed. */
+    public static function gatewaySumSql(): string
+    {
+        return \AfricaGates\Support\SchemaHas::column('gates_donations', 'gateway_fee_naira')
+            ? 'COALESCE(SUM(gateway_fee_naira),0)' : '0';
+    }
+
+    /** One gift's share for its organisation, per row: the charge less our fee and the gateway's. */
+    public static function netRowSql(): string
+    {
+        return 'amount_naira - COALESCE(platform_fee_naira,0)'
+            . (\AfricaGates\Support\SchemaHas::column('gates_donations', 'gateway_fee_naira') ? ' - COALESCE(gateway_fee_naira,0)' : '');
+    }
+
+    /** One gift as given to its organisation, per row: the charge less the tip and the cover. */
+    public static function raisedRowSql(): string
+    {
+        return 'amount_naira'
+            . (\AfricaGates\Support\SchemaHas::column('gates_donations', 'platform_tip_naira') ? ' - COALESCE(platform_tip_naira,0)' : '')
+            . (\AfricaGates\Support\SchemaHas::column('gates_donations', 'fee_cover_naira') ? ' - COALESCE(fee_cover_naira,0)' : '');
+    }
+
     public static function tipSumSql(): string
     {
         return \AfricaGates\Support\SchemaHas::column('gates_donations', 'platform_tip_naira')
@@ -1288,11 +1317,11 @@ final class PartnerOrg
      */
     public static function totals(int $orgId): array
     {
-        $zero = ['gross' => 0, 'platform_fee' => 0, 'net' => 0, 'count' => 0, 'tip' => 0, 'raised' => 0];
+        $zero = ['gross' => 0, 'platform_fee' => 0, 'gateway_fee' => 0, 'net' => 0, 'count' => 0, 'tip' => 0, 'cover' => 0, 'raised' => 0];
         try {
             $row = self::countableDonations($orgId)
                 ->selectRaw('COALESCE(SUM(amount_naira),0) g, COALESCE(SUM(platform_fee_naira),0) f, COUNT(*) c, '
-                          . self::tipSumSql() . ' t')
+                          . self::tipSumSql() . ' t, ' . self::coverSumSql() . ' cv, ' . self::gatewaySumSql() . ' gw')
                 ->first();
         } catch (\Throwable) {
             return $zero;
@@ -1302,7 +1331,11 @@ final class PartnerOrg
         $g = (int) ($row->g ?? 0);
         $f = (int) ($row->f ?? 0);
         $t = max(0, (int) ($row->t ?? 0));
-        return ['gross' => $g, 'platform_fee' => $f, 'net' => max(0, $g - $f), 'count' => (int) ($row->c ?? 0),
-                'tip' => $t, 'raised' => max(0, $g - $t)];
+        $cv = max(0, (int) ($row->cv ?? 0));
+        $gw = max(0, (int) ($row->gw ?? 0));
+        // `net` is what reaches them: less our fee AND the gateway's where they bear it.
+        // `raised` is what donors GAVE them: less the tip to us and the cover to the gateway.
+        return ['gross' => $g, 'platform_fee' => $f, 'gateway_fee' => $gw, 'net' => max(0, $g - $f - $gw), 'count' => (int) ($row->c ?? 0),
+                'tip' => $t, 'cover' => $cv, 'raised' => max(0, $g - $t - $cv)];
     }
 }

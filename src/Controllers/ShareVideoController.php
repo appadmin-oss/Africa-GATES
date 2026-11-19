@@ -22,7 +22,14 @@ final class ShareVideoController
 
     public function nominee(Request $req, Response $res, array $args): Response
     {
-        return $this->draw($req, $res, ShareVideo::forNominee($this->flier->forNominee((int) (string) ($args['slug'] ?? '0'))));
+        $story = ShareVideo::forNominee($this->flier->forNominee((int) (string) ($args['slug'] ?? '0')));
+        // The colour the nominee picked in the share kit, so the video matches the card.
+        $tone = \AfricaGates\Services\ShareCardSpec::options($req->getQueryParams())['tone'];
+        if ($story !== null && $tone !== null) {
+            $story['tone'] = $tone;
+            $story['palette'] = \AfricaGates\Services\ShareCardSpec::videoPalette($tone);
+        }
+        return $this->draw($req, $res, $story);
     }
 
     public function campaign(Request $req, Response $res, array $args): Response

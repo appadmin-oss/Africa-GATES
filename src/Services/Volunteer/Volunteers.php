@@ -25,6 +25,67 @@ final class Volunteers
 {
     public const CONDUCT_VERSION = '3';
 
+    /**
+     * The volunteers' WhatsApp community (owner, 13 Nov 2026), offered in the email sent when
+     * somebody applies and on their workspace. A default rather than only a setting so it works
+     * the day it ships; `volunteer_community_url` in Settings replaces it, and an empty saved
+     * value is read as "use the default" — the invite link is the thing staff will rotate.
+     * The tracking query WhatsApp's share sheet adds (?s=…&p=…&iam=…) is left off.
+     */
+    public const COMMUNITY_DEFAULT = 'https://chat.whatsapp.com/CQyjtaLB7RhLY6q5xAZzkc';
+
+    /** The one resolver for the community link. Never empty. */
+    public static function communityUrl(): string
+    {
+        try {
+            $v = trim((string) DB::table('gates_settings')->where('key_name', 'volunteer_community_url')->value('value'));
+        } catch (\Throwable) {
+            $v = '';
+        }
+        return self::validCommunityUrl($v) ? $v : self::COMMUNITY_DEFAULT;
+    }
+
+    /**
+     * The community link for THIS person, or null. Adults only (AUDIT-AND-PLAN VO-4): the link
+     * opens a group where people the platform has not vetted can see and message each other,
+     * and the platform's own rules keep under-18s out of exactly that — nothing for under-18s
+     * on the Afrovanguard list, and only a team lead may invite a minor to a meeting. Applicants
+     * are 16 and up, so without this a 16-year-old was sent into the group on applying.
+     */
+    public static function communityFor(object $v): ?string
+    {
+        $age = self::age(isset($v->dob) ? (string) $v->dob : null);
+        return $age !== null && $age >= 18 ? self::communityUrl() : null;
+    }
+
+    /**
+     * Whole years since a date of birth, by the calendar, or null. The one age resolver (plan
+     * §9.24 K4): applying used 365.25-day years, which can be a day out at a birthday — the
+     * very boundary of the minimum age.
+     */
+    public static function age(?string $dob, ?int $now = null): ?int
+    {
+        $t = $dob !== null && $dob !== '' ? strtotime($dob) : false;
+        if ($t === false) return null;
+        $now ??= time();
+        [$y, $md] = [(int) date('Y', $t), date('md', $t)];
+        $age = (int) date('Y', $now) - $y;
+        if (date('md', $now) < $md) $age--;
+        return max(0, $age);
+    }
+
+    /**
+     * A WhatsApp invite link and nothing else — it is put in an email and on a button headed
+     * "Join on WhatsApp". It accepted any https host, so a mistyped or hostile value in
+     * Settings would have been mailed to every applicant under that heading.
+     */
+    public static function validCommunityUrl(string $url): bool
+    {
+        $p = $url !== '' ? parse_url($url) : false;
+        return is_array($p) && strtolower((string) ($p['scheme'] ?? '')) === 'https' && empty($p['user'])
+            && strtolower((string) ($p['host'] ?? '')) === 'chat.whatsapp.com';
+    }
+
     /** Roles an applicant can say they are interested in, with what each involves. */
     public const INTERESTS = [
         'drive'   => 'Voter drives',
@@ -136,7 +197,7 @@ final class Volunteers
         if ($dob === '' || strtotime($dob) === false) {
             $e[] = 'Add your date of birth.';
         } else {
-            $age = (int) floor((time() - (int) strtotime($dob)) / (365.25 * 86400));
+            $age = (int) self::age($dob);
             if ($age < Rules::get('vol_min_age')) $e[] = sprintf('Volunteers need to be %d or older.', Rules::get('vol_min_age'));
             elseif ($age < Rules::get('vol_guardian_under') && empty($f['guardian'])) {
                 $e[] = sprintf('Under %d, a parent or guardian needs to agree. Tick the box once they have.', Rules::get('vol_guardian_under'));
@@ -276,10 +337,29 @@ final class Volunteers
             ->update(['status' => 'active', 'paused_until' => null, 'updated_at' => date('Y-m-d H:i:s')]) > 0;
     }
 
-    /** Step back for good. The verified record stays theirs; every role they hold ends now. */
+    /**
+     * Breaks that have run out, ended. Only the volunteer's own page used to end one, so
+     * somebody whose break ended without a visit stayed `paused`, and every reminder skips
+     * the paused, for good (AUDIT-AND-PLAN VO-5). Run by the reminders sweep, every tick.
+     */
+    public static function resumeEndedBreaks(): int
+    {
+        if (!self::ready()) return 0;
+        return DB::table('gates_volunteers')->where('status', 'paused')->whereNotNull('paused_until')->where('paused_until', '<=', date('Y-m-d H:i:s'))
+            ->update(['status' => 'active', 'paused_until' => null, 'updated_at' => date('Y-m-d H:i:s')]);
+    }
+
+    /**
+     * Step back for good. The verified record stays theirs; every volunteer and event-team role
+     * they hold ends now. A team role (`event.role`) used to survive leaving (AUDIT-AND-PLAN
+     * VO-12). An event's lead, owner or finance admin is not a volunteer role — staff gave it,
+     * and it is ended where it was given — so it is left alone and the page says so.
+     */
     public static function leave(object $v): bool
     {
-        foreach (Grants::forActor('member', (int) $v->user_id, 'vol.') as $g) Grants::revoke((int) $g->id, null);
+        foreach (array_merge(Grants::forActor('member', (int) $v->user_id, 'vol.'), Grants::forActor('member', (int) $v->user_id, 'event.role')) as $g) {
+            Grants::revoke((int) $g->id, null);
+        }
         return DB::table('gates_volunteers')->where('id', $v->id)
             ->update(['status' => 'left', 'left_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')]) > 0;
     }

@@ -28,7 +28,7 @@ class AdminRoleSafetyTest extends TestCase
     private function save(int $id, array $body): void
     {
         $_SESSION['admin_id'] = 1;
-        $ctrl = new AdminsController(Twig::create(__DIR__ . '/../../templates'), new AuditService());
+        $ctrl = new AdminsController(Twig::create(__DIR__ . '/../../templates'), new AuditService(), new \AfricaGates\Admin\Services\StaffDirectoryService());
         $req = (new ServerRequestFactory())->createServerRequest('POST', 'https://x/admin/admins/' . $id)->withParsedBody($body);
         $ctrl->save($req, new Response(), ['id' => $id]);
     }

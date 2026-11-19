@@ -371,22 +371,29 @@ final class ReviewQueue
         $cycles = array_values(array_unique(array_map(static fn (array $r): int => (int) $r['cycle_id'], $rows)));
 
         // Duplicates: every name in the rows' editions, grouped by the desk's own key.
-        // A reviewer's "Not a duplicate" ruling (the desk) takes that entry out of every
-        // group, its own and the earlier one's — or the same pair is flagged for ever.
+        // A reviewer's "Not a duplicate" ruling (the desk) is about the PAIRS they had in
+        // front of them (NominationApart), so those pairs stop being raised and an entry
+        // that arrives later is still flagged against both. Only a ruling made before
+        // pairs were recorded keeps the old meaning — out of every group.
         $byKey = [];
         $ruledApart = [];
+        $flagged = [];
+        $all = [];
         try {
             $ruled = SchemaHas::column('gates_nominations', 'not_duplicate');
             $merged = SchemaHas::column('gates_nominations', 'merged_into');
             foreach (DB::table('gates_nominations')->whereIn('cycle_id', $cycles)
                          ->get(array_merge(['id', 'cycle_id', 'nominee_name', 'status'], $ruled ? ['not_duplicate'] : [], $merged ? ['merged_into'] : [])) as $o) {
-                if ($ruled && (int) ($o->not_duplicate ?? 0) === 1) { $ruledApart[(int) $o->id] = true; continue; }
+                if ($ruled && (int) ($o->not_duplicate ?? 0) === 1) $flagged[] = (int) $o->id;
                 // A repeat already combined into an earlier entry is resolved: it is that
                 // entry's support, not a second copy to flag on it.
                 if ($merged && !empty($o->merged_into) && in_array((string) $o->status, \AfricaGates\Services\NominationCombine::OPEN, true)) continue;
                 $byKey[(int) $o->cycle_id . '|' . NominationTriageService::nameKey((string) $o->nominee_name)][] = (int) $o->id;
+                $all[] = (int) $o->id;
             }
         } catch (\Throwable) {}
+        $ruledApart = NominationApart::legacy($flagged);
+        $apartPairs = NominationApart::among($all);
 
         // Evidence: files and links, plus the older reference columns, by distinct address.
         $ev = [];
@@ -422,7 +429,10 @@ final class ReviewQueue
                 if ($u !== '') $ev[$id][$u] = true;
             }
             $others = isset($ruledApart[$id]) ? []
-                : array_values(array_diff($byKey[(int) $r['cycle_id'] . '|' . NominationTriageService::nameKey((string) $r['nominee_name'])] ?? [], [$id]));
+                : array_values(array_filter(
+                    $byKey[(int) $r['cycle_id'] . '|' . NominationTriageService::nameKey((string) $r['nominee_name'])] ?? [],
+                    static fn (int $o): bool => $o !== $id && !isset($ruledApart[$o]) && !isset($apartPairs[NominationApart::key($id, $o)])
+                ));
             $e = $elig[AwardService::eligibilityKey((string) $r['nominee_name'], (int) $r['cycle_id'])] ?? null;
             $short = ($e && $e['enabled'] && !$e['eligible']) ? max(1, (int) $e['min'] - (int) $e['distinct_locations']) : 0;
 

@@ -172,6 +172,62 @@ final class StandFeeTest extends TestCase
     }
 
     /**
+     * The balance, after the deposit. confirm() used to SET paid_naira to the latest payment,
+     * so a ₦10,000 deposit then a ₦40,000 balance recorded ₦40,000 and asked for ₦10,000
+     * already paid (AUDIT-AND-PLAN EV-12). The test above stopped after the deposit.
+     */
+    public function test_a_deposit_and_then_the_balance_add_up_to_the_fee(): void
+    {
+        $f = $this->offered(50000, 10000);
+        StandApplication::accept($f['app_id'], $f['org_id']);
+        StandFee::beginPayment($f['app_id'], 'AFG-STAND-D1', 'paystack');
+        StandFee::confirm('AFG-STAND-D1', 10000, 'paystack');
+        StandFee::beginPayment($f['app_id'], 'AFG-STAND-B1', 'paystack');
+        StandFee::confirm('AFG-STAND-B1', 40000, 'paystack');
+        StandFee::confirm('AFG-STAND-B1', 40000, 'paystack');   // the webhook, reporting it again
+
+        $this->assertSame(50000, (int) $this->app($f['app_id'])->paid_naira);
+        $this->assertTrue(StandFee::owing($this->app($f['app_id']))['settled']);
+    }
+
+    /**
+     * The browser never came back and the webhook never arrived: the reconciliation sweep is
+     * the backstop, as it is for tickets and donations. Stands were in no sweep at all
+     * (AUDIT-AND-PLAN §2 fault 8, EV-11).
+     */
+    public function test_the_reconciliation_sweep_credits_a_stand_payment_nobody_reported(): void
+    {
+        $f = $this->offered(30000, 0);
+        StandApplication::accept($f['app_id'], $f['org_id']);
+        StandFee::beginPayment($f['app_id'], 'AFG-STAND-SWEEP', 'paystack');
+        DB::table('gates_stand_payments')->update(['created_at' => date('Y-m-d H:i:s', strtotime('-1 hour'))]);
+        $gw = new class extends \AfricaGates\Services\PaymentService {
+            public function __construct() {}
+            public function enabledProviderIds(): array { return ['paystack']; }
+            public function verify(string $p, string $ref): array
+            {
+                return $ref === 'AFG-STAND-SWEEP' ? ['ok' => true, 'status' => 'success', 'amount' => 30000, 'currency' => 'NGN'] : ['ok' => false];
+            }
+        };
+        $out = (new \AfricaGates\Services\PaymentReconciler($gw))->run(true, 15, 50);
+        $this->assertSame(30000, (int) $this->app($f['app_id'])->paid_naira, 'nothing swept stand payments');
+        $this->assertContains('stand', array_column($out['items'], 'kind'));
+    }
+
+    /** Pay pressed in two tabs: the first tab's payment still belongs to the stand. */
+    public function test_an_earlier_reference_paid_after_a_newer_one_was_minted_is_still_credited(): void
+    {
+        $f = $this->offered(30000, 0);
+        StandApplication::accept($f['app_id'], $f['org_id']);
+        StandFee::beginPayment($f['app_id'], 'AFG-STAND-TAB1', 'paystack');
+        StandFee::beginPayment($f['app_id'], 'AFG-STAND-TAB2', 'paystack');
+        $r = StandFee::confirm('AFG-STAND-TAB1', 30000, 'paystack');
+
+        $this->assertTrue($r['ok'], (string) $r['message']);
+        $this->assertSame(30000, (int) $this->app($f['app_id'])->paid_naira);
+    }
+
+    /**
      * A free pitch is a real thing and must not render as an unpaid ₦0 invoice.
      *
      * A community market or a sponsored row genuinely charges nothing, and a Pay button

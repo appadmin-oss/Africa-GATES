@@ -32,20 +32,30 @@ final class EventPages
     /** The event scope's rail, verbatim from `nav-admin.json`. */
     public const NAV = [
         [null, ['today' => ['Today', 'home']]],
-        ['Plan', ['plan' => ['Plan', 'list'], 'award' => ['Award', 'trophy']]],
-        ['Run the event', ['people' => ['People', 'users'], 'crm' => ['Relationships', 'msg'], 'money' => ['Money', 'card'], 'night' => ['The night', 'night']]],
-        ['Learn', ['growth' => ['Growth', 'grow'], 'reports' => ['Reports', 'rep']]],
-        ['Admin', ['requests' => ['Requests', 'list'], 'settings' => ['Event settings', 'gear']]],
+        // Grouped by WHEN the work happens, which is how a lead thinks about an event: getting
+        // ready, the night itself, afterwards, and how the event is set up. It was "Plan / Run
+        // the event / Learn / Admin", which put the budget and the guest list under "run" and
+        // the report under "learn", so nothing could be found by asking "what is it for".
+        ['Getting ready', ['plan' => ['Plan', 'list'], 'goals' => ['Goals', 'flag'], 'people' => ['People', 'users'], 'money' => ['Money', 'card'], 'crm' => ['Relationships', 'msg'], 'award' => ['Award', 'trophy']]],
+        ['On the night', ['night' => ['The night', 'night']]],
+        ['Afterwards', ['reports' => ['Reports', 'rep'], 'growth' => ['Growth', 'grow']]],
+        ['Set-up', ['roles' => ['Team & roles', 'users'], 'rules' => ['Rules', 'shield'], 'requests' => ['Requests', 'list'], 'settings' => ['Event settings', 'gear']]],
     ];
 
     public const TABS = [
         'plan' => ['work' => 'Work', 'timeline' => 'Timeline', 'risks' => 'Risks', 'decisions' => 'Decisions'],
-        'people' => ['team' => 'Team', 'volunteers' => 'Volunteers', 'nominees' => 'Nominees', 'seating' => 'Seating', 'invites' => 'Invitations'],
+        'people' => ['team' => 'Team', 'volunteers' => 'Volunteers', 'tasks' => 'Volunteer tasks', 'nominees' => 'Nominees', 'seating' => 'Seating', 'invites' => 'Invitations'],
         'crm' => ['sponsors' => 'Sponsors', 'contacts' => 'Contacts', 'letters' => 'Letters', 'messages' => 'Messages'],
         'money' => ['budget' => 'Budget', 'approvals' => 'Approvals', 'vendors' => 'Vendors', 'income' => 'Income'],
         'night' => ['show' => 'Run of show', 'door' => 'Door', 'safety' => 'Safety'],
         'reports' => ['status' => 'Status', 'post' => 'Post-event', 'audit' => 'Audit'],
         'settings' => ['general' => 'General', 'members' => 'Members', 'limits' => 'Limits', 'devices' => 'Devices'],
+        // Teams, roles and who is in them: a lead proposes, an owner decides (EventPlan\Teams).
+        'roles' => TeamPages::TABS,
+        // Goals that count themselves, the numbers they rest on, the pipeline, and setting one by saying it.
+        'goals' => ['progress' => 'Goals & gates', 'numbers' => 'The numbers', 'pipeline' => 'Pipeline', 'setup' => 'Set a goal'],
+        // The automations (shadow first), what they did, and the changes waiting for their tier's approver.
+        'rules' => ['rules' => 'Rules', 'log' => 'What they did', 'changes' => 'Changes'],
     ];
 
     /** Purpose lines, verbatim from `nav-admin.json` where it gives one. */
@@ -61,6 +71,9 @@ final class EventPages
         'reports' => 'Status for the committee, the post-event report and the audit trail.',
         'requests' => 'Requests about this event, from you and your team.',
         'settings' => 'Date, venue, members, limits and the devices used at the door.',
+        'roles' => 'Create teams, define roles and assign people. High-risk permissions need owner approval.',
+        'goals' => 'What this event is for, counted from the awards, votes, payments and pipeline as they happen — and what each person must do to reach it.',
+        'rules' => 'What runs by itself, what it did or would have done, and the changes waiting for a decision. A new rule only watches until you switch it on.',
     ];
 
     /** Pages of the first lead build, and where each lives now (a retired address is not a dead one). */
@@ -72,24 +85,26 @@ final class EventPages
         return LeadPages::BASE . '/event/' . $id . ($page === 'today' ? '' : '/' . $page) . ($tab !== '' && $tab !== $first ? '?tab=' . $tab : '');
     }
 
-    public static function nav(int $eventId, string $current, array $counts): array
+    /** The rail, with only the pages this standing may open (null: every page, the lead's). */
+    public static function nav(int $eventId, string $current, array $counts, ?array $st = null): array
     {
         $groups = [];
         foreach (self::NAV as [$label, $pages]) {
             $items = [];
             foreach ($pages as $k => [$l, $icon]) {
+                if ($st !== null && !EventPermissions::allowsView($st, $k)) continue;
                 $items[] = ['key' => $k, 'label' => $l, 'icon' => $icon, 'href' => self::url($eventId, $k), 'current' => $k === $current,
                             'drill' => false, 'count' => $counts[$k] ?? null];
             }
-            $groups[] = ['label' => $label, 'items' => $items];
+            if ($items) $groups[] = ['label' => $label, 'items' => $items];
         }
         return $groups;
     }
 
-    public static function tabs(int $eventId, string $page, string $current): array
+    public static function tabs(int $eventId, string $page, string $current, ?array $st = null): array
     {
         $out = [];
-        foreach (self::TABS[$page] ?? [] as $k => $label) {
+        foreach ($st !== null ? EventPermissions::tabsFor($st, $page, self::TABS[$page] ?? []) : (self::TABS[$page] ?? []) as $k => $label) {
             $out[] = ['key' => $k, 'label' => $label, 'href' => self::url($eventId, $page, $k), 'current' => $k === $current, 'count' => null];
         }
         return $out;
@@ -107,6 +122,11 @@ final class EventPages
         if ($open > 0) $c['night'] = ['n' => $open, 'tone' => 'warn'];
         $info = count(array_filter(self::eventRequests($eventId), static fn ($r) => $r->status === 'needs_info' && $r->from_kind === Plan::ACTOR && (int) $r->from_id === $me['id']));
         if ($info > 0) $c['requests'] = ['n' => $info, 'tone' => 'warn'];
+        if (($w = Teams::waitingCount($eventId)) > 0) $c['roles'] = ['n' => $w, 'tone' => 'warn'];
+        // The written report: an owner's to sign (not one they wrote), or back with the leads.
+        $rep = EventReport::of($eventId);
+        if ($rep && $rep->status === 'submitted' && (int) $rep->author_id !== $me['id'] && Teams::isOwner($me['id'], $eventId)) $c['reports'] = ['n' => 1, 'tone' => 'warn'];
+        if ($rep && $rep->status === 'returned' && Plan::isLead($me['id'], $eventId)) $c['reports'] = ['n' => 1, 'tone' => 'bad'];
         return $c;
     }
 
@@ -121,31 +141,77 @@ final class EventPages
         return $out;
     }
 
-    public static function page(array $me, object $e, string $page, string $tab, array $q): array
+    /**
+     * A form that ADDS something ("Add work", "Add a budget line", "Post a task", "Record a
+     * decision"…) is folded on a page that already lists what it adds, and open on an empty one,
+     * where adding the first is the whole point. Open everywhere, the form was the page: on a
+     * phone the plan's own work sat below a twelve-field form. One rule, here, rather than a
+     * flag remembered in each of fifteen builders.
+     */
+    private static function foldAdders(array $secs): array
+    {
+        $listed = (bool) array_filter($secs, static fn ($s) => in_array($s['k'] ?? '', ['rows', 'table', 'agenda', 'cards'], true));
+        foreach ($secs as &$s) {
+            if (($s['k'] ?? '') !== 'form' || array_key_exists('fold', $s)) continue;
+            if (preg_match('/^(Add|Post|Record|Make|Suggest|End) /', (string) ($s['h'] ?? '')) !== 1) continue;
+            $s['fold'] = true;
+            $s['open'] = !$listed;
+        }
+        unset($s);
+        return $secs;
+    }
+
+    /**
+     * One page, drawn for what this member may do here: with a standing that is not a lead's,
+     * Today becomes the role's own overview, and every form and button their permissions do
+     * not open is left out (EventPermissions::filter) — the writers refuse it regardless.
+     */
+    public static function page(array $me, object $e, string $page, string $tab, array $q, ?array $st = null): array
+    {
+        $st ??= EventPermissions::standing($me['id'], (int) $e->id);
+        $c = self::draw($me, $e, $page, $tab, $q, $st);
+        $c['secs'] = EventPermissions::filter($c['secs'] ?? [], $st, (int) $e->id);
+        $c['secs'] = self::foldAdders($c['secs']);
+        if (isset($c['side'])) $c['side'] = EventPermissions::filter($c['side'], $st, (int) $e->id);
+        if (isset($c['acts'])) $c['acts'] = array_values(array_filter($c['acts'], static fn ($a) => EventPermissions::actionOk($a, $st, (int) $e->id)));
+        return $c;
+    }
+
+    private static function draw(array $me, object $e, string $page, string $tab, array $q, array $st): array
     {
         $id = (int) $e->id;
         $owners = ['' => 'Nobody yet'];
         foreach (Plan::team($id) as $p) $owners[$p['key']] = $p['name'] !== '' ? $p['name'] : $p['role'];
+        if ($page === 'today' && !$st['lead'] && !$st['owner']) {
+            $c = TeamPages::roleToday($e, $st, (int) $me['id']);
+            // Their part, under the event (and under a finance admin's queue). A finance admin
+            // with no team role does no event work, so they are not offered its forms.
+            if ($st['roles'] !== [] || !($st['finance'] ?? false)) array_splice($c['secs'], ($st['finance'] ?? false) ? 2 : 1, 0, self::teamWork($id, $me['id']));
+            return $c;
+        }
         return match ($page) {
+            EventPermissions::TEAM_PAGE => TeamPages::page($me, $e, $tab, $st),
             'plan' => match ($tab) {
                 'timeline' => self::timeline($e), 'risks' => self::risks($e, $owners), 'decisions' => self::decisions($e),
                 default => self::work($e, $owners, (string) ($q['owner'] ?? '')),
             },
             'award' => self::award($e),
             'people' => match ($tab) {
-                'volunteers' => self::volunteers($e), 'nominees' => self::invitees($e, 'nominee'), 'seating' => self::seating($e),
+                'volunteers' => self::volunteers($e), 'tasks' => self::volTasks($e), 'nominees' => self::invitees($e, 'nominee'), 'seating' => self::seating($e),
                 'invites' => self::invitees($e, null), default => self::team($e),
             },
             'crm' => match ($tab) {
                 'contacts' => self::contacts($e), 'letters' => self::letters($e), 'messages' => self::messages($e), default => self::sponsors($e, $owners),
             },
             'money' => match ($tab) {
-                'approvals' => self::approvals($me, $e), 'vendors' => self::vendors($e), 'income' => self::income($e), default => self::budget($e, (int) ($q['ask'] ?? 0)),
+                'approvals' => self::approvals($me, $e), 'vendors' => self::vendors($e), 'income' => self::income($e), default => self::budget($e, (int) ($q['ask'] ?? 0), $st['ceiling']),
             },
             'night' => match ($tab) { 'door' => self::door($e), 'safety' => self::safety($e, $owners), default => self::show($e, $owners) },
             'growth' => LeadPages::analytics([$e]),
-            'reports' => match ($tab) { 'post' => self::post($e), 'audit' => self::audit($e), default => self::status($e) },
+            'reports' => match ($tab) { 'post' => self::post($me, $e, $st), 'audit' => self::audit($e), default => self::status($e) },
             'requests' => self::requests($me, $e),
+            'goals' => GoalPages::page($me, $e, $tab, $q),
+            'rules' => GoalPages::rules($me, $e, $tab),
             'settings' => match ($tab) {
                 'members' => self::members($e), 'limits' => self::limits($e), 'devices' => self::devices($e), default => self::general($e),
             },
@@ -174,6 +240,7 @@ final class EventPages
                   'sub' => self::where($e) . ' · ' . date('D j M, H:i', (int) strtotime((string) $e->event_date)),
                   'facts' => $facts, 'acts' => [['label' => 'Add work', 'href' => self::url($id, 'plan'), 'primary' => true], ['label' => 'Run of show', 'href' => self::url($id, 'night')]]]];
         if ($blockers) $secs[] = ['k' => 'rows', 'h' => 'Blocking the night', 'box' => true, 'items' => array_map(static fn ($w) => LeadPages::blockerRow($w, [$e]), $blockers)];
+        $secs = array_merge($secs, self::loop($e));
         $cues = Scope::show($id);
         if (date('Y-m-d') === date('Y-m-d', (int) strtotime((string) $e->event_date)) && ($now = Scope::nowCue($cues))) {
             $secs[] = ['k' => 'note', 'tone' => 'info', 'text' => 'Now: ' . $now->title . ', from ' . date('H:i', (int) strtotime((string) $now->starts_at)) . '.',
@@ -199,6 +266,146 @@ final class EventPages
         return ['title' => (string) $e->title, 'noHead' => true, 'secs' => $secs, 'side' => $agenda ? [['k' => 'agenda', 'h' => 'Key dates', 'items' => $agenda]] : []];
     }
 
+    /**
+     * The team's loop on a lead's Today (TeamLoop): at most three things that need a lead,
+     * ranked by threat to the night (plan rules 1 and 12), what the team said most recently,
+     * and a report a lead can file in seconds themselves.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public static function loop(object $e, bool $decide = true): array
+    {
+        $id = (int) $e->id;
+        if (!TeamLoop::ready()) return [];
+        $secs = [];
+        if ($decide) {
+            $all = TeamLoop::decisions($id);
+            if ($all) {
+                $secs[] = ['k' => 'rows', 'h' => 'Needs you', 'box' => true,
+                    'items' => array_map(static fn ($d) => ['t' => (string) $d['work']->title, 'dot' => $d['kind'] === 'blocked' ? 'bad' : 'warn', 'sub' => $d['why'],
+                        'href' => $d['href'] ?? self::url($id, 'plan')], array_slice($all, 0, TeamLoop::TOP)),
+                    'link' => count($all) > TeamLoop::TOP ? ['label' => (count($all) - TeamLoop::TOP) . ' more on the plan', 'href' => self::url($id, 'plan')] : null];
+            }
+        }
+        $reports = TeamLoop::reports($id, 4);
+        if ($reports) {
+            $secs[] = ['k' => 'rows', 'h' => 'Latest from the team', 'items' => array_map(static fn ($r) => [
+                't' => ($r->author_name ?: 'Somebody on the team') . ' · ' . TeamLoop::STATES[$r->state],
+                'dot' => $r->state === 'blocked' ? 'bad' : ($r->state === 'risk' ? 'warn' : 'ok'),
+                'sub' => implode(' · ', array_filter([$r->work_title ?: 'The event as a whole', $r->note ? '“' . $r->note . '”' : '', mb_strtolower(TeamLoop::CONFIDENCE[(int) $r->confidence] ?? '')])),
+                'meta' => TeamLoop::when((string) $r->created_at)], $reports),
+                'link' => ['label' => 'Every report', 'href' => self::url($id, 'reports')]];
+        }
+        $secs[] = self::reportForm($id, Plan::work([$id], true));
+        return $secs;
+    }
+
+    /**
+     * One team member's part of the event, wherever they open it — the event console for
+     * somebody in one of its roles, the volunteer workspace for a volunteer (owner, 5 Nov 2026:
+     * work given to a volunteer was confirmed as "in their week" and shown to them nowhere).
+     * Their open work, each finished with the proof it was set up to need; a quick report;
+     * and a suggestion for work a lead then decides.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public static function teamWork(int $eventId, int $memberId): array
+    {
+        if (!TeamLoop::ready()) return [];
+        $secs = [];
+        $mine = TeamLoop::mine($memberId, $eventId);
+        $last = TeamLoop::latest(array_map(static fn ($w) => (int) $w->id, $mine));
+        if ($mine) {
+            $secs[] = ['k' => 'rows', 'h' => 'Your work here', 'box' => true, 'items' => array_map(static function ($w) use ($last) {
+                $type = (string) ($w->proof_type ?? 'none');
+                $held = $w->status === 'proof';
+                $rep = $last[(int) $w->id] ?? null;
+                $sub = implode(' · ', array_filter([
+                    $w->due_at ? 'due ' . Workspace::day((string) $w->due_at) : 'no date',
+                    Plan::STATUSES[$w->status] ?? ($held ? ($type === 'signoff' ? 'Waiting for a lead to sign off' : 'Waiting for its proof') : ''),
+                    $type !== 'none' ? 'proof: ' . mb_strtolower(TeamLoop::PROOF[$type]) : '',
+                    $w->decided_note && $w->status === 'doing' ? 'sent back: “' . $w->decided_note . '”' : '',
+                    $rep ? 'you said ' . mb_strtolower(TeamLoop::STATES[$rep->state]) . ' ' . TeamLoop::when((string) $rep->created_at) : '',
+                    trim((string) $w->detail) !== '' ? mb_substr(trim((string) $w->detail), 0, 140) : '',
+                ]));
+                $row = ['t' => (string) $w->title, 'dot' => Plan::isLate($w) ? 'bad' : ($held ? 'warn' : null), 'sub' => $sub,
+                        'chip' => Plan::isLate($w) ? ['Late', 'bad'] : ($held ? ['Held for proof', 'warn'] : null)];
+                if ($held && $type === 'signoff') return $row;   // with a lead now
+                $fields = in_array($type, ['link', 'note'], true)
+                    ? [['name' => 'proof', 'label' => $type === 'link' ? 'The link' : 'What was done', 'type' => $type === 'link' ? 'url' : 'text',
+                        'placeholder' => $type === 'link' ? 'https://' : 'What was done', 'required' => $held]]
+                    : ($type === 'signoff' ? [['name' => 'proof', 'label' => 'A note for the lead (optional)', 'placeholder' => 'A note for the lead']] : []);
+                $row['form'] = ['id' => 'd' . $w->id, 'do' => 'work_done', 'hidden' => ['work' => $w->id], 'fields' => $fields,
+                                'submit' => $held ? 'Send proof' : ($type === 'signoff' ? 'Ask for sign-off' : 'Mark done')];
+                return $row;
+            }, $mine)];
+        } else {
+            $doneCount = (int) DB::table('gates_event_work')->where('event_id', $eventId)->where('owner_kind', Plan::ACTOR)->where('owner_id', $memberId)->where('status', 'done')->count();
+            $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => $doneCount > 0
+                ? 'Nothing open for you here: ' . ($doneCount === 1 ? 'the one piece of work you had is done' : 'all ' . $doneCount . ' pieces of work you had are done') . '. Thank you.'
+                : 'No work is given to you here yet. When a lead gives you some, it shows here with its date and what proves it done.'];
+        }
+        $secs[] = self::reportForm($eventId, $mine ?: Plan::work([$eventId], true));
+        // Their prospects (design plan, My day: "own tasks and prospects"), each moved in one tap.
+        if (Pipeline::ready()) {
+            $mineC = Pipeline::list($eventId, $memberId, '', true);
+            if ($mineC) {
+                $secs[] = ['k' => 'rows', 'h' => 'Your prospects', 'items' => array_map(static fn ($c) => ['t' => (string) $c->name,
+                    'sub' => (Pipeline::STAGES[$c->stage] ?? $c->stage) . ($c->reach ? ' · ' . Pipeline::REACH[(int) $c->reach] . ' (only you and the leads see this)' : ''),
+                    'chip' => $c->stage === 'nominated' ? ['Submitted', 'ok'] : null,
+                    'form' => $c->stage === 'nominated' ? null : ['id' => 'pc' . $c->id, 'do' => 'contact_stage', 'hidden' => ['contact' => $c->id], 'submit' => 'Move',
+                        'fields' => [['name' => 'stage', 'label' => 'Stage', 'type' => 'select', 'value' => (string) $c->stage, 'options' => array_intersect_key(Pipeline::STAGES, array_flip(Pipeline::MANUAL))]]]], $mineC)];
+                $secs[] = ['k' => 'form', 'h' => 'Rate a prospect’s reach', 'fold' => true, 'foldHint' => 'Private', 'do' => 'contact_rate', 'submit' => 'Rate', 'groups' => [
+                    ['label' => 'Private', 'help' => 'How far their own network reaches, after your first conversation. Only you and the leads ever see it; never them.',
+                     'fields' => [['name' => 'contact', 'label' => 'Who', 'type' => 'select', 'options' => array_column(array_map(static fn ($c) => [$c->id, $c->name], $mineC), 1, 0), 'id' => 'pr_c' . $eventId],
+                                  ['name' => 'reach', 'label' => 'Reach', 'type' => 'segmented', 'options' => Pipeline::REACH, 'value' => '2']]]]];
+            }
+            $secs[] = ['k' => 'form', 'h' => 'Add a prospect', 'fold' => true, 'foldHint' => 'Somebody to ask', 'do' => 'contact_add', 'hidden' => ['event' => $eventId], 'submit' => 'Add', 'groups' => [
+                ['label' => 'Somebody to ask', 'help' => 'Their email or phone is how the pipeline knows when their nomination arrives — it moves by itself then.',
+                 'fields' => [['name' => 'name', 'label' => 'Name', 'type' => 'text', 'required' => true, 'id' => 'pa_n' . $eventId],
+                              ['name' => 'email', 'label' => 'Email', 'type' => 'email', 'id' => 'pa_e' . $eventId], ['name' => 'phone', 'label' => 'Phone', 'type' => 'tel', 'id' => 'pa_p' . $eventId]]]]];
+        }
+        if ($mine) {
+            $secs[] = ['k' => 'form', 'h' => 'Change your work', 'fold' => true, 'foldHint' => 'A new name or date', 'do' => 'work_change', 'submit' => 'Ask for it', 'groups' => [
+                ['label' => 'Which, and what', 'help' => 'A new name applies itself in ' . Tiers::LAPSE_HOURS . ' hours unless a lead objects. A new date is a lead’s decision.',
+                 'fields' => [['name' => 'work', 'label' => 'Work', 'type' => 'select', 'options' => array_column(array_map(static fn ($w) => [$w->id, $w->title], $mine), 1, 0), 'id' => 'wc_w' . $eventId],
+                              ['name' => 'title', 'label' => 'New name', 'type' => 'text', 'id' => 'wc_t' . $eventId], ['name' => 'due_at', 'label' => 'New date', 'type' => 'date', 'id' => 'wc_d' . $eventId],
+                              ['name' => 'reason', 'label' => 'Why', 'type' => 'text', 'id' => 'wc_r' . $eventId]]]]];
+        }
+        $secs[] = ['k' => 'form', 'h' => 'Suggest work', 'do' => 'work_propose', 'hidden' => ['event' => $eventId], 'submit' => 'Suggest it', 'groups' => [
+            ['label' => 'What and why', 'help' => 'A lead decides. Nothing changes on the plan until they do, and you see their answer here.',
+             'fields' => [['name' => 'title', 'label' => 'What has to be done', 'type' => 'text', 'required' => true, 'id' => 'sug_t_' . $eventId],
+                          ['name' => 'why', 'label' => 'Why it matters', 'type' => 'text', 'id' => 'sug_w_' . $eventId],
+                          ['name' => 'due_at', 'label' => 'By when', 'type' => 'date', 'id' => 'sug_d_' . $eventId],
+                          ['name' => 'mine', 'label' => 'I will do it', 'type' => 'check', 'id' => 'sug_m_' . $eventId]]],
+            ['label' => 'Raised before?', 'help' => 'If a lead declined this before, say what has changed.',
+             'fields' => [['name' => 'changed', 'label' => 'What has changed', 'type' => 'text', 'id' => 'sug_c_' . $eventId]]],
+        ]];
+        $sug = TeamLoop::suggestedBy($memberId, $eventId);
+        if ($sug) {
+            $secs[] = ['k' => 'rows', 'h' => 'Your suggestions', 'items' => array_map(static fn ($w) => ['t' => (string) $w->title,
+                'chip' => $w->status === 'proposed' ? ['Waiting for a lead', 'mute'] : ['Declined', 'warn'],
+                'sub' => $w->status === 'declined' ? 'Declined ' . Workspace::day((string) $w->decided_at) . ($w->decided_note ? ': “' . $w->decided_note . '”' : '') : 'Sent ' . Workspace::day((string) $w->created_at)], $sug)];
+        }
+        return $secs;
+    }
+
+    /** The quick report (plan: "status, blocker yes or no, confidence"): one form, seconds to fill. @param list<object> $work */
+    public static function reportForm(int $eventId, array $work, string $act = 'report_add'): array
+    {
+        $opts = ['' => 'The event as a whole'];
+        foreach ($work as $w) $opts[(string) $w->id] = (string) $w->title;
+        // Folded: a report is something a lead sends now and then, and open it pushed the event's
+        // own work below the first screen of the page whose job is showing that work.
+        return ['k' => 'form', 'h' => 'Send a quick report', 'fold' => true, 'foldHint' => 'On track, at risk or blocked', 'do' => $act, 'hidden' => ['event' => $eventId], 'submit' => 'Send report', 'groups' => [
+            ['label' => 'Where it stands', 'help' => 'Blocked needs a line saying why; two blocked reports on one piece of work in a week put it in front of a lead.',
+             'fields' => [['name' => 'state', 'label' => 'State', 'type' => 'segmented', 'options' => TeamLoop::STATES, 'value' => 'ok'],
+                          ['name' => 'work', 'label' => 'About', 'type' => 'select', 'options' => $opts, 'id' => 'rep_work_' . $eventId],
+                          ['name' => 'confidence', 'label' => 'How sure are you', 'type' => 'select', 'options' => TeamLoop::CONFIDENCE, 'value' => '2', 'id' => 'rep_conf_' . $eventId],
+                          ['name' => 'note', 'label' => 'One line (optional)', 'type' => 'text', 'id' => 'rep_note_' . $eventId, 'placeholder' => 'Venue confirmed the date']]],
+        ]];
+    }
+
     // ── Plan ────────────────────────────────────────────────────────────────────────────
 
     private static function work(object $e, array $owners, string $ownerFilter): array
@@ -206,37 +413,67 @@ final class EventPages
         $id = (int) $e->id;
         $all = Plan::work([$id]);
         if ($ownerFilter !== '') $all = array_values(array_filter($all, static fn ($w) => ($w->owner_kind . ':' . $w->owner_id) === $ownerFilter));
-        $lanes = ['late' => [], 'todo' => [], 'doing' => [], 'done' => []];
-        foreach ($all as $w) $lanes[Plan::isLate($w) ? 'late' : $w->status][] = $w;
+        $lanes = ['late' => [], 'todo' => [], 'doing' => [], 'proof' => [], 'done' => []];
+        foreach ($all as $w) $lanes[$w->status === 'proof' ? 'proof' : (Plan::isLate($w) ? 'late' : $w->status)][] = $w;
+        $last = TeamLoop::latest(array_map(static fn ($w) => (int) $w->id, $all));
         $secs = [];
         if ($ownerFilter !== '') {
             $secs[] = ['k' => 'note', 'tone' => 'info', 'text' => 'Showing ' . (Plan::name(...LeadPages::split($ownerFilter)) ?: 'one person') . '’s work. Give some of it to somebody else to lighten their week.',
                        'cta' => ['label' => 'Show everybody’s', 'href' => self::url($id, 'plan')]];
         }
+        // What the team has suggested waits here, uncounted, for a lead (TeamLoop::propose).
+        if ($id > 0 && TeamLoop::ready() && ($sug = array_values(array_filter(TeamLoop::decisions($id), static fn ($d) => $d['kind'] === 'proposed')))) {
+            $secs[] = ['k' => 'rows', 'h' => 'Suggested by the team', 'box' => true, 'items' => array_map(static fn ($d) => [
+                't' => (string) $d['work']->title, 'dot' => 'info',
+                'sub' => implode(' · ', array_filter([$d['why'], $d['work']->owner_id ? 'they would do it' : '', $d['work']->due_at ? 'by ' . Workspace::day((string) $d['work']->due_at) : '',
+                                                       trim((string) $d['work']->detail)])),
+                'form' => ['id' => 's' . $d['work']->id, 'do' => 'work_decide', 'hidden' => ['work' => $d['work']->id], 'submit' => 'Decide', 'fields' => [
+                    ['name' => 'verdict', 'label' => 'Decision', 'type' => 'select', 'options' => ['approve' => 'Approve', 'decline' => 'Decline']],
+                    ['name' => 'proof', 'label' => 'Proof it needs', 'type' => 'select', 'options' => TeamLoop::PROOF],
+                    ['name' => 'note', 'label' => 'Why (needed to decline)', 'placeholder' => 'Why'],
+                ]]], $sug)];
+        }
         $next = ['todo' => ['Start', 'doing'], 'doing' => ['Done', 'done'], 'done' => ['Reopen', 'todo']];
-        foreach (['late' => 'Late', 'todo' => 'Not started', 'doing' => 'In progress', 'done' => 'Done'] as $lane => $h) {
+        foreach (['late' => 'Late', 'todo' => 'Not started', 'doing' => 'In progress', 'proof' => 'Waiting for proof or sign-off', 'done' => 'Done'] as $lane => $h) {
             $items = [];
             foreach (array_slice($lanes[$lane], 0, $lane === 'done' ? 20 : 200) as $w) {
                 $owner = Plan::name($w->owner_kind, $w->owner_id !== null ? (int) $w->owner_id : null);
-                [$label, $to] = $next[$w->status];
-                $items[] = ['t' => (string) $w->title, 'dot' => $lane === 'late' ? 'bad' : null,
-                            'sub' => implode(' · ', array_filter([$owner !== '' ? $owner : 'Nobody yet', $w->due_at ? 'due ' . Workspace::day((string) $w->due_at) : 'no date',
-                                     $w->est_hours ? LeadPages::hours((float) $w->est_hours) : '', (int) $w->blocks_night === 1 ? ($w->blocks_note ? $w->blocks_note . ' waits on it' : 'the night waits on it') : ''])),
-                            'chip' => $lane === 'late' ? ['Late', 'bad'] : null,
+                $rep = $last[(int) $w->id] ?? null;
+                $proofType = (string) ($w->proof_type ?? 'none');
+                $sub = implode(' · ', array_filter([$owner !== '' ? $owner : 'Nobody yet', $w->due_at ? 'due ' . Workspace::day((string) $w->due_at) : 'no date',
+                         $w->est_hours ? LeadPages::hours((float) $w->est_hours) : '', (int) $w->blocks_night === 1 ? ($w->blocks_note ? $w->blocks_note . ' waits on it' : 'the night waits on it') : '',
+                         $proofType !== 'none' && $lane !== 'done' ? 'proof: ' . mb_strtolower(TeamLoop::PROOF[$proofType] ?? $proofType) : '',
+                         $rep ? TeamLoop::STATES[$rep->state] . ', ' . TeamLoop::when((string) $rep->created_at) . ($rep->note ? ': “' . $rep->note . '”' : '') : '',
+                         $lane === 'proof' && $w->proof_text ? 'they sent: ' . $w->proof_text : '',
+                         $lane === 'done' && $w->proof_text ? 'proof: ' . $w->proof_text : '']));
+                if ($lane === 'proof') {
+                    // Held work: a lead signs it off, or sends it back saying what is missing.
+                    $items[] = ['t' => (string) $w->title, 'dot' => 'warn', 'sub' => $sub, 'chip' => [$proofType === 'signoff' ? 'Needs your sign-off' : 'Needs its proof', 'warn'],
+                                'cta' => ['label' => $proofType === 'signoff' ? 'Sign off' : 'Accept as done', 'post' => ['do' => 'work_done', 'work' => $w->id, 'proof' => (string) ($w->proof_text ?? '') ?: 'Accepted by a lead'], 'primary' => true],
+                                'form' => ['id' => 'p' . $w->id, 'do' => 'work_return', 'hidden' => ['work' => $w->id], 'submit' => 'Send back',
+                                           'fields' => [['name' => 'why', 'label' => 'What is missing', 'placeholder' => 'What is missing', 'required' => true]]]];
+                    continue;
+                }
+                [$label, $to] = $next[$w->status] ?? $next['todo'];
+                $repChip = $rep && $rep->state !== 'ok' && $lane !== 'done' ? [TeamLoop::STATES[$rep->state], $rep->state === 'blocked' ? 'bad' : 'warn'] : null;
+                $items[] = ['t' => (string) $w->title, 'dot' => $lane === 'late' ? 'bad' : null, 'sub' => $sub,
+                            'chip' => $lane === 'late' ? ['Late', 'bad'] : $repChip,
                             'cta' => ['label' => $label, 'post' => ['do' => 'work_status', 'work' => $w->id, 'status' => $to], 'primary' => $to === 'done'],
                             'form' => $lane !== 'done' && count($owners) > 1 ? ['id' => 'w' . $w->id, 'do' => 'work_owner', 'hidden' => ['work' => $w->id], 'submit' => 'Give it',
                                 'fields' => [['name' => 'owner', 'label' => 'Owner', 'type' => 'select', 'options' => $owners, 'value' => $w->owner_kind ? $w->owner_kind . ':' . $w->owner_id : '']]] : null];
             }
-            if ($items) $secs[] = ['k' => 'rows', 'h' => $h, 'items' => $items, 'box' => $lane === 'late'];
+            if ($items) $secs[] = ['k' => 'rows', 'h' => $h, 'items' => $items, 'box' => in_array($lane, ['late', 'proof'], true)];
         }
         if (!$all) $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => 'Nothing is planned for this event yet. Add the first piece of work below; readiness is counted from it.'];
         $secs[] = ['k' => 'form', 'h' => 'Add work', 'do' => 'work_add', 'hidden' => ['event' => $id], 'submit' => 'Add it', 'groups' => [
             ['label' => 'What', 'fields' => [['name' => 'title', 'label' => 'What has to be done', 'type' => 'text', 'required' => true, 'placeholder' => 'Venue floor plan'],
                                               ['name' => 'detail', 'label' => 'Details', 'type' => 'textarea']]],
-            ['label' => 'Who and when', 'help' => 'Work with nobody on it goes to the leads’ inboxes.',
+            ['label' => 'Who and when', 'help' => 'Work with nobody on it goes to the leads’ inboxes. Somebody not listed? Put them in a role on Team & roles first; it takes effect at once.',
              'fields' => [['name' => 'owner', 'label' => 'Owner', 'type' => 'select', 'options' => $owners],
                           ['name' => 'due_at', 'label' => 'Due', 'type' => 'date'],
                           ['name' => 'est_hours', 'label' => 'Hours it should take', 'type' => 'number', 'min' => 0, 'max' => 500, 'step' => '0.5']]],
+            ['label' => 'How we know it is done', 'help' => 'Chosen now, so nobody argues about it later. Marked done without it, the work is held as awaiting proof and does not count.',
+             'fields' => [['name' => 'proof_type', 'label' => 'Proof', 'type' => 'select', 'options' => TeamLoop::PROOF]]],
             ['label' => 'Does the night wait on it?', 'help' => 'Late work the night waits on shows as blocking, at the top of every overview.',
              'fields' => [['name' => 'blocks_night', 'label' => 'The night waits on this', 'type' => 'switch'],
                           ['name' => 'blocks_note', 'label' => 'What waits on it', 'type' => 'text', 'placeholder' => 'the safety permit']]],
@@ -348,7 +585,7 @@ final class EventPages
         $out = [];
         foreach (DB::table('gates_grants as g')->join('gates_volunteers as v', 'v.user_id', '=', 'g.actor_id')
                      ->where('g.actor_kind', 'member')->where('g.scope_kind', 'event')->where('g.scope_id', $eventId)->where('g.capability', 'like', 'vol.%')
-                     ->whereNull('g.revoked_at')->where('g.expires_at', '>', date('Y-m-d H:i:s'))->get(['v.*', 'g.capability']) as $v) {
+                     ->where(static fn ($w) => Grants::live($w, 'g.'))->get(['v.*', 'g.capability']) as $v) {
             $out[(int) $v->id] ??= (object) ['name' => Volunteers::name($v), 'role' => Grants::CAPABILITIES[$v->capability] ?? 'Volunteer'];
         }
         return array_values($out);
@@ -360,6 +597,62 @@ final class EventPages
      * volunteer recorded alone. How reliable each person has been comes from Volunteer\Effect, the
      * same figure their own record and the staff list show.
      */
+    /**
+     * VOLUNTEER TASKS, SET BY THE EVENT'S LEAD (owner, 5 Nov 2026: "the event lead should be the
+     * one who does this"). They were posted only by staff from Admin › Volunteers, so the person
+     * who knows what the night needs had to ask somebody else to say it. A lead posts work for
+     * their own event here and it is live at once; only volunteers holding a role at this event
+     * see it (Tasks::library). Accepting a finished task is the check, as it is for staff, and
+     * the hours land on the volunteer's record verified.
+     *
+     * @return array{title:string, secs:list<array<string,mixed>>}
+     */
+    private static function volTasks(object $e): array
+    {
+        $id = (int) $e->id;
+        $secs = [];
+        $tasks = \AfricaGates\Services\Volunteer\Tasks::forEvent($id);
+        $open = array_values(array_filter($tasks, static fn ($t) => $t->status === 'open'));
+        $toAccept = [];
+        // Handed in first: the volunteer has said it is finished, so that is the work waiting on
+        // the lead. A take still `taken` can be accepted too (a lead who saw it done on the night).
+        foreach ($tasks as $t) foreach ($t->takes as $k) if (in_array((string) $k->status, \AfricaGates\Services\Volunteer\Tasks::ON_THE_GO, true)) $toAccept[] = [$t, $k];
+        usort($toAccept, static fn ($a, $b) => ($b[1]->status === \AfricaGates\Services\Volunteer\Tasks::HANDED_IN) <=> ($a[1]->status === \AfricaGates\Services\Volunteer\Tasks::HANDED_IN));
+
+        if ($toAccept) {
+            $secs[] = ['k' => 'rows', 'h' => 'Taken, waiting to be accepted', 'items' => array_map(static fn ($p) => [
+                't' => Volunteers::name($p[1]) . ' · ' . (string) $p[0]->title,
+                'sub' => ($p[1]->status === \AfricaGates\Services\Volunteer\Tasks::HANDED_IN && $p[1]->handed_in_at
+                    ? 'Handed in ' . Workspace::day((string) $p[1]->handed_in_at) : 'Taken ' . Workspace::day((string) $p[1]->taken_at)) . ' · ' . (\AfricaGates\Services\Volunteer\Tasks::CHECKED_BY[$p[0]->checked_by] ?? ''),
+                'inline' => ['do' => 'vtask_accept', 'hidden' => ['event' => $id, 'take' => (int) $p[1]->take_id], 'id' => 'take' . (int) $p[1]->take_id,
+                             'type' => 'number', 'step' => '0.25', 'min' => '0.25', 'name' => 'hours', 'label' => 'Hours it took',
+                             'placeholder' => (string) ($p[0]->est_minutes ? round($p[0]->est_minutes / 60, 2) : '1'), 'submit' => 'Accept as done']], $toAccept)];
+        }
+        $secs[] = $open
+            ? ['k' => 'rows', 'h' => 'Open tasks', 'items' => array_map(static fn ($t) => [
+                't' => (string) $t->title,
+                'sub' => trim(($t->due_at ? 'Due ' . Workspace::day((string) $t->due_at) . ' · ' : '') . (\AfricaGates\Services\Volunteer\Tasks::CHECKED_BY[$t->checked_by] ?? '')
+                    . (count($t->takes) ? ' · taken by ' . count($t->takes) : ' · nobody yet') . (!empty($t->posted_by_name) ? ' · posted by ' . $t->posted_by_name : ''), ' ·'),
+                'cta' => ['label' => 'Close', 'post' => ['do' => 'vtask_close', 'event' => $id, 'task' => (int) $t->id]]], $open)]
+            : ['k' => 'note', 'tone' => 'mute', 'text' => 'No open tasks for this event yet. Post one below; the volunteers with a role here see it in their Tasks at once.'];
+
+        $modules = ['' => 'No training needed'] + \AfricaGates\Services\Volunteer\Training::titles();
+        $secs[] = ['k' => 'form', 'h' => 'Post a task', 'do' => 'vtask_add', 'hidden' => ['event' => $id], 'submit' => 'Post the task', 'groups' => [
+            ['label' => 'The work', 'fields' => [
+                ['name' => 'title', 'label' => 'What needs doing', 'type' => 'text', 'required' => true, 'placeholder' => 'Fold and pack 200 programmes'],
+                ['name' => 'body', 'label' => 'Details', 'type' => 'textarea', 'placeholder' => 'Where, what to bring, who to ask.']]],
+            ['label' => 'How it is checked', 'fields' => [
+                ['name' => 'checked_by', 'label' => 'Checked by', 'type' => 'select', 'options' => \AfricaGates\Services\Volunteer\Tasks::CHECKED_BY],
+                ['name' => 'module_key', 'label' => 'Training needed first', 'type' => 'select', 'options' => $modules]]],
+            ['label' => 'When', 'fields' => [
+                ['name' => 'due_at', 'label' => 'Due by', 'type' => 'date'],
+                ['name' => 'est_minutes', 'label' => 'About how many minutes', 'type' => 'number'],
+                ['name' => 'from_home', 'label' => 'Can be done from home', 'type' => 'check', 'value' => '1']]],
+        ]];
+        $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => 'Only volunteers holding a role at this event see these tasks. Accepting one adds the hours to their record as verified; closing one stops anybody new taking it.'];
+        return ['title' => 'Volunteer tasks', 'secs' => $secs];
+    }
+
     private static function volunteers(object $e): array
     {
         $id = (int) $e->id;
@@ -393,10 +686,86 @@ final class EventPages
                 'sub' => 'Checked in ' . date('D j M, H:i', (int) strtotime((string) $w->in_at)) . ', out ' . date('H:i', (int) strtotime((string) $w->out_at)) . ', by themselves',
                 'cta' => ['label' => 'Confirm', 'post' => ['do' => 'attend_confirm', 'event' => $id, 'hour' => (int) $w->hour]]], $wait)];
         }
+        $secs = array_merge($secs, self::recruit($e));
         $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => ($ready ? 'Check-in opens six hours before the event and closes six hours after it. Your tap makes the hours count; a volunteer’s own taps wait for you here. ' : '')
-            . 'Reliability is what each person finished or turned up to in the last six months. Roles are given by the volunteer team and end by themselves after the event.',
-            'cta' => ['label' => 'Ask for volunteers', 'href' => self::url($id, 'requests')]];
+            . 'Reliability is what each person finished or turned up to in the last six months. Every role ends by itself on its end date.',
+            'cta' => ['label' => 'Ask the volunteer team instead', 'href' => self::url($id, 'requests')]];
         return ['title' => 'People', 'secs' => $secs];
+    }
+
+    /**
+     * A LEAD RECRUITS (owner, 3 Nov 2026: "the lead should also be able to recruit people").
+     * It was a request to the volunteer team and nothing else. Now, at their own event:
+     *
+     *   · add somebody BY EMAIL, in one of the night's roles (RoleInvites::EVENT_VOL_ROLES): an
+     *     approved volunteer holds it at once, anybody else is invited to apply and it switches
+     *     on only once they are approved — vetting is never skipped. By email and never from a
+     *     list: a lead may be an outside organisation's person, and the platform's volunteer
+     *     roster is not theirs to browse;
+     *   · end a role, and withdraw an invitation still waiting.
+     *
+     * Leads cannot make leads: leading moves money, and that stays staff's to give. They can ASK
+     * for the event's finance admin (owner, 13 Nov 2026), and an owner approves it — never
+     * themselves or another lead or owner, so the one asking for money is never the one approving it. Every one of
+     * these is re-checked against the lead's grant on THIS event in LeadController::recruit.
+     *
+     * @return list<array<string,mixed>>
+     */
+    private static function recruit(object $e): array
+    {
+        $id = (int) $e->id;
+        if (!\AfricaGates\Services\RoleInvites::ready()) return [];
+        $roles = \AfricaGates\Services\RoleInvites::EVENT_VOL_ROLES;
+        $until = date('Y-m-d', (int) strtotime(((string) ($e->end_date ?? '') ?: (string) $e->event_date)) + 86400);
+        $secs = [];
+        // Who is on it now, to end a role: one row per live volunteer role here.
+        $held = ['' => 'Choose a role to end…'];
+        foreach (DB::table('gates_grants as g')->join('gates_volunteers as v', 'v.user_id', '=', 'g.actor_id')
+            ->where('g.actor_kind', 'member')->where('g.scope_kind', 'event')->where('g.scope_id', $id)->whereIn('g.capability', array_keys($roles))
+            ->where(static fn ($w) => Grants::live($w, 'g.'))->orderBy('g.id')->get(['g.id as grant', 'g.capability', 'v.*']) as $g) {
+            $held[(int) $g->grant] = Volunteers::name($g) . ' — ' . ($roles[$g->capability] ?? 'Volunteer');
+        }
+        $waiting = \AfricaGates\Services\RoleInvites::waiting($id, array_keys($roles));
+        if ($waiting) {
+            $secs[] = ['k' => 'rows', 'h' => 'Invited, not yet switched on', 'items' => array_map(static fn ($i) => [
+                't' => (string) $i->email, 'ini' => '@', 'sub' => $i->role . ' · waiting ' . $i->waiting . ' · invited by ' . $i->by . ' · until ' . $i->until,
+                'cta' => ['label' => 'Withdraw', 'post' => ['do' => 'vol_invite_cancel', 'event' => $id, 'invite' => (int) $i->id]]], $waiting)];
+        }
+        $secs[] = ['k' => 'form', 'h' => 'Add somebody to the team', 'do' => 'vol_invite', 'hidden' => ['event' => $id], 'submit' => 'Add them', 'groups' => [
+            ['label' => 'Who', 'help' => 'By their email. An approved volunteer gets the role at once; anybody else is asked to apply, the volunteer team checks every application, and the role switches on once theirs is approved. Either way we email them.',
+             'fields' => [['name' => 'email', 'label' => 'Their email', 'type' => 'email', 'required' => true],
+                          ['name' => 'capability', 'label' => 'Role', 'type' => 'select', 'options' => $roles]]],
+            ['label' => 'Until', 'fields' => [['name' => 'until', 'label' => 'Ends', 'type' => 'date', 'value' => $until]]],
+        ]];
+        // The event's finance admin: who approves its money. Given by the lead (or staff), never
+        // to the lead or an owner of this event — LeadController::recruit holds that rule.
+        $fin = Leads::finance($id);
+        $finWaiting = \AfricaGates\Services\RoleInvites::waiting($id, ['event.finance']);
+        $finItems = array_map(static fn ($f) => ['t' => $f->name, 'ini' => '₦', 'sub' => 'Finance admin · ' . $f->email . ' · until ' . $f->until,
+            'cta' => ['label' => 'End', 'post' => ['do' => 'finance_end', 'event' => $id, 'grant' => (int) $f->id]]], $fin);
+        foreach ($finWaiting as $i) {
+            $finItems[] = ['t' => (string) $i->email, 'ini' => '@', 'sub' => 'Finance admin · waiting ' . $i->waiting . ' · until ' . $i->until,
+                'cta' => ['label' => 'Withdraw', 'post' => ['do' => 'vol_invite_cancel', 'event' => $id, 'invite' => (int) $i->id]]];
+        }
+        $secs[] = $finItems !== [] ? ['k' => 'rows', 'h' => 'Finance admin', 'items' => $finItems]
+            : ['k' => 'note', 'tone' => 'mute', 'text' => 'Finance admin: nobody yet. Until there is one, spend requests over your limit go to the platform’s finance team.'];
+        foreach (Changes::pending($id) as $c) {
+            if ($c->kind !== 'finance') continue;
+            $secs[] = ['k' => 'note', 'tone' => 'info', 'text' => 'Waiting for an owner: ' . $c->summary . '.'];
+        }
+        $secs[] = ['k' => 'form', 'h' => 'Ask for a finance admin', 'fold' => $fin !== [], 'foldHint' => 'An owner approves it', 'do' => 'finance_give', 'hidden' => ['event' => $id], 'submit' => 'Ask the owner', 'groups' => [
+            ['label' => 'Who', 'help' => 'A volunteer or anybody else, by their email. Once an owner of this event approves, they decide spend requests over your limit, approve spend lines, sign off money milestones and see what votes and tickets earned. They can’t be you or anybody who leads or owns this event.',
+             'fields' => [['name' => 'email', 'label' => 'Their email', 'type' => 'email', 'required' => true],
+                          ['name' => 'reason', 'label' => 'Why them', 'required' => true, 'placeholder' => 'Keeps our books; did the same for the gala']]],
+            ['label' => 'Until', 'fields' => [['name' => 'until', 'label' => 'Ends', 'type' => 'date', 'value' => $until]]],
+        ]];
+        if (count($held) > 1) {
+            $secs[] = ['k' => 'form', 'h' => 'End a role', 'do' => 'vol_end', 'hidden' => ['event' => $id], 'submit' => 'End it now', 'groups' => [
+                ['label' => 'Whose', 'help' => 'It leaves their volunteer workspace on their next page. Hours already recorded stay.',
+                 'fields' => [['name' => 'grant', 'label' => 'Role', 'type' => 'select', 'options' => $held, 'required' => true]]],
+            ]];
+        }
+        return $secs;
     }
 
     /** Guests of honour: nominees only, or everybody invited. */
@@ -560,10 +929,10 @@ final class EventPages
 
     // ── Money ───────────────────────────────────────────────────────────────────────────
 
-    private static function budget(object $e, int $ask): array
+    /** @param int $limit the viewer's own ceiling: the platform's for a lead, the role's for a custom role */
+    private static function budget(object $e, int $ask, int $limit): array
     {
         $id = (int) $e->id;
-        $limit = Plan::limitMinor();
         $lines = Plan::lines([$id]);
         $secs = [];
         $live = array_filter($lines, static fn ($l) => $l->status !== 'declined');
@@ -620,7 +989,22 @@ final class EventPages
     {
         $c = LeadPages::root($me, [$e], 'approvals', '', []);
         unset($c['acts']);
-        return ['title' => 'Money', 'acts' => [['label' => 'Ask to spend', 'href' => LeadPages::BASE . '/requests?new=spend&event=' . $e->id, 'primary' => true]], 'secs' => $c['secs']];
+        // Spend this member decides: the event's finance admin, when the lead's limit was not
+        // enough (Requests routes an event's money to them). Approve, decline with a reason, or ask.
+        $mine = [];
+        foreach (Plan::lines([(int) $e->id]) as $l) {
+            if ($l->status !== 'requested' || !$l->request_id) continue;
+            $r = Requests::find((int) $l->request_id);
+            if (!$r || !Requests::canDecide($r, Plan::ACTOR, $me['id']) || $r->status !== 'waiting') continue;
+            $mine[] = ['t' => (string) $l->title . ' · ' . Plan::naira((int) $l->estimate_minor), 'dot' => 'warn',
+                       'sub' => 'Asked by ' . ((string) ($r->from_name ?? '') ?: 'the lead') . ' · ' . Workspace::day((string) $r->created_at) . ' · over the lead’s limit of ' . Plan::naira(Plan::limitMinor()),
+                       'form' => ['id' => 'fin' . $r->id, 'do' => 'request_act', 'hidden' => ['request' => $r->id], 'submit' => 'Decide', 'fields' => [
+                           ['name' => 'action', 'label' => 'Decision', 'type' => 'select', 'options' => ['approve' => 'Approve', 'decline' => 'Decline', 'ask_info' => 'Ask for more']],
+                           ['name' => 'note', 'label' => 'Note (needed to decline or ask)', 'placeholder' => 'Note']]]];
+        }
+        if ($mine) array_unshift($c['secs'], ['k' => 'rows', 'h' => 'Waiting for your decision', 'box' => true, 'items' => $mine]);
+        $acts = Plan::may($me['id'], (int) $e->id, 'money.plan') ? [['label' => 'Ask to spend', 'href' => LeadPages::BASE . '/requests?new=spend&event=' . $e->id, 'primary' => true]] : [];
+        return ['title' => 'Money', 'acts' => $acts, 'secs' => $c['secs']];
     }
 
     private static function vendors(object $e): array
@@ -652,13 +1036,29 @@ final class EventPages
         $sp = Scope::sponsors($id);
         $agreed = array_sum(array_map(static fn ($s) => (int) $s->value_minor, array_filter($sp, static fn ($s) => in_array($s->stage, ['agreed', 'paid'], true))));
         $paid = array_sum(array_map(static fn ($s) => (int) $s->value_minor, array_filter($sp, static fn ($s) => $s->stage === 'paid')));
-        $stats = [['l' => 'Tickets', 'v' => Plan::naira($tickets), 's' => number_format(EventTicketService::soldForEvent($id)) . ' sold']];
+        // Votes as well as tickets (owner, 12 Nov 2026: the finance admin "also see[s] the money
+        // earned from votes and tickets"). Votes are read exactly as the revenue goal counts them:
+        // confirmed paid-vote payments for nominees in this event's awards, refunds kept apart.
+        $votes = Goals::ready() ? Goals::voteIncome($id) : ['total' => 0, 'orders' => 0, 'refunded' => 0, 'refunds' => 0, 'week' => 0, 'byAward' => [], 'byCategory' => []];
+        $voteMinor = $votes['total'] * 100;
+        $stats = [
+            ['l' => 'Earned from votes and tickets', 'v' => Plan::naira($voteMinor + $tickets), 's' => 'Before gateway fees'],
+            ['l' => 'Paid votes', 'v' => Plan::naira($voteMinor), 's' => number_format($votes['orders']) . ' ' . ($votes['orders'] === 1 ? 'payment' : 'payments') . ($votes['week'] > 0 ? ' · ' . Plan::naira($votes['week'] * 100) . ' this week' : '')],
+            ['l' => 'Tickets', 'v' => Plan::naira($tickets), 's' => number_format(EventTicketService::soldForEvent($id)) . ' sold'],
+        ];
+        if ($votes['refunds'] > 0) $stats[] = ['l' => 'Refunded votes', 'v' => Plan::naira($votes['refunded'] * 100), 's' => $votes['refunds'] . ' ' . ($votes['refunds'] === 1 ? 'payment' : 'payments') . ', not counted above'];
         if ($sp) {
             $stats[] = ['l' => 'Sponsors agreed', 'v' => Plan::naira($agreed), 's' => ''];
             $stats[] = ['l' => 'Sponsors paid', 'v' => Plan::naira($paid), 's' => ''];
         }
-        return ['title' => 'Money', 'secs' => [['k' => 'stats', 'items' => $stats],
-            ['k' => 'note', 'tone' => 'mute', 'text' => 'Ticket income is what confirmed tickets were sold for, before gateway fees. Sponsor money counts once a sponsor is at Agreed.']]];
+        $secs = [['k' => 'stats', 'items' => $stats]];
+        $row = static fn (array $x) => ['t' => $x['t'], 'sub' => number_format($x['n']) . ' ' . ($x['n'] === 1 ? 'payment' : 'payments'), 'meta' => Plan::naira($x['v'] * 100)];
+        if (count($votes['byAward']) > 1) $secs[] = ['k' => 'rows', 'h' => 'Votes by award', 'items' => array_map($row, $votes['byAward'])];
+        if ($votes['byCategory']) $secs[] = ['k' => 'rows', 'h' => 'Votes by category', 'items' => array_map($row, $votes['byCategory'])];
+        elseif ($votes['orders'] === 0) $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => Goals::categoryIds($id, 'event', null) === []
+            ? 'This event presents no award yet, so no vote money is counted here. Link its award in the event’s setup.' : 'No paid votes yet in this event’s awards.'];
+        $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => 'Vote money is confirmed paid-vote payments for nominees in this event’s awards; ticket money is what confirmed tickets were sold for. Both are before gateway fees, and a refunded payment is never counted. Sponsor money counts once a sponsor is at Agreed.'];
+        return ['title' => 'Money', 'secs' => $secs];
     }
 
     // ── The night ───────────────────────────────────────────────────────────────────────
@@ -752,30 +1152,103 @@ final class EventPages
         if (($b = Plan::budgetWords($e)) !== null) $p[] = $b;
         if (($t = LeadPages::ticketWords($e)) !== null) $p[] = $t;
         if ($recent) $p[] = 'Decided this week: ' . implode('; ', array_map(static fn ($d) => (string) $d->title, $recent)) . '.';
-        return ['title' => 'Reports', 'secs' => [['k' => 'article', 'paras' => $p],
-            ['k' => 'note', 'tone' => 'mute', 'text' => 'Written from the plan as it stands right now. Copy it into the committee’s update.']]];
+        // What the team said this week, counted — the committee hears it in one line.
+        $week = array_filter(TeamLoop::reports($id, 200), static fn ($x) => strtotime((string) $x->created_at) > time() - 7 * 86400);
+        if ($week) {
+            $by = array_count_values(array_map(static fn ($x) => (string) $x->state, $week));
+            $p[] = 'The team sent ' . count($week) . ' ' . (count($week) === 1 ? 'report' : 'reports') . ' this week: '
+                 . implode(', ', array_map(static fn ($k) => ($by[$k] ?? 0) . ' ' . mb_strtolower(TeamLoop::STATES[$k]), array_keys(array_filter(TeamLoop::STATES, static fn ($l, $k) => isset($by[$k]), ARRAY_FILTER_USE_BOTH)))) . '.';
+        }
+        $secs = [['k' => 'article', 'paras' => $p],
+            ['k' => 'note', 'tone' => 'mute', 'text' => 'Written from the plan and the team’s reports as they stand right now. Copy it into the committee’s update.']];
+        $all = TeamLoop::reports($id, 30);
+        if ($all) {
+            $secs[] = ['k' => 'rows', 'h' => 'Every report, newest first', 'items' => array_map(static fn ($r) => [
+                't' => ($r->author_name ?: 'Somebody on the team') . ' · ' . TeamLoop::STATES[$r->state],
+                'dot' => $r->state === 'blocked' ? 'bad' : ($r->state === 'risk' ? 'warn' : 'ok'),
+                'sub' => implode(' · ', array_filter([$r->work_title ?: 'The event as a whole', $r->note ? '“' . $r->note . '”' : '', mb_strtolower(TeamLoop::CONFIDENCE[(int) $r->confidence] ?? '')])),
+                'meta' => TeamLoop::when((string) $r->created_at)], $all)];
+        }
+        // Open here: on the Reports page sending one IS the job (it is folded on Today, where it is not).
+        if (TeamLoop::ready()) $secs[] = ['fold' => false] + self::reportForm($id, Plan::work([$id], true));
+        return ['title' => 'Reports', 'secs' => $secs];
     }
 
-    private static function post(object $e): array
+    /**
+     * After the night: the figures, then the WRITTEN report and its sign-off (EventReport).
+     * A lead writes and submits; an owner signs it off or sends it back; the page shows each
+     * person the one thing that is theirs to do, and everybody the report as it stands.
+     */
+    private static function post(array $me, object $e, array $st): array
     {
         $id = (int) $e->id;
-        if (strtotime((string) $e->event_date) > time()) {
-            return ['title' => 'Reports', 'secs' => [['k' => 'note', 'tone' => 'mute',
-                'text' => 'The post-event report fills in after the night, ' . date('D j M', (int) strtotime((string) $e->event_date)) . ': who came, what was spent, what was done.']]];
+        $rep = EventReport::of($id);
+        $after = EventReport::after($e);
+        $secs = [];
+        $status = $rep ? (string) $rep->status : 'none';
+
+        // Where it stands, in one line, with whose move it is.
+        $line = match ($status) {
+            'none'      => $after ? 'No written report yet. A lead writes it, and an owner of the event signs it off.'
+                                  : 'The written report is submitted after the night, ' . date('D j M', (int) strtotime((string) $e->event_date)) . '. A lead can start a draft now.',
+            'draft'     => 'A draft by ' . ($rep->author_name ?: 'a lead') . ', saved ' . Workspace::day((string) $rep->updated_at) . '. Not submitted yet.',
+            'submitted' => 'Submitted by ' . ($rep->author_name ?: 'a lead') . ' ' . Workspace::day((string) $rep->submitted_at) . '. Waiting for an owner to sign it off.',
+            'returned'  => 'Sent back by ' . ($rep->decided_name ?: 'an owner') . ' ' . Workspace::day((string) $rep->decided_at) . ': “' . (string) $rep->decision_note . '”',
+            'approved'  => 'Signed off by ' . ($rep->decided_name ?: 'an owner') . ' ' . Workspace::day((string) $rep->decided_at) . '. This report is final.',
+            default     => '',
+        };
+        $secs[] = ['k' => 'note', 'tone' => match ($status) { 'approved' => 'ok', 'returned' => 'bad', 'submitted' => 'warn', default => 'info' }, 'text' => $line];
+
+        // The figures it is written against: frozen once submitted, live before that.
+        if ($after) {
+            $secs[] = ['k' => 'stats', 'h' => $rep && in_array($status, ['submitted', 'approved', 'returned'], true)
+                ? 'The figures, as submitted ' . Workspace::day((string) $rep->submitted_at) : 'The figures', 'items' => EventReport::figuresFor($e, $rep)];
+            $undone = array_values(array_filter(Plan::work([$id]), static fn ($w) => $w->status !== 'done'));
+            if ($undone) $secs[] = ['k' => 'rows', 'h' => 'Left undone', 'items' => array_map(static fn ($w) => ['t' => (string) $w->title,
+                'sub' => Plan::name($w->owner_kind, $w->owner_id !== null ? (int) $w->owner_id : null) ?: 'Nobody'], $undone)];
         }
-        $s = EventArrivals::summary($id);
-        $r = Plan::readiness($id);
-        $paid = array_sum(array_map(static fn ($l) => (int) $l->paid_minor, Plan::lines([$id])));
-        $cues = Scope::show($id);
-        $stats = [['l' => 'Came', 'v' => number_format($s['in']), 's' => $s['expected'] ? 'of ' . number_format($s['expected']) . ' expected' : '']];
-        $stats[] = ['l' => 'Spent', 'v' => Plan::naira($paid), 's' => isset($e->budget_minor) && $e->budget_minor ? 'of ' . Plan::naira((int) $e->budget_minor) . ' budget' : ''];
-        $stats[] = ['l' => 'Ticket income', 'v' => Plan::naira(Scope::ticketIncomeMinor($id)), 's' => ''];
-        if ($r) $stats[] = ['l' => 'Work done', 'v' => $r['done'] . ' of ' . $r['all'], 's' => ''];
-        if ($cues) $stats[] = ['l' => 'Cues run', 'v' => count(array_filter($cues, static fn ($c) => $c->done_at)) . ' of ' . count($cues), 's' => ''];
-        $undone = array_values(array_filter(Plan::work([$id]), static fn ($w) => $w->status !== 'done'));
-        $secs = [['k' => 'stats', 'items' => $stats]];
-        if ($undone) $secs[] = ['k' => 'rows', 'h' => 'Left undone', 'items' => array_map(static fn ($w) => ['t' => (string) $w->title,
-            'sub' => Plan::name($w->owner_kind, $w->owner_id !== null ? (int) $w->owner_id : null) ?: 'Nobody'], $undone)];
+
+        // The report as written, for everybody who can open the page.
+        if ($rep && in_array($status, ['submitted', 'approved'], true)) {
+            $paras = [];
+            foreach (EventReport::PARTS as $k => [$label]) {
+                if (trim((string) ($rep->$k ?? '')) !== '') $paras[] = ['h' => $label, 'text' => (string) $rep->$k];
+            }
+            $secs[] = ['k' => 'article', 'h' => 'The report', 'blocks' => $paras];
+        }
+
+        // An owner's decision, when it is theirs to make.
+        if ($status === 'submitted' && $st['owner']) {
+            if ((int) $rep->author_id === (int) $me['id']) {
+                $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => 'You wrote this report, so another owner signs it off.'];
+            } else {
+                $secs[] = ['k' => 'form', 'h' => 'Sign it off', 'do' => 'report_decide', 'hidden' => ['event' => $id], 'submit' => 'Record the decision',
+                           'route' => 'Signing off makes the report final. Sending it back returns it to the leads with your note.',
+                           'groups' => [
+                               ['label' => 'Your decision', 'fields' => [['name' => 'verdict', 'label' => 'Your decision', 'type' => 'radio', 'required' => true,
+                                                                           'options' => ['approve' => 'Sign it off', 'return' => 'Send it back'], 'value' => 'approve']]],
+                               ['label' => 'Note', 'help' => 'Needed when you send it back: say what to change.', 'fields' => [['name' => 'note', 'label' => 'Note', 'type' => 'textarea']]],
+                           ]];
+            }
+        }
+        if ($status === 'submitted' && !EventReport::signers($id, $rep)) {
+            $secs[] = ['k' => 'note', 'tone' => 'warn', 'text' => 'This event has no owner who can sign the report off. An administrator can name one under Team & roles.'];
+        }
+
+        // The writing form, while it is the leads' to change.
+        if ($st['lead'] && in_array($status, ['none', 'draft', 'returned'], true)) {
+            $groups = [];
+            foreach (EventReport::PARTS as $k => [$label, $help]) {
+                $groups[] = ['label' => $label, 'help' => $help, 'fields' => [['name' => $k, 'label' => $label, 'type' => 'textarea', 'value' => (string) ($rep->$k ?? ''), 'id' => 'rep_' . $k]]];
+            }
+            $secs[] = ['k' => 'form', 'h' => $status === 'returned' ? 'Change the report' : 'Write the report', 'anchor' => 'write', 'do' => 'report_save',
+                       'hidden' => ['event' => $id], 'submit' => 'Save the draft', 'groups' => $groups,
+                       'route' => $after ? 'Save as often as you like. When it is ready, submit it below for an owner to sign off.' : 'Save drafts now; it is submitted after the night.'];
+            if ($after && $rep) {
+                $secs[] = ['k' => 'note', 'tone' => 'info', 'text' => 'Ready? Submitting sends the saved report, with these figures frozen, to an owner of the event.',
+                           'ctas' => [['label' => 'Submit for sign-off', 'primary' => true, 'post' => ['do' => 'report_submit', 'event' => $id]]]];
+            }
+        }
         return ['title' => 'Reports', 'secs' => $secs];
     }
 
@@ -788,10 +1261,21 @@ final class EventPages
                   'sponsor_add' => 'added a sponsor', 'sponsor_stage' => 'moved a sponsor', 'check_add' => 'added a safety check', 'check_done' => 'signed off a check',
                   'check_undo' => 'reopened a check', 'table_save' => 'changed the seating', 'seat' => 'seated a guest', 'seat_free' => 'freed a seat',
                   'letters_send' => 'sent invitation letters', 'message_send' => 'sent a message', 'door_issue' => 'made a scanning link',
-                  'door_revoke' => 'turned off a scanning link', 'request' => 'made a request', 'lead_grant' => 'gave the event a lead'];
+                  'door_revoke' => 'turned off a scanning link', 'request' => 'made a request', 'lead_grant' => 'gave the event a lead',
+                  'team_propose' => 'proposed a team', 'role_propose' => 'proposed a role', 'member_propose' => 'proposed somebody for a role',
+                  'proposal_withdraw' => 'withdrew a proposal', 'decide' => 'decided a proposal', 'member_end' => 'ended somebody’s role',
+                  'role_archive' => 'archived a role', 'team_suggest' => 'asked for a suggested team',
+                  'report_save' => 'saved the written report', 'report_submit' => 'submitted the written report for sign-off',
+                  'report_decide' => 'decided the written report'];
         $rows = [];
         foreach (Scope::audit((int) $e->id) as $a) {
-            $verb = substr((string) $a->action, 5);
+            // `lead.<verb>` from the lead console; anything else is staff's own word for it.
+            $staff = ['event.finance.give' => 'gave the event a finance admin', 'event.finance.invite' => 'invited a finance admin',
+                      'event.finance.end' => 'ended the finance admin’s access', 'event.finance.decide' => 'decided a finance proposal',
+                      'event.owner.give' => 'gave the event an owner', 'event.owner.invite' => 'invited an owner', 'event.owner.end' => 'ended an owner’s access'];
+            $verb = str_starts_with((string) $a->action, 'lead.') ? substr((string) $a->action, 5) : (string) $a->action;
+            if (isset($staff[$verb])) $words[$verb] = $staff[$verb];
+            if (!isset($words[$verb]) && str_starts_with($verb, 'event.team.')) $words[$verb] = 'decided a team proposal (staff)';
             $meta = json_decode((string) ($a->meta ?? ''), true) ?: [];
             $detail = trim((string) ($meta['title'] ?? $meta['name'] ?? $meta['label'] ?? ''));
             $rows[] = ['t' => ((string) ($meta['lead'] ?? '') ?: ($a->name ?: 'Someone')) . ' ' . ($words[$verb] ?? $verb), 'sub' => $detail, 'meta' => date('j M, H:i', (int) strtotime((string) $a->created_at))];
@@ -856,11 +1340,18 @@ final class EventPages
         $now = date('Y-m-d H:i:s');
         $rows = [];
         if (Grants::ready()) {
-            foreach (DB::table('gates_grants')->where('scope_kind', 'event')->where('scope_id', $id)->whereNull('revoked_at')->where('expires_at', '>', $now)
+            foreach (DB::table('gates_grants')->where('scope_kind', 'event')->where('scope_id', $id)->where(static fn ($w) => Grants::live($w))
                 ->orderBy('capability')->orderBy('expires_at')->get()->all() as $g) {
-                $rows[] = ['t' => Plan::name((string) $g->actor_kind, (int) $g->actor_id) ?: 'Someone', 'sub' => (Grants::CAPABILITIES[$g->capability] ?? $g->capability)
-                    . ' · until ' . Workspace::day((string) $g->expires_at) . ($g->actor_kind === 'member' ? ' · volunteer' : ''), 'chip' => ['Ends on its own', 'mute']];
+                // One row per PERSON, their roles together: a lead who is also a team lead was two
+                // rows with the same name. And no "volunteer" on every member — a lead and an
+                // owner are members too, so the word described nobody correctly.
+                $k = $g->actor_kind . ':' . $g->actor_id;
+                $rows[$k] ??= ['t' => Plan::name((string) $g->actor_kind, (int) $g->actor_id) ?: 'Someone', 'roles' => [], 'until' => (string) $g->expires_at];
+                $rows[$k]['roles'][] = Grants::CAPABILITIES[$g->capability] ?? $g->capability;
+                if ((string) $g->expires_at > $rows[$k]['until']) $rows[$k]['until'] = (string) $g->expires_at;
             }
+            $rows = array_values(array_map(static fn ($r) => ['t' => $r['t'], 'sub' => implode(', ', array_unique($r['roles'])) . ' · until ' . Workspace::day($r['until']),
+                                                              'chip' => ['Ends on its own', 'mute']], $rows));
         }
         return ['title' => 'Event settings', 'secs' => [
             $rows ? ['k' => 'rows', 'h' => 'Who has access', 'items' => $rows] : ['k' => 'note', 'tone' => 'mute', 'text' => 'Nobody else has access to this event.'],
@@ -900,8 +1391,8 @@ final class EventPages
         $secs[] = ['k' => 'form', 'h' => 'Make a scanning link', 'do' => 'door_issue', 'hidden' => ['event' => $id], 'submit' => 'Make the link', 'groups' => [
             ['label' => 'Which door, and when', 'help' => 'The link is shown once, right after you make it. It can scan tickets in and nothing else, and it stops by itself.',
              'fields' => [['name' => 'label', 'label' => 'Door', 'type' => 'text', 'placeholder' => 'Main gate'],
-                          ['name' => 'opens_at', 'label' => 'Opens', 'type' => 'datetime-local', 'step' => '1', 'value' => $day . 'T15:00:00'],
-                          ['name' => 'closes_at', 'label' => 'Closes', 'type' => 'datetime-local', 'step' => '1', 'required' => true, 'value' => $day . 'T23:59:00']]],
+                          ['name' => 'opens_at', 'label' => 'Opens', 'type' => 'datetime-local', 'step' => '60', 'value' => $day . 'T15:00'],
+                          ['name' => 'closes_at', 'label' => 'Closes', 'type' => 'datetime-local', 'step' => '60', 'required' => true, 'value' => $day . 'T23:59']]],
         ]];
         return ['title' => 'Event settings', 'secs' => $secs];
     }

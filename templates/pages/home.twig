@@ -34,6 +34,7 @@
 {% block head_styles %}
   <link rel="stylesheet" href="{{ asset('/assets/css/components/home.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}">
+  {% if ad|default(null) %}<link rel="stylesheet" href="{{ asset('/assets/css/components/ad-slot.css') }}">{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -70,12 +71,18 @@
       {% endfor %}
       {% if hero_slides|length > 1 %}
         <div class="hm-dots" role="group" aria-label="{{ 'Recognitions'|trans }}">
+          {# WCAG 2.2.2: anything that moves on its own for more than five seconds needs a way to
+             stop it. Hover and focus already paused it, which helps nobody on a phone or anybody
+             reading the card with a screen reader that does not move focus. Hidden until the
+             script runs, because without it nothing rotates. #}
+          <button type="button" class="hm-dots__p" data-hm-pause hidden aria-label="{{ 'Pause slideshow'|trans }}" data-hm-play-label="{{ 'Play slideshow'|trans }}" data-hm-pause-label="{{ 'Pause slideshow'|trans }}"><svg class="hm-dots__ic hm-dots__ic--pause" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg><svg class="hm-dots__ic hm-dots__ic--play" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.4-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg></button>
           {% for sl in hero_slides %}
             <button type="button" class="hm-dots__b{{ loop.first ? ' is-on' }}" data-hm-dot="{{ loop.index0 }}" aria-label="{{ 'Show %name%'|trans({'%name%': sl.name}) }}"{{ loop.first ? ' aria-current="true"' }}><span aria-hidden="true"></span></button>
           {% endfor %}
         </div>
       {% endif %}
-      <div class="hm-rec-box" aria-live="polite">
+      {# Silent while it turns by itself — a live region that speaks every 5.5 seconds talks over whatever the reader is doing. home.js makes it polite when a person chooses a slide. #}
+      <div class="hm-rec-box" aria-live="off" data-hm-live>
         {% for sl in hero_slides %}
           <a class="hm-rec{{ loop.first ? ' is-on' }}" href="{{ sl.url }}" data-hm-card{% if not loop.first %} hidden{% endif %}>
             <span class="hm-rec__who">
@@ -100,7 +107,8 @@
         <span class="hm-ctr__n" data-hm-count="{{ honoured }}">{{ honoured|number_format }}</span>
         <span class="hm-ctr__l">{{ 'people honoured on Africa GATES'|trans }}</span>
       {% else %}
-        <span class="hm-ctr__h">{{ 'Every honour here is checked, then kept for good'|trans }}</span>
+        {#- A heading, as it looks: plain text, heading navigation stepped over it. -#}
+        <h2 class="hm-ctr__h">{{ 'Every honour here is checked, then kept for good'|trans }}</h2>
       {% endif %}
     </div>
     <div class="hm-ctr__side">
@@ -116,9 +124,12 @@
       <a class="hm-more hm-more--lg" href="/awards">{{ 'All categories'|trans }}</a>
     </div>
     <ul class="hm-honour" role="list">
+      {# `sizes` is the width each tile is DRAWN at, measured at 360–1600px (10 Nov 2026). It
+         said 46vw — the list item, not the image inside its padding — so a 3× phone chose the
+         960 file for a 145px tile: six of them, ~300KB more than the 480s it needed. #}
       {% for t in honour %}
         <li><a class="hm-hon" href="/nominate?who={{ t.key }}">
-          <img class="hm-hon__img" src="{{ asset(t.src) }}" srcset="{{ t.srcset }}" sizes="(min-width: 1200px) 180px, (min-width: 600px) 200px, 46vw" alt="{{ t.alt }}" loading="lazy" width="480" height="480">
+          <img class="hm-hon__img" src="{{ asset(t.src) }}" srcset="{{ t.srcset }}" sizes="(min-width: 1200px) 160px, (min-width: 1024px) calc(33vw - 41px), (min-width: 600px) 180px, calc(46vw - 35px)" alt="" loading="lazy" width="480" height="480">
           <span class="hm-hon__row"><span class="hm-hon__l">{{ t.label|trans }}</span><span class="hm-hon__go" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M5 10h10M11 6l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span>
         </a></li>
       {% endfor %}
@@ -152,11 +163,15 @@
     </a>
     {% endif %}
     <div class="hm-topics">
+      {# The shop card promises frames and certificates, so it is drawn only while the
+         shop sells some (HomeFront::framesOnSale) — never a typed promise to a page
+         that may hold neither. #}
       {% for tp in [
         {t: 'Find an event near you', d: 'Galas, ceremonies and community days, with tickets in one place.', tag: 'Events', h: '/events', img: 'community-leader'},
-        {t: 'Run your awards on Africa GATES', d: 'Editions, judging and public voting in one place.', tag: 'For organisers', h: '/partner', img: 'business'},
+        {t: 'Run your awards on Africa GATES', d: 'Editions, judging and public voting in one place.', tag: 'For organisers', h: '/partner', img: 'business'}
+      ]|merge(frames_on_sale ? [
         {t: 'Frame your recognition', d: 'Certificates and frames for the honours on your profile.', tag: 'Shop', h: '/shop', img: 'creative'}
-      ] %}
+      ] : []) %}
         <a class="hm-topic" href="{{ tp.h }}">
           <span class="hm-topic__field">
             <img class="hm-topic__pic hm-topic__pic--{{ loop.index }}" src="{{ asset('/assets/img/honour/' ~ tp.img ~ '-480.webp') }}" alt="" loading="lazy" width="480" height="480">
@@ -225,6 +240,12 @@
   </section>
   {% endif %}
 
+  {# ── 9b · One ad (Services\Ads; owner, 4 Nov 2026) ─────────────────────────────
+     Below the stories and the giving, never in the hero and never beside the sections
+     that show nominees or ask somebody to choose. Paid campaigns and our own only, wide on
+     a desktop so it reads as part of the band, labelled like every ad. #}
+  {% if ad|default(null) %}<div class="ag-ad-slot hm-ad">{% include 'partials/ad-slot.twig' with {ad: ad, csrf_token: csrf_token, back: '/', wide: true} only %}</div>{% endif %}
+
   {# ── 10 · Recognise with Africa GATES — four audiences, only what exists today ── #}
   <section class="hm-sec" id="hm-host" aria-labelledby="hm-host-h" tabindex="-1">
     <div class="hm-head hm-head--row">
@@ -242,7 +263,11 @@
         {k: 'Governments', cta: 'Talk to us', href: '/partner', img: 'community-leader', alt: 'A community leader speaking'}
       ] %}
         <li><a class="hm-whoc" href="{{ a.href }}">
-          <img class="hm-whoc__img" src="{{ asset('/assets/img/honour/' ~ a.img ~ '-960.webp') }}" alt="{{ a.alt|trans }}" loading="lazy" width="960" height="960">
+          {# Both sizes offered, with the width the card is actually drawn at (measured, 10 Nov
+             2026): it was the 960 file alone, for a card 236–287px wide. #}
+          <img class="hm-whoc__img" src="{{ asset('/assets/img/honour/' ~ a.img ~ '-960.webp') }}"
+               srcset="{{ asset('/assets/img/honour/' ~ a.img ~ '-480.webp') }} 480w, {{ asset('/assets/img/honour/' ~ a.img ~ '-960.webp') }} 960w"
+               sizes="(min-width: 600px) 270px, calc(67vw - 5px)" alt="{{ a.alt|trans }}" loading="lazy" width="960" height="960">
           <span class="hm-whoc__bar"><span class="hm-whoc__t"><b>{{ a.k|trans }}</b><span>{{ a.cta|trans }}</span></span><span class="hm-whoc__go" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></span>
         </a></li>
       {% endfor %}
@@ -273,6 +298,7 @@
 {% endblock %}
 
 {% block foot_scripts %}
-  <script defer src="{{ asset('/assets/js/we-are-africa.js') }}"></script>
-  <script defer src="{{ asset('/assets/js/home.js') }}"></script>
+  <script defer src="{{ asset('/assets/js/we-are-africa.js') }}" data-nav="rerun"></script>
+  <script defer src="{{ asset('/assets/js/home.js') }}" data-nav="rerun"></script>
+  {% if ad|default(null) %}<script defer src="{{ asset('/assets/js/ads.js') }}" data-nav="rerun"></script>{% endif %}
 {% endblock %}

@@ -78,6 +78,9 @@ final class AssetBundle
         // It was linked by the shell without being added here, so the bundle and the shell
         // disagreed about the cascade — ShellLayoutTest had been red on it since.
         'assets/css/components/forms.css',
+        // Site notices (Services\SiteNotice): planned work and the operator's announcement,
+        // at the top of every page. In the base payload because every page may draw one.
+        'assets/css/components/notice.css',
         // The default graphics (DEFAULT-GRAPHICS §2, handoff 5 Oct 2026): every image slot
         // with no upload draws a cover or avatar, on any page. After the base, as the spec says.
         'assets/css/components/cover.css',
@@ -86,6 +89,7 @@ final class AssetBundle
         // Phase 3: Gee, the guide and the help desk — the launcher and the panel that sit
         // over every shell page but Pulse. Last: it floats above all of the above.
         'assets/css/components/gee.css',
+        'assets/css/components/photo-upload.css',
     ];
 
     /** Where the built bundle and its manifest live. Gitignored build output. */
@@ -296,7 +300,7 @@ final class AssetBundle
      * does not quietly break an image on a deployment that ran the build and nowhere
      * else — which is the hardest version of this bug to find.
      */
-    private static function rebaseUrls(string $css, string $sourceRel): string
+    public static function rebaseUrls(string $css, string $sourceRel): string
     {
         $dir = trim(dirname($sourceRel), '/');   // e.g. assets/css/components
 

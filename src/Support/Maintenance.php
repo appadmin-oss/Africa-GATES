@@ -146,6 +146,11 @@ final class Maintenance
             // Not under the test harness, which must never write into the real public/.
             $ran[] = ['assets', $this->task('assets', fn() => defined('PHPUNIT_COMPOSER_INSTALL') || \AfricaGates\Support\AssetBundle::url() !== null ? 0
                 : (\AfricaGates\Support\AssetBundle::build()['ok'] ? 1 : self::TASK_FAILED))];
+            // And the minified twin of every stylesheet edited since (MinifiedAssets): the host
+            // has no Node, so scripts are minified where the code is built, but CSS is
+            // minified here in PHP and an edited sheet is small again within the hour.
+            $ran[] = ['assets-min', $this->task('assets-min', fn() => defined('PHPUNIT_COMPOSER_INSTALL') ? 0
+                : \AfricaGates\Support\MinifiedAssets::buildCss(dirname(__DIR__, 2) . '/public')['made'])];
             // ORDER IS LOAD-BEARING. Reconciliation re-verifies stale pending payments
             // against the gateway and confirms the genuinely-paid ones; the recovery
             // mail then tells whoever is STILL pending that they did not finish. Run
@@ -197,6 +202,36 @@ final class Maintenance
             // ticket alerts beside it, and each row is CLAIMED before it is sent (AwardAlert).
             $ran[] = ['award-alerts', $this->task('award-alerts',
                 fn() => \AfricaGates\Services\AwardAlert::sweep($this->mailer()))];
+            // The Supporter Spotlight's messages (SpotlightMail): yesterday's Champion of the Day
+            // once DailyChampion has announced it, last week's Mobiliser on Monday, and a first place in
+            // the top supporters. Every tick, cheap when nothing is new; each is CLAIMED first.
+            // The Champion of the Day, announced the morning after once payments have settled,
+            // and sealed (DailyChampion). Before the Spotlight's mail, which tells the champion.
+            // The shop's stock digest: once a day after 07:00, what is out and running low, to
+            // the operators (ShopStock::digest). Every tick rather than in the 06:00 window, so a
+            // webcron that misses that quarter-hour does not skip a day; the day is claimed first.
+            $ran[] = ['shop-stock-digest', $this->task('shop-stock-digest',
+                fn() => \AfricaGates\Services\ShopStock::digest($this->mailer()))];
+            $ran[] = ['daily-champion', $this->task('daily-champion',
+                fn() => \AfricaGates\Services\DailyChampion::sweep())];
+            $ran[] = ['spotlight-mail', $this->task('spotlight-mail',
+                fn() => \AfricaGates\Services\SpotlightMail::sweep($this->mailer()))];
+            // Honouring the people who voted (16 Nov 2026): on results day, every backer told
+            // what became of the nominee they backed and that they were one of the people behind
+            // them (ResultsDayMail, only for an ANNOUNCED release); and a nominee's own thank-you,
+            // once its edit window is over (NomineeThanks). Both claim each address first.
+            $ran[] = ['results-day-mail', $this->task('results-day-mail',
+                fn() => \AfricaGates\Services\ResultsDayMail::sweep($this->mailer()))];
+            $ran[] = ['nominee-thanks', $this->task('nominee-thanks',
+                fn() => \AfricaGates\Services\NomineeThanks::sweep($this->mailer()))];
+            // "Your vote is working": milestones in each live race recorded, and told to the
+            // backers who asked — at most three an edition each (NomineeMilestones).
+            $ran[] = ['nominee-milestones', $this->task('nominee-milestones',
+                fn() => \AfricaGates\Services\NomineeMilestones::sweep($this->mailer()))];
+            // A nominee's own updates, once their fifteen minutes to change them are over, to the
+            // backers who asked to hear how they are doing (NomineeUpdates). Claimed per address.
+            $ran[] = ['nominee-updates', $this->task('nominee-updates',
+                fn() => \AfricaGates\Services\NomineeUpdates::sweep($this->mailer()))];
             // Volunteers' reminders (Volunteer\Reminders): the day before a meeting, training
             // about to lapse. Every tick; each message is claimed before it is sent, so
             // overlapping ticks never send one twice.
@@ -228,6 +263,14 @@ final class Maintenance
             // tick, because it is a batch and a list of thousands is many ticks long; when
             // the schedule is off, or nothing is due or approved, it is two queries.
             $ran[] = ['newsletter',    $this->task('newsletter', fn() => $this->newsletter()->tick())];
+            // The announcement outbox (Mail\Outbox): campaigns queued once and sent here at the
+            // account's pace, engaged readers first. AFTER mailhealth for the newsletter's
+            // reason — it holds while an incident is open — and every tick, because a pace is
+            // only kept by being asked often. Two queries when nothing is due.
+            $ran[] = ['mail-outbox',   $this->task('mail-outbox', fn() => $this->outbox())];
+            // The event teams' rules (EventPlan\Rules): every tick, because a reminder or a gate
+            // warning is only useful on the day. A rule in shadow only writes what it would do.
+            $ran[] = ['event-rules',   $this->task('event-rules', fn() => \AfricaGates\Services\EventPlan\Rules::runAll())];
             // The CACENTRE CRM's Audience: subscribers, opt-outs, bounces, enquiries and gifts,
             // pushed signed. AFTER the newsletter, so a confirmation or stop the newsletter
             // tick just wrote goes out on this one. A few queries when nothing is new, and
@@ -312,6 +355,11 @@ final class Maintenance
                 // reported for the page it was drawn on (Services\Ads\AdDelivery).
                 $ran[] = ['adevents', $this->task('adevents',
                     fn() => \AfricaGates\Services\Ads\AdDelivery::prune())];
+                // Paid campaigns that have finished: what they did not spend goes back, with
+                // its VAT (Services\Ads\AdCheckout::settle). Claimed before the gateway is
+                // asked, so two runs cannot refund one campaign.
+                $ran[] = ['adrefunds', $this->task('adrefunds',
+                    fn() => \AfricaGates\Services\Ads\AdCheckout::settle(new \AfricaGates\Services\PaymentService()))];
                 // Expired Gemini file-upload handles. The provider deletes the file itself
                 // after 48 hours; this drops OUR record of it, which is the half that
                 // matters — a stale row would be handed to generateContent as a live
@@ -429,9 +477,25 @@ final class Maintenance
                 // shell here to make them come down any other way.
                 'challenges' => $ran[] = ['challenges', $this->task('challenges', fn() => \AfricaGates\Services\ChallengeService::sweepWindows())],
                 'mailhealth' => $ran[] = ['mailhealth', $this->task('mailhealth', fn() => (new \AfricaGates\Services\Mail\MailHealth())->check())],
+                // One page of this platform's account list to CACENTRE's person
+                // directory, so one human is one record across the estate's five
+                // apps rather than four unrelated rows here alone. Does nothing at
+                // all until a push secret is set, and the cursor only advances on a
+                // push that was accepted — a page lost to a timeout goes again next
+                // tick rather than leaving a hole nothing would report.
+                //
+                // Addressable by name for the reason the others are: there is no
+                // shell here, so an operator who has just pasted the secret into
+                // Settings needs `/__cron/run?task=directory` to find out whether it
+                // took, rather than waiting an hour.
+                'directory' => $ran[] = ['directory', $this->task('directory',
+                    fn() => \AfricaGates\Services\DirectoryPush::tick())],
                 // An operator who has just approved an issue should not have to wait for the
                 // next tick to see the first batch go.
                 'newsletter' => $ran[] = ['newsletter', $this->task('newsletter', fn() => $this->newsletter()->tick())],
+                // Same reason: a campaign just started should not wait a tick for its next batch.
+                'mail-outbox' => $ran[] = ['mail-outbox', $this->task('mail-outbox', fn() => $this->outbox())],
+                'event-rules' => $ran[] = ['event-rules', $this->task('event-rules', fn() => \AfricaGates\Services\EventPlan\Rules::runAll())],
                 // Addressable by name because there is no SSH on this account: when a round
                 // opens sooner than the hourly sweep can fill it, `/__cron/run?task=judgemaps`
                 // is the only way anybody can ask for another batch.
@@ -1125,7 +1189,10 @@ final class Maintenance
         try {
             $q = new QueueService();
             $sheets = $this->container?->get(GoogleSheetsService::class);
-            $q->on('vote.sheets_push', function (array $p) use ($sheets) { $sheets?->pushVote($p); });
+            $q->on('vote.sheets_push', function (array $p) use ($sheets) {
+                if (!$sheets) throw new \RuntimeException('Google Sheets delivery is unavailable.');
+                $sheets->pushVote($p);
+            });
             $sms = SmsService::boot();
             $q->on(SmsService::JOB_SMS, function (array $p) use ($sms) {
                 $sms->deliver('sms', (string)($p['to'] ?? ''), (string)($p['body'] ?? ''), (string)($p['template'] ?? 'generic'));
@@ -1212,6 +1279,11 @@ final class Maintenance
             $q->on(\AfricaGates\Services\ShopOrderService::JOB_RECEIPT, function (array $p) {
                 \AfricaGates\Services\ShopOrderService::receipt(
                     (int) ($p['order_id'] ?? 0), $this->container?->get(OtpService::class));
+            });
+            // The buyer's later shop emails (refund settled, refund failed) queued by the
+            // webhook, which cannot spend its gateway budget on SMTP. See ShopMail.
+            $q->on(\AfricaGates\Services\ShopMail::JOB, function (array $p) {
+                \AfricaGates\Services\ShopMail::handle($p, $this->container?->get(OtpService::class));
             });
             $q->on(\AfricaGates\Services\EventTicketMailer::JOB, function (array $p) {
                 \AfricaGates\Services\EventTicketMailer::send(
@@ -1315,6 +1387,17 @@ final class Maintenance
     }
 
     /** The newsletter sender, on this deployment's transport and site address. */
+    /** One drain of the announcement outbox. Returns how many were sent. */
+    private function outbox(): int
+    {
+        $mailer = null;
+        try {
+            $mailer = $this->container?->get(OtpService::class);
+        } catch (\Throwable) {
+        }
+        return \AfricaGates\Services\Mail\Outbox::drain($mailer instanceof OtpService ? $mailer : OtpService::boot(), SiteUrl::base())['sent'];
+    }
+
     private function newsletter(): \AfricaGates\Services\Newsletter\Newsletter
     {
         $mailer = null;

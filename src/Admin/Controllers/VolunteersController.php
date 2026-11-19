@@ -27,14 +27,18 @@ use Slim\Views\Twig;
  * refuses one without), tasks to post and accept, training to write,
  * and hours logged by hand that no team lead has answered.
  *
- * ACCESS IS THE GUARD'S, NOT THIS FILE'S. `/admin/volunteers` is not mapped in
- * Permissions::PATH_SECTIONS, so SectionGuardMiddleware fails it closed to superadmin. Who
- * else may coordinate volunteers is an access decision for the owner (CLAUDE.md: an access
- * change never rides along inside a feature); this page works for whoever the guard lets in,
- * and every write is audited once, with what it changed.
+ * ACCESS IS THE GUARD'S, NOT THIS FILE'S. `/admin/volunteers` maps to its own `volunteers`
+ * section in Permissions (superadmin and admin, owner's decision 31 Oct 2026); writes need
+ * canWrite. This page works for whoever the guard lets in, and every write is audited once,
+ * with what it changed, against the kind of record it changed (AUDIT_TARGET).
  */
 final class VolunteersController
 {
+    /** What the audit row's target id points at, per action. */
+    private const AUDIT_TARGET = ['approve' => 'volunteer', 'decline' => 'volunteer', 'ref_replied' => 'volunteer_reference', 'grant' => 'grant',
+                                  'revoke' => 'grant', 'task' => 'volunteer_task', 'accept' => 'volunteer_take', 'progress' => 'volunteer_take',
+                                  'task_edit' => 'volunteer_task', 'task_close' => 'volunteer_task', 'module' => 'training_module', 'hours' => 'volunteer_hours'];
+
     public const TABS = ['applications' => 'Applications', 'roster' => 'Roster', 'tasks' => 'Tasks',
                          'training' => 'Training', 'hours' => 'Hours to confirm', 'reports' => 'Contact reports'];
 
@@ -92,7 +96,7 @@ final class VolunteersController
             'grant' => $this->grant($b, $adminId),
             'revoke' => [Grants::revoke((int) ($b['grant'] ?? 0), $adminId), 'Ended. It leaves their workspace on their next page.', (int) ($b['grant'] ?? 0)],
             'task' => $this->created(Tasks::create($b, $adminId), 'Posted to the task library.'),
-            'accept' => [Tasks::accept((int) ($b['take'] ?? 0), (float) ($b['hours'] ?? 0), (int) ($b['accepted'] ?? 0), $adminName), 'Accepted: the hours are on their record.', (int) ($b['take'] ?? 0)],
+            'accept' => $this->acceptTake($b, $adminName),
             'progress' => [Tasks::progress((int) ($b['take'] ?? 0), (int) ($b['progress'] ?? 0), (int) ($b['accepted'] ?? 0)), 'Progress saved. They see it on their task.', (int) ($b['take'] ?? 0)],
             'task_edit' => $this->created(Tasks::update((int) ($b['task'] ?? 0), $b), 'Saved. Volunteers see the change now.'),
             'task_close' => [Tasks::close((int) ($b['task'] ?? 0)), 'Closed. It is no longer offered; anybody part-way through can still hand it in.', (int) ($b['task'] ?? 0)],
@@ -100,7 +104,9 @@ final class VolunteersController
             'hours' => $this->hours($b, $adminId, $adminName),
             default => [false, 'That isn’t something this page can do.', 0],
         };
-        if ($ok) $this->audit->record($adminId, 'volunteers.' . $do, 'volunteer', (int) $target, array_intersect_key($b, array_flip(['id', 'capability', 'scope_kind', 'scope_id', 'expires_at', 'title', 'reason', 'kept', 'verdict', 'task', 'take', 'progress', 'accepted', 'hours', 'due_at'])));
+        // Typed by what the id IS: every row used to say `volunteer`, so for most actions the
+        // log could not answer "which volunteer" (AUDIT-AND-PLAN VO-13).
+        if ($ok) $this->audit->record($adminId, 'volunteers.' . $do, self::AUDIT_TARGET[$do] ?? 'volunteer', (int) $target, array_intersect_key($b, array_flip(['id', 'capability', 'scope_kind', 'scope_id', 'expires_at', 'title', 'reason', 'kept', 'verdict', 'task', 'take', 'progress', 'accepted', 'hours', 'due_at'])));
         return $this->back($res, $tab, $ok, $msg);
     }
 
@@ -112,7 +118,7 @@ final class VolunteersController
         foreach (DB::table('gates_volunteers as v')->join('gates_users as u', 'u.id', '=', 'v.user_id')->where('v.status', 'applicant')
                      ->orderBy('v.applied_at')->get(['v.*', 'u.name as user_name', 'u.email']) as $v) {
             $v->refs = Volunteers::references((int) $v->id);
-            $v->age = $v->dob ? (int) floor((time() - (int) strtotime((string) $v->dob)) / (365.25 * 86400)) : null;
+            $v->age = Volunteers::age($v->dob ? (string) $v->dob : null);   // the one age resolver (VO-11)
             $v->wants = array_map(static fn ($k) => Volunteers::INTERESTS[$k] ?? $k, array_filter(explode(',', (string) $v->interests)));
             // The rebuilt application's answers (2027_04_23_vol_application), in the words the form used.
             $v->brings = array_map(static fn ($k) => Volunteers::SKILLS[$k] ?? $k, array_filter(explode(',', (string) ($v->skills ?? ''))));
@@ -231,9 +237,17 @@ final class VolunteersController
 
     private function grant(array $b, int $adminId): array
     {
-        $uid = (int) DB::table('gates_volunteers')->where('id', (int) ($b['id'] ?? 0))->value('user_id');
+        $vol = DB::table('gates_volunteers')->where('id', (int) ($b['id'] ?? 0))->first(['user_id', 'status']);
+        $uid = (int) ($vol->user_id ?? 0);
         [$kind, $scope] = array_pad(explode(':', (string) ($b['place'] ?? '')), 2, '0');
         if (!$uid) return [false, 'Pick a volunteer.', 0];
+        // Vetting is not skipped from this screen either. It used to give any role to anybody
+        // with a volunteer row — a declined applicant, a current one, somebody who had left —
+        // and any capability Grants knows, event.lead, event.own and event.finance included,
+        // which by-passed the owner's approval those need (AUDIT-AND-PLAN VO-3). The same
+        // rule RoleInvites::eligible() keeps.
+        if (!in_array((string) $vol->status, ['active', 'paused'], true)) return [false, 'Only an approved volunteer can be given a role. Approve them first.', 0];
+        if (!str_starts_with((string) ($b['capability'] ?? ''), 'vol.')) return [false, 'This screen gives volunteer roles only. Event leads, owners and finance are given on the event’s Leads page.', 0];
         $r = Grants::grant('member', $uid, (string) ($b['capability'] ?? ''), $kind, (int) $scope, (string) ($b['expires_at'] ?? ''), $adminId, 'Given by staff');
         return [$r['ok'], $r['ok'] ? 'Given. It ends on its own on that date.' : (string) $r['error'], (int) ($r['id'] ?? 0)];
     }
@@ -247,6 +261,16 @@ final class VolunteersController
     private function created(array $r, string $msg): array
     {
         return [$r['ok'], $r['ok'] ? $msg : implode(' ', $r['errors'] ?? ['That could not be saved.']), (int) ($r['id'] ?? 0)];
+    }
+
+    private function acceptTake(array $b, string $adminName): array
+    {
+        $hours = (float) ($b['hours'] ?? 0);
+        $take = (int) ($b['take'] ?? 0);
+        if ($hours <= 0 || $hours > 24) return [false, 'Give the hours it took, between a quarter of an hour and 24.', $take];
+        return Tasks::accept($take, $hours, (int) ($b['accepted'] ?? 0), $adminName)
+            ? [true, 'Accepted: the hours are on their record.', $take]
+            : [false, 'That has already been accepted, or was dropped.', $take];
     }
 
     private function back(Response $res, string $tab, bool $ok, string $msg): Response

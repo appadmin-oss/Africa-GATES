@@ -57,6 +57,20 @@ class SettingsController
             'tz_abbr'        => \AfricaGates\Support\DisplayTime::abbr(),
             'smtp_configured'=> $this->mailer?->canSend() ?? false,
             'planned_work'   => \AfricaGates\Services\PlannedWork::stored(),
+            // What the public site is showing from the banner fields, said beside them: an
+            // operator who saved a link the page refuses to print learns it here, not never.
+            'announce_state' => (static function (array $v): array {
+                $text = trim((string) ($v['announce_text'] ?? ''));
+                $url  = trim((string) ($v['announce_url'] ?? ''));
+                $a    = \AfricaGates\Services\SiteNotice::announcement($v);
+                return [
+                    'showing'  => $a !== null,
+                    'ended'    => $text !== '' && $a === null,
+                    'bad_link' => $url !== '' && \AfricaGates\Services\SiteNotice::safeUrl($url) === null,
+                    'popup'    => \AfricaGates\Services\SiteNotice::popup($v) !== null,
+                    'bad_image'=> trim((string) ($v['announce_image'] ?? '')) !== '' && \AfricaGates\Services\SiteNotice::safeUrl((string) $v['announce_image']) === null,
+                ];
+            })($this->settings->all()),
             'mail_config'    => (static function (): array {
                 $c = \AfricaGates\Services\Mail\MailConfig::load();
                 return $c->describe() + ['login_source' => match ($c->source('username')) {
@@ -218,10 +232,18 @@ class SettingsController
             'invite_seq_audiences' => \AfricaGates\Services\InviteAudience::all(),
             // The ads rate card (naira per 1,000 views, per placement). Read and saved through
             // AdRateCard, the same resolver /advertise and the builder read.
-            'ad_rates'          => \AfricaGates\Services\Ads\AdRateCard::all(),
+            // The base prices the form edits, and the market they turn into (AdMarket).
+            'ad_rates'          => \AfricaGates\Services\Ads\AdRateCard::bases(),
+            'ad_market'         => \AfricaGates\Services\Ads\AdMarket::card(),
+            'ad_revenue'        => \AfricaGates\Services\Ads\AdMarket::revenue(),
+            'ad_advice'         => \AfricaGates\Services\Ads\AdMarket::advice(),
+            'ad_dynamic'        => \AfricaGates\Services\Ads\AdMarket::dynamic(),
+            'ad_vat_pct'        => \AfricaGates\Services\Ads\AdCheckout::vatBps() / 100,
+            'ad_target'         => (int) ($this->settings->get(\AfricaGates\Services\Ads\AdMarket::TARGET_KEY) ?? 0) ?: null,
             'ad_placements'     => \AfricaGates\Services\Ads\AdRules::PLACEMENTS,
             'ad_beta'           => \AfricaGates\Services\Ads\AdRules::inBeta(),
             'visits_on'         => \AfricaGates\Services\VisitTracker::enabled(),
+            'views_min'         => \AfricaGates\Services\PageViews::showMin(), 'views_secs' => \AfricaGates\Services\PageViews::ENGAGED_SECONDS,
             'visits_days_value' => \AfricaGates\Services\VisitTracker::keepDays(),
             'visits_mode'       => \AfricaGates\Services\CookiePrefs::mode(),
             'ga_id'             => \AfricaGates\Services\GoogleAnalytics::measurementId(),
@@ -330,9 +352,22 @@ class SettingsController
             'gas_secret_set' => \AfricaGates\Services\GoogleMeetService::gasSecret() !== '',
             // The CACENTRE CRM: where this platform's subscribers and enquiries are sent. Read
             // through the one resolver; the secret is write-only like every other credential.
+            'volunteer_community_url' => \AfricaGates\Services\Volunteer\Volunteers::communityUrl(),
             'crm_url'        => \AfricaGates\Services\CrmAudiencePush::base(),
             'crm_secret_set' => \AfricaGates\Services\CrmAudiencePush::ready(),
             'crm_last'       => \AfricaGates\Services\CrmAudiencePush::lastResult(),
+            // The person directory. The secret is write-only like every other
+            // credential here; the address is echoed, because a stale one points
+            // this platform's roster at a host nobody meant and is invisible if
+            // the field is blanked for tidiness.
+            'dir_push_secret_set' => \AfricaGates\Services\DirectoryPush::secret() !== '',
+            'dir_push_url' => (static function (): string {
+                try {
+                    $v = \Illuminate\Database\Capsule\Manager::table('gates_settings')
+                        ->where('key_name', 'dir_push_url')->value('value');
+                    return is_string($v) ? $v : '';
+                } catch (\Throwable) { return ''; }
+            })(),
             // Consumed once, for the same reason as the AI probe above: a verdict about a
             // deployment that has since been re-published is the one an operator would act on.
             'sync_probe' => (static function (): array {
@@ -561,7 +596,14 @@ class SettingsController
         $adminId = (int)$_SESSION['admin_id'];
 
         // Core site settings + email sender identity (gates_settings table)
+        // The pop-up card's switch posts nothing when unticked, so it is read only when the
+        // Public site card itself was submitted (its banner field is always posted).
+        if (array_key_exists('announce_text', $b)) {
+            $this->settings->set('announce_popup', !empty($b['announce_popup']) ? '1' : '0', $adminId);
+        }
         foreach (['announce_text','announce_url','announce_cta','site_title','contact_email',
+                  // The pop-up card (Services\SiteNotice::popup); clamped there, on the way out.
+                  'announce_title','announce_body','announce_image','announce_image_alt',
                   'mail_from_name','mail_from_address','mail_reply_to','admin_alert_email',
                   // The postal address every bulk mail's footer prints. It was .env only,
                   // read by six senders, on a host with no shell. See MailConfig::postal().
@@ -680,8 +722,19 @@ class SettingsController
             // The checkbox posts nothing when unticked, which is why this sits behind the
             // card's own marker: unticked means the beta is over.
             $this->settings->set('ads_beta', !empty($b['ads_beta']) ? '1' : '0', $adminId);
+            $mode = (string) ($b['ads_pricing_mode'] ?? 'dynamic') === 'fixed' ? 'fixed' : 'dynamic';
+            $this->settings->set(\AfricaGates\Services\Ads\AdMarket::MODE_KEY, $mode, $adminId);
+            $target = max(0, min(1_000_000_000, (int) preg_replace('/[^0-9]/', '', (string) ($b['ads_revenue_target'] ?? ''))));
+            $this->settings->set(\AfricaGates\Services\Ads\AdMarket::TARGET_KEY, $target > 0 ? (string) $target : '', $adminId);
+            if (array_key_exists('ads_vat_pct', $b) && is_numeric($b['ads_vat_pct'])) {
+                // Basis points, so 7.5% is stored exactly (AdCheckout::vatBps()).
+                $this->settings->set(\AfricaGates\Services\Ads\AdCheckout::VAT_KEY,
+                    (string) max(0, min(2500, (int) round((float) $b['ads_vat_pct'] * 100))), $adminId);
+            }
+            \AfricaGates\Services\Ads\AdMarket::forget();
             $this->audit->record($adminId, 'settings.ads_rates', null, null,
-                ['rates' => \AfricaGates\Services\Ads\AdRateCard::all(), 'beta' => !empty($b['ads_beta'])]);
+                ['bases' => \AfricaGates\Services\Ads\AdRateCard::bases(), 'mode' => $mode, 'target_naira' => $target,
+                 'beta' => !empty($b['ads_beta'])]);
         }
 
         // Arrival tracking. Marker-gated like the others: an unchecked box posts nothing,
@@ -711,6 +764,13 @@ class SettingsController
                 } else {
                     $_SESSION['flash_error'] = 'Google Analytics not changed: a measurement ID looks like G-ABC123XYZ.';
                 }
+            }
+
+            // "Seen by" (Services\PageViews): a page's view count is shown from this many
+            // views. At least 1 — nought would put "0 views" on every new page.
+            if (array_key_exists('views_show_min', $b)) {
+                $min = (int) preg_replace('/[^0-9]/', '', (string) $b['views_show_min']);
+                $this->settings->set('views_show_min', (string) ($min > 0 ? min(1_000_000, $min) : \AfricaGates\Services\PageViews::SHOW_MIN), $adminId);
             }
 
             $mode = strtolower(trim((string) ($b['visits_consent_mode'] ?? '')));
@@ -767,6 +827,32 @@ class SettingsController
         // lowering it makes balances payable that were locked and raising it locks
         // balances that were payable — real money owed to real people, which is why it is
         // clamped and why the help text beside it is blunt.
+        /*
+         * The person directory's push secret.
+         *
+         * Write-only, and a blank field KEEPS the stored value — an operator who
+         * opened this page to correct the address must not switch the push off by
+         * not retyping a secret. Clearing it is a deliberate tick, and it STOPS
+         * the push rather than half-configuring it.
+         */
+        if (array_key_exists('directory_settings', $b)) {
+            if (!empty($b['directory_clear']['secret'])) {
+                $this->settings->set('dir_push_secret', '', $adminId);
+            } else {
+                $sec = trim((string) ($b['dir_push_secret'] ?? ''));
+                if ($sec !== '') $this->settings->set('dir_push_secret', $sec, $adminId);
+            }
+            /* An address that is not an address would point the roster at nowhere,
+               or somewhere. Empty is meaningful — it means the default — so only a
+               non-empty value is validated, and a bad one is not stored. */
+            $url = trim((string) ($b['dir_push_url'] ?? ''));
+            if ($url === '') {
+                $this->settings->set('dir_push_url', '', $adminId);
+            } elseif (filter_var($url, FILTER_VALIDATE_URL) && preg_match('#^https?://#i', $url)) {
+                $this->settings->set('dir_push_url', rtrim($url, '/'), $adminId);
+            }
+        }
+
         if (array_key_exists('referral_settings', $b)) {
             $this->settings->set('referrals_enabled', !empty($b['referrals_enabled']) ? '1' : '0', $adminId);
 
@@ -1011,6 +1097,18 @@ class SettingsController
             $_SESSION['flash_error'] = $why;
         }
 
+        // The volunteers' WhatsApp community: the link in the application email and on the
+        // workspace. Blank means the built-in default (Volunteers::COMMUNITY_DEFAULT); anything
+        // that is not an https link is refused rather than mailed to every applicant.
+        if (array_key_exists('volunteer_community_url', $b)) {
+            $url = trim((string) $b['volunteer_community_url']);
+            if ($url === '' || \AfricaGates\Services\Volunteer\Volunteers::validCommunityUrl($url)) {
+                $this->settings->set('volunteer_community_url', $url, $adminId);
+            } else {
+                $_SESSION['flash_error'] = 'The volunteers’ community link was not saved — it has to be a WhatsApp invite link (https://chat.whatsapp.com/…). Everything else was saved.';
+            }
+        }
+
         // Messaging (SMS / WhatsApp) — Twilio + WhatsApp Business Cloud API.
         // Secrets are WRITE-ONLY (never rendered back); a blank field leaves the
         // stored value untouched, the matching "clear" box removes it. Master
@@ -1238,9 +1336,32 @@ class SettingsController
                     : (string) max(0, (int) $b[$k]);
                 $this->settings->set($k, $v, $adminId);
             }
+            // The event plan's limits (EventPlan\Plan::RULES). Read by Plan::rule() and nowhere
+            // else; they had no field, so the finance admin's ceiling could not be set at all.
+            foreach (['lead_spend_limit_naira', 'event_finance_limit_naira', 'lead_week_hours'] as $k) {
+                if (!array_key_exists($k, $b) || trim((string) $b[$k]) === '') continue;
+                $this->settings->set($k, (string) max(1, (int) $b[$k]), $adminId);
+            }
             if (array_key_exists('processing_fee_pct', $b)) {
                 $this->settings->set('processing_fee_pct', (string) max(0, (float) $b['processing_fee_pct']), $adminId);
             }
+            // The rest of the gateway's schedule, and who bears it on a partner gift
+            // (GatewayFee): one schedule the cover, the page's total and the ledger share.
+            foreach (['processing_fee_flat', 'processing_fee_flat_from', 'processing_fee_cap'] as $k) {
+                if (array_key_exists($k, $b)) $this->settings->set($k, (string) max(0, (int) $b[$k]), $adminId);
+            }
+            if (array_key_exists(\AfricaGates\Services\GatewayFee::BEARER_KEY, $b)) {
+                $this->settings->set(\AfricaGates\Services\GatewayFee::BEARER_KEY,
+                    (string) $b[\AfricaGates\Services\GatewayFee::BEARER_KEY] === 'platform' ? 'platform' : 'organisation', $adminId);
+            }
+            \AfricaGates\Services\GatewayFee::forget();
+        }
+
+        // When the announcement stops — typed in the display zone, stored in UTC, the same
+        // pair as the planned-work window. Blank means until somebody clears the text.
+        if (array_key_exists('announce_until', $b)) {
+            $u = trim(str_replace('T', ' ', (string) $b['announce_until']));
+            $this->settings->set('announce_until', $u === '' ? '' : (\AfricaGates\Support\DisplayTime::toStored($u) ?? ''), $adminId);
         }
 
         // Planned work on /status (Phase 9) — normalised by its one reader's own writer.

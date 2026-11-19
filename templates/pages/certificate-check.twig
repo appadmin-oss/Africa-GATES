@@ -1,0 +1,35 @@
+{% extends 'layout/shell.twig' %}
+{#
+  /certificates/{code} — CHECK A CERTIFICATE (AccountController::certificateCheck).
+
+  Anybody holding a printed certificate of community recognition can scan its QR or type its
+  address and be told plainly whether we issued it, to whom, for what. Worked out again now
+  (SupporterRecord::certificateFor), never read off a stored copy, so a certificate whose
+  edition was withdrawn, or whose holder closed their account, stops checking out — and is
+  told so in the same words as a forged one, because the page cannot tell them apart and
+  should not pretend to.
+#}
+{% set colour_tier = '1' %}
+{% set flow_page = true %}
+{% set app_bar = {variant: 'child', title: 'Check a certificate'|trans, back: '/vote'} %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/newsletter.css') }}"><meta name="robots" content="noindex, nofollow">{% endblock %}
+
+{% block content %}
+<div class="nl nl--task">
+  <section class="nl__card" aria-labelledby="ceH">
+    <p class="nl__kicker">{{ 'Certificate of community recognition'|trans }}</p>
+    {% if c %}
+      <h1 class="nl__h1" id="ceH">{{ 'This certificate is genuine'|trans }}</h1>
+      <p class="nl__p">{{ 'Africa GATES issued it to %name% for backing their own in %award% %edition%:'|trans({'%name%': c.name, '%award%': c.award, '%edition%': c.edition}) }}</p>
+      <ul class="nl__p">
+        {% for w in c.why %}<li>{{ w }}</li>{% endfor %}
+      </ul>
+    {% else %}
+      <h1 class="nl__h1" id="ceH">{{ 'We could not find this certificate'|trans }}</h1>
+      <p class="nl__p">{{ 'Check the address was typed exactly as printed. A certificate also stops checking out if its edition was withdrawn or its holder closed their account.'|trans }}</p>
+    {% endif %}
+    <a class="ag-btn ag-btn--secondary" href="/vote">{{ 'See the awards'|trans }}</a>
+  </section>
+</div>
+{% endblock %}

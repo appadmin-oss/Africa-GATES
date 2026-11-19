@@ -1,0 +1,23 @@
+{% extends 'layout/shell.twig' %}
+{#
+  OFFLINE — shown by the service worker (public/sw.js) when a page could not be reached.
+
+  The worker fetches this once, as a signed-out visitor, and keeps it, so it holds nobody's
+  name, no session and no notice. It is served AT THE ADDRESS that failed, so "Try again"
+  is a link to that same address (an empty href), and works with no script at all.
+#}
+{% block header %}{% endblock %}
+{% block app_bar %}{% endblock %}
+{% block bottom_bar %}{% endblock %}
+{% block sheets %}{% endblock %}
+{% block gee %}{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/offline.css') }}">{% endblock %}
+{% block content %}
+<section class="ag-offline" aria-labelledby="ag-off-h">
+  <svg class="ag-offline__i" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 8.8a15 15 0 0 1 4.2-2.6M22 8.8a15 15 0 0 0-11.3-3.7M5 12.5a10 10 0 0 1 3.5-2M19 12.5a10 10 0 0 0-3-1.8M8.5 16a5 5 0 0 1 7 0M12 20h.01M3 3l18 18"/></svg>
+  <h1 class="ag-offline__h" id="ag-off-h">{{ 'You’re offline'|trans }}</h1>
+  <p class="ag-offline__p">{{ 'This page could not be reached. Check your data or Wi-Fi, then try again.'|trans }}</p>
+  <p class="ag-offline__p">{{ 'Nothing you did was lost: a vote or a payment only counts once it reaches us, and you will see it confirmed.'|trans }}</p>
+  <a class="ag-btn ag-btn--primary ag-btn--pill ag-offline__go" href="">{{ 'Try again'|trans }}</a>
+</section>
+{% endblock %}

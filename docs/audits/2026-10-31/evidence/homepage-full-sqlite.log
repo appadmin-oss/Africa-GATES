@@ -1,0 +1,298 @@
+PHP Deprecated:  Tests\Unit\AdminAuthMiddlewareTest::signIn(): Implicitly marking parameter $sessionRole as nullable is deprecated, the explicit nullable type must be used instead in /workspace/Africa-GATES/tests/Unit/AdminAuthMiddlewareTest.php on line 75
+Deprecated: Tests\Unit\AdminAuthMiddlewareTest::signIn(): Implicitly marking parameter $sessionRole as nullable is deprecated, the explicit nullable type must be used instead in /workspace/Africa-GATES/tests/Unit/AdminAuthMiddlewareTest.php on line 75
+PHPUnit 10.5.63 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.4.24
+Configuration: /workspace/Africa-GATES/phpunit.xml.dist
+
+.............................................................   61 / 7621 (  0%)
+.............................................................  122 / 7621 (  1%)
+..............[support] reply email failed on AGS-TEST01: smtp refused
+.[support] no address on ticket AGS-NOMAIL; reply was NOT emailed
+.[support] no mailer available; reply on AGS-TEST01 was NOT emailed
+..............[legal] installed the shipped "advertising" document on first request — it had never been seeded on this deployment.
+........................[AiService] chat() could not run — -/- → no tool-capable provider configured (need one of: anthropic, openai, gemini, groq)
+.......  183 / 7621 (  2%)
+.....[AiService] all providers failed after 6s per attempt — groq/llama-3.1-8b-instant → HTTP 0 (Could not resolve host: api.groq.com) | gemini/gemini-3.6-flash → HTTP 401 {"error":{"message":"API key not valid"}}
+.[AiService] all providers failed after 6s per attempt — groq/llama-3.1-8b-instant → HTTP 429 {"error":"rate limit"} | gemini/gemini-3.6-flash → HTTP 200 with no candidates at all
+..[AiService] all providers failed after 6s per attempt — groq/llama-3.1-8b-instant → HTTP 0 (Connection timed out) | gemini/gemini-3.6-flash → HTTP 0 (Connection timed out)
+.........[AiService] all providers failed after 6s per attempt — gemini/gemini-3.6-flash → HTTP 404 {"error":{"message":"model not found"}}
+.[AiService] all providers failed after 6s per attempt — gemini/gemini-3.6-flash → HTTP 0 (Could not resolve host: generativelanguage.googleapis.com)
+........................................[AiService] all providers failed after 6s per attempt — gemini/gemini-3.6-flash → HTTP 200 but no text: the whole 2048-token output budget went on reasoning before the model answered (finishReason MAX_TOKENS)
+.[AiService] all providers failed after 6s per attempt — gemini/gemini-3.6-flash → HTTP 200 but the PROMPT was blocked before the model saw it (blockReason SAFETY)
+.[AiService] all providers failed after 6s per attempt — gemini/gemini-3.6-flash → HTTP 200 but the answer was withheld (finishReason SAFETY)
+.  244 / 7621 (  3%)
+..............................[AiService] all providers failed after 6s per attempt — gemini/gemini-3.6-flash → empty/failed response
+.....[AiService] all providers failed after 6s per attempt — gemini/gemini-3.6-flash → empty/failed response | groq/llama-3.1-8b-instant → empty/failed response | anthropic/claude-haiku-4-5-20251001 → empty/failed response | openai/gpt-4o-mini → empty/failed response
+...[AiService] all providers failed after 6s per attempt — openai/gpt-4o → empty/failed response | openai/gpt-4o-mini → empty/failed response
+.[AiService] all providers failed after 6s per attempt — openai/gpt-4o → empty/failed response | openai/gpt-4o-mini → empty/failed response
+......................  305 / 7621 (  4%)
+.........................................................[AiService] refusing to send a placeholder credential to https://api.openai.com/v1/chat/completions
+[AiService] refusing to send a placeholder credential to https://api.groq.com/openai/v1/chat/completions
+[AiService] refusing to send a placeholder credential to https://api.anthropic.com/v1/messages
+.[AiService] refusing to send a placeholder credential to https://generativelanguage.googleapis.com/v1beta/models/x:generateContent?key=changeme
+...  366 / 7621 (  4%)
+....[AiService] all providers failed after 6s per attempt — groq/llama-3.1-8b-instant → TIMEOUT after 6s (connected, but no reply in time)
+.........[AiService] all providers failed after 4s per attempt — anthropic/claude-haiku-4-5-20251001 → empty/failed response
+.[AiService] all providers failed after 6s per attempt — anthropic/claude-opus-5-5 → the model declined (cyber)
+...............................................  427 / 7621 (  5%)
+.............................................................  488 / 7621 (  6%)
+.............................................................  549 / 7621 (  7%)
+.............................................................  610 / 7621 (  8%)
+..........................[refund] order paystack_6413965117_hw8rf parked for a human — over the per-order ceiling of ₦200,000
+....[refund] paystack_6413965117_hw8rf refused (attempt 1, unclassified): ok
+.......[refund] paystack_6413965117_hw8rf refused (attempt 1, unclassified): ok
+.[refund] paystack_6413965117_hw8rf refused (attempt 1, unclassified): ok
+.[refund] paystack_6413965117_hw8rf refused (attempt 1, transient): ok
+[refund] paystack_6413965117_hw8rf refused (attempt 2, transient): ok
+[refund] paystack_6413965117_hw8rf refused (attempt 3, transient): ok
+[refund] paystack_6413965117_hw8rf refused (attempt 4, transient): ok
+.[refund] paystack_6413965117_hw8rf refused (attempt 1, permanent): ok
+.[refund] paystack_6413965117_hw8rf refused (attempt 1, unclassified): ok
+[refund] paystack_6413965117_hw8rf refused (attempt 2, unclassified): ok
+..[refund] order paystack_6413965117_hw8rf parked for a human — over the per-order ceiling of ₦200,000
+...[refund] paystack_6413965117_hw8rf refused (attempt 1, unclassified): ok
+...............  671 / 7621 (  8%)
+.............................................................  732 / 7621 (  9%)
+.............................................................  793 / 7621 ( 10%)
+.............................................................  854 / 7621 ( 11%)
+.....................[flier] refused a photo path outside the upload directories: /assets/img/challenges/no-such-file.png
+........................................  915 / 7621 ( 12%)
+.............................................................  976 / 7621 ( 12%)
+............................................[claim] fan-out for AGC-001F4F-Q reached NOBODY on 1 channel(s) — check SMTP and SMS configuration.
+..[claim] fan-out for AGC-001F4F-Q reached NOBODY on 0 channel(s) — check SMTP and SMS configuration.
+.........[claim-guard] could not read claims for nominee 8800: SQLSTATE[HY000]: General error: 1 no such table: gates_nominee_claims (Connection: default, Database: :memory:, SQL: select * from "gates_nominee_claims" where "nominee_id" = 8800 order by "id" desc)
+...... 1037 / 7621 ( 13%)
+..........................................F.................. 1098 / 7621 ( 14%)
+............................................................. 1159 / 7621 ( 15%)
+............................................................. 1220 / 7621 ( 16%)
+............................................................. 1281 / 7621 ( 16%)
+............................................................. 1342 / 7621 ( 17%)
+............................................................. 1403 / 7621 ( 18%)
+.......[crm-push] refused: [{"ref":"gift:1","why":"bad-ref"}]
+...................................................... 1464 / 7621 ( 19%)
+............................................................. 1525 / 7621 ( 20%)
+............................................................. 1586 / 7621 ( 20%)
+............................................................. 1647 / 7621 ( 21%)
+............................................................. 1708 / 7621 ( 22%)
+............................................................. 1769 / 7621 ( 23%)
+............................................................D 1830 / 7621 ( 24%)
+...DDD....................................................... 1891 / 7621 ( 24%)
+............................................................. 1952 / 7621 ( 25%)
+............................................[door-welcome] switched on but cannot render: No OpenAI key — add it under Settings → AI providers.
+................. 2013 / 7621 ( 26%)
+............................................................. 2074 / 7621 ( 27%)
+............................................................. 2135 / 7621 ( 28%)
+............................................................. 2196 / 7621 ( 28%)
+.............[flier] refused a photo path outside the upload directories: /nonexistent/not-a-photo.jpg
+................................................ 2257 / 7621 ( 29%)
+................................................  + gates_event_programmes created
+  ~ rebuilding empty gates_event_invites for the two-audience set
+  + gates_event_invites created
+............. 2318 / 7621 ( 30%)
+............................................................. 2379 / 7621 ( 31%)
+............................................................. 2440 / 7621 ( 32%)
+............................................................. 2501 / 7621 ( 32%)
+............................................................. 2562 / 7621 ( 33%)
+............................................................. 2623 / 7621 ( 34%)
+...........................................................[flier] refused a photo URL that is not http(s): file:///tmp/ag-fetch-bjv7fvtfn5v12MbJDlF
+[flier] refused a photo URL that is not http(s): php://filter/resource=/tmp/ag-fetch-bjv7fvtfn5v12MbJDlF
+[flier] refused a photo URL that is not http(s): FILE:///tmp/ag-fetch-bjv7fvtfn5v12MbJDlF
+.. 2684 / 7621 ( 35%)
+............................................................. 2745 / 7621 ( 36%)
+............................................................. 2806 / 7621 ( 36%)
+............................................................. 2867 / 7621 ( 37%)
+............................................................. 2928 / 7621 ( 38%)
+............................................................. 2989 / 7621 ( 39%)
+............................................................. 3050 / 7621 ( 40%)
+............................................................. 3111 / 7621 ( 40%)
+............................................................. 3172 / 7621 ( 41%)
+..........................................[interview-bot] master switch is off — withdrew 1 bot(s).
+................... 3233 / 7621 ( 42%)
+............................................................. 3294 / 7621 ( 43%)
+............................................................. 3355 / 7621 ( 44%)
+............................................................. 3416 / 7621 ( 44%)
+............................................................. 3477 / 7621 ( 45%)
+............................................................. 3538 / 7621 ( 46%)
+............................................................. 3599 / 7621 ( 47%)
+.........................[programmes] category save: SQLSTATE[23000]: Integrity constraint violation: 19 UNIQUE constraint failed: gates_award_categories.cycle_id, gates_award_categories.slug (Connection: default, Database: :memory:, SQL: insert into "gates_award_categories" ("cycle_id", "slug", "title", "description", "sort_order") values (61, big, Again, , 1))
+.................................... 3660 / 7621 ( 48%)
+..................................................[judge] score log 1/1: SQLSTATE[HY000]: General error: 1 no such table: gates_judge_score_log (Connection: default, Database: :memory:, SQL: insert into "gates_judge_score_log" ("changed_at", "criterion_id", "judge_id", "new_score", "nominee_id", "old_score") values (2026-10-31 18:12:27, 1, 1, 8, 1, ?))
+........... 3721 / 7621 ( 48%)
+............................................................. 3782 / 7621 ( 49%)
+............................................................. 3843 / 7621 ( 50%)
+........[legal] installed the shipped "terms" document on first request — it had never been seeded on this deployment.
+[legal] installed the shipped "privacy" document on first request — it had never been seeded on this deployment.
+[legal] installed the shipped "cookies" document on first request — it had never been seeded on this deployment.
+[legal] installed the shipped "refunds" document on first request — it had never been seeded on this deployment.
+[legal] installed the shipped "vendor-terms" document on first request — it had never been seeded on this deployment.
+[legal] installed the shipped "advertising" document on first request — it had never been seeded on this deployment.
+..................................................... 3904 / 7621 ( 51%)
+............................................................. 3965 / 7621 ( 52%)
+............................................................. 4026 / 7621 ( 52%)
+............................................................. 4087 / 7621 ( 53%)
+............................................................. 4148 / 7621 ( 54%)
+............................................................. 4209 / 7621 ( 55%)
+............................................................. 4270 / 7621 ( 56%)
+............................................................. 4331 / 7621 ( 56%)
+............................................................. 4392 / 7621 ( 57%)
+.............................................[claim] AGC-001F4F-Q could not activate: SQLSTATE[23000]: Integrity constraint violation: 19 UNIQUE constraint failed: gates_nominee_claims.active_nominee_id (Connection: default, Database: :memory:, SQL: update "gates_nominee_claims" set "status" = active, "active_nominee_id" = 1, "activated_at" = 2026-10-31 18:12:58, "independence" = {"independent":true,"matched":[],"say":"This channel is independent of everyone who nominated this person."}, "cooling_off_until" = 2026-11-07 18:12:58, "dispute_token" = 1daefa131dd2d9a392d86d86e69a8289 where "id" = 1 and "status" = pending)
+.............[claim] fan-out for AGC-001F4F-Q reached NOBODY on 1 channel(s) — check SMTP and SMS configuration.
+... 4453 / 7621 ( 58%)
+............................................................. 4514 / 7621 ( 59%)
+............................................................. 4575 / 7621 ( 60%)
+........................................................[payout] agpo-1-39a6353d268c: the gateway said "processing", which is not a status this platform knows — the funds stay held
+[payout] agpo-1-39a6353d268c: the gateway said "processing", which is not a status this platform knows — the funds stay held
+[payout] agpo-1-39a6353d268c: the gateway said "queued-at-bank", which is not a status this platform knows — the funds stay held
+[payout] agpo-1-39a6353d268c: the gateway said "<b>x", which is not a status this platform knows — the funds stay held
+..... 4636 / 7621 ( 60%)
+............................................................. 4697 / 7621 ( 61%)
+..........................................................[passkey] assertion refused: Invalid signature.
+..[passkey] assertion refused: Invalid challenge.
+. 4758 / 7621 ( 62%)
+[passkey] assertion refused: Invalid origin. Not in the list of allowed origins.
+.[passkey] assertion refused: Invalid origin. Subdomains are not allowed.
+.[passkey] registration refused: Invalid challenge.
+........................................................... 4819 / 7621 ( 63%)
+............................................................. 4880 / 7621 ( 64%)
+............................................................. 4941 / 7621 ( 64%)
+.........[legal] installed the shipped "refunds" document on first request — it had never been seeded on this deployment.
+[legal] installed the shipped "vendor-terms" document on first request — it had never been seeded on this deployment.
+.................................................... 5002 / 7621 ( 65%)
+............................................................. 5063 / 7621 ( 66%)
+.......................F.....................[legal] installed the shipped "refunds" document on first request — it had never been seeded on this deployment.
+[legal] installed the shipped "vendor-terms" document on first request — it had never been seeded on this deployment.
+..[legal] installed the shipped "refunds" document on first request — it had never been seeded on this deployment.
+[legal] installed the shipped "vendor-terms" document on first request — it had never been seeded on this deployment.
+W............. 5124 / 7621 ( 67%)
+........................[legal] installed the shipped "refunds" document on first request — it had never been seeded on this deployment.
+[legal] installed the shipped "vendor-terms" document on first request — it had never been seeded on this deployment.
+..................................... 5185 / 7621 ( 68%)
+............................................................. 5246 / 7621 ( 68%)
+............................................................. 5307 / 7621 ( 69%)
+..................[AiService] chat() failed — openai/gpt-4o-mini → empty/failed response
+........................................... 5368 / 7621 ( 70%)
+............................................................. 5429 / 7621 ( 71%)
+..................[AiService] refusing to send a placeholder credential to https://api.openai.com/v1/chat/completions
+[AiService] chat() failed — openai/gpt-4o-mini → empty/failed response
+........................................... 5490 / 7621 ( 72%)
+............................................................. 5551 / 7621 ( 72%)
+............................................................. 5612 / 7621 ( 73%)
+............................................................. 5673 / 7621 ( 74%)
+.....................[referral] refusing to credit an undeclared source: paid_vote
+.[referral] refusing to credit an undeclared source: donation
+...................[refund] AMOUNT MISMATCH on AFG-PVOTE-DIFF: charged 9600, gateway refunded 9000
+.................... 5734 / 7621 ( 75%)
+............................................................. 5795 / 7621 ( 76%)
+....................[result-release] chain check: SQLSTATE[HY000]: General error: 1 no such table: gates_vote_snapshots (Connection: default, Database: :memory:, SQL: select * from "gates_vote_snapshots" order by "id" asc limit 1000 offset 0)
+......................................... 5856 / 7621 ( 76%)
+............................................................. 5917 / 7621 ( 77%)
+......................[webcron tick] no completed maintenance run in the last 6h — running maintenance from web traffic instead. Set webcron_auto=off in Settings to stop this.
+.[webcron tick] no completed maintenance run in the last 6h — running maintenance from web traffic instead. Set webcron_auto=off in Settings to stop this.
+...................................... 5978 / 7621 ( 78%)
+............................................................. 6039 / 7621 ( 79%)
+.........................................................[setup] REFUSED password reset for boss@agates.test from  — 1 active superadmin(s) exist
+.[setup] REFUSED password reset for removed@agates.test from  — 1 active superadmin(s) exist
+.[setup] REFUSED password reset for non-superadmin editor@agates.test from 
+.[setup] superadmin recovery: password reset + unlock for boss@agates.test from 
+. 6100 / 7621 ( 80%)
+............................................................. 6161 / 7621 ( 80%)
+............................................................. 6222 / 7621 ( 81%)
+............................................................. 6283 / 7621 ( 82%)
+............................................................. 6344 / 7621 ( 83%)
+.........[sms-inbound] refused: signature did not verify
+.[sms-inbound] refused: signature did not verify
+.[sms-inbound] refused: signature did not verify
+.[sms-inbound] refused: signature did not verify
+.[sms-inbound] refused: no Twilio auth token configured to verify against
+................................................ 6405 / 7621 ( 84%)
+.......[stand-call-notice] could not queue for call 1: SQLSTATE[HY000]: General error: 1 no such table: gates_jobs (Connection: default, Database: :memory:, SQL: select exists(select * from "gates_jobs" where "dedupe_key" = stand.call_opened:1:d25354f658256d3988a0a1f07ae2dbfa64c0141b3eaa5650fd268b3fdd903b7d) as "exists")
+...................................................... 6466 / 7621 ( 84%)
+............................................................. 6527 / 7621 ( 85%)
+............................................................. 6588 / 7621 ( 86%)
+............................................................. 6649 / 7621 ( 87%)
+....................[support] agent answer failed grounding, asking again
+.....[support] agent promised an action without taking it; sending it back
+.[support] agent promised an action without taking it; sending it back
+[support] agent promised again after being told; discarding the promise
+...............[support] no mailer available; reply on AGS-A5811B was NOT emailed
+.[support] no mailer available; reply on AGS-EF09E0 was NOT emailed
+..[support] no mailer available; reply on AGS-B4CAD9 was NOT emailed
+.[support] no mailer available; reply on AGS-7E8551 was NOT emailed
+[support] no mailer available; reply on AGS-7E8551 was NOT emailed
+....[support] no mailer available; reply on AGS-4D30A7 was NOT emailed
+....[support] no mailer available; reply on AGS-3F8E76 was NOT emailed
+........ 6710 / 7621 ( 88%)
+............................................................. 6771 / 7621 ( 88%)
+............................................................. 6832 / 7621 ( 89%)
+............................................................. 6893 / 7621 ( 90%)
+............................................................. 6954 / 7621 ( 91%)
+............................................................. 7015 / 7621 ( 92%)
+............................................................. 7076 / 7621 ( 92%)
+............................................................. 7137 / 7621 ( 93%)
+............................................................. 7198 / 7621 ( 94%)
+............................................................. 7259 / 7621 ( 95%)
+............................................................. 7320 / 7621 ( 96%)
+...........[vote-message] moderation unavailable: provider unreachable
+.................................................. 7381 / 7621 ( 96%)
+............................................................. 7442 / 7621 ( 97%)
+............................................................. 7503 / 7621 ( 98%)
+.[cfis] catalogue unavailable (Failed to connect to 127.0.0.1 port 9 after 0 ms: Could not connect to server) — using the last good list
+............................................................ 7564 / 7621 ( 99%)
+.........................................................     7621 / 7621 (100%)
+
+Time: 07:00.016, Memory: 499.00 MB
+
+There were 2 failures:
+
+1) Tests\Unit\ColourBudgetTest::test_no_page_spends_more_colour_than_its_tier_allows
+a page is spending more colour than it declared:
+  templates/pages/advertise-library.twig: tier 1 allows 1, spends 2 (green, error)
+  templates/pages/leaderboard.twig: tier 2 allows 2, spends 3 (gold, green, live)
+  templates/pages/legacy/event.twig: tier 1 allows 1, spends 2 (gold, live)
+  templates/pages/legacy/index.twig: tier 1 allows 1, spends 2 (gold, live)
+  templates/pages/org/_frame.twig: tier 2 allows 2, spends 3 (gold, green, live)
+  templates/pages/recognitions-withdrawn.twig: tier 0 allows 0, spends 2 (gold, live)
+Failed asserting that two arrays are identical.
+--- Expected
++++ Actual
+@@ @@
+-Array &0 []
++Array &0 [
++    0 => 'templates/pages/advertise-library.twig: tier 1 allows 1, spends 2 (green, error)',
++    1 => 'templates/pages/leaderboard.twig: tier 2 allows 2, spends 3 (gold, green, live)',
++    2 => 'templates/pages/legacy/event.twig: tier 1 allows 1, spends 2 (gold, live)',
++    3 => 'templates/pages/legacy/index.twig: tier 1 allows 1, spends 2 (gold, live)',
++    4 => 'templates/pages/org/_frame.twig: tier 2 allows 2, spends 3 (gold, green, live)',
++    5 => 'templates/pages/recognitions-withdrawn.twig: tier 0 allows 0, spends 2 (gold, live)',
++]
+
+/workspace/Africa-GATES/tests/Unit/ColourBudgetTest.php:185
+
+2) Tests\Unit\ProviderBreakerTest::test_a_timed_out_connection_is_not_retried_within_one_call
+Failed asserting that 'HTTP 403 Domain forbidden' [ASCII](length: 25) contains "HTTP 0" [ASCII](length: 6).
+
+/workspace/Africa-GATES/tests/Unit/ProviderBreakerTest.php:243
+
+--
+
+1 test triggered 2 PHP warnings:
+
+1) /workspace/Africa-GATES/vendor/illuminate/database/Query/Builder.php:3821
+Undefined property: stdClass::$slug
+
+Triggered by:
+
+* Tests\Unit\PublicPagesRenderTest::test_every_public_page_renders_signed_out_and_signed_in (4 times)
+  /workspace/Africa-GATES/tests/Unit/PublicPagesRenderTest.php:41
+
+2) /workspace/Africa-GATES/vendor/illuminate/database/Query/Builder.php:3821
+Undefined property: stdClass::$token
+
+Triggered by:
+
+* Tests\Unit\PublicPagesRenderTest::test_every_public_page_renders_signed_out_and_signed_in
+  /workspace/Africa-GATES/tests/Unit/PublicPagesRenderTest.php:41
+
+FAILURES!
+Tests: 7621, Assertions: 58378, Failures: 2, Warnings: 2, Deprecations: 2.

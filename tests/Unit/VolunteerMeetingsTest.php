@@ -213,8 +213,8 @@ final class VolunteerMeetingsTest extends TestCase
         [$org, $a] = [$this->vol('Chika Nwosu'), $this->vol('Bola Ade')];
         $_SESSION['user_id'] = $org->user_id;
         $form = (string) $this->ctrl()->root((new ServerRequestFactory())->createServerRequest('GET', '/volunteer/meetings/new'), new Response(), ['page' => 'meetings', 'tab' => 'new'])->getBody();
-        $this->assertMatchesRegularExpression('~<fieldset class="sh7-field sh7-field--choice"><legend class="sh7-field__label">Invite</legend>\s*<label class="sh7-choice sh7-choice--check"><input type="checkbox" name="people\[\]" value="' . $a->id . '"> Bola Ade · Teachers Prize~', $form, 'a named group of labelled checkboxes');
-        $this->assertMatchesRegularExpression('~<label class="sh7-field" for="f_date"><span class="sh7-field__label">Date</span>\s*<input class="sh7-input" id="f_date" type="date"~', $form);
+        $this->assertMatchesRegularExpression('~<fieldset class="sh7-field sh7-field--choice"(?: aria-describedby="[^"]+")?><legend class="sh7-field__label(?: sh7-sr)?">Invite</legend>\s*<label class="sh7-choice sh7-choice--check"><input type="checkbox" name="people\[\]" value="' . $a->id . '"> Bola Ade · Teachers Prize~', $form, 'a named group of labelled checkboxes');
+        $this->assertMatchesRegularExpression('~<label class="sh7-field" for="f_meet_date"><span class="sh7-field__label">Date</span>\s*<input class="sh7-input" id="f_meet_date" type="date"~', $form);
 
         // A refusal keeps what was typed, and the people chosen.
         $req = (new ServerRequestFactory())->createServerRequest('POST', '/volunteer/act')->withParsedBody($this->form([$a], ['do' => 'meet', 'date' => 'soon', 'back' => '/volunteer/meetings/new']));
@@ -231,6 +231,7 @@ final class VolunteerMeetingsTest extends TestCase
         $this->assertStringContainsString('Bola Ade (you)', $page);
         $list = (string) $this->ctrl()->root((new ServerRequestFactory())->createServerRequest('GET', '/volunteer/meetings'), new Response(), ['page' => 'meetings'])->getBody();
         $this->assertStringContainsString('Can you come?', $list);
-        $this->assertMatchesRegularExpression('~>Meetings</span><span class="sh7-badge sh7-badge--warn" aria-hidden="true">1</span><span class="sh7-sr">, 1 waiting</span>~', $list, 'the rail counts the invitation waiting for an answer');
+        $this->assertMatchesRegularExpression('~>Meetings</span>\s*<span class="sh7-badge sh7-badge--warn" aria-hidden="true">1</span><span class="sh7-sr">, 1 waiting</span>~', $list, 'the rail counts the invitation waiting for an answer');
+        $this->assertStringContainsString('<span>Meetings<span class="sh7-sr">, 1 waiting</span></span>', $list, 'and so does the phone’s tab, in words');
     }
 }

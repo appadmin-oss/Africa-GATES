@@ -70,7 +70,7 @@ final class AlertsPageTest extends TestCase
 
         // The pill and older links say ?tab=high; that is the High chip, pressed.
         $high = $this->page('tab=high');
-        $this->assertMatchesRegularExpression('~href="[^"]*" aria-pressed="true">\s*<span class="al2-sev-dot al2-sev-dot--high"~', $high);
+        $this->assertMatchesRegularExpression('~href="[^"]*" aria-current="true">\s*<span class="al2-sev-dot al2-sev-dot--high"~', $high);
     }
 
     public function test_the_timeline_reads_the_status_record(): void

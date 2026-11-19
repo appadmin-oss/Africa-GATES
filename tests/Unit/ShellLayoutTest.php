@@ -134,7 +134,9 @@ final class ShellLayoutTest extends TestCase
 
         $layout = $this->twig('templates/layout/shell.twig');
         $this->assertSame(1, preg_match_all('~<main\b~', $layout), 'the shell has exactly one <main>');
-        $this->assertMatchesRegularExpression('~<main class="ag-main" id="main">~', $layout);
+        // The scroller is a div, not the landmark: the footer scrolls with the page and is
+        // still not inside <main> (accessibility audit, 16 Nov 2026).
+        $this->assertMatchesRegularExpression('~<div class="ag-main" id="main" tabindex="-1">\s*<main class="ag-page" id="content">~', $layout);
     }
 
     public function test_focus_is_a_three_pixel_green_ring_two_pixels_out(): void
@@ -259,7 +261,10 @@ final class ShellLayoutTest extends TestCase
 
     public function test_the_shell_loads_the_base_in_the_bundles_order(): void
     {
-        preg_match_all("~asset\('/(assets/css/[^']+)'\)~", $this->twig('templates/layout/shell.twig'), $m);
+        // The easy-read face is an ADDRESS the shell hands to a11y.js (`data-ag-easy-font`),
+        // linked only for somebody who turns the setting on — not part of the base cascade.
+        $src = (string) preg_replace('~data-ag-easy-font="[^"]*"~', '', $this->twig('templates/layout/shell.twig'));
+        preg_match_all("~asset\('/(assets/css/[^']+)'\)~", $src, $m);
         $shell = $m[1];
         // The base and nothing else: the rules once carved out of components.css
         // (chrome.css, library.css) were destroyed with the old pages, and a rebuilt
@@ -273,8 +278,10 @@ final class ShellLayoutTest extends TestCase
                  // The Menu sheet, rebuilt whole out of chrome.css (4 Oct 2026, MENU-SHEET.md).
                  'assets/css/components/menu-sheet.css', 'assets/css/components/consent.css',
                  // The field macros' sheet, and the default graphics (5 Oct 2026).
-                 'assets/css/components/forms.css', 'assets/css/components/cover.css',
-                 'assets/css/components/footer.css', 'assets/css/components/gee.css'];
+                 'assets/css/components/forms.css',
+                 // Site notices — planned work and the operator's announcement (11 Nov 2026).
+                 'assets/css/components/notice.css', 'assets/css/components/cover.css',
+                 'assets/css/components/footer.css', 'assets/css/components/gee.css', 'assets/css/components/photo-upload.css'];
         $this->assertSame($want, $shell,
             'the shell must load the base, in the bundle\'s order, and nothing destroyed');
 
@@ -296,7 +303,7 @@ final class ShellLayoutTest extends TestCase
         $this->assertMatchesRegularExpression(
             "~\\{% if css_bundle\\|default\\(null\\) %\\}\\s*<link rel=\"stylesheet\" href=\"\\{\\{ css_bundle \\}\\}\">\\s*\\{% else %\\}\\s*<link rel=\"stylesheet\" href=\"\\{\\{ asset\\('/assets/css/fonts.css'\\) \\}\\}\">\\s*<link rel=\"stylesheet\" href=\"\\{\\{ asset\\('/assets/css/tokens.css'\\) \\}\\}\">~", $src,
             'the bundle link, then the ten as the fallback');
-        $this->assertMatchesRegularExpression("~components/gee\\.css'\\) \\}\\}\">\\{% endif %\\}\\s*\\{% endif %\\}~", $src, 'the fallback ends with the last sheet');
+        $this->assertMatchesRegularExpression("~components/photo-upload\\.css'\\) \\}\\}\">\\s*\\{% endif %\\}~", $src, 'the fallback ends with the last sheet');
         $m = ChromeRender::code('src/Support/Maintenance.php');
         $this->assertStringContainsString("['assets', \$this->task('assets'", $m, 'nothing keeps the bundle built');
         $this->assertStringContainsString('AssetBundle::build()', $m);

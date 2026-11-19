@@ -31,6 +31,16 @@ final class Grants
     /** What each capability lets its holder do, in the words the access page shows. */
     public const CAPABILITIES = [
         'event.lead'                => 'Lead this event',
+        // An event's OWNER approves what its leads propose about who may do what there
+        // (EventPlan\Teams). Given by staff, never by a lead (owner, 3 Nov 2026).
+        'event.own'                 => 'Own this event',
+        // A role a lead defined and an owner approved; what it opens is the role's ticks
+        // from EventPlan\EventPermissions::MENU, read live, never this word.
+        'event.role'                => 'Event team role',
+        // An event's FINANCE ADMIN (owner, 12 Nov 2026): decides its spend requests, approves
+        // its spend lines and signs off its money gates. Never plans spend — the lead does —
+        // so the person who asks for money is never the one who approves it. Given by staff.
+        'event.finance'             => 'Finance admin for this event',
         'award.moderate'            => 'Moderate this award',
         'vol.nomination_check'      => 'Nomination check',
         'vol.voter_drive'           => 'Voter drive',
@@ -39,6 +49,9 @@ final class Grants
         'vol.usher'                 => 'Usher',
         'vol.interview_scheduling'  => 'Interview scheduling',
         'vol.team_lead'             => 'Team lead',
+        // The same, for a role the lead made a VOLUNTEER role: the vetting rule holds
+        // (RoleInvites::eligible reads the `vol.` prefix), and the role shows in the workspace.
+        'vol.event_role'            => 'Event team role (volunteer)',
     ];
 
     public const SCOPES = ['platform', 'programme', 'cycle', 'event'];
@@ -60,6 +73,13 @@ final class Grants
         if (!isset(self::CAPABILITIES[$capability])) return ['ok' => false, 'error' => 'That is not a role this platform knows.'];
         if (!in_array($scopeKind, self::SCOPES, true)) return ['ok' => false, 'error' => 'That is not a place a role can be given.'];
         if ($scopeKind !== 'platform' && !$scopeId) return ['ok' => false, 'error' => 'Say which award or event the role is for.'];
+        // Who asks for money and who approves it stay two people (AUDIT-AND-PLAN EV-5). The
+        // owner's decision held this on ONE path (Changes::decide); staff giving a finance
+        // admin directly, or later making that person a lead, put both in one pair of hands.
+        // Checked here, where every road to a grant ends.
+        if ($scopeKind === 'event' && $scopeId && ($clash = self::moneyClash($actorKind, $actorId, $capability, (int) $scopeId)) !== null) {
+            return ['ok' => false, 'error' => $clash];
+        }
         $end = strtotime($expiresAt);
         if ($end === false) return ['ok' => false, 'error' => 'Every role needs an end date.'];
         if ($end <= time()) return ['ok' => false, 'error' => 'The end date has already passed.'];
@@ -71,6 +91,19 @@ final class Grants
             'expires_at' => date('Y-m-d H:i:s', $end), 'created_at' => date('Y-m-d H:i:s'),
         ]);
         return ['ok' => true, 'id' => $id];
+    }
+
+    /** A reason this grant would put asking for and approving an event's money in one person, or null. */
+    private static function moneyClash(string $actorKind, int $actorId, string $capability, int $eventId): ?string
+    {
+        $holds = static fn (string $cap): bool => self::allows($actorKind, $actorId, $cap, 'event', $eventId);
+        if ($capability === 'event.finance' && ($holds('event.lead') || $holds('event.own'))) {
+            return 'A lead or owner of this event cannot also be its finance admin: who asks for money and who approves it stay two people.';
+        }
+        if (in_array($capability, ['event.lead', 'event.own'], true) && $holds('event.finance')) {
+            return 'This person is the event’s finance admin. End that role first: who asks for money and who approves it stay two people.';
+        }
+        return null;
     }
 
     public static function revoke(int $grantId, ?int $by = null): bool
@@ -140,10 +173,17 @@ final class Grants
     }
 
     /** @param \Illuminate\Database\Query\Builder $q */
-    private static function live($q)
+    /**
+     * THE answer to "is this grant live now": not revoked, not expired, and started. Public so
+     * every reader asks it (as `->where(fn ($w) => Grants::live($w, 'g.'))`) instead of spelling
+     * the clause again: seven readers did, and none checked `starts_at`, so a role that had
+     * not started yet already allowed check-in, team membership and meeting invites
+     * (AUDIT-AND-PLAN VO-9). VolunteerControlsTest sweeps for a new copy.
+     */
+    public static function live($q, string $prefix = '')
     {
         $now = date('Y-m-d H:i:s');
-        return $q->whereNull('revoked_at')->where('expires_at', '>', $now)
-            ->where(static fn ($w) => $w->whereNull('starts_at')->orWhere('starts_at', '<=', $now));
+        return $q->whereNull($prefix . 'revoked_at')->where($prefix . 'expires_at', '>', $now)
+            ->where(static fn ($w) => $w->whereNull($prefix . 'starts_at')->orWhere($prefix . 'starts_at', '<=', $now));
     }
 }

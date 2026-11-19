@@ -217,7 +217,7 @@ final class EventFlier
             $user = DB::table('gates_users')->where('email', $email)->first();
             if (!$user) return '';
 
-            return (string) (ReferralService::codeFor((int) $user->id) ?? '');
+            return (string) (ReferralService::existingCode((int) $user->id) ?? '');
         } catch (\Throwable) {
             return '';
         }

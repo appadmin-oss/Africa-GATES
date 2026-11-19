@@ -67,6 +67,28 @@
 .fl-copy__k{ margin:0 0 4px; font-size:var(--ag-fs-12-5); font-weight:700; color:var(--ag-soft) }
 .fl-copy__t{ margin:0; font-size:var(--ag-fs-17); line-height:1.5 }
 .fl-acts{ display:flex; gap:8px; flex-wrap:wrap }
+/* The share-kit chooser: size, style, ground, colour — each a link (FlierController::page). */
+.fl-pick{ display:flex; flex-direction:column; gap:10px }
+.fl-pick__k{ margin:6px 0 0; font-size:var(--ag-fs-14); font-weight:700; color:var(--ag-soft) }
+.fl-pick ul{ margin:0; padding:0; list-style:none }
+.fl-pick__sizes{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px }
+.fl-pick__size{ display:flex; flex-direction:column; gap:2px; min-height:56px; box-sizing:border-box; padding:10px 14px; border:1px solid var(--ag-line-2); border-radius:var(--ag-r-12); background:var(--ag-surface); color:var(--ag-ink); text-decoration:none }
+.fl-pick__l{ font-size:var(--ag-fs-15); font-weight:700 }
+.fl-pick__h{ font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
+.fl-pick__row{ display:flex; flex-wrap:wrap; gap:8px; align-items:center }
+.fl-pick__chip{ display:inline-flex; align-items:center; min-height:44px; box-sizing:border-box; padding:0 18px; border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill); background:var(--ag-surface); color:var(--ag-ink); font-size:var(--ag-fs-15); font-weight:700; text-decoration:none }
+.fl-pick__size[aria-current], .fl-pick__chip[aria-current]{ border:2px solid var(--ag-ink) }
+.fl-pick__sw{ display:block; width:44px; height:44px; box-sizing:border-box; border-radius:50%; border:13px solid var(--ag-line-2); background:var(--ag-surface); box-shadow:0 0 0 1px var(--ag-line-2) }
+.fl-pick__sw[aria-current]{ box-shadow:0 0 0 3px var(--ag-surface), 0 0 0 5px var(--ag-ink) }
+/* Rings, not fills: a swatch names a colour the CARD will use, so it is a mark beside a
+   choice rather than a colour field on this page (ColourBudgetTest, ColourFields). */
+.fl-pick__sw--gold{ border-color:var(--ag-gold) }
+.fl-pick__sw--green{ border-color:var(--ag-green) }
+.fl-pick__sw--info{ border-color:var(--ag-info) }
+.fl-pick__sw--live{ border-color:var(--ag-live) }
+.fl-pick__sw--stone{ border-color:var(--ag-ink-2) }
+.fl-img--status{ max-width:360px }
+.fl-img--link{ border-radius:12px }
 .fl-status{ margin:0; font-size:var(--ag-fs-14); font-weight:600 }
 .fl-status:empty{ display:none }
 @media (min-width:600px){

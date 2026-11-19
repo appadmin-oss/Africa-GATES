@@ -1342,8 +1342,12 @@ class AccountController
 
         \AfricaGates\Services\ReferralService::codeFor($id);
 
-        // Back to the dashboard, anchored on the panel, so the answer is on screen rather
-        // than at the top of a long page.
+        // Back where it was asked from when that is an event page (its "Get my link"), else
+        // the dashboard, anchored on the panel. Only an /events/ path: never an open redirect.
+        $next = (string) (((array) $req->getParsedBody())['next'] ?? '');
+        if (preg_match('~^/events/[A-Za-z0-9_-]+$~', $next)) {
+            return $res->withHeader('Location', $next . '#h-earn')->withStatus(303);
+        }
         return $res->withHeader('Location', '/account?tab=referral#me-referral')->withStatus(303);
     }
 
@@ -1368,17 +1372,11 @@ class AccountController
             return $res->withHeader('Location', '/account/login')->withStatus(302);
         }
 
-        $b = (array) $req->getParsedBody();
-        $r = \AfricaGates\Services\ReferralPayout::request(
-            $id,
-            (string) ($b['bank'] ?? ''),
-            (string) ($b['account_name'] ?? ''),
-            (string) ($b['account_number'] ?? '')
-        );
-
-        $_SESSION[$r['ok'] ? 'flash' : 'flash_error'] = $r['message'];
-
-        return $res->withHeader('Location', '/account?tab=referral#me-referral')->withStatus(303);
+        // Retired: a referral withdrawal goes through the wallet (MemberWallet::withdraw), which
+        // records the bank change, tells the member, keeps the bank code and runs the checks.
+        // This posted straight to ReferralPayout::request() and did none of that. A page still
+        // holding the old form is sent to the wallet, never to an unchecked request.
+        return $res->withHeader('Location', '/account/wallet/withdraw?pocket=ref')->withStatus(303);
     }
 
     /**
@@ -1640,6 +1638,57 @@ class AccountController
             'my_nominations' => \AfricaGates\Services\MemberActivityService::nominationsFor((string) $user->email, 15),
             'my_votes'       => \AfricaGates\Services\MemberActivityService::votesFor((string) $user->email, 15),
             'my_links'       => \AfricaGates\Services\MemberActivityService::shareLinksFor((int) $user->id, 8),
+        ]);
+    }
+
+    /**
+     * GET /account/supporting — "My support" (SupporterRecord): everybody this member has
+     * backed, edition by edition, how each turned out, the "I backed" card for each, the
+     * badges it earned, and a certificate where an edition earned one.
+     */
+    public function supporting(Request $req, Response $res): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        $rec = \AfricaGates\Services\SupporterRecord::forMember((int) $user->id, (string) $user->email);
+
+        return $this->view->render($res, 'pages/account/supporting.twig', $this->railFor($user, 'supporting') + [
+            'page_title' => 'My support — Africa GATES', 'gates_page' => 'account', 'record' => $rec,
+        ]);
+    }
+
+    /**
+     * GET /account/supporting/certificate/{cycle} — the member's certificate of community
+     * recognition for one edition, to print. Only where the edition earned one; anything else
+     * goes back to the record rather than printing a certificate for nothing.
+     */
+    public function certificate(Request $req, Response $res, array $args): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        $c = \AfricaGates\Services\SupporterRecord::certificateFor((int) $user->id, (int) ($args['cycle'] ?? 0));
+        if ($c === null) return $res->withHeader('Location', '/account/supporting')->withStatus(302);
+        $check = \AfricaGates\Support\SiteUrl::base($req) . '/certificates/' . $c['code'];
+
+        return $this->view->render($res, 'pages/account/certificate.twig', [
+            'page_title' => 'Certificate of community recognition — Africa GATES', 'c' => $c,
+            'check' => $check, 'qr' => \AfricaGates\Support\Qr::svgBytes($check, 4),
+        ])->withHeader('X-Robots-Tag', 'noindex');
+    }
+
+    /**
+     * GET /certificates/{code} — anybody checking a certificate: genuine, and what it says, or
+     * not one we issued. The code is a signature over the member and the edition, so it cannot
+     * be guessed; and the answer is worked out again now, so a certificate whose edition was
+     * withdrawn (or whose holder closed their account) stops checking out.
+     */
+    public function certificateCheck(Request $req, Response $res, array $args): Response
+    {
+        $ids = \AfricaGates\Services\SupporterRecord::verify((string) ($args['code'] ?? ''));
+        $c = $ids ? \AfricaGates\Services\SupporterRecord::certificateFor($ids[0], $ids[1]) : null;
+
+        return $this->view->render($res->withStatus($c ? 200 : 404), 'pages/certificate-check.twig', [
+            'page_title' => 'Check a certificate — Africa GATES', 'c' => $c,
         ]);
     }
 
@@ -1938,7 +1987,12 @@ class AccountController
         // is for the person's eyes. Nobody to ask is not a reason to stop them.
         $resolved = '';
         $ps = new \AfricaGates\Services\PaymentService();
-        if ($code !== '' && $ps->isEnabled('paystack')) {
+        // The same budget as the live lookup. This path asks the bank the same question
+        // — number in, the holder's NAME out — and counted nothing, so a script posting
+        // the confirm form turned the wallet into an unmetered register of who owns
+        // which account. Over the budget it simply does not ask: the name is a courtesy,
+        // and the send-time checks ask the bank again anyway.
+        if ($code !== '' && $ps->isEnabled('paystack') && $this->mayResolve((int) $user->id, $req)) {
             $r = $ps->resolveAccount($bank['account_number'], $code);
             if (!$r['ok'] && $r['reachable']) {
                 return $back('Your bank did not recognise that account number. Check it and try again.');
@@ -1974,6 +2028,17 @@ class AccountController
         $bank = ['bank' => (string) ($b['bank'] ?? ''), 'account_name' => (string) ($b['account_name'] ?? ''),
                  'account_number' => (string) ($b['account_number'] ?? ''), 'bank_code' => (string) ($b['bank_code'] ?? '')];
         $amount = ($b['amount_kobo'] ?? '') === '' ? null : max(0, (int) $b['amount_kobo']);
+        // The bank code and its name come off a hidden field, so they are checked against
+        // the bank list here rather than trusted: a reviewer reads the NAME, an automatic
+        // transfer is built from the CODE, and a posted pair that disagrees would show one
+        // bank to the person and pay another. A code not on the list is dropped — the request
+        // then goes to a person, which is what a request without a code always did.
+        if ($bank['bank_code'] !== '') {
+            $listed = array_values(array_filter(\AfricaGates\Services\WalletAutoPay::banks(),
+                static fn ($x) => (string) ($x['code'] ?? '') === $bank['bank_code']));
+            if ($listed) $bank['bank'] = (string) $listed[0]['name'];
+            else $bank['bank_code'] = '';
+        }
 
         $r = $W::withdraw((int) $user->id, $key, $amount, $bank, ($b['accept'] ?? '') === '1');
         if (!$r['ok']) {
@@ -1982,6 +2047,18 @@ class AccountController
             return $res->withHeader('Location', '/account/wallet/withdraw?pocket=' . rawurlencode($key))->withStatus(303);
         }
         return $res->withHeader('Location', '/account/wallet/tx/' . $r['key'] . '?new=1')->withStatus(303);
+    }
+
+    /**
+     * One budget for asking a bank whose account a number is, wherever it is asked from:
+     * per member, and per connection so a farm of fresh accounts meets it too.
+     */
+    private function mayResolve(int $userId, Request $req): bool
+    {
+        if ($this->rateLimit === null) return true;
+        $ip = (string) ($req->getServerParams()['REMOTE_ADDR'] ?? '');
+        return $this->rateLimit->check('u:' . $userId, 'wallet_resolve', 20, 3600)
+            && $this->rateLimit->check(hash('sha256', $ip), 'wallet_resolve_ip', 40, 3600);
     }
 
     /**
@@ -2001,11 +2078,7 @@ class AccountController
             $q = $req->getQueryParams();
             $num = preg_replace('/\D+/', '', (string) ($q['account_number'] ?? '')) ?? '';
             $code = preg_replace('/[^0-9A-Za-z]/', '', (string) ($q['bank_code'] ?? '')) ?? '';
-            $ip = (string) ($req->getServerParams()['REMOTE_ADDR'] ?? '');
-            $allowed = $this->rateLimit === null || (
-                $this->rateLimit->check('u:' . (int) $user->id, 'wallet_resolve', 20, 3600)
-                && $this->rateLimit->check(hash('sha256', $ip), 'wallet_resolve_ip', 40, 3600));
-            if (!$allowed) {
+            if (!$this->mayResolve((int) $user->id, $req)) {
                 $status = 429;
             } elseif (strlen($num) === 10 && $code !== '') {
                 $ps = new \AfricaGates\Services\PaymentService();
@@ -2129,19 +2202,26 @@ class AccountController
         // Optional password change — require the current password when one is already set.
         $newPw = (string) ($b['new_password'] ?? '');
         if ($newPw !== '') {
-            if (strlen($newPw) < 8) {
-                $_SESSION['flash_error'] = 'New password must be at least 8 characters.';
+            $changed = $this->accounts->changePassword((int) $user->id, $newPw, (string) ($b['current_password'] ?? ''));
+            if (!$changed['ok']) {
+                $_SESSION['flash_error'] = $changed['error'];
                 return $res->withHeader('Location', '/account?tab=profile#profile')->withStatus(302);
             }
-            if (!empty($user->password_hash) && !password_verify((string) ($b['current_password'] ?? ''), (string) $user->password_hash)) {
-                $_SESSION['flash_error'] = 'Your current password is incorrect.';
-                return $res->withHeader('Location', '/account?tab=profile#profile')->withStatus(302);
-            }
-            $this->accounts->setPassword((int) $user->id, $newPw);
         }
 
         $_SESSION['flash_ok'] = 'Your account was updated.';
         return $res->withHeader('Location', '/account?tab=profile#profile')->withStatus(302);
+    }
+
+    /** Security updates never rewrite profile fields from an older browser tab. */
+    public function passwordUpdate(Request $req, Response $res): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        $b = (array) $req->getParsedBody();
+        $changed = $this->accounts->changePassword((int) $user->id, (string) ($b['new_password'] ?? ''), (string) ($b['current_password'] ?? ''));
+        $_SESSION[$changed['ok'] ? 'flash_ok' : 'flash_error'] = $changed['ok'] ? 'Your password was updated.' : $changed['error'];
+        return $res->withHeader('Location', '/account?tab=security#password')->withStatus(302);
     }
 
     public function logout(Request $req, Response $res): Response

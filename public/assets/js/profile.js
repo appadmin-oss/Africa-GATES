@@ -8,6 +8,9 @@
    ══════════════════════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
+  // Page-wide listeners and timers go through agPage (layout/shell.twig), which site-nav.js
+  // undoes when this page is swapped away; elsewhere they are plain (SiteNavTest).
+  var pg = window.agPage || { on: function (t, y, f, o) { t.addEventListener(y, f, o); }, every: function (f, ms) { return setInterval(f, ms); }, leave: function () {} };
   var root = document.querySelector('[data-pp]');
   var synth = window.speechSynthesis;
   if (!root || !synth || typeof window.SpeechSynthesisUtterance !== 'function') return;
@@ -71,5 +74,5 @@
     rate = (rate + 1) % RATES.length;
     speedBtn.textContent = RATES[rate] + '×';
   });
-  window.addEventListener('pagehide', function () { synth.cancel(); });
+  pg.on(window, 'pagehide', function () { synth.cancel(); });
 })();

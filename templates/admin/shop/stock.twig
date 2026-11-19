@@ -1,0 +1,131 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  SHOP STOCK (shop upgrade, 18 Nov 2026): running low, the stock-take, and adjustments.
+
+  Every number changed here is a ledger entry with a reason and a name (ShopStock). A blank
+  counted box means "not counted", never zero — a stock-take of half the shelf must not empty the
+  other half. Levels are per option; blank uses the shop-wide default.
+#}
+
+{% block head_styles %}{% include 'admin/shop/_styles.twig' %}{% endblock %}
+
+{% block topbar_title %}Shop stock{% endblock %}
+{% block topbar_actions %}
+  <a class="ad-btn" href="/admin/shop/orders">Orders</a>
+  <a class="ad-btn" href="/admin/products">Catalogue</a>
+{% endblock %}
+
+{% block content %}
+<p class="sh-sub">What is on the shelf, what is running out, and where every unit went.</p>
+
+{% if not ready %}
+<section class="sh-sec sh-sec--warn">
+  <h2>One step outstanding on the server</h2>
+  <p>The stock ledger needs the latest database update. Run <strong>/__setup/migrate</strong>.</p>
+</section>
+{% endif %}
+
+<section class="sh-sec" aria-labelledby="stLow">
+  <h2 id="stLow">Running low</h2>
+  {% if low|length %}
+  <p>{{ low|length }} option{{ low|length == 1 ? '' : 's' }} at or under the level set for {{ low|length == 1 ? 'it' : 'them' }}. A summary is emailed once a day.</p>
+  <div class="ad-table-wrap">
+    <table class="sh-list">
+      <thead><tr><th scope="col">Product</th><th scope="col">Option</th><th scope="col" class="is-num">Left</th><th scope="col" class="is-num">Low at</th><th scope="col"></th></tr></thead>
+      <tbody>
+        {% for r in low %}
+        <tr class="{{ r.state == 'out' ? 'is-low' : '' }}">
+          <td><strong>{{ r.name }}</strong></td>
+          <td>{{ r.option ?: '—' }}</td>
+          <td class="is-num">{% if r.state == 'out' %}<span class="sh-tag sh-tag--no">Out</span>{% else %}{{ r.stock }}{% endif %}</td>
+          <td class="is-num">{{ r.low }}</td>
+          <td><a class="sh-btn sh-btn--ghost sh-btn--tiny" href="/admin/shop/products/{{ r.product_id }}/stock">History</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p>Nothing is at or under its level.</p>
+  {% endif %}
+</section>
+
+<section class="sh-sec" aria-labelledby="stAdjust">
+  <h2 id="stAdjust">Record a delivery, damage or a giveaway</h2>
+  <form method="post" action="/admin/shop/stock/adjust" class="sh-row">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <label class="sh-field sh-grow">Product and option
+      <select name="pick" required>
+        <option value="">Choose…</option>
+        {% for r in rows|filter(r => r.stock is not null) %}
+        <option value="{{ r.product_id }}:{{ r.variant_id }}">{{ r.name }}{% if r.option %} — {{ r.option }}{% endif %} ({{ r.stock }})</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="sh-field">What happened
+      <select name="reason">{% for k, label in reasons %}<option value="{{ k }}">{{ label }}</option>{% endfor %}</select>
+    </label>
+    <label class="sh-field">How many<input type="number" name="qty" min="1" step="1" class="sh-num" required></label>
+    <label class="sh-field sh-grow">Note<input name="note" maxlength="200" placeholder="Supplier, who it went to…"></label>
+    <button class="sh-btn" type="submit">Record</button>
+  </form>
+</section>
+
+<section class="sh-sec" aria-labelledby="stTake">
+  <h2 id="stTake">Stock-take</h2>
+  <p>Type what is actually on the shelf. Each difference from what the system expects is recorded as a stock-take with your name; blank boxes are left alone.</p>
+  <form class="sh-row" method="get" action="/admin/shop/stock" role="search">
+    <label class="sr-only" for="stQ">Search products</label>
+    <input type="search" id="stQ" name="q" value="{{ q }}" placeholder="Product name…" class="sh-grow">
+    <label class="sr-only" for="stShow">Show</label>
+    <select id="stShow" name="show">
+      <option value="tracked" {% if show == 'tracked' %}selected{% endif %}>Counted options</option>
+      <option value="low" {% if show == 'low' %}selected{% endif %}>Low and out only</option>
+      <option value="all" {% if show == 'all' %}selected{% endif %}>Everything, including uncounted</option>
+    </select>
+    <button class="sh-btn sh-btn--ghost" type="submit">Show</button>
+  </form>
+
+  {% if error %}
+  <div class="sh-warn" role="alert">{{ error }} <a href="/admin/shop/stock">Try again</a></div>
+  {% elseif rows|length == 0 %}
+  <p role="status">{{ q ? 'No product matches that search.' : 'Nothing to count here yet.' }}</p>
+  {% else %}
+  <form method="post" action="/admin/shop/stock/count">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <input type="hidden" name="back_show" value="{{ show }}">
+    <div class="ad-table-wrap">
+      <table class="sh-list">
+        <thead><tr><th scope="col">Product</th><th scope="col">Option</th><th scope="col">SKU</th><th scope="col" class="is-num">Expected</th><th scope="col">Counted</th><th scope="col">Low at</th></tr></thead>
+        <tbody>
+          {% for r in rows %}
+          {% set key = r.product_id ~ ':' ~ r.variant_id %}
+          <tr class="{{ r.state == 'out' or r.state == 'low' ? 'is-low' : '' }}">
+            <td><a href="/admin/shop/products/{{ r.product_id }}/stock">{{ r.name }}</a></td>
+            <td>{{ r.option ?: '—' }}</td>
+            <td class="sh-small sh-muted">{{ r.sku ?: '—' }}</td>
+            <td class="is-num">{{ r.stock is null ? 'not counted' : r.stock }}</td>
+            <td><input type="number" min="0" step="1" class="sh-num" name="counted[{{ key }}]" aria-label="Counted for {{ r.name }} {{ r.option }}"></td>
+            <td>
+              <input type="number" min="0" step="1" class="sh-num" name="low[{{ key }}]" value="{{ r.own_low ?? '' }}" placeholder="{{ default }}" aria-label="Low-stock level for {{ r.name }} {{ r.option }}">
+              <input type="hidden" name="low_was[{{ key }}]" value="{{ r.own_low ?? '' }}">
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="sh-row">
+      <label class="sh-field sh-grow">Note for this count<input name="note" maxlength="200" placeholder="e.g. Monday count, back store"></label>
+      <label class="sh-field">Shop-wide low level<input type="number" min="0" step="1" class="sh-num" name="default_low" value="{{ default }}"></label>
+      <label class="sh-field">Set every option shown to<input type="number" min="0" step="1" class="sh-num" name="bulk_low"></label>
+      <label class="sh-row sh-small"><input type="checkbox" class="sh-check" name="bulk_apply" value="1"> Apply that level to all {{ rows|length }} shown</label>
+    </div>
+    <p class="sh-small">At most {{ count_max }} rows in one save.</p>
+    <div class="sh-row"><button class="sh-btn" type="submit">Save the count</button></div>
+  </form>
+  {% endif %}
+</section>
+
+{% endblock %}

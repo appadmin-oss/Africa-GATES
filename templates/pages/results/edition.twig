@@ -25,10 +25,10 @@
 
 {% set colour_tier = '1' %}
 {% set colour_band = true %}
-{% set app_bar = {variant: 'child', title: 'Results'|trans, sub: e.edition ?: e.year, back: '/results'} %}
+{% set app_bar = {variant: 'child', title: 'Results'|trans, sub: e.edition ?: e.year, back: '/results', share: true} %}
 {% set _o = e.overall %}
 
-{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/results.css') }}">{% include 'partials/seo-head.twig' %}{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/results.css') }}">{% endblock %}
 
 {% block content %}
 <div class="rs">

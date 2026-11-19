@@ -537,4 +537,40 @@ final class WalletAutoPayTest extends TestCase
         $this->assertSame(['velocity'], $this->codes());
         $this->assertSame([], $this->gw->transfers);
     }
+
+    /**
+     * The platform cap is the same race one level up, between two DIFFERENT members — so
+     * the member lock cannot serialise it. Another member's withdrawal commits between
+     * the first check and the send; the send reads the cap again, under the platform lock.
+     */
+    public function test_the_platform_cap_is_asked_again_when_the_transfer_is_committed(): void
+    {
+        $this->returnAvailable(100000);
+        $this->rules(['wallet_auto_platform_daily_naira' => 1000]);
+        $gw = $this->gw;
+        $ps = new class ($gw) extends PaymentService {
+            public function __construct(private object $gw) { parent::__construct(); }
+            public function isEnabled(string $p): bool { return $p === 'paystack'; }
+            public function resolveAccount(string $n, string $c): array
+            {
+                // Somebody else's ₦600 goes out while this one is being looked at.
+                DB::table('gates_referral_payouts')->insert(['user_id' => 8, 'amount_naira' => 600, 'bank_name' => 'x',
+                    'account_name' => 'x', 'account_number' => '0987654321', 'status' => 'requested',
+                    'auto_state' => 'sending', 'sent_at' => Carbon::now()->toDateTimeString(),
+                    'requested_at' => Carbon::now()->toDateTimeString()]);
+                return ['ok' => true, 'name' => 'OBI ADA CHIOMA', 'reachable' => true, 'message' => ''];
+            }
+            public function createTransferRecipient(string $name, string $n, string $c): array { return ['ok' => true, 'code' => 'R', 'message' => '']; }
+            public function initiateTransferKobo(int $k, string $r, string $ref, string $why = ''): array
+            {
+                $this->gw->transfers[] = $ref;
+                return ['ok' => true, 'status' => 'pending', 'transfer_code' => 'T', 'transfer_id' => '1', 'message' => ''];
+            }
+        };
+        $r = W::withdraw(7, 'page-1', 60000, self::BANK, true, $ps);
+        $this->assertTrue($r['ok'], $r['message']);
+        $this->assertSame(Auto::A_HELD, $r['auto'], 'two members each fitted under the platform cap because each read it before the other sent');
+        $this->assertSame(['platform'], $this->codes());
+        $this->assertSame([], $this->gw->transfers);
+    }
 }

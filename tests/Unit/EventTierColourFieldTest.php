@@ -288,8 +288,7 @@ final class EventTierColourFieldTest extends TestCase
 
     public function test_the_event_form_has_the_field_and_names_the_colours(): void
     {
-        $tpl = (string) file_get_contents(
-            dirname(__DIR__, 2) . '/templates/admin/events/form.twig');
+        $tpl = \Tests\Support\EventEditorSource::read();
 
         $this->assertStringContainsString('name="tier_colour[]"', $tpl);
         // Not a bare word list: the six slots are rendered with the hex they resolve to for
@@ -301,8 +300,7 @@ final class EventTierColourFieldTest extends TestCase
 
     public function test_the_live_swatch_needs_no_inline_handler(): void
     {
-        $tpl = (string) file_get_contents(
-            dirname(__DIR__, 2) . '/templates/admin/events/form.twig');
+        $tpl = \Tests\Support\EventEditorSource::read();
         $js  = (string) file_get_contents(
             dirname(__DIR__, 2) . '/public/assets/js/admin.js');
 
@@ -318,8 +316,7 @@ final class EventTierColourFieldTest extends TestCase
 
     public function test_the_field_is_hidden_when_the_column_is_not_migrated(): void
     {
-        $tpl = (string) file_get_contents(
-            dirname(__DIR__, 2) . '/templates/admin/events/form.twig');
+        $tpl = \Tests\Support\EventEditorSource::read();
 
         // `colour` arrived on its own dated migration. On a deployment that has uploaded
         // this code and not run /__setup/migrate, writing it would throw inside saveTiers()'
@@ -345,7 +342,7 @@ final class EventTierColourFieldTest extends TestCase
         // select binds onto an undefined property.
         $this->assertStringContainsString(
             "colour:''",
-            (string) file_get_contents(dirname(__DIR__, 2) . '/templates/admin/events/form.twig')
+            \Tests\Support\EventEditorSource::read()
         );
     }
 }

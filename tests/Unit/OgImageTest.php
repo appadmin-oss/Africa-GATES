@@ -170,10 +170,17 @@ class OgImageTest extends TestCase
     {
         // A duplicate array key silently wins, and the LATER one did — so a
         // standings-aware alt was dead on arrival while reading in the diff as applied.
+        // Per RENDER CALL, not per file: two pages (the ballot, the Champion of the Day) each
+        // declare their own alt, and that is not a duplicate. A duplicate is two in one array.
         $src = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Controllers/VoteController.php');
-
-        $this->assertSame(1, preg_match_all("~'og_image_alt'\s*=>~", $src),
-            'two og_image_alt keys means one of them does nothing');
+        $calls = preg_split('~->render\(~', $src) ?: [];
+        array_shift($calls);
+        $this->assertGreaterThan(0, preg_match_all("~'og_image_alt'\s*=>~", $src), 'the sweep found nothing to check');
+        foreach ($calls as $i => $call) {
+            $body = (string) preg_split('~\n    (?:public|private|protected) function ~', $call)[0];
+            $this->assertLessThanOrEqual(1, preg_match_all("~'og_image_alt'\s*=>~", $body),
+                'two og_image_alt keys in one render means one of them does nothing (render #' . ($i + 1) . ')');
+        }
     }
 
     public function test_the_svg_keeps_its_own_hardened_policy(): void

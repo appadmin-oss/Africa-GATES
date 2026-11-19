@@ -1,0 +1,12 @@
+PHP Deprecated:  Tests\Unit\AdminAuthMiddlewareTest::signIn(): Implicitly marking parameter $sessionRole as nullable is deprecated, the explicit nullable type must be used instead in /workspace/Africa-GATES/tests/Unit/AdminAuthMiddlewareTest.php on line 75
+Deprecated: Tests\Unit\AdminAuthMiddlewareTest::signIn(): Implicitly marking parameter $sessionRole as nullable is deprecated, the explicit nullable type must be used instead in /workspace/Africa-GATES/tests/Unit/AdminAuthMiddlewareTest.php on line 75
+PHPUnit 10.5.63 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.4.24
+Configuration: /workspace/Africa-GATES/phpunit.xml.dist
+
+...............................................                   47 / 47 (100%)
+
+Time: 00:14.935, Memory: 239.50 MB
+
+OK (47 tests, 516 assertions)

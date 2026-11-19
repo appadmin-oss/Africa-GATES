@@ -1,0 +1,60 @@
+{#
+  /account/supporting/certificate/{cycle} — A CERTIFICATE OF COMMUNITY RECOGNITION, to print
+  (AccountController::certificate, Services\SupporterRecord::certificateFor).
+
+  Earned in an edition by being among its top 10 supporters or by bringing 10 or more people to
+  vote — never by money alone, and never drawn for an edition that did not earn it (the
+  controller sends that request back to the record). It states WHY in words, and carries a code
+  and a QR to /certificates/{code}, where anybody can check it: a certificate nobody can verify
+  is decoration, and one a person frames is a claim somebody will one day check.
+
+  A page of its own, not the shell, like the poster: nothing on it but the certificate and two
+  controls the printer never sees. A4 landscape, the shape of a certificate.
+  Colour: gold is the honour (the frame, the reasons); green is the one control (print).
+#}
+{% set colour_tier = '2' %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ page_title }}</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<style nonce="{{ csp_nonce }}">{{ ag_accents()|raw }}</style>
+<link rel="stylesheet" href="{{ asset('/assets/css/fonts.css') }}">
+<link rel="stylesheet" href="{{ asset('/assets/css/tokens.css') }}">
+<link rel="stylesheet" href="{{ asset('/assets/css/components/certificate.css') }}">
+</head>
+<body class="ce-body">
+<div class="ce-tools">
+  <a class="ce-tools__a" href="/account/supporting">Back to my support</a>
+  <button class="ce-tools__b" type="button" data-po-print>Print this certificate</button>
+  <p class="ce-tools__p">A4, landscape. It prints on one page.</p>
+</div>
+<main class="ce" id="main">
+  <div class="ce__in">
+    <p class="ce__kicker">{{ c.place ? c.place ~ ' is celebrating its own' : c.award }}</p>
+    <h1 class="ce__h">Certificate of community recognition</h1>
+    <p class="ce__pre">This recognises</p>
+    <p class="ce__name">{{ c.name }}</p>
+    <p class="ce__for">for backing their own in <b>{{ c.award }} {{ c.edition }}</b></p>
+    <ul class="ce__why">
+      {% for w in c.why %}<li>{{ w }}</li>{% endfor %}
+    </ul>
+    <div class="ce__foot">
+      <div class="ce__sig">
+        <p class="ce__sig-n">{{ c.host }}</p>
+        <p class="ce__sig-t">{{ c.date }}</p>
+      </div>
+      <div class="ce__check">
+        {% if qr %}<div class="ce__qr" role="img" aria-label="QR code to check this certificate">{{ qr|raw }}</div>{% endif %}
+        <p class="ce__check-t">Check it at <span class="ce__ref">{{ check|replace({'https://': '', 'http://': ''}) }}</span></p>
+      </div>
+    </div>
+  </div>
+</main>
+{# A page of its own, outside the shell: site-nav never swaps it, so the script is a full load's. #}
+<script src="{{ asset('/assets/js/poster.js') }}" defer data-nav="reload"></script>
+</body>
+</html>

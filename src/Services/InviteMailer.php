@@ -112,12 +112,12 @@ final class InviteMailer
      *
      * @return array<string,mixed>
      */
-    private static function compose(object $invite, object $event): array
+    private static function compose(object $invite, object $event, ?string $to = null): array
     {
         $spec = InviteAudience::spec((string) $invite->audience);
         $tier = EventInvites::lowestTier((int) $event->id);
         $attachments = self::attachments($invite, $event, $tier);
-        $view = self::view($invite, $event, $spec, $tier, rtrim(SiteUrl::base(), '/'));
+        $view = self::view($invite, $event, $spec, $tier, rtrim(SiteUrl::base(), '/'), $to ?? (string) $invite->email);
         // The sentence about the letter is only true when the letter rendered.
         $view['letter_attached'] = (bool) array_filter($attachments,
             static fn(array $a): bool => $a['mime'] === 'application/pdf');
@@ -158,7 +158,11 @@ final class InviteMailer
         }
 
         $mailer ??= OtpService::boot();
-        $m = self::compose($invite, $event);
+        // Composed FOR the address it goes to. The body carries its own unsubscribe link
+        // as well as the shell's, and it was the invitee's: an operator checking their
+        // letter who clicked "unsubscribe" in it silently opted a nominee out of every
+        // mail we send them — the one person the run exists to reach.
+        $m = self::compose($invite, $event, $to);
 
         $r = self::deliver($mailer, $to, $m);
 
@@ -205,7 +209,7 @@ final class InviteMailer
      * @param array<string,mixed> $spec
      * @return array<string,mixed>
      */
-    private static function view(object $invite, object $event, array $spec, ?object $tier, string $base): array
+    private static function view(object $invite, object $event, array $spec, ?object $tier, string $base, string $recipient): array
     {
         $quota = (int) $invite->guest_quota;
         $pct   = InviteAudience::discountPercent();
@@ -257,7 +261,7 @@ final class InviteMailer
 
             'id_url'          => EventInvites::idUrl((string) $invite->reference, $base),
             'events_url'      => $base . '/events/' . rawurlencode((string) $event->slug),
-            'unsubscribe_url' => EmailOptOut::url($base, (string) $invite->email),
+            'unsubscribe_url' => EmailOptOut::url($base, $recipient),
             'postal_address'  => \AfricaGates\Services\Mail\MailConfig::postal(),
         ];
     }

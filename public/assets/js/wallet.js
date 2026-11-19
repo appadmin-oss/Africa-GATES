@@ -16,9 +16,14 @@
    ══════════════════════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
+  // Page-wide listeners and timers go through agPage (layout/shell.twig), which site-nav.js
+  // undoes when this page is swapped away; elsewhere they are plain (SiteNavTest).
+  var pg = window.agPage || { on: function (t, y, f, o) { t.addEventListener(y, f, o); }, every: function (f, ms) { return setInterval(f, ms); }, leave: function () {} };
   var KEY = 'ag-hide-bal';
   var root = document.documentElement;
-  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // The site's own reduce-motion switch (html.ag-rm, a11y.js) as well as the system's.
+  var reduce = document.documentElement.classList.contains('ag-rm') ||
+    !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
   function store() {
     try { return root.getAttribute('data-ag-keep') === '1' ? window.localStorage : window.sessionStorage; }
@@ -105,7 +110,7 @@
     var x = toast && toast.querySelector('[data-wl-toast-x]');
     if (x) x.addEventListener('click', function () { toast.hidden = true; });
     window.setInterval(poll, 30000);
-    document.addEventListener('visibilitychange', function () { if (!document.hidden) poll(); });
+    pg.on(document, 'visibilitychange', function () { if (!document.hidden) poll(); });
   }
 
   /* ── the withdraw form: the fee and what arrives, as the amount is typed ─────

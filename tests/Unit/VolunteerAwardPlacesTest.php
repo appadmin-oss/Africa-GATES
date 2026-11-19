@@ -112,6 +112,28 @@ final class VolunteerAwardPlacesTest extends TestCase
         }
     }
 
+    /**
+     * The desk's nominator signals are moderation's judgements ABOUT the nominator — a
+     * self-nomination, one device behind several nominators — and reach a volunteer no more
+     * than the nominator's name does. What the desk found about the NOMINEE (a duplicate)
+     * still does.
+     */
+    public function test_the_desks_signals_about_the_nominator_never_reach_a_volunteer(): void
+    {
+        $this->volunteer(['vol.nomination_check']);
+        $self = $this->nom('Grace Adeyemi');                      // the nominator nominated themselves
+        $this->nom('Tunde Kareem');
+        $this->nom('Tunde Kareem');                                // and a duplicate, about the nominee
+        $peek = \AfricaGates\Admin\Services\ReviewQueue::peek($self);
+        $this->assertContains('The nominator has the nominee’s name', array_column($peek['check_list'], 't'), 'the desk does raise it, for moderators');
+        $view = (string) json_encode(NominationChecks::view(Volunteers::of((int) $_SESSION['user_id']), $this->cycle, $self), JSON_UNESCAPED_UNICODE);
+        $this->assertStringNotContainsString('The nominator has the nominee’s name', $view, 'a signal about the nominator is not a volunteer’s to see');
+        $this->assertStringNotContainsString('The nominator has the nominee’s name', $this->page('queue', null, ['n' => $self]));
+        $dup = (int) DB::table('gates_nominations')->where('nominee_name', 'Tunde Kareem')->value('id');
+        $this->assertContains('Duplicate?', array_column(NominationChecks::view(Volunteers::of((int) $_SESSION['user_id']), $this->cycle, $dup)['checks'], 't'),
+            'what the desk found about the nominee still reaches the checker');
+    }
+
     public function test_a_check_needs_the_grant_a_reason_to_flag_and_is_made_once(): void
     {
         $n = $this->nom('Halima Bello');

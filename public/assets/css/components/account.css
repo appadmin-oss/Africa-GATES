@@ -289,3 +289,10 @@
   .acx-ring{ width:64px; height:64px }
   .acx-ring span{ width:50px; height:50px }
 }
+
+/* Shared settings navigation: wraps naturally at text zoom and narrow widths. */
+.acx-settings-nav { display:flex;flex-wrap:wrap;gap:8px;padding:6px;margin:0 0 24px;border:1px solid var(--ag-line);border-radius:16px;background:var(--ag-surface); }
+.acx-settings-nav a { flex:1 1 130px;min-height:44px;padding:12px 16px;border-radius:11px;text-align:center;text-decoration:none;color:inherit;font-size:1rem;font-weight:600; }
+.acx-settings-nav a[aria-current] { font-weight:700;text-decoration:underline;text-underline-offset:.2em;background:var(--ag-ink);color:var(--ag-surface); }
+.acx-settings-nav a:focus-visible { outline:3px solid currentColor;outline-offset:3px; }
+@media(max-width:599px) { .acx-settings-nav a { flex-basis:100%;text-align:start; } }

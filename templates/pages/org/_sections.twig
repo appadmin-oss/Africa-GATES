@@ -292,7 +292,7 @@
   <p class="org-hint">
     {{ payout_mode == 'transfer'
       ? 'Money is paid out only when you request it.'|trans
-      : 'Gifts settle on the provider’s schedule. Request anything still held back.'|trans }}
+      : 'Gifts settle straight to your bank on the provider’s schedule. What is shown here reached our account instead, and you can request it.'|trans }}
     {% if org.settlement_schedule == 'manual' %}
       {{ 'Your account is set to manual settlement.'|trans }}
     {% endif %}
@@ -344,7 +344,7 @@
           <tr>
             <td class="org-num">{{ ngn }}{{ (p.amount_naira|default(0))|number_format }}</td>
             <td>{{ p.gateway_message|default(p.status|default('')) }}</td>
-            <td>{{ (p.created_at|default(''))|slice(0,10) }}</td>
+            <td>{{ (p.requested_at|default(''))|slice(0,10) }}</td>
           </tr>
         {% endfor %}
       </tbody>

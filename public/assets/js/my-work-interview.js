@@ -194,7 +194,7 @@
     if (st.works) works(st.works);
     // A conversation that has stopped is a different screen (the way out, in the service's own
     // words), and the server draws it — so go and get it rather than imitate it here.
-    if (stopped.indexOf(st.degraded) !== -1 || (st.degraded === 'turns' && say)) location.reload();
+    if (stopped.indexOf(st.degraded) !== -1 || (st.degraded === 'turns' && say)) { if (window.agNav && window.agNav.reload) window.agNav.reload(); else location.reload(); }
     return st;
   }
 
@@ -403,7 +403,7 @@
   var ledger = root.querySelector('[data-iv-ledger]');
   if (ledger) {
     ledger.querySelectorAll('[data-iv-out-act]').forEach(function (n) { n.hidden = false; });
-    var reload = function () { location.hash = '#iv-review'; location.reload(); };
+    var reload = function () { if (window.agNav && window.agNav.reload) { window.agNav.reload('#iv-review'); return; } location.hash = '#iv-review'; location.reload(); };
     ledger.addEventListener('click', function (e) {
       var c = e.target.closest('[data-iv-correct]'), d = e.target.closest('[data-iv-drop]');
       if (d) post('/interview/outcome', { slug: d.getAttribute('data-iv-drop'), action: 'drop' }).then(reload);

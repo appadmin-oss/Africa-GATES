@@ -73,8 +73,12 @@ class VoteService {
             // key must not be handed that voter's result — treat it as a new attempt.
             $prior = DB::table('gates_votes')->where('idempotency_key', $idempotencyKey)->where('voter_email_hash', $eh)->first();
             if ($prior) {
+                if ((int) $prior->nominee_id !== $nomineeId) {
+                    return ['success' => false, 'code' => 'IDEMPOTENCY_CONFLICT',
+                            'message' => 'This voting attempt belongs to a different nominee. Start a new attempt.'];
+                }
                 return [
-                    'success' => true, 'code' => 'VOTE_CAST', 'message' => 'Vote already recorded.',
+                    'success' => true, 'code' => 'VOTE_CAST', 'message' => 'Vote already recorded.', 'replayed' => true,
                     'vote_id' => (int) $prior->id, 'category_id' => (int) $prior->category_id,
                     'new_count' => (int) DB::table('gates_nominees')->where('id', $prior->nominee_id)->value('vote_count'),
                     'new_rank' => null, 'days_left' => 0,
@@ -148,8 +152,16 @@ class VoteService {
                     'voter_phone'      => $voterPhone,
                     'voted_at'         => Carbon::now()->toDateTimeString(),
                 ] + $canon);
-            } catch (\Throwable $e) {
-                return ['success' => false, 'code' => 'ALREADY_VOTED', 'message' => 'You have already voted in this category.'];
+            } catch (\Illuminate\Database\QueryException $e) {
+                $driverCode = (int) ($e->errorInfo[1] ?? 0);
+                if (in_array($driverCode, [1062, 19, 1555, 2067], true)
+                    && DB::table('gates_votes')->where('voter_email_hash', $eh)
+                        ->where('category_id', $nominee->category_id)->exists()) {
+                    return ['success' => false, 'code' => 'ALREADY_VOTED', 'message' => 'You have already voted in this category.'];
+                }
+                // Roll back the attempt and let the error handler report a server
+                // failure. A rejected write does not establish that a vote exists.
+                throw $e;
             }
             DB::table('gates_otp_tokens')->where('id', $token->id)->update(['is_used' => 1]);
             // Organic vote: bump both the display total AND the organic-only count

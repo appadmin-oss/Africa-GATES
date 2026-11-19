@@ -9,7 +9,9 @@ Total: {{ amount }}
 Your reference: {{ reference }}
 
 Share the page: {{ page_url }}
-
+{% if offer_url|default('') %}
+See what your votes unlock: {{ offer_url }}
+{% endif %}
 These votes count toward {{ nominee ?: 'the nominee' }}’s public tally and the community half of the Cultural Power Index, exactly as a free vote does. Judges never see a nominee’s vote count, and every published result shows how much of a tally was contributed. Keep this receipt.
 
 —

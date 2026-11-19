@@ -266,4 +266,34 @@ final class DuplicatesPeopleTest extends TestCase
         $app->addErrorMiddleware(false, false, false);
         return $app->handle((new ServerRequestFactory())->createServerRequest('GET', $path));
     }
+
+    /**
+     * The preview RUNS the merge, rolled back — so it is the merge's own permission, not
+     * the page's. A role that may read the counts but not merge reached it by URL and
+     * executed every write the page refuses them.
+     */
+    public function test_only_a_role_that_may_merge_can_run_the_preview(): void
+    {
+        $a = $this->nominee($this->catA, 'Ada Obi');
+        $b = $this->nominee($this->catA, 'Ada  Obi');
+        $builder = new \DI\ContainerBuilder();
+        $builder->addDefinitions(require dirname(__DIR__, 2) . '/config/container.php');
+        $twig = $builder->build()->get(\Slim\Views\Twig::class);
+        $page = function (string $role) use ($twig, $a, $b): string {
+            $_SESSION['admin_id'] = 1;
+            $_SESSION['admin_role'] = $role;
+            $_SESSION['csrf_token'] = 'tok';
+            $req = (new \Slim\Psr7\Factory\ServerRequestFactory())
+                ->createServerRequest('GET', 'https://x/admin/nominees/duplicates')
+                ->withQueryParams(['cycle' => (string) $this->cycle, 'keep' => (string) $a, 'ids' => (string) $b]);
+            $c = new \AfricaGates\Admin\Controllers\DuplicatesController($twig, new \AfricaGates\Admin\Services\AuditService());
+            return (string) $c->index($req, new \Slim\Psr7\Response())->getBody();
+        };
+        try {
+            $this->assertStringContainsString('Merge preview', $page('admin'), 'a role that may merge sees the preview');
+            $this->assertStringNotContainsString('Merge preview', $page('moderator'), 'a read-only role ran the merge');
+        } finally {
+            unset($_SESSION['admin_id'], $_SESSION['admin_role'], $_SESSION['csrf_token']);
+        }
+    }
 }

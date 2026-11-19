@@ -1,0 +1,153 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  THE TILL (shop upgrade, 18 Nov 2026): in-person sales from the shop's own stock, and the cash
+  drawer for an event or a day. A sale here is an order like any other — refunded from its order
+  page, counted once in every report. The till never refuses a sale for stock: a queue at a table
+  must not stall on a miscount; it says which counts went below zero instead.
+#}
+
+{% block head_styles %}{% include 'admin/shop/_styles.twig' %}{% endblock %}
+
+{% block topbar_title %}Shop till{% endblock %}
+{% block topbar_actions %}
+  <a class="ad-btn" href="/admin/shop/orders">Orders</a>
+  <a class="ad-btn" href="/admin/shop/stock">Stock</a>
+{% endblock %}
+
+{% block content %}
+<p class="sh-sub">Sell at an event or the office, from the same stock as the website.</p>
+
+{% if not ready %}
+<section class="sh-sec sh-sec--warn">
+  <h2>One step outstanding on the server</h2>
+  <p>The till needs the latest database update. Run <strong>/__setup/migrate</strong>.</p>
+</section>
+{% elseif not can_money %}
+<section class="sh-sec">
+  <h2>The till needs the shop-money permission</h2>
+  <p>Taking money in person and counting the cash drawer need the shop-money permission on your account. A superadmin can grant it under Admins.</p>
+</section>
+{% else %}
+
+<div class="sh-grid">
+<section class="sh-sec" aria-labelledby="tlSale">
+  <h2 id="tlSale">Quick sale</h2>
+  {% if catalogue|length == 0 %}
+  <p>There are no active products to sell. Add one in the catalogue first.</p>
+  {% else %}
+  <form method="post" action="/admin/shop/till/sale">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    {% for i in 0..(rows - 1) %}
+    <div class="sh-row">
+      <label class="sh-field sh-grow">Item {{ i + 1 }}
+        <select name="item[{{ i }}]">
+          <option value="">—</option>
+          {% for c in catalogue %}<option value="{{ c.key }}">{{ c.label }}</option>{% endfor %}
+        </select>
+      </label>
+      <label class="sh-field">Qty<input type="number" name="qty[{{ i }}]" min="0" max="1000" step="1" class="sh-num" value="{{ i == 0 ? 1 : 0 }}"></label>
+    </div>
+    {% endfor %}
+    <div class="sh-row">
+      <label class="sh-field">Paid by
+        <select name="method">{% for k, label in methods %}<option value="{{ k }}">{{ label }}</option>{% endfor %}</select>
+      </label>
+      <label class="sh-field sh-grow">Cash session
+        <select name="session_id">
+          <option value="0">None (not cash)</option>
+          {% for s in open %}<option value="{{ s.id }}" {% if summary and summary.session.id == s.id %}selected{% endif %}>{{ s.label }}</option>{% endfor %}
+        </select>
+      </label>
+    </div>
+    <div class="sh-row">
+      <label class="sh-field sh-grow">Buyer's name (optional)<input name="buyer_name" maxlength="160"></label>
+      <label class="sh-field sh-grow">Buyer's email (optional)<input type="email" name="buyer_email" maxlength="190"></label>
+    </div>
+    <label class="sh-field">Note<input name="note" maxlength="300" placeholder="Transfer reference, terminal slip number…"></label>
+    <div class="sh-row"><button class="sh-btn" type="submit">Record the sale</button></div>
+  </form>
+  {% endif %}
+</section>
+
+<section class="sh-sec" aria-labelledby="tlDrawer">
+  <h2 id="tlDrawer">Cash drawer</h2>
+  {% if open|length %}
+  <p>Open now: {% for s in open %}<a href="/admin/shop/till?session={{ s.id }}">{{ s.label }}</a>{{ loop.last ? '' : ', ' }}{% endfor %}</p>
+  {% else %}
+  <p>No cash session is open. Open one before taking cash.</p>
+  {% endif %}
+  <form method="post" action="/admin/shop/till/open" class="sh-row">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <label class="sh-field sh-grow">Event or day<input name="label" maxlength="120" required placeholder="Gala night stand"></label>
+    <label class="sh-field">Opening float (₦)<input type="number" name="float" min="0" step="1" class="sh-num" value="0"></label>
+    <button class="sh-btn sh-btn--ghost" type="submit">Open a session</button>
+  </form>
+
+  {% if summary %}
+  {% set s = summary.session %}
+  <h3>{{ s.label }}</h3>
+  <dl class="sh-dl">
+    <dt>Opened</dt><dd>{{ s.opened_at }}</dd>
+    <dt>Opening float</dt><dd>₦{{ s.float_naira|number_format }}</dd>
+    {% for k, label in methods %}<dt>{{ label }} sales</dt><dd>₦{{ (summary.by_method[k]|default(0))|number_format }}</dd>{% endfor %}
+    <dt>Cash handed back</dt><dd>₦{{ summary.cash_back|number_format }}</dd>
+    <dt class="is-total">Expected in the drawer</dt><dd class="is-total">₦{{ summary.expected|number_format }}</dd>
+    {% if s.closed_at %}
+      <dt>Counted</dt><dd>₦{{ s.counted_naira|number_format }}</dd>
+      <dt>Difference</dt><dd>{{ s.difference_naira == 0 ? 'Balances' : (s.difference_naira < 0 ? 'Short ₦' ~ (0 - s.difference_naira)|number_format : 'Over ₦' ~ s.difference_naira|number_format) }}</dd>
+      <dt>Closed</dt><dd>{{ s.closed_at }}{% if s.note %} — {{ s.note }}{% endif %}</dd>
+    {% endif %}
+  </dl>
+  {% if not s.closed_at %}
+  <form method="post" action="/admin/shop/till/close" class="sh-row"
+        data-confirm="Close this cash session? What you counted is recorded against your name and cannot be changed afterwards.">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <input type="hidden" name="session_id" value="{{ s.id }}">
+    <label class="sh-field">Counted (₦)<input type="number" name="counted" min="0" step="1" class="sh-num" required></label>
+    <label class="sh-field sh-grow">Note (required if it does not balance)<input name="note" maxlength="300"></label>
+    <button class="sh-btn" type="submit">Close and count</button>
+  </form>
+  {% endif %}
+  {% endif %}
+</section>
+</div>
+
+<section class="sh-sec" aria-labelledby="tlRecent">
+  <h2 id="tlRecent">Recent in-person sales</h2>
+  {% if recent|length %}
+  <div class="ad-table-wrap">
+    <table class="sh-list">
+      <thead><tr><th scope="col">Sale</th><th scope="col">When</th><th scope="col">Buyer</th><th scope="col">Paid by</th><th scope="col" class="is-num">Amount</th></tr></thead>
+      <tbody>
+        {% for r in recent %}
+        <tr>
+          <td><a class="sh-ref" href="/admin/shop/orders/{{ r.id }}">{{ r.reference }}</a>{% if r.status != 'paid' %} <span class="sh-tag sh-tag--no">{{ r.status }}</span>{% endif %}</td>
+          <td class="sh-small">{{ r.created_at }}</td>
+          <td>{{ r.name }}</td>
+          <td>{{ methods[r.pos_method]|default(r.pos_method) }}</td>
+          <td class="is-num">₦{{ r.subtotal_naira|number_format }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p>No in-person sales yet.</p>
+  {% endif %}
+</section>
+
+<section class="sh-sec" aria-labelledby="tlSessions">
+  <h2 id="tlSessions">Cash sessions</h2>
+  {% if sessions|length %}
+  <ul class="sh-tl">
+    {% for s in sessions %}
+    <li><a href="/admin/shop/till?session={{ s.id }}">{{ s.label }}</a> — opened {{ s.opened_at }}{% if s.closed_at %}, closed {{ s.closed_at }}{% if s.difference_naira %} ({{ s.difference_naira < 0 ? 'short' : 'over' }} ₦{{ (s.difference_naira|abs)|number_format }}){% endif %}{% else %}, <strong>open</strong>{% endif %}</li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p>None yet.</p>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

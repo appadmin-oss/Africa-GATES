@@ -150,7 +150,7 @@
    document (the actions, the manage panel, the chrome) is dropped. */
 @page{ margin:10mm }
 @media print{
-  .ag-shell > :not(.ag-main), .ag-skip, .ag-main > :not(.tk-page), .tk-back, .tk-acts, .tk-manage,
+  .ag-shell > :not(.ag-main), .ag-skip, .ag-main > :not(.ag-page), .ag-page > :not(.tk-page), .tk-back, .tk-acts, .tk-manage,
   .tk-foot, .tk-flag, .ag-foot, [data-ag-gee], .gee, .ag-consent{ display:none !important }
   .tk-page, .tk-page--dark{ --tk-ground:var(--ag-surface); background:var(--ag-surface); color:var(--ag-ink); padding:0; max-width:none }
   .tk{

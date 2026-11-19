@@ -1,0 +1,112 @@
+<!doctype html>
+{#
+  PICK LIST AND PACKING SLIPS (shop upgrade, 18 Nov 2026).
+
+  A page made to be printed, so the console's rail and header are not on it — they would be the
+  first thing on every slip. The pick list totals each product and option across the orders, so
+  the shelf is walked once; the slips are one page per order, to go in the parcel. Opened in its
+  own tab from the orders list; nothing on it changes anything.
+#}
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>{{ page_title }}</title>
+<style nonce="{{ csp_nonce }}">
+  body{ font-family:"DM Sans",system-ui,sans-serif; color:#10292C; margin:24px; font-size:13px; line-height:1.5; background:#fff }
+  h1{ font-size:20px; margin:0 0 4px }
+  .pr-meta{ color:#5a6d6f; margin:0 0 16px }
+  .pr-bar{ display:flex; gap:8px; margin-bottom:18px }
+  .pr-btn{ cursor:pointer; font:inherit; font-weight:650; border:none; padding:9px 16px; border-radius:999px; background:#10292C; color:#fff; text-decoration:none }
+  .pr-btn--ghost{ background:none; border:1px solid rgba(16,41,44,.25); color:#10292C }
+  table{ width:100%; border-collapse:collapse }
+  th{ text-align:left; font-size:12px; color:#5a6d6f; border-bottom:1px solid #10292C; padding:4px 8px 4px 0 }
+  td{ border-bottom:1px solid rgba(16,41,44,.15); padding:7px 8px 7px 0; vertical-align:top }
+  .pr-num{ text-align:right; font-variant-numeric:tabular-nums; font-weight:700 }
+  .pr-box{ width:18px; height:18px; border:1.5px solid #10292C; display:inline-block }
+  .pr-mono{ font-family:"JetBrains Mono",ui-monospace,monospace }
+  .pr-small{ font-size:11px; color:#5a6d6f }
+  .pr-slip{ page-break-after:always; break-after:page; padding-bottom:24px; margin-bottom:24px; border-bottom:2px dashed rgba(16,41,44,.3) }
+  .pr-slip:last-child{ page-break-after:auto; break-after:auto; border-bottom:none }
+  .pr-two{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:12px 0 }
+  .pr-code{ font-family:"JetBrains Mono",ui-monospace,monospace; font-size:22px; font-weight:700; letter-spacing:.12em }
+  @media print{ .pr-bar{ display:none } body{ margin:0 } }
+</style>
+</head>
+<body>
+<div class="pr-bar">
+  <button class="pr-btn" type="button" data-pr-print>Print</button>
+  <a class="pr-btn pr-btn--ghost" href="/admin/shop/orders">Back to orders</a>
+  {% if kind == 'pick' %}
+  <a class="pr-btn pr-btn--ghost" href="?kind=slips&amp;ids={{ orders|map(o => o.id)|join(',') }}">Packing slips for these</a>
+  {% else %}
+  <a class="pr-btn pr-btn--ghost" href="?kind=pick&amp;ids={{ orders|map(o => o.id)|join(',') }}">Pick list for these</a>
+  {% endif %}
+</div>
+
+{% if kind == 'pick' %}
+  <h1>Pick list</h1>
+  <p class="pr-meta">{{ orders|length }} order{{ orders|length == 1 ? '' : 's' }}{% if not named %} — every paid order not yet sent{% endif %} · printed {{ printed_at }}</p>
+  {% if pick|length %}
+  <table>
+    <thead><tr><th scope="col"></th><th scope="col">Product</th><th scope="col">Option</th><th scope="col">SKU</th><th scope="col" class="pr-num">Qty</th><th scope="col">For orders</th></tr></thead>
+    <tbody>
+      {% for p in pick %}
+      <tr>
+        <td><span class="pr-box" aria-hidden="true"></span></td>
+        <td>{{ p.name }}</td>
+        <td>{{ p.option ?: '—' }}</td>
+        <td class="pr-mono">{{ p.sku ?: '—' }}</td>
+        <td class="pr-num">{{ p.qty }}</td>
+        <td class="pr-small pr-mono">{{ p.orders|join(', ') }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>Nothing to pick: no paid orders are waiting to be sent.</p>
+  {% endif %}
+{% else %}
+  {% for o in orders %}
+  <section class="pr-slip">
+    <h1>Africa GATES — packing slip</h1>
+    <p class="pr-meta">Order <span class="pr-mono">{{ o.reference }}</span> · placed {{ o.created_at }}</p>
+    <div class="pr-two">
+      <div>
+        <strong>{{ o.name }}</strong><br>
+        {% if o.phone|default('') %}{{ o.phone }}<br>{% endif %}
+        <span class="pr-small">{{ o.address|default('')|nl2br }}</span>
+      </div>
+      <div>
+        {% if o.pickup_code|default('') %}
+        <div class="pr-small">Collection code — ask the buyer for it</div>
+        <div class="pr-small">(not printed: it is what proves the person collecting is the buyer)</div>
+        {% endif %}
+        {% if o.tracking_note|default('') %}<div class="pr-small">Note: {{ o.tracking_note }}</div>{% endif %}
+      </div>
+    </div>
+    <table>
+      <thead><tr><th scope="col"></th><th scope="col">Item</th><th scope="col">Option</th><th scope="col" class="pr-num">Qty</th></tr></thead>
+      <tbody>
+        {% for l in o.lines %}
+        <tr><td><span class="pr-box" aria-hidden="true"></span></td><td>{{ l.name|default(l.slug|default('?')) }}</td><td>{{ l.variant|default('') ?: '—' }}</td><td class="pr-num">{{ l.qty|default(0) }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="pr-small">Thank you — every purchase funds child leadership programmes.</p>
+  </section>
+  {% else %}
+  <p>No orders to print: no paid orders are waiting to be sent.</p>
+  {% endfor %}
+{% endif %}
+
+<script nonce="{{ csp_nonce }}" data-nav="rerun">
+/* The one control on a printed page. Bound to its own button only (ConsoleNavTest). */
+(function () {
+  var b = document.querySelector('[data-pr-print]');
+  if (b) b.addEventListener('click', function () { window.print(); });
+})();
+</script>
+</body>
+</html>

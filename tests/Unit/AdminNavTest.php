@@ -58,6 +58,7 @@ final class AdminNavTest extends TestCase
         '/admin/programmes' => 'programmes', '/admin/shortlists' => 'programmes', '/admin/challenges' => null,
         '/admin/awards-page' => 'programmes',
         '/admin/events' => 'content', '/admin/stand-presets' => 'content', '/admin/posts' => 'content',
+        '/admin/events/leads' => 'content',   // new 3 Nov 2026, under its parent's gate
         '/admin/legacy' => 'content', '/admin/opportunities' => 'content', '/admin/media' => 'content',
         '/admin/products' => 'content', '/admin/shop/orders' => 'content', '/admin/forms' => 'content',
         '/admin/partners' => 'content', '/admin/legal' => 'content',
@@ -66,7 +67,7 @@ final class AdminNavTest extends TestCase
         '/admin/payments/disputes' => 'finance', '/admin/refunds' => 'finance', '/admin/vote-delivery' => 'finance',
         '/admin/vote-recovery' => null,
         '/admin/integrity' => null, '/admin/judging-audit' => null, '/admin/result-release' => null,
-        '/admin/audit' => null, '/admin/data' => 'data', '/admin/analytics' => 'data', '/admin/registrations' => 'data',
+        '/admin/users' => 'data', '/admin/audit' => null, '/admin/data' => 'data', '/admin/analytics' => 'data', '/admin/registrations' => 'data',
         '/admin/admins' => 'configuration', '/admin/settings' => 'configuration', '/admin/webhooks' => 'configuration',
         '/admin/ai-prompts' => null, '/admin/attendee' => 'configuration', '/admin/sandbox' => 'configuration',
         '/admin/judges' => 'configuration', '/admin/rubric' => 'configuration',
@@ -75,7 +76,11 @@ final class AdminNavTest extends TestCase
         // so these are the guard's gates as they already stood — naming a page grants nothing.
         '/admin/judges/schedule' => 'configuration', '/admin/recognitions' => null,
         '/admin/campaigns/newsletter' => null, '/admin/campaigns/greetings' => null,
-        '/admin/shop/codes' => 'content', '/admin/shop/shipping' => 'content', '/admin/assistant/scripts' => 'overview',
+        '/admin/shop/codes' => 'content', '/admin/shop/shipping' => 'content',
+        // Shop upgrade (18 Nov 2026): new pages under the shop's existing gate, no role gains or loses access.
+        '/admin/shop/stock' => 'content', '/admin/shop/orders/print' => 'content',
+        '/admin/shop/pickup' => 'content', '/admin/shop/till' => 'content',
+        '/admin/shop/today' => 'content', '/admin/shop/reports' => 'content', '/admin/assistant/scripts' => 'overview',
     ];
 
     /** The owner-approved widening (GAPS §8d), and the one new page. */
@@ -102,6 +107,13 @@ final class AdminNavTest extends TestCase
         // /admin/lead left the console on 29 Oct 2026: a lead is a member account at /lead.
         // Deciding requests (§2.6) is held with the money: only superadmin and admin decide.
         '/admin/requests'           => 'finance',
+        // New 4 Nov 2026: ads posted from the console. With the money (superadmin + admin),
+        // as the owner asked that admins can post: a direct sale records income.
+        '/admin/ads'                => 'finance',
+        // New 11 Nov 2026: errors visitors saw, under Alerts. Left UNMAPPED — superadmin only —
+        // because each entry carries file paths and stack frames; who else reads those is the
+        // owner's call.
+        '/admin/errors'             => null,
     ];
 
     private const ROLES = ['superadmin', 'admin', 'editor', 'moderator', 'viewer'];
@@ -171,9 +183,10 @@ final class AdminNavTest extends TestCase
         $this->assertSame([
             'Awards'       => ['Programmes', 'Nominations', 'Shortlists', 'Judges', 'Result release'],
             'Engage'       => ['Events', 'Challenges', 'Giving', 'Forms'],
-            'Audience'     => ['Contacts', 'Broadcasts'],
-            'Money'        => ['Payments', 'Refunds', 'Payouts', 'Finance', 'Shop orders'],
+            'People & audience' => ['Members', 'Contacts', 'Broadcasts'],
+            'Money'        => ['Payments', 'Refunds', 'Payouts', 'Finance', 'Shop orders', 'Ads'],
             'Content'      => ['Posts', 'Media', 'Moderation'],
+            'Insights'     => ['Analytics'],
             'Organisation' => ['Team', 'Alerts', 'Handbook', 'Audit log', 'Integrations', 'Settings'],
         ], $got);
         $this->assertSame('Home', AdminNav::home()['label']);
@@ -323,7 +336,7 @@ final class AdminNavTest extends TestCase
     public function test_the_also_here_strip_is_the_item_and_its_children_and_never_one_link(): void
     {
         $strip = AdminNav::related('superadmin', '/admin/events');
-        $this->assertSame(['events', 'stand_presets', 'registrations'], array_column($strip, 'page'));
+        $this->assertSame(['events', 'event_leads', 'stand_presets', 'registrations'], array_column($strip, 'page'));
         $this->assertTrue($strip[0]['on']);
         $this->assertSame([], AdminNav::related('superadmin', '/admin/challenges'), 'a lone page drew a strip');
         // A moderator on Interviews: the questionnaires are theirs.

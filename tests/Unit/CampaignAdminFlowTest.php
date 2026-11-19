@@ -105,7 +105,9 @@ final class CampaignAdminFlowTest extends TestCase
         $this->assertStringContainsString('Finish strong', $html);
         // The send control exists but must not be usable yet.
         $this->assertStringContainsString('Approve', $html);
-        $this->assertMatchesRegularExpression('/Send to[^<]*<\/button>/s', $html);
+        // "Start sending": the outbox sends the rest by itself (Mail\Outbox), so the button
+        // starts a send rather than doing one batch of it.
+        $this->assertMatchesRegularExpression('/Start sending to[^<]*<\/button>/s', $html);
     }
 
     /** A form post becomes blocks — no JSON in a textarea between a comms person and their copy. */

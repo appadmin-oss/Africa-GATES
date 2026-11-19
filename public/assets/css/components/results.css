@@ -374,3 +374,6 @@
 @media (hover:hover){
   .rs-edc:hover{ border-color:var(--ag-ink); box-shadow:var(--ag-sh-pop) }
 }
+
+/* A method link alone on its line is a control: 44px, not 17. */
+.rs-method > a:only-child{ display:inline-flex; align-items:center; gap:4px; min-height:44px }

@@ -25,14 +25,27 @@ final class JudgeWelcomeTest extends TestCase
     private const P1 = 211;   // TINYINT-safe
     private const P2 = 212;
 
+    /** Dates RELATIVE to today: the fixed ones this file used would have started failing the week they passed. */
+    private string $close = '';
+    private string $results = '';
+
     protected function setUp(): void
     {
         parent::setUp();
-        foreach ([self::P1 => '2026-11-20 18:00:00', self::P2 => '2026-12-01 18:00:00'] as $pid => $close) {
+        $this->close   = \Carbon\Carbon::now()->addDays(16)->setTime(18, 0)->toDateTimeString();
+        $this->results = \Carbon\Carbon::now()->addDays(46)->setTime(12, 0)->toDateTimeString();
+        $later = \Carbon\Carbon::now()->addDays(27)->setTime(18, 0)->toDateTimeString();
+        foreach ([self::P1 => $this->close, self::P2 => $later] as $pid => $close) {
             DB::table('gates_award_programmes')->insertOrIgnore(['id' => $pid, 'title' => 'Programme ' . $pid, 'slug' => 'jw-' . $pid]);
-            DB::table('gates_award_cycles')->insertOrIgnore(['programme_id' => $pid, 'year' => 2026, 'status' => 'voting',
-                'voting_close' => $close, 'results_date' => '2026-12-20 12:00:00']);
+            DB::table('gates_award_cycles')->insertOrIgnore(['programme_id' => $pid, 'year' => (int) date('Y'), 'status' => 'voting',
+                'voting_open' => \Carbon\Carbon::now()->subDays(5)->toDateTimeString(),
+                'voting_close' => $close, 'results_date' => $this->results]);
         }
+    }
+
+    private static function shown(string $at): string
+    {
+        return \AfricaGates\Support\DisplayTime::showZoned($at, 'j F Y, H:i');
     }
 
     /** @param list<int> $programmes @return list<array<string,string>> */
@@ -66,8 +79,8 @@ final class JudgeWelcomeTest extends TestCase
         $this->assertStringContainsString('Welcome to the panel, Kofi', $sent[0]['htmlBody']);
         $this->assertStringContainsString('/form/', $sent[0]['htmlBody'], 'the profile form link is missing');
         $this->assertStringContainsString('/judge/login', $sent[0]['htmlBody']);
-        $this->assertStringContainsString('20 November 2026', $sent[0]['plainBody'], 'scoring did not open on the cycle\'s voting close');
-        $this->assertStringContainsString('20 December 2026', $sent[0]['plainBody'], 'scoring did not close on the results date');
+        $this->assertStringContainsString(self::shown($this->close), $sent[0]['plainBody'], 'scoring did not open on the cycle\'s voting close');
+        $this->assertStringContainsString(self::shown($this->results), $sent[0]['plainBody'], 'scoring did not close on the results date');
     }
 
     public function test_a_judge_on_two_programmes_is_given_no_one_programmes_dates(): void
@@ -75,7 +88,36 @@ final class JudgeWelcomeTest extends TestCase
         $sent = $this->resend([self::P1, self::P2]);
         $this->assertCount(1, $sent);
         $this->assertStringNotContainsString('Scoring closes', $sent[0]['plainBody']);
-        $this->assertStringNotContainsString('20 November 2026', $sent[0]['plainBody']);
+        $this->assertStringNotContainsString(self::shown($this->close), $sent[0]['plainBody']);
         $this->assertStringContainsString('Programme ' . self::P1 . ' · Programme ' . self::P2, $sent[0]['plainBody']);
+    }
+
+    /**
+     * A judge added to a programme whose latest edition is already decided was told
+     * "Scoring opens" on a date months gone, in the letter whose job is telling them when
+     * to turn up. No date is better than a wrong one: the mail then says scoring opens
+     * when voting closes, which is true.
+     */
+    public function test_a_decided_or_passed_edition_gives_no_dates(): void
+    {
+        DB::table('gates_award_cycles')->where('programme_id', self::P1)->update([
+            'status' => 'results',
+            'voting_close' => \Carbon\Carbon::now()->subDays(60)->toDateTimeString(),
+            'results_date' => \Carbon\Carbon::now()->subDays(30)->toDateTimeString(),
+        ]);
+        $sent = $this->resend([self::P1]);
+        $this->assertCount(1, $sent);
+        $this->assertStringNotContainsString('Scoring opens:', $sent[0]['plainBody']);
+        $this->assertStringNotContainsString('Scoring closes:', $sent[0]['plainBody']);
+
+        // Voting already closed, results still ahead: only the date still to come is given.
+        DB::table('gates_award_cycles')->where('programme_id', self::P1)->update([
+            'status' => 'judging',
+            'voting_close' => \Carbon\Carbon::now()->subDays(2)->toDateTimeString(),
+            'results_date' => $this->results,
+        ]);
+        [$opens, $closes] = JudgesController::scoringDates(self::P1);
+        $this->assertSame('', $opens, 'a date already gone is not "scoring opens"');
+        $this->assertSame(self::shown($this->results), $closes);
     }
 }

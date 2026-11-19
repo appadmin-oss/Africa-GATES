@@ -20,10 +20,12 @@
   · The platform's credit sits BELOW the organisation's ask, never beside it.
 
   The accent is the organisation's, so it is DATA, not a palette token: it reaches the page
-  only as the three custom properties OrgBrand::css() derived and contrast-checked.
+  only as the custom properties OrgBrand::css() derived and measured — their exact colour for
+  fills, and shades of it for words and edges, by day and by night (giving.css picks which).
+  Any colour they choose is accepted; none of these can come out unreadable.
 #}
 {% if org and brand %}
-<div class="ob" style="--ob-accent:{{ brand_css.accent }};--ob-accent-dark:{{ brand_css.accent_dark }};--ob-accent-wash:{{ brand_css.accent_wash }}">
+<div class="ob" style="--ob-accent:{{ brand_css.accent }};--ob-accent-on:{{ brand_css.accent_on }};--ob-accent-wash:{{ brand_css.accent_wash }};--ob-accent-ink-day:{{ brand_css.accent_ink }};--ob-accent-ink-night:{{ brand_css.accent_ink_night }};--ob-accent-edge-day:{{ brand_css.accent_edge }};--ob-accent-edge-night:{{ brand_css.accent_edge_night }}">
   {% if brand.sections.story and story_paragraphs is not empty %}
     <section class="gv-sec" aria-labelledby="ob-story">
       <h2 class="gv-h2" id="ob-story">{{ 'About %o%'|trans({'%o%': org.name}) }}</h2>

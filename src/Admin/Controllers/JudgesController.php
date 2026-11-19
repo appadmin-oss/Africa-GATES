@@ -271,6 +271,39 @@ class JudgesController
     private const FORM_DAYS = 30;
 
     /**
+     * "Scoring opens" and "Scoring closes" for a judge's welcome, from the programme's
+     * latest edition — and ONLY dates still ahead of them.
+     *
+     * This printed whatever the latest cycle held, so a judge added to a programme whose
+     * edition had already been released was told scoring opens on a date months gone, in
+     * a letter whose whole purpose is telling them when to turn up. A past date is
+     * dropped (the mail then says scoring opens when voting closes, which is true), and an
+     * edition already decided gives no dates at all. The newest edition is chosen by year
+     * and then id, so two editions in one year do not pick one at random.
+     *
+     * @return array{0:string,1:string}
+     */
+    public static function scoringDates(int $programmeId, ?Carbon $now = null): array
+    {
+        $now ??= Carbon::now();
+        $cy = DB::table('gates_award_cycles')->where('programme_id', $programmeId)
+            ->orderByDesc('year')->orderByDesc('id')->first();
+        if (!$cy) return ['', ''];
+        $phase = \AfricaGates\Services\CyclePolicy::phaseFor($cy, $now);
+        if (in_array($phase, [\AfricaGates\Services\CyclePhase::Results, \AfricaGates\Services\CyclePhase::Archived], true)) return ['', ''];
+        $ahead = static function (?string $at) use ($now): string {
+            if ($at === null || trim($at) === '') return '';
+            try {
+                if (Carbon::parse($at)->lte($now)) return '';
+            } catch (\Throwable) {
+                return '';
+            }
+            return \AfricaGates\Support\DisplayTime::showZoned($at, 'j F Y, H:i');
+        };
+        return [$ahead($cy->voting_close ?? null), $ahead($cy->results_date ?? null)];
+    }
+
+    /**
      * Issue a single-use judge form token and send the judge welcome (emails/judge.html.twig).
      *
      * The dates are the programme's own — scoring opens when its voting closes and closes on
@@ -290,13 +323,7 @@ class JudgesController
         $opens = $closes = '';
         if ($programmeIds) {
             $programme = DB::table('gates_award_programmes')->whereIn('id', $programmeIds)->pluck('title')->implode(' · ');
-            if (count($programmeIds) === 1) {
-                $cy = DB::table('gates_award_cycles')->where('programme_id', $programmeIds[0])->orderByDesc('year')->first();
-                if ($cy) {
-                    $opens  = !empty($cy->voting_close) ? \AfricaGates\Support\DisplayTime::showZoned((string) $cy->voting_close, 'j F Y, H:i') : '';
-                    $closes = !empty($cy->results_date) ? \AfricaGates\Support\DisplayTime::showZoned((string) $cy->results_date, 'j F Y, H:i') : '';
-                }
-            }
+            if (count($programmeIds) === 1) [$opens, $closes] = self::scoringDates((int) $programmeIds[0]);
         }
         try {
             \AfricaGates\Services\Mail\Emails::send($this->mailer, $email, 'judge', [

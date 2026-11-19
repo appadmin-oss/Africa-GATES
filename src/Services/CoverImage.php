@@ -5,6 +5,7 @@ namespace AfricaGates\Services;
 
 use AfricaGates\Support\Accent;
 use AfricaGates\Support\CoverKind;
+use AfricaGates\Support\CoverVariant;
 
 /**
  * The default cover OFF the site — the image a link unfurls into (DEFAULT-GRAPHICS §7).
@@ -44,7 +45,7 @@ final class CoverImage
      * PNG bytes, or null when GD or the faces are missing (the caller then serves no image
      * rather than a broken one).
      *
-     * @param array{subject?:string, kind?:?string, award_linked?:bool, title?:string, date?:string,
+     * @param array{subject?:string, identity?:int|string, kind?:?string, award_linked?:bool, title?:string, date?:string,
      *              time?:string, place?:string, host?:string} $c
      */
     public function png(array $c, string $ratio): ?string
@@ -68,6 +69,9 @@ final class CoverImage
         imagefilledrectangle($im, 0, 0, $W - 1, $H - 1, $bg);
         imagefilledrectangle($pat, 0, 0, $W - 1, $H - 1, $this->hex($pat, Accent::coverHex($tone, 'bg')));
         $this->pattern($pat, $r['pattern'], $W, $H, $q, Accent::coverHex($tone, 'line'));
+        $variant = CoverVariant::forRecord($r['subject'], $r['kind'], $c['identity'] ?? $c['title'] ?? '');
+        if (CoverVariant::flipHorizontal($variant)) imageflip($pat, IMG_FLIP_HORIZONTAL);
+        if (CoverVariant::flipVertical($variant)) imageflip($pat, IMG_FLIP_VERTICAL);
         $this->fade($im, $pat, $W, $H, $tall);
         imagedestroy($pat);
 

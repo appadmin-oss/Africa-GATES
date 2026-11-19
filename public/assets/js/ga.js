@@ -37,4 +37,14 @@
     allow_google_signals: false,
     allow_ad_personalization_signals: false
   });
+
+  // A page swapped in place (site-nav.js) is a page view too. site-nav copies the new page's
+  // attributes onto this script first, so the path is the SERVER's redacted one, as above,
+  // and the referrer is the page it came from, cut the same way.
+  var last = location.origin + (me.getAttribute('data-ga-path') || '/');
+  document.addEventListener('ag:load', function () {
+    var at = location.origin + (me.getAttribute('data-ga-path') || '/');
+    gtag('event', 'page_view', { page_location: at, page_referrer: last.split('?')[0], page_title: document.title });
+    last = at;
+  });
 })();

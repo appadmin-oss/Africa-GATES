@@ -32,7 +32,7 @@ final class HelpDeskErrorReferenceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->log = dirname(__DIR__, 2) . '/var/logs/error-detail.log';
+        $this->log = \AfricaGates\Support\PublicFault::logFile();
         $this->saved = is_file($this->log) ? (string) file_get_contents($this->log) : null;
     }
 

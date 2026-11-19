@@ -106,8 +106,15 @@ final class WalletHistory
         $in = 0; $out = 0;
         foreach ($rows as $t) {
             if (($t['unit'] ?? 'naira') !== 'naira') continue;
-            if ($t['dir'] === 'in' && $t['status'] === MemberWallet::ST_RECEIVED) $in += (int) $t['amount_kobo'];
-            if ($t['dir'] === 'out' && in_array($t['status'], [MemberWallet::ST_PAID, MemberWallet::ST_SPENT], true)) $out += (int) $t['amount_kobo'];
+            // In: money that arrived — but not a bank's return of a transfer, which only undoes
+            // a withdrawal the statement already no longer counts as out (it reads "refused").
+            if ($t['dir'] === 'in' && $t['status'] === MemberWallet::ST_RECEIVED && empty($t['restores'])) $in += (int) $t['amount_kobo'];
+            // Out: every movement that reduced the balance — a payout or a spend, and also a
+            // reversal, a hold, and a pool's "Into the edition pool". Counting only payouts
+            // left those out while their incoming partners were in, so a statement could read
+            // ₦1,600 in and ₦0 out over a balance of ₦1,000.
+            if ($t['dir'] === 'out' && in_array($t['status'], [MemberWallet::ST_PAID, MemberWallet::ST_SPENT, MemberWallet::ST_RECEIVED,
+                                                                  MemberWallet::ST_REVERSED, MemberWallet::ST_HELD], true)) $out += (int) $t['amount_kobo'];
         }
         $shown = self::PER_PAGE * $p['page'];
         return ['rows' => array_slice($rows, 0, $shown), 'total' => count($rows), 'more' => count($rows) > $shown,

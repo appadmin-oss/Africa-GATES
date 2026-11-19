@@ -89,6 +89,10 @@ final class PublicIaTest extends TestCase
         // before the rename and are not pages. They are registered through a `$bounce`
         // closure rather than the `$aliases` table, so the alias parser cannot see them.
         '~^/(donate|gift)(/|$)~',
+        // A FALLBACK THE SERVICE WORKER SERVES. Never navigated to: public/sw.js fetches it once
+        // and shows it AT THE ADDRESS that failed when the network drops. A link to it would
+        // be a link to a page saying you are offline, from a page that loaded.
+        '~^/offline$~',
     ];
 
     /** Downloads and machine formats — content, not destinations. */

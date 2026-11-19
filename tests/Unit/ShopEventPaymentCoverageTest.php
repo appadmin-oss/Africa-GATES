@@ -129,6 +129,9 @@ final class ShopEventPaymentCoverageTest extends TestCase
         $this->assertSame('votes',  PaymentDestination::streamForReference('AFG-PVOTE-abc'));
         $this->assertSame('votes',  PaymentDestination::streamForReference('AFG-GIVE-abc'));
         $this->assertSame('votes',  PaymentDestination::streamForReference('AFG-deadbeef'));
+        // A stand fee is event money. It fell through to 'votes' and settled into the votes
+        // destination (AUDIT-AND-PLAN EV-11).
+        $this->assertSame('events', PaymentDestination::streamForReference(\AfricaGates\Services\StandFee::reference(12)));
         $this->assertSame('',       PaymentDestination::streamForReference('something-else'));
     }
 
@@ -720,7 +723,7 @@ final class ShopEventPaymentCoverageTest extends TestCase
      */
     public function test_a_checkout_that_cannot_start_records_the_gateways_own_words(): void
     {
-        $log = dirname(__DIR__, 2) . '/var/logs/error-detail.log';
+        $log = \AfricaGates\Support\PublicFault::logFile();
         $kept = is_file($log) ? (string) file_get_contents($log) : null;
         @unlink($log);
 

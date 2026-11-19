@@ -136,6 +136,6 @@
 {% endif %}
 <span class="ag-sr" role="status" aria-live="polite">{{ _sub ? _title|trim('.', 'right') ~ '. ' ~ _sub : _title }}</span>
 
-<script defer nonce="{{ csp_nonce }}" src="{{ asset('/assets/js/celebration.js') }}"></script>
-<script defer nonce="{{ csp_nonce }}" src="{{ asset('/assets/js/celebration-boot.js') }}"></script>
+<script defer nonce="{{ csp_nonce }}" src="{{ asset('/assets/js/celebration.js') }}" data-nav="rerun"></script>
+<script defer nonce="{{ csp_nonce }}" src="{{ asset('/assets/js/celebration-boot.js') }}" data-nav="rerun"></script>
 {% endif %}

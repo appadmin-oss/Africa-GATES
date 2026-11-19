@@ -40,7 +40,7 @@
 {% set app_bar = {variant: 'child', title: r.category.title, sub: r.programme ~ (r.edition ? ' · ' ~ r.edition), back: '/results/' ~ r.programme_slug ~ '-' ~ r.cycle_year} %}
 {% set _edition_url = '/results/' ~ r.programme_slug ~ '-' ~ r.cycle_year %}
 
-{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/results.css') }}">{% include 'partials/seo-head.twig' %}{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/results.css') }}">{% endblock %}
 
 {% block content %}
 <div class="rs">
@@ -100,7 +100,7 @@
           </div>
         </section>
 
-        {% include 'partials/celebration.twig' with {kind: 'win', size: 'inline', first: w.name|split(' ')|first,
+        {% include 'partials/celebration.twig' with {kind: 'win', size: 'inline', first: w.name|address_as,
             context: {moment: 'award_won', category_id: r.category.id, nominee_id: w.nominee_id, edition: r.programme_slug ~ '-' ~ r.cycle_year, subject: w.nominee_id},
             sub: '%c%, %e%.'|trans({'%c%': r.category.title, '%e%': r.programme ~ (r.edition ? ' ' ~ r.edition)}),
             secondary: {label: 'See every winner'|trans, href: _edition_url}} only %}
@@ -217,4 +217,4 @@
 </div>
 {% endblock %}
 
-{% block foot_scripts %}<script defer src="{{ asset('/assets/js/results.js') }}"></script>{% endblock %}
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/results.js') }}" data-nav="rerun"></script>{% endblock %}

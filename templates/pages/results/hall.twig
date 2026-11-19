@@ -20,7 +20,7 @@
 
 {% set colour_tier = '1' %}
 {% set colour_band = true %}
-{% set app_bar = {variant: 'child', title: 'Hall of fame'|trans, back: '/results'} %}
+{% set app_bar = {variant: 'child', title: 'Hall of fame'|trans, back: '/results', share: true} %}
 {% set _v = hall.view %}
 {% set base = '/winners' %}
 
@@ -43,7 +43,7 @@
 {% endmacro %}
 {% import _self as m %}
 
-{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/results.css') }}">{% include 'partials/seo-head.twig' %}{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/results.css') }}">{% endblock %}
 
 {% block content %}
 <div class="rs">

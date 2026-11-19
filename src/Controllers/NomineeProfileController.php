@@ -109,7 +109,32 @@ final class NomineeProfileController
                 'photos' => NomineeDetails::filesOf($d, 'photo'), 'evidence' => NomineeDetails::filesOf($d, 'evidence'),
                 'reason' => $nom ? '' : NomineeDetails::reason($d), 'terms_url' => $terms,
                 'max' => ['phones' => NomineeDetails::MAX_PHONES, 'emails' => NomineeDetails::MAX_EMAILS, 'photos' => NomineeDetails::MAX_PHOTOS,
-                          'evidence' => NomineeDetails::MAX_EVIDENCE, 'bio' => NomineeDetails::BIO_MAX]];
+                          'evidence' => NomineeDetails::MAX_EVIDENCE, 'bio' => NomineeDetails::BIO_MAX, 'thanks' => \AfricaGates\Services\NomineeThanks::MAX]];
+            // Who's behind them, their updates and their voice, once the nomination is a nominee
+            // (NomineeBackers, NomineeUpdates, NomineeVoice).
+            if (!$nom && $d->nominee_id) {
+                $nid = (int) $d->nominee_id;
+                $voice = \AfricaGates\Services\NomineeVoice::forNominee($nid);
+                $ctx += ['backing' => \AfricaGates\Services\NomineeBackers::dashboard($nid),
+                         'note_max' => \AfricaGates\Services\NomineeBackers::NOTE_MAX,
+                         'updates_on' => \AfricaGates\Services\NomineeUpdates::ready(),
+                         'updates' => \AfricaGates\Services\NomineeUpdates::mine($nid),
+                         // Only while it is still in the future: the form shows otherwise.
+                         'update_next' => (static fn (?\Illuminate\Support\Carbon $t) => $t && $t->isFuture() ? $t : null)(\AfricaGates\Services\NomineeUpdates::nextAt($nid)),
+                         'update_rules' => ['min' => \AfricaGates\Services\NomineeUpdates::MIN, 'max' => \AfricaGates\Services\NomineeUpdates::MAX,
+                                            'grace' => \AfricaGates\Services\NomineeUpdates::GRACE_MINUTES, 'days' => intdiv(\AfricaGates\Services\NomineeUpdates::COOLDOWN_HOURS, 24)],
+                         'followers' => \AfricaGates\Services\NomineeUpdates::followers($nid),
+                         'voice_on' => \AfricaGates\Services\NomineeVoice::ready(), 'voice' => $voice,
+                         'voice_url' => $voice ? \AfricaGates\Support\NomineeUrl::path($nid) . '/voice?v=' . strtotime((string) $voice->created_at) : '',
+                         'voice_max' => \AfricaGates\Services\NomineeVoice::MAX_SECONDS];
+            }
+            // Thanking supporters, once the nomination is a nominee (NomineeThanks).
+            if (!$nom && $d->nominee_id && \AfricaGates\Services\NomineeThanks::ready()) {
+                $t = \AfricaGates\Services\NomineeThanks::forNominee((int) $d->nominee_id);
+                $ctx += ['thanks_on' => true, 'thanks' => $t, 'thanks_editable' => \AfricaGates\Services\NomineeThanks::editable($t),
+                         'audience' => \AfricaGates\Services\NomineeThanks::audience((int) $d->nominee_id),
+                         'grace' => \AfricaGates\Services\NomineeThanks::GRACE_MINUTES, 'min' => ['thanks' => \AfricaGates\Services\NomineeThanks::MIN]];
+            }
         }
         return $this->view->render($res, 'nominee/profile.twig', $ctx);
     }
@@ -137,12 +162,37 @@ final class NomineeProfileController
                 ? NomineeDetails::addPhoto($d, $files['photo'], (string) ($b['label'] ?? '')) : ['ok' => false, 'error' => 'Choose a photograph first.'],
             'evidence' => NomineeDetails::addEvidence($d, $files['file'] ?? null, (string) ($b['url'] ?? ''), (string) ($b['label'] ?? '')),
             'remove' => NomineeDetails::remove($d, (int) ($b['file'] ?? 0)) ? ['ok' => true] : ['ok' => false, 'error' => 'That was already removed.'],
+            'thanks' => $d->nominee_id ? \AfricaGates\Services\NomineeThanks::save((int) $d->nominee_id, (int) $user->id, (string) ($b['message'] ?? ''))
+                                       : ['ok' => false, 'error' => 'You can thank your supporters once your nomination is approved.'],
+            'thank' => $d->nominee_id ? \AfricaGates\Services\NomineeBackers::thank((int) $d->nominee_id, (int) ($b['recruit'] ?? 0), (string) ($b['note'] ?? ''), $this->mailer())
+                                      : ['ok' => false, 'error' => 'You can thank your supporters once your nomination is approved.'],
+            'update' => !$d->nominee_id ? ['ok' => false, 'error' => 'You can post updates once your nomination is approved.']
+                : ((int) ($b['update'] ?? 0) > 0 ? \AfricaGates\Services\NomineeUpdates::edit((int) $d->nominee_id, (int) $b['update'], (string) ($b['body'] ?? ''))
+                                                 : \AfricaGates\Services\NomineeUpdates::post((int) $d->nominee_id, (int) $user->id, (string) ($b['body'] ?? ''))),
+            'update_remove' => $d->nominee_id && \AfricaGates\Services\NomineeUpdates::remove((int) $d->nominee_id, (int) ($b['update'] ?? 0)) ? ['ok' => true] : ['ok' => false, 'error' => 'That was already taken down.'],
+            'voice' => $d->nominee_id ? \AfricaGates\Services\NomineeVoice::record((int) $d->nominee_id, (int) $user->id, $files['voice'] ?? null, (int) ($b['seconds'] ?? 0))
+                                      : ['ok' => false, 'error' => 'You can record a thank-you once your nomination is approved.'],
+            'voice_remove' => $d->nominee_id && \AfricaGates\Services\NomineeVoice::remove((int) $d->nominee_id) ? ['ok' => true] : ['ok' => false, 'error' => 'That was already taken down.'],
             default => ['ok' => false, 'error' => 'That isn’t something this page can do.'],
         };
-        $section = in_array($do, ['remove'], true) ? (string) ($b['section'] ?? '') : $do;
-        $_SESSION[$r['ok'] ? 'nominee_ok' : 'nominee_error'] = $r['ok'] ? match ($do) { 'remove' => 'Removed.', 'terms' => 'Accepted. Thank you.', default => 'Saved.' } : (string) $r['error'];
+        $section = match ($do) { 'remove' => (string) ($b['section'] ?? ''), 'thank' => 'backing', 'update_remove' => 'update', 'voice_remove' => 'voice', default => $do };
+        $_SESSION[$r['ok'] ? 'nominee_ok' : 'nominee_error'] = $r['ok'] ? match ($do) { 'remove' => 'Removed.', 'terms' => 'Accepted. Thank you.',
+            'thanks' => 'Saved. It goes to your supporters in ' . \AfricaGates\Services\NomineeThanks::GRACE_MINUTES . ' minutes; you can change it until then.',
+            'thank' => 'Sent. They will hear it from you.', 'update_remove' => 'Taken down.', 'voice_remove' => 'Taken down.',
+            'update' => 'Saved. It goes to the people following you in ' . \AfricaGates\Services\NomineeUpdates::GRACE_MINUTES . ' minutes; you can change it until then.',
+            'voice' => 'Saved. Everybody who opens your vote page can hear it now.', default => 'Saved.' } : (string) $r['error'];
         if (!$r['ok']) $_SESSION['nominee_open'] = $section;
         return $res->withHeader('Location', $back . ($section !== '' ? '#nm-' . $section : ''))->withStatus(303);
+    }
+
+    /** The mailer, where mail is configured — a thank-you that cannot be sent says so. */
+    private function mailer(): ?\AfricaGates\Services\OtpService
+    {
+        try {
+            return \AfricaGates\Services\OtpService::boot();
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     private function take(string $k): ?string

@@ -174,8 +174,20 @@ final class VoteFront
              . ($paid ? ' ' . PaidVoteCopy::sentence((int) $p['id'], $cycle ? (int) $cycle->id : null) : '')],
         ];
         if ($paid) {
+            // The award's own answer where the host has given one (owner, 16 Nov 2026: "update
+            // this too"): the same split the campaign card states, from the same resolver, then
+            // what the rest covers in the host's words, then the promise that it is published.
+            // Without a named beneficiary and share it says only what is true everywhere.
+            $camp = \AfricaGates\Support\AwardCampaign::forProgramme((int) $p['id']);
+            $impact = \AfricaGates\Support\AwardCampaign::impact($camp);
             $faq[] = [Translator::t('Where does the money go?'),
-                      Translator::t('It funds the awards. What every nominee received in contributed votes is published with the result.')];
+                      // Nothing is said about the remainder that the host did not write
+                      // (Support\AwardCampaign: "only the beneficiary's share is stated").
+                      ($impact !== ''
+                          ? $impact . ($camp['remainder_note'] !== '' ? ' ' . $camp['remainder_note'] : '')
+                          : Translator::t('It funds the awards.'))
+                      . ' ' . Translator::t('What every nominee received in contributed votes is published with the result.')
+                      . ($camp['ladder'] !== [] ? ' ' . Translator::t('Giving more also unlocks thank-you benefits for the person who voted; they are listed on this page.') : '')];
         }
 
         $chip = match ($key) {

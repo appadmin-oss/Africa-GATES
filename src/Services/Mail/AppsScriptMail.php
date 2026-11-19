@@ -66,6 +66,9 @@ final class AppsScriptMail
     public function send(PHPMailer $m): void
     {
         $r = $this->call('mail.send', self::payload($m), 25);
+        // The script answers with what it may still send today; that exact count is what
+        // RoadCapacity plans by, on success and on a quota refusal alike.
+        if (isset($r['remaining']) && is_numeric($r['remaining'])) RoadCapacity::noteGasRemaining((int) $r['remaining']);
         if (!$r['ok']) throw new MailException('Apps Script: ' . $r['message']);
     }
 
@@ -79,6 +82,7 @@ final class AppsScriptMail
         $r = $this->call('mail.quota', [], 12);
         if (!$r['ok']) return ['ok' => false, 'detail' => $r['message'], 'remaining' => null];
         $left = isset($r['remaining']) ? (int) $r['remaining'] : null;
+        if ($left !== null) RoadCapacity::noteGasRemaining($left);
         $who  = trim((string) ($r['account'] ?? ''));
         return ['ok' => $left === null || $left > 0,
                 'detail' => 'The Apps Script answered' . ($who !== '' ? ' as ' . $who : '')
@@ -101,7 +105,7 @@ final class AppsScriptMail
         return [
             'to'       => (string) ($to[0][0] ?? ''),
             'subject'  => $m->Subject,
-            'html'     => $html ? $m->Body : '',
+            'html'     => $html ? InlineImages::html($m) : '',   // links again: see InlineImages
             'text'     => $html ? (string) $m->AltBody : $m->Body,
             'name'     => $m->FromName,
             'reply_to' => (string) ($reply[0][0] ?? $m->From),

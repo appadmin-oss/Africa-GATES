@@ -1,7 +1,18 @@
 {% extends "admin/layout.twig" %}
 {% block topbar_title %}Products{% endblock %}
-{% block topbar_actions %}<a class="ad-btn ad-btn--primary" href="/admin/products/new">+ New product</a>{% endblock %}
+{% block topbar_actions %}<a class="ad-btn" href="/admin/shop/stock">Stock</a> <a class="ad-btn ad-btn--primary" href="/admin/products/new">+ New product</a>{% endblock %}
 {% block content %}
+<form class="ad-card" method="get" action="/admin/products" role="search" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:12px 14px;margin-bottom:12px">
+  <label class="sr-only" for="pqQ">Search products</label>
+  <input type="search" id="pqQ" name="q" value="{{ q }}" placeholder="Name or slug…" style="flex:1 1 200px">
+  <label class="sr-only" for="pqShow">Show</label>
+  <select id="pqShow" name="show">{% for k, label in shows %}{% if k != 'archived' or has_archive %}<option value="{{ k }}" {% if show == k %}selected{% endif %}>{{ label }}</option>{% endif %}{% endfor %}</select>
+  <label class="sr-only" for="pqCat">Category</label>
+  <select id="pqCat" name="category"><option value="">Every category</option>{% for c in categories %}<option value="{{ c }}" {% if category == c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select>
+  <button class="ad-btn" type="submit">Show</button>
+  {% if q or show != 'all' or category %}<a class="ad-btn" href="/admin/products">Clear</a>{% endif %}
+  <span role="status" style="font-size:13px;color:var(--cn-soft)">{{ rows|length }} product{{ rows|length == 1 ? '' : 's' }}</span>
+</form>
 <div class="ad-card"><div class="ad-table-wrap">
   <table class="ad-table">
     <thead><tr><th scope="col"></th><th scope="col">Product</th><th scope="col">Category</th><th scope="col">Price</th><th scope="col">Stock</th><th scope="col">Status</th><th scope="col" class="col-actions">Actions</th></tr></thead>
@@ -16,17 +27,28 @@
         <td>{{ r.category }}</td>
         <td style="font-family:'Space Mono',monospace">₦{{ r.price_naira|number_format }}</td>
         <td>{{ r.stock is null ? '∞' : r.stock }}</td>
-        <td><span class="ad-chip ad-chip--{{ r.is_active ? 'green' : 'grey' }}">{{ r.is_active ? 'Active' : 'Hidden' }}</span></td>
+        <td>{% if r.archived_at|default(null) %}<span class="ad-chip ad-chip--grey">Archived</span>{% else %}<span class="ad-chip ad-chip--{{ r.is_active ? 'green' : 'grey' }}">{{ r.is_active ? 'Active' : 'Hidden' }}</span>{% endif %}</td>
         <td class="col-actions">
           <a class="ad-btn ad-btn--sm" href="/admin/products/{{ r.id }}">Edit</a>
-          <form method="post" action="/admin/products/{{ r.id }}/delete" style="display:inline" data-confirm="Delete “{{ r.name }}” for good? It disappears from the shop at once. Orders already placed keep their own record of what was bought, but the product page and any link to it stop working.">
+          <form method="post" action="/admin/products/{{ r.id }}/duplicate" style="display:inline">
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            <button class="ad-btn ad-btn--sm" type="submit">Duplicate</button>
+          </form>
+          {% if has_archive %}
+          <form method="post" action="/admin/products/{{ r.id }}/archive" style="display:inline"{% if not r.archived_at|default(null) %} data-confirm="Archive “{{ r.name }}”? It leaves the shop and the stock lists; every order that bought it still points at it, and you can bring it back."{% endif %}>
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            {% if r.archived_at|default(null) %}<input type="hidden" name="restore" value="1">{% endif %}
+            <button class="ad-btn ad-btn--sm" type="submit">{{ r.archived_at|default(null) ? 'Restore' : 'Archive' }}</button>
+          </form>
+          {% endif %}
+          <form method="post" action="/admin/products/{{ r.id }}/delete" style="display:inline" data-confirm="Delete “{{ r.name }}” for good? Only a product nobody has ordered can be deleted — one that has been ordered is refused, and you archive it instead.">
             <input type="hidden" name="_token" value="{{ csrf_token }}">
             <button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" aria-label="Delete product">×</button>
           </form>
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="7" style="text-align:center;color:var(--cn-soft);padding:34px">No products yet. <a href="/admin/products/new" style="color:var(--cn-ink);font-weight:600">Add your first →</a></td></tr>
+      <tr><td colspan="7" style="text-align:center;color:var(--cn-soft);padding:34px">{% if q or show != 'all' or category %}Nothing matches that filter.{% else %}No products yet.{% endif %} <a href="/admin/products/new" style="color:var(--cn-ink);font-weight:600">Add your first →</a></td></tr>
       {% endfor %}
     </tbody>
   </table>

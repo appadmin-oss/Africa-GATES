@@ -83,6 +83,66 @@
     </div>
   </div>
 
+  {# ── Why vote: the campaign (Support\AwardCampaign) ──────────────────────────
+     Every box is optional and a blank one draws nothing on the vote page. Benefits and
+     the beneficiary share are promises to the public: set them only once they are approved
+     against what can actually be delivered. #}
+  <div class="ad-card">
+    <div class="ad-card__head"><div class="ad-card__title">Campaign<small>Why somebody should vote: the award's rally line, what each vote does, what supporters unlock, and the Supporter Spotlight.</small></div>
+      {% if not is_new and row.slug %}<a class="ad-btn ad-btn--sm" href="/vote/{{ row.slug }}" target="_blank" rel="noopener">Preview the vote page →</a> <a class="ad-btn ad-btn--sm" href="/vote/{{ row.slug }}/offer" target="_blank" rel="noopener">Preview the offer page →</a>{% endif %}</div>
+    <div class="ad-card__body">
+      <div class="ad-form">
+        {% for k, fdef in campaign_fields %}
+          <div>
+            <label for="f-c-{{ k }}">{{ fdef.label }}</label>
+            {% if fdef.long|default(false) %}
+              <textarea name="campaign[{{ k }}]" id="f-c-{{ k }}" rows="3" maxlength="{{ fdef.max }}" aria-describedby="f-c-{{ k }}-h">{{ campaign[k] }}</textarea>
+            {% else %}
+              <input type="text" name="campaign[{{ k }}]" id="f-c-{{ k }}" value="{{ campaign[k] }}" maxlength="{{ fdef.max }}" aria-describedby="f-c-{{ k }}-h">
+            {% endif %}
+            <p class="hint" id="f-c-{{ k }}-h">{{ fdef.help }}</p>
+          </div>
+        {% endfor %}
+        <div>
+          <label for="f-c-share">Share of each contributed vote that reaches the beneficiary (%)</label>
+          <input type="number" name="campaign[share_pct]" id="f-c-share" min="0" max="100" step="1" inputmode="numeric" value="{{ campaign.share_pct ?: '' }}" aria-describedby="f-c-share-h">
+          <p class="hint" id="f-c-share-h">The vote page then says, for example, "Of every ₦200 vote, ₦60 goes to …". Only this share is stated; say what the rest covers above, in your words.</p>
+        </div>
+        <div>
+          <label><input type="checkbox" name="campaign[spotlight_off]" value="1"{% if not campaign.spotlight %} checked{% endif %}> Hide the Supporter Spotlight on this award</label>
+          <p class="hint">It is on for every award by default: Champion of the day, the edition's top supporters, the mobiliser of the week and a wall of everybody backing their own, each emailed when celebrated. Verified votes only. Members appear with their own account name and photo and can take themselves off in one tap; anybody else is named only if they ticked "show my name".</p>
+        </div>
+        {# The Champions' (Day, Week, Award) and the Mobiliser of the Week's prizes, one per line:
+           shown on the offer page and in the champion's email (Services\DailyChampion). #}
+        {# The owner's prizes, one click away (AwardCampaign::SUGGESTED): fills only the lists
+           that are still empty, and nothing is published until the form is saved. #}
+        {% if campaign_suggested|default([]) %}
+          <p class="hint"><button type="button" class="ad-btn ad-btn--sm" data-ag-do="fill-suggested">Fill in the suggested prizes</button>
+            Souvenirs and a funfair ticket for the Champion of the Day, a CACENTRE scholarship for the Week, a ₦1.5m scholarship for the Award. Only empty lists are filled; edit them before saving.</p>
+        {% endif %}
+        {% for k, ldef in campaign_lists %}
+          <div>
+            <label for="f-cl-{{ k }}">{{ ldef.label }}</label>
+            <textarea name="campaign[{{ k }}]" id="f-cl-{{ k }}" rows="4" aria-describedby="f-cl-{{ k }}-h"{% if campaign_suggested[k] is defined %} data-suggest="{{ campaign_suggested[k]|join("\n") }}"{% endif %}>{{ campaign[k]|join("\n") }}</textarea>
+            <p class="hint" id="f-cl-{{ k }}-h">{{ ldef.help }} Up to {{ list_max }} lines.</p>
+          </div>
+        {% endfor %}
+        <fieldset class="pg-faq">
+          <legend>What votes unlock <span class="hint">(up to {{ ladder_max }}; counted per person across the edition; a blank row is dropped)</span></legend>
+          {% for i in 0..(ladder_max - 1) %}
+            {% set _r = campaign.ladder[i]|default({votes: '', benefit: ''}) %}
+            <div class="pg-faq__row">
+              <label for="f-l-v{{ i }}">Votes</label>
+              <input type="number" name="campaign[ladder_votes][]" id="f-l-v{{ i }}" min="1" step="1" inputmode="numeric" value="{{ _r.votes }}">
+              <label for="f-l-b{{ i }}">Unlocks</label>
+              <input type="text" name="campaign[ladder_benefit][]" id="f-l-b{{ i }}" maxlength="140" value="{{ _r.benefit }}">
+            </div>
+          {% endfor %}
+        </fieldset>
+      </div>
+    </div>
+  </div>
+
   {#
     ── THE SUB-PAGES OF THIS AWARD ─────────────────────────────────────────────
     Linked from the page they belong under rather than added to the rail, which is

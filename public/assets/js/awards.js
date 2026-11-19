@@ -15,6 +15,9 @@
    ══════════════════════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
+  // Page-wide listeners and timers go through agPage (layout/shell.twig), which site-nav.js
+  // undoes when this page is swapped away; elsewhere they are plain (SiteNavTest).
+  var pg = window.agPage || { on: function (t, y, f, o) { t.addEventListener(y, f, o); }, every: function (f, ms) { return setInterval(f, ms); }, leave: function () {} };
 
   var pad = function (n) { return (n < 10 ? '0' : '') + n; };
 
@@ -35,7 +38,7 @@
       if (c.m) c.m.textContent = pad(Math.floor((t % 3600) / 60));
       if (c.s) c.s.textContent = pad(t % 60);
     }
-    var timer = setInterval(function () {
+    var timer = pg.every(function () {
       var live = 0;
       list.forEach(function (c) { if (c.left > 0) { c.left--; paint(c); if (c.left > 0) live++; } });
       if (!live) clearInterval(timer);

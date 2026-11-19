@@ -19,7 +19,7 @@
   </select>
   <button class="ad-btn ad-btn--primary" type="submit">Filter</button>
   {% if filters.q or filters.status or filters.tier %}<a class="ad-btn ad-btn--ghost" href="/admin/profiles">Reset</a>{% endif %}
-  <div style="margin-left:auto;display:flex;gap:6px">
+  <div style="margin-left:auto;display:flex;flex-wrap:wrap;gap:6px;max-width:100%">
     <a class="ad-tab {% if not filters.status %}is-active{% endif %}" href="/admin/profiles">All <span class="n">{{ counts.all }}</span></a>
     <a class="ad-tab {% if filters.status == 'pending' %}is-active{% endif %}" href="/admin/profiles?status=pending">Pending <span class="n">{{ counts.pending }}</span></a>
     <a class="ad-tab {% if filters.status == 'approved' %}is-active{% endif %}" href="/admin/profiles?status=approved">Approved <span class="n">{{ counts.approved }}</span></a>

@@ -47,6 +47,9 @@ final class Tasks
     public static function fits(object $v, object $t): bool
     {
         if ($t->module_key && !Training::holds((int) $v->id, (string) $t->module_key)) return false;
+        // An event's task is for that event's team (as the library and take() hold), so the
+        // new-task notice must not tell anybody else about it.
+        if ((string) ($t->scope_kind ?? '') === 'event' && !Workspace::place($v, 'event', (int) $t->scope_id)) return false;
         return !(int) $t->from_home || (int) ($v->from_home ?? 1) === 1;
     }
 
@@ -57,6 +60,12 @@ final class Tasks
         $q = self::offered();
         if ($taken) $q->whereNotIn('id', $taken);
         $rows = $q->orderBy('due_at')->orderByDesc('id')->limit(100)->get()->all();
+        // An EVENT's task is for the people working that event (a lead posts it for their own
+        // night's team), so it is offered only to a volunteer holding a role there. Award-wide
+        // and unplaced tasks stay open to everybody, as they were.
+        $events = [];
+        foreach (Workspace::places($v) as $p) if ($p['kind'] === 'event') $events[$p['id']] = true;
+        $rows = array_values(array_filter($rows, static fn ($t) => (string) $t->scope_kind !== 'event' || isset($events[(int) $t->scope_id])));
         foreach ($rows as $t) {
             $t->trained = $t->module_key ? Training::holds((int) $v->id, (string) $t->module_key) : true;
             $t->fits = self::fits($v, $t);
@@ -79,6 +88,8 @@ final class Tasks
         $t = DB::table('gates_vol_tasks')->where('id', $taskId)->where('status', 'open')->first();
         if (!$t) return ['ok' => false, 'error' => 'That task is not open.'];
         if ($t->due_at && (string) $t->due_at <= date('Y-m-d H:i:s')) return ['ok' => false, 'error' => 'That task’s due date has passed, so it can’t be taken now.'];
+        // The same rule as the library: an event's task is taken only by somebody on that event.
+        if ((string) $t->scope_kind === 'event' && !Workspace::place($v, 'event', (int) $t->scope_id)) return ['ok' => false, 'error' => 'That task is for the team at another event.'];
         if ($t->module_key && !Training::holds((int) $v->id, (string) $t->module_key)) return ['ok' => false, 'error' => 'This task needs training first.'];
         $have = DB::table('gates_vol_task_takes')->where('task_id', $taskId)->where('volunteer_id', $v->id)->first();
         if ($have) {
@@ -120,16 +131,24 @@ final class Tasks
      */
     public static function accept(int $takeId, float $hours, int $accepted, string $byName): bool
     {
+        // The same bounds the event path has always had. Staff could accept any figure: a
+        // negative one closed the task and wrote nothing, and 10,000 or more overflows
+        // DECIMAL(6,2) on MySQL — after the take was already marked done (AUDIT-AND-PLAN VO-2).
+        if ($hours <= 0 || $hours > 24) return false;
         $k = DB::table('gates_vol_task_takes')->where('id', $takeId)->whereIn('status', self::ON_THE_GO)->first();
         if (!$k) return false;
         $t = DB::table('gates_vol_tasks')->where('id', $k->task_id)->first();
         if (!$t) return false;
-        $moved = DB::table('gates_vol_task_takes')->where('id', $takeId)->whereIn('status', self::ON_THE_GO)->update(['status' => self::DONE, 'done_at' => date('Y-m-d H:i:s'),
-            'accepted' => max(0, $accepted), 'progress' => max((int) $k->progress, $accepted)]);
-        if ($moved !== 1) return false;
-        $k->status = self::DONE;
-        Hours::fromTask($k, $t, $hours, $byName);
-        return true;
+        // Closing the take and writing its hours are ONE act: a take marked done with no
+        // hours row is work nobody can see was ever credited.
+        return DB::connection()->transaction(static function () use ($k, $t, $takeId, $hours, $accepted, $byName): bool {
+            $moved = DB::table('gates_vol_task_takes')->where('id', $takeId)->whereIn('status', self::ON_THE_GO)->update(['status' => self::DONE, 'done_at' => date('Y-m-d H:i:s'),
+                'accepted' => max(0, $accepted), 'progress' => max((int) $k->progress, $accepted)]);
+            if ($moved !== 1) return false;
+            $k->status = self::DONE;
+            Hours::fromTask($k, $t, $hours, $byName);
+            return true;
+        });
     }
 
     /**
@@ -216,6 +235,64 @@ final class Tasks
         if ($at === null) return [null, 'That due date isn’t a date.'];
         if ($at <= date('Y-m-d H:i:s')) return [null, 'A due date has to be in the future: nobody could take the task.'];
         return [$at, null];
+    }
+
+    // ── An event's own tasks, set by its lead (owner, 5 Nov 2026) ─────────────────────────
+    //
+    // A lead posts work for THEIR event from the lead console (EventPages, People › Volunteer
+    // tasks); it is live at once. Every one of these takes the event as an argument and refuses
+    // a task or a take that is not that event's, so a crafted post about another event's task
+    // is answered as if the task did not exist. The caller checks the member may do this at
+    // the event (Plan::may 'volunteers.tasks'); these check the task belongs there.
+
+    /** @return array{ok:bool, error?:string, id?:int} */
+    public static function postForEvent(int $eventId, array $f, int $memberId, string $memberName): array
+    {
+        if ($eventId < 1 || !DB::table('gates_site_events')->where('id', $eventId)->exists()) return ['ok' => false, 'error' => 'That event was not found.'];
+        // The module must be one that exists, or the task could never be taken by anybody.
+        $module = trim((string) ($f['module_key'] ?? ''));
+        if ($module !== '' && !isset(Training::titles()[$module])) return ['ok' => false, 'error' => 'That training module does not exist.'];
+        $r = self::create(['scope_kind' => 'event', 'scope_id' => $eventId, 'module_key' => $module] + $f, 0);
+        if (!$r['ok']) return ['ok' => false, 'error' => implode(' ', $r['errors'] ?? ['The task could not be posted.'])];
+        DB::table('gates_vol_tasks')->where('id', $r['id'])->update(['created_by' => null]);
+        if (\AfricaGates\Support\SchemaHas::column('gates_vol_tasks', 'posted_by_member')) {
+            DB::table('gates_vol_tasks')->where('id', $r['id'])->update(['posted_by_member' => $memberId, 'posted_by_name' => mb_substr($memberName, 0, 120)]);
+        }
+        return ['ok' => true, 'id' => (int) $r['id']];
+    }
+
+    /** Close an event's task: nobody new can take it; takes already running stay theirs to finish. */
+    public static function closeForEvent(int $eventId, int $taskId): bool
+    {
+        return DB::table('gates_vol_tasks')->where('id', $taskId)->where('scope_kind', 'event')->where('scope_id', $eventId)
+            ->where('status', 'open')->update(['status' => 'closed']) > 0;
+    }
+
+    /** The take must be on one of THIS event's tasks; accepting it is the check, as for staff. */
+    public static function acceptForEvent(int $eventId, int $takeId, float $hours, string $byName): array
+    {
+        $k = DB::table('gates_vol_task_takes as k')->join('gates_vol_tasks as t', 't.id', '=', 'k.task_id')
+            ->where('k.id', $takeId)->where('t.scope_kind', 'event')->where('t.scope_id', $eventId)->first(['k.id', 'k.status']);
+        if (!$k) return ['ok' => false, 'error' => 'That piece of work is not on this event.'];
+        if (!in_array((string) $k->status, self::ON_THE_GO, true)) return ['ok' => false, 'error' => 'That has already been accepted, or was dropped.'];
+        if ($hours <= 0 || $hours > 24) return ['ok' => false, 'error' => 'Give the hours it took, between a quarter of an hour and 24.'];
+        return self::accept($takeId, $hours, 0, $byName) ? ['ok' => true] : ['ok' => false, 'error' => 'That could not be accepted.'];
+    }
+
+    /** An event's tasks, open and closed, with who has them. @return list<object> */
+    public static function forEvent(int $eventId): array
+    {
+        $tasks = DB::table('gates_vol_tasks')->where('scope_kind', 'event')->where('scope_id', $eventId)
+            ->orderByRaw("CASE WHEN status = 'open' THEN 0 ELSE 1 END")->orderBy('due_at')->orderByDesc('id')->get()->all();
+        foreach ($tasks as $t) {
+            $t->takes = DB::table('gates_vol_task_takes as k')->join('gates_volunteers as v', 'v.id', '=', 'k.volunteer_id')
+                ->where('k.task_id', $t->id)->whereIn('k.status', [...self::ON_THE_GO, self::DONE])->orderBy('k.taken_at')
+                // The volunteer's columns FIRST: both tables have `status` (and `id`), and the later
+                // column wins, so the take's own status must come after `v.*` or every take reads
+                // as the volunteer's 'active'.
+                ->get(['v.*', 'k.id as take_id', 'k.status', 'k.taken_at', 'k.handed_in_at', 'k.done_at'])->all();
+        }
+        return $tasks;
     }
 
     /** @return array{ok:bool, errors?:list<string>, id?:int} */

@@ -74,7 +74,33 @@ final class PayoutsController
             'min_naira'  => ReferralPayout::MIN_NAIRA,
             // Whether requests that pass every check are sent without a person.
             'auto_on'    => \AfricaGates\Services\WalletAutoPay::enabled(),
+            // Organisations' requests had no reader at all: recorded, shown to the
+            // organisation as "requested", and on no screen anybody here opens.
+            'org_rows'   => \AfricaGates\Services\OrgPayout::awaitingHand(),
+            'org_mode'   => \AfricaGates\Services\OrgPayout::mode(),
         ]);
+    }
+
+    public function orgPay(Request $req, Response $res, array $args): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+        $id = (int) ($args['id'] ?? 0);
+        $r  = \AfricaGates\Services\OrgPayout::settleByHand($id,
+            (string) (((array) $req->getParsedBody())['reference'] ?? ''), (int) ($_SESSION['admin_id'] ?? 0));
+        $_SESSION[$r['ok'] ? 'flash' : 'flash_error'] = $r['message'];
+        if ($r['ok']) $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'org.payout_paid', 'org_payout', $id);
+        return $this->back($res);
+    }
+
+    public function orgRefuse(Request $req, Response $res, array $args): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+        $id = (int) ($args['id'] ?? 0);
+        $r  = \AfricaGates\Services\OrgPayout::refuse($id,
+            (string) (((array) $req->getParsedBody())['why'] ?? ''), (int) ($_SESSION['admin_id'] ?? 0));
+        $_SESSION[$r['ok'] ? 'flash' : 'flash_error'] = $r['message'];
+        if ($r['ok']) $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'org.payout_refused', 'org_payout', $id);
+        return $this->back($res);
     }
 
     public function pay(Request $req, Response $res, array $args): Response

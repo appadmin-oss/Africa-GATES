@@ -28,6 +28,8 @@
 .sp-btn--go{ background:var(--ag-green); color:var(--ag-surface) }
 .sp-btn--go:hover:not(:disabled){ background:var(--ag-green-deep); color:var(--ag-surface) }
 .sp-btn--ink{ border-color:var(--ag-ink); color:var(--ag-ink) }
+/* A control the script still drives but this page must not offer (no payment gateway). */
+.sp-off{ display:none !important }
 .sp-btn--ink:hover{ background:var(--ag-tint); color:var(--ag-ink) }
 .sp-btn--line,
 .sp-btn--outline{ border-color:var(--ag-line-2); color:var(--ag-ink) }
@@ -143,9 +145,12 @@
 .sp-rail__apply{ margin:var(--ag-sp-12) var(--ag-sp-16) }
 
 .sp-fs{ margin:0; padding:0; border:0; min-width:0 }
-.sp-fs--rail{ padding:var(--ag-sp-16) 0; border-bottom:1px solid var(--ag-line) }
+/* A <legend> is drawn ABOVE its fieldset's top padding, so the padding here used to land
+   between a heading and its own options (26px) while the rule above sat 0px over it — each
+   heading read as belonging to the section before. The space now goes above the heading. */
+.sp-fs--rail{ padding:0 0 var(--ag-sp-16); border-bottom:1px solid var(--ag-line) }
 .sp-fs--rail:last-child{ border-bottom:0 }
-.sp-fs__lg{ padding:0; margin-bottom:var(--ag-sp-10); font-weight:700; font-size:var(--ag-fs-15) }
+.sp-fs__lg{ padding:var(--ag-sp-18) 0 0; margin-bottom:var(--ag-sp-8); font-weight:700; font-size:var(--ag-fs-15) }
 .sp-check{ display:flex; align-items:center; gap:var(--ag-sp-10); min-height:40px; cursor:pointer; font-size:var(--ag-fs-15) }
 .sp-check input{ width:20px; height:20px; margin:0; accent-color:var(--ag-ink) }
 .sp-check__l{ flex:1 }
@@ -361,6 +366,7 @@
   font-size:var(--ag-fs-14); color:var(--ag-soft) }
 .sp-added__sum b{ color:var(--ag-ink) }
 .sp-added__do{ display:grid; grid-template-columns:1fr 1fr; gap:var(--ag-sp-8) }
+.sp-added__one{ grid-column:1 / -1 }
 .sp-keep{ border:0; background:none; min-height:36px; color:var(--ag-soft); font-weight:600; cursor:pointer }
 
 /* ══ The product page ════════════════════════════════════════════════════ */
@@ -387,6 +393,8 @@
 .sp-buy__head{ display:flex; flex-direction:column; gap:var(--ag-sp-4) }
 .sp-buy__maker,
 .sp-buy__cat{ font-size:var(--ag-fs-13-5); color:var(--ag-soft) }
+.sp-buy__catlink{ align-self:flex-start; color:var(--ag-green); text-decoration:underline; text-decoration-thickness:1px; text-underline-offset:3px }
+.sp-buy__catlink:hover{ color:var(--ag-green-ink) }
 .sp-buy__h{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-28); line-height:1.15 }
 .sp-buy__price{ display:flex; align-items:center; gap:var(--ag-sp-10); margin-top:var(--ag-sp-4); font-size:var(--ag-fs-22) }
 .sp-buy__price b{ font-variant-numeric:tabular-nums }
@@ -394,7 +402,6 @@
   border-radius:var(--ag-r-pill); font-size:var(--ag-fs-12-5); font-weight:600; color:var(--ag-soft) }
 .sp-buy__ngn{ font-size:var(--ag-fs-13); color:var(--ag-soft) }
 .sp-buy__desc{ margin:0; font-size:var(--ag-fs-15-5); line-height:1.55; color:var(--ag-ink-2) }
-.sp-buy__desc--wide{ display:none }
 
 .sp-opt{ margin:0; padding:0; border:0; min-width:0 }
 .sp-opt__l{ padding:0; margin-bottom:var(--ag-sp-10); font-weight:700; font-size:var(--ag-fs-15) }
@@ -530,8 +537,6 @@
   .sp-buy{ margin:0; padding:0; border-radius:0; background:none; gap:var(--ag-sp-18) }
   .sp-buy__h{ font-size:var(--ag-fs-36) }
   .sp-buy__price{ font-size:var(--ag-fs-24) }
-  .sp-buy__desc--wide{ display:block }
-  .sp-buy__desc--phone{ display:none }
   .sp-qtyrow{ display:none !important }
   .sp-ctas{ display:flex }
   .sp-rel{ margin-top:var(--ag-sp-40); padding:0; background:none }
@@ -551,10 +556,17 @@
   .sp-rail__x,
   .sp-rail__foot{ display:none }
   .sp-rail__body{ padding:0; overflow:visible }
-  .sp-fs--rail:first-child{ padding-top:var(--ag-sp-8) }
+  .sp-fs--rail:first-child .sp-fs__lg{ padding-top:var(--ag-sp-8) }
   .sp-h1{ font-size:var(--ag-fs-48) }
   .sp-item__grid{ grid-template-columns:minmax(0, 1.15fr) minmax(0, 1fr); gap:var(--ag-sp-56) }
   .sp-buy{ position:sticky; top:var(--ag-sp-24) }
+}
+
+/* ══ 1280+: four to a row ══════════════════════════════════════════════════
+   Beside the filter rail, three columns made each card ~310px wide and ~390px tall, so a
+   laptop screen showed three products and a scroll; a shop is browsed by comparing. */
+@media (min-width: 1280px){
+  .sp-grid{ grid-template-columns:repeat(4, minmax(0, 1fr)); gap:var(--ag-sp-24) var(--ag-sp-16) }
 }
 
 /* Tablet stacks the rail above the grid as a plain panel (DC), not a sheet. */

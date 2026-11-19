@@ -53,8 +53,12 @@ final class WalletReceipt
         $d = preg_replace('/\D+/', '', $n) ?? '';
         $l = strlen($d);
         if ($l === 0) return '';
-        if ($l < 7) return '****' . substr($d, -2);
-        return substr($d, 0, 3) . str_repeat('*', $l - 6) . substr($d, -3);
+        // The last four and nothing else — the convention every bank statement uses. It
+        // used to print the first three as well: on a ten-digit NUBAN that is six of ten
+        // digits, on a receipt a member is invited to download and forward, and the first
+        // three narrow the rest considerably.
+        if ($l <= 4) return str_repeat('*', $l);
+        return str_repeat('*', $l - 4) . substr($d, -4);
     }
 
     public static function maskSession(string $s): string

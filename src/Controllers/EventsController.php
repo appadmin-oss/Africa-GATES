@@ -151,8 +151,9 @@ class EventsController
                 'pct'       => ReferralService::ratePct(),
                 'threshold' => ReferralService::threshold(),
                 'link'      => null,
+                'signed_in' => $me !== null,
             ];
-            $rc = $me !== null ? ReferralService::codeFor($me) : null;
+            $rc = $me !== null ? ReferralService::existingCode($me) : null;
             if ($rc !== null) {
                 $referral['link'] = ReferralService::link(\AfricaGates\Support\SiteUrl::base($req), (string) $rc, (string) $event['slug']);
             }
@@ -171,11 +172,12 @@ class EventsController
             $st   = (string) ($t['state'] ?? 'open');
             $gone = $st === 'sold_out';
             $c    = \AfricaGates\Services\EventTierTone::card($t, $event);
+            [$note, $perks] = self::tierLines((string) ($t['description'] ?? ''), (array) ($t['perks'] ?? []));
             $rows[] = [
                 'id'      => (int) $t['id'],
                 'name'    => (string) $t['name'],
-                'note'    => (string) ($t['description'] ?? ''),
-                'perks'   => (array) ($t['perks'] ?? []),
+                'note'    => $note,
+                'perks'   => $perks,
                 'price'   => (int) ($t['price_naira'] ?? 0),
                 'price_text' => \AfricaGates\Services\EventSales::money((int) ($t['price_naira'] ?? 0)),
                 'state'   => $st,
@@ -209,7 +211,18 @@ class EventsController
 
         $awardsHere = \AfricaGates\Services\EventsFront::awards($id);
 
+        // How many people have seen it, and "promote this event" beside the number
+        // (Services\PageViews; owner, 11 Nov 2026).
+        $views = \AfricaGates\Services\PageViews::forPage('event', $id,
+            ['event' => ['title' => (string) $event['title'], 'slug' => (string) $event['slug']]]);
         return $this->view->render($res, 'pages/events/detail.twig', [
+            'views' => $views,
+            // The organiser's map link, checked again on the way OUT (CLAUDE.md: a stored value
+            // survives the code that wrote it), else a map search for the address. The template
+            // used to print the stored column straight into an href.
+            'map_link'         => \AfricaGates\Services\EventsFront::link((string) ($event['map_embed'] ?? ''))
+                                  ?: 'https://www.google.com/maps/search/?api=1&query='
+                                     . rawurlencode(implode(', ', array_filter([(string) ($event['venue'] ?? ''), (string) ($event['location'] ?? '')]))),
             'page_title'       => $event['title'] . ' — Africa GATES',
             'meta_description' => ($event['tagline'] ?? null)
                 ?: mb_substr(strip_tags((string) ($event['description'] ?? '')), 0, 150),
@@ -260,7 +273,7 @@ class EventsController
             // event belongs to is taking votes: the page then links to a ballot, and no ad
             // sits beside a choice somebody is making (owner, 27 Oct 2026).
             'ad'               => empty($awardsHere['voting'])
-                ? \AfricaGates\Services\Ads\AdDelivery::forRequest('events', $req) : null,
+                ? \AfricaGates\Services\Ads\AdDelivery::forRequest('event_page', $req) : null,
             'gcal'             => $gcal,
             'alert_waiting'    => $ev['state'] === 'soon' ? \AfricaGates\Services\EventSaleAlert::waiting($id) : 0,
             'alert_said'       => self::takeAlertSaid(),
@@ -1552,4 +1565,26 @@ class EventsController
         return $res->withHeader('Location', $path)->withStatus(302);
     }
 
+
+    /**
+     * A tier's description as a list when the organiser wrote it as one. Organisers type what a
+     * ticket includes as a run-on line — "Support CACENTRE + Souvenir + Refreshments + Free
+     * Delivery" — and drawn as a sentence that is four lines of grey nobody scans (owner,
+     * 17 Nov 2026: "not sleek"). Split on " + " (or line breaks) when there are no separate
+     * perks; a description without them stays a sentence.
+     *
+     * @return array{0:string,1:list<string>}
+     */
+    public static function tierLines(string $description, array $perks): array
+    {
+        $perks = array_values(array_filter(array_map(static fn ($p) => trim((string) $p), $perks), static fn ($p) => $p !== ''));
+        $d = trim($description);
+        if ($perks !== [] || $d === '' || !preg_match('/\s\+\s|\R/u', $d)) return [$d, $perks];
+        $items = array_values(array_filter(array_map(
+            static fn ($p) => rtrim(trim($p), '.;,'),
+            preg_split('/\s\+\s|\R/u', $d) ?: []
+        ), static fn ($p) => $p !== ''));
+        $items = array_map(static fn ($p) => mb_strtoupper(mb_substr($p, 0, 1)) . mb_substr($p, 1), $items);
+        return count($items) > 1 ? ['', $items] : [$d, []];
+    }
 }

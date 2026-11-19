@@ -128,4 +128,51 @@ final class IntegrityPageTest extends TestCase
         $this->assertStringContainsString('80', $text, '20% of 400, the per-supporter ceiling');
         $this->assertStringContainsString('5 different verified people', $text);
     }
+
+    // ── the page answers first, and its tables hold their shape ──────────────
+
+    /**
+     * "In short" leads, and its figures are the engine's: change the split and the quorum and
+     * the summary moves with them. A summary typed as prose is the shape this page exists to
+     * avoid — the first thing a reader sees disagreeing with the table they scroll to.
+     */
+    public function test_the_page_opens_with_a_summary_read_from_the_engine(): void
+    {
+        (new RuleEngine())->set('global', null, ['community_weight' => 0.30, 'judge_weight' => 0.70, 'min_judges_per_nominee' => 4]);
+        $html = $this->page();
+
+        preg_match_all('~<section class="dp-sec" id="([a-z]+)"~', $html, $m);
+        $this->assertSame('short', $m[1][0] ?? null, 'the summary is the first section');
+        $this->assertSame(['why', 'more'], array_slice($m[1], -2), 'the argument for the method comes after the rules, then the reading list');
+        // Help articles are gathered at the end, once each, not closing every section.
+        $this->assertSame(1, substr_count($html, 'class="dp-more"'));
+        $this->assertStringNotContainsString('class="dp-refs"', $html, 'no per-section link list on this page');
+        $this->assertSame(1, substr_count($html, '>I think a count or a ranking is wrong</a>'), 'an article two sections cite is listed once');
+
+        $this->assertStringContainsString('30% of the score is verified community support and 70% is an independent judge panel', $html);
+        $this->assertStringContainsString('complete scorecards from at least 4 judges', $html);
+    }
+
+    /**
+     * Two faults in the shared document stylesheet, both on every /integrity, /philosophy and
+     * policy table at desktop width: the phone rule `.dp-rich tbody th { padding:0 }` out-ranked
+     * the desktop `.dp-rich th`, so every row label sat flush to the edge and above its row; and
+     * `white-space:nowrap` on that label let one long name push the table wider than its column,
+     * where the table's own overflow:hidden cut the other columns off mid-word.
+     */
+    public function test_a_document_table_pads_and_wraps_its_row_labels(): void
+    {
+        $css = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/css/components/doc.css');
+        $at  = strpos($css, '@media (min-width:600px)');
+        $this->assertNotFalse($at);
+        $wide = substr($css, $at, (int) strpos($css, "\n}\n", $at) - $at);
+
+        $this->assertMatchesRegularExpression('~\.dp-rich tbody th[^{]*\{[^}]*padding:[1-9][0-9]*px [1-9][0-9]*px~', $wide,
+            'the row label needs its padding named at a specificity the phone rule cannot beat');
+        preg_match_all('~\.dp-table tbody th\{([^}]*)\}~', $wide, $rules);
+        $this->assertNotEmpty($rules[1]);
+        foreach ($rules[1] as $body) {
+            $this->assertStringNotContainsString('nowrap', $body, 'a long row label must wrap, not push the table off the page');
+        }
+    }
 }

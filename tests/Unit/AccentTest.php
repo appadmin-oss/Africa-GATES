@@ -89,7 +89,14 @@ final class AccentTest extends TestCase
 
         // Nothing but custom properties, and no character that could close the <style>
         // it is printed into or open a rule.
-        $this->assertMatchesRegularExpression('/^:root\{(--ag-[a-z0-9-]+:[#a-z0-9 ,.()-]+;)+\}$/', $css);
+        // The day block, then the night block twice (behind the device's setting, and the
+        // reader's own Dark), each nothing but custom properties and its `color-scheme`.
+        $decls = '(?:--ag-[a-z0-9-]+:[#a-z0-9 ,.()-]+;)+color-scheme:(?:light|dark);';
+        $this->assertMatchesRegularExpression('/^:root\{' . $decls
+            . '\}@media \(prefers-color-scheme:dark\)\{:root:where\(:not\(\.ag-light\):not\(\.ag-sepia\)\)\{' . $decls
+            . '\}\}:root:where\(\.ag-dark\)\{' . $decls
+            . '\}:root:where\(\.ag-sepia\)\{' . $decls
+            . '\}(?::where\(\.ag-pv-(?:light|dark|sepia)\)\{(?:--ag-[a-z0-9-]+:#[0-9a-f]{6};)+\})+$/', $css);
         // And the default-graphics tones (DEFAULT-GRAPHICS §4, handoff 5 Oct 2026): five tones
         // × wash, line, ink and the avatar's edge, each at the spec's value — by reference to
         // a palette token where one is identical, the spec's own hex where none is.
@@ -112,8 +119,14 @@ final class AccentTest extends TestCase
                 $this->assertStringContainsString('--ag-hol-' . $tone . '-' . $slot . ':', $css);
             }
         }
+        // Counted by NAME: the night blocks re-declare names, never add one. A night value
+        // under a name the day does not have would be a token only dark mode can read.
+        preg_match_all('/[{;](--ag-[a-z0-9-]+):/', $css, $m);
+        $day = substr($css, 0, (int) strpos($css, '@media'));
+        preg_match_all('/[{;](--ag-[a-z0-9-]+):/', $day, $d);
         $this->assertSame(count(self::HANDOFF) + count(self::HANDOFF_SHADOWS) + 20 + 20,
-            preg_match_all('/[{;]--ag-/', $css), 'Accent emits a name that is not the handoff\'s');
+            count($d[1]), 'Accent emits a name that is not the handoff\'s');
+        $this->assertSame([], array_values(array_diff(array_unique($m[1]), $d[1])), 'a night name the day does not declare');
     }
 
     public function test_a_colour_asked_for_by_a_name_that_does_not_exist_throws(): void

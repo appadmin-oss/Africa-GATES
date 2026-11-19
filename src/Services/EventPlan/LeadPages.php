@@ -50,10 +50,14 @@ final class LeadPages
     // ── shell pieces ────────────────────────────────────────────────────────────────────
 
     /** @param array<string,array{n:int,tone:string}> $counts */
-    public static function rootNav(string $current, array $counts): array
+    public static function rootNav(string $current, array $counts, int $events = 2): array
     {
         $groups = [];
         foreach (self::GROUPS as [$label, $keys]) {
+            // With one event, "Deadlines, Risks, Approvals, Analytics across your events" are that
+            // event's own pages under a second name: four rail items repeating four the event's
+            // menu already has. They are left out — the routes stay — unless the lead is on one.
+            if ($events <= 1 && $label === 'Across your events' && !in_array($current, $keys, true)) continue;
             $items = [];
             foreach ($keys as $k) {
                 $items[] = ['key' => $k, 'label' => self::ROOT[$k][0], 'icon' => self::ROOT[$k][1], 'href' => self::BASE . ($k === 'overview' ? '' : '/' . $k),
@@ -120,8 +124,61 @@ final class LeadPages
 
     private static function noEvents(array $me, string $page): array
     {
-        $note = ['k' => 'note', 'tone' => 'mute', 'text' => 'You don’t lead an event yet. When the organiser makes you the lead on one, it shows here, with its work, risks and budget.'];
+        // An owner, or somebody in an event's own role, leads nothing: their events open from here.
+        $cards = [];
+        foreach (EventPermissions::events($me['id']) as $e) {
+            $st = EventPermissions::standing($me['id'], (int) $e->id);
+            if (!$st['any']) continue;
+            $cards[] = ['t' => (string) $e->title, 'ini' => Workspace::initials((string) $e->title), 'meta' => Workspace::day((string) $e->event_date),
+                        'sub' => EventPermissions::label($st), 'href' => EventPages::url((int) $e->id)];
+        }
+        $waiting = self::waitingSecs($me);
+        if ($cards) {
+            return ['title' => self::ROOT[$page][0] ?? 'Overview', 'secs' => array_merge($waiting, [['k' => 'cards', 'h' => 'Your roles at events', 'items' => $cards],
+                ['k' => 'note', 'tone' => 'mute', 'text' => 'You don’t lead an event, so the pages across events stay empty. Open an event to see what your role there may do.']])];
+        }
+        if ($waiting) return ['title' => self::ROOT[$page][0] ?? 'Overview', 'secs' => $waiting];
+        $note = ['k' => 'note', 'tone' => 'mute', 'text' => 'You don’t lead an event yet. When the organiser makes you the lead on one, it shows here, with its work, risks and budget. '
+            . 'It is given to the email address on your account (' . self::myEmail($me) . '), so if they used a different one, ask them to use this one.'];
         return ['title' => self::ROOT[$page][0] ?? 'Overview', 'secs' => [$note]];
+    }
+
+    /**
+     * A role somebody was GIVEN that has not switched on yet, said to them on their own page
+     * (owner, 5 Nov 2026: "it does not show to the lead that they've been added … it says no
+     * event"). A lead's role waits for a confirmed email address (RoleInvites::eligible); a
+     * member who signs in with a code texted to their phone never confirms one, so the role
+     * sat waiting while this page said they led nothing and offered no way out. Now it names
+     * the event and the role, says exactly what it is waiting for, and — where that is the
+     * address — offers the one button that ends the wait.
+     *
+     * @return list<array<string,mixed>>
+     */
+    private static function waitingSecs(array $me): array
+    {
+        $rows = [];
+        $needsConfirm = false;
+        foreach (\AfricaGates\Services\RoleInvites::mine($me['id']) as $i) {
+            if (str_starts_with((string) $i->capability, 'vol.')) continue;   // a volunteer role opens in the volunteer workspace
+            $confirm = $i->waiting === 'for them to confirm their email address';
+            $needsConfirm = $needsConfirm || $confirm;
+            $role = match ((string) $i->capability) { 'event.lead' => 'Lead', 'event.own' => 'Owner', 'event.finance' => 'Finance admin', default => (string) $i->role };
+            $rows[] = ['t' => $role . ' · ' . $i->title, 'dot' => 'warn',
+                       'sub' => ($confirm ? 'Switches on once you confirm your email address' : 'Switches on at your next sign-in') . ' · until ' . $i->until];
+        }
+        if (!$rows) return [];
+        $secs = [['k' => 'rows', 'h' => count($rows) === 1 ? 'You have been given a role' : 'You have been given ' . count($rows) . ' roles', 'box' => true, 'items' => $rows]];
+        if ($needsConfirm) {
+            $secs[] = ['k' => 'note', 'tone' => 'warn',
+                'text' => 'Your email address (' . self::myEmail($me) . ') is not confirmed yet, and leading an event needs it: a lead moves money and messages guests. Confirm it and the event opens here.',
+                'cta' => ['label' => 'Email me a confirmation link', 'primary' => true, 'action' => '/account/verify/resend', 'post' => ['email' => self::myEmail($me)]]];
+        }
+        return $secs;
+    }
+
+    private static function myEmail(array $me): string
+    {
+        return (string) (DB::table('gates_users')->where('id', $me['id'])->value('email') ?? '');
     }
 
     private static function overview(array $me, array $events): array
@@ -159,11 +216,10 @@ final class LeadPages
             // A plan with nothing in it shows how to start one, never a row of zeros (§8).
             $first = self::eventUrl((int) $next->id, 'work');
             $secs[] = ['k' => 'steps', 'h' => 'Start the plan', 'items' => [
-                ['t' => 'Add the work before the night', 'sub' => 'Each piece with an owner, a due date and its hours. Readiness is counted from it.', 'st' => 'now'],
+                ['t' => 'Add the work before the night', 'sub' => 'Each piece with an owner, a due date and its hours. Readiness is counted from it.', 'st' => 'now', 'href' => $first],
                 ['t' => 'Add the risks', 'sub' => 'What could stop the night, how likely, how bad, and who watches it.', 'st' => 'next'],
                 ['t' => 'Plan the spend', 'sub' => 'You approve up to ' . Plan::naira(Plan::limitMinor()) . ' a line. Finance decides above it.', 'st' => 'next'],
             ]];
-            $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => 'Start with ' . $next->title . '.', 'cta' => ['label' => 'Add work', 'href' => $first]];
         } else {
             $week = time() + 7 * 86400;
             $due = array_filter($work, static fn ($w) => $w->due_at !== null && strtotime((string) $w->due_at) <= $week);
@@ -179,12 +235,13 @@ final class LeadPages
                 ['l' => 'Tickets sold', 'v' => number_format($tickets), 's' => ''],
             ]];
         }
+        // What to do in the main column; what is coming up beside it.
+        $side = [];
         $dl = self::deadlineItems($events);
         if ($dl) {
-            $secs[] = ['k' => 'rows', 'h' => 'Next deadlines', 'items' => array_slice(array_map(static fn ($d) => $d['row'], $dl), 0, 3),
+            $side[] = ['k' => 'rows', 'h' => 'Next deadlines', 'items' => array_slice(array_map(static fn ($d) => $d['row'], $dl), 0, 3),
                        'link' => ['label' => 'All deadlines', 'href' => self::BASE . '/deadlines']];
         }
-        $side = [];
         $mine = Requests::from(Plan::ACTOR, $me['id'], 'open', 'lead');
         if ($mine) {
             $side[] = ['k' => 'rows', 'h' => 'Your requests', 'items' => array_map(static fn ($r) => ['t' => (string) $r->title,
@@ -284,7 +341,7 @@ final class LeadPages
         foreach (Requests::history($id) as $e) {
             $who = $e->actor_kind === Plan::ACTOR && (int) $e->actor_id === $me['id'] ? 'You' : (string) ($e->actor_name ?? 'Someone');
             $verb = ['asked' => 'asked', 'approve' => 'approved', 'ask_info' => 'asked for information', 'decline' => 'declined', 'add_info' => 'added information',
-                     'withdraw' => 'withdrew it', 'undo' => 'undid the last step', 'remind' => 'sent a reminder', 'sent' => 'sent it'][$e->action] ?? $e->action;
+                     'withdraw' => 'withdrew it', 'undo' => 'undid the last step', 'remind' => 'sent a reminder', 'sent' => 'sent it', 'note' => 'noted'][$e->action] ?? $e->action;
             $log[] = ['time' => date('j M', (int) strtotime((string) $e->created_at)), 't' => $who . ' ' . $verb, 'd' => (string) ($e->note ?? ''), 'st' => 'done'];
         }
         if ($log) $secs[] = ['k' => 'agenda', 'h' => 'Activity', 'items' => $log];
@@ -303,6 +360,7 @@ final class LeadPages
 
     private static function yours(array $me, array $events): array
     {
+        if ($events === []) return self::noEvents($me, 'yours');
         $rows = [];
         foreach ($events as $e) {
             $until = '';

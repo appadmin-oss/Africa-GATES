@@ -11,15 +11,7 @@ class AwardService {
     public function getActiveProgrammesWithStatus(): array {
         $progs = DB::table('gates_award_programmes')->where('is_active', 1)->orderBy('sort_order')->get();
         return $progs->map(function ($p) {
-            // Pick the programme's CURRENT cycle by status + recency, NOT a hard
-            // match on the calendar year. An in-flight cycle (nominations…results)
-            // wins over an idle one; otherwise the most recent. This stops an active
-            // cycle from going dark at the New Year boundary or when seeded ahead.
-            $c = DB::table('gates_award_cycles')
-                ->where('programme_id', $p->id)
-                ->orderByRaw("CASE WHEN status IN ('nominations','shortlisting','voting','judging','results') THEN 0 ELSE 1 END")
-                ->orderByDesc('year')->orderByDesc('id')
-                ->first();
+            $c = CurrentCycle::forProgramme((int) $p->id);
             // `phase` is the COMPUTED lifecycle state — the single thing every
             // template should read. `cycle_status` is the materialised column,
             // kept for back-compat; where the two disagree, phase is right.
@@ -52,11 +44,7 @@ class AwardService {
     public function getProgrammeBySlug(string $slug): ?array {
         $p=DB::table('gates_award_programmes')->where('slug',$slug)->where('is_active',1)->first();
         if(!$p) return null;
-        // Same status-aware "current cycle" pick as getActiveProgrammesWithStatus,
-        // so a programme's voting state is consistent between the /vote hub and page.
-        $cycle=DB::table('gates_award_cycles')->where('programme_id',$p->id)
-            ->orderByRaw("CASE WHEN status IN ('nominations','shortlisting','voting','judging','results') THEN 0 ELSE 1 END")
-            ->orderByDesc('year')->orderByDesc('id')->first();
+        $cycle = CurrentCycle::forProgramme((int) $p->id);
         $cats = $cycle ? $this->categoriesByHeat((int) $cycle->id) : [];
         // `cycle_status` and `phase` were MISSING here, while the programme page
         // read `a.cycle_status` — so `status` was always 'upcoming' and the

@@ -206,6 +206,23 @@ final class ReferralService
      * Requires an account by construction: there is no anonymous variant, because a code
      * with no owner is a code with nobody to pay.
      */
+    /**
+     * This member's code if they already have one — never minting. For GET pages: an event
+     * page and a ticket flier called codeFor(), so viewing one (or a link merely hovered,
+     * which the site fetches ahead) created a code, while the account page promised
+     * "nothing is created until you ask for it". Asking is the POST /account/referral.
+     */
+    public static function existingCode(int $userId): ?string
+    {
+        if ($userId < 1) return null;
+        try {
+            $have = DB::table('gates_referral_codes')->where('user_id', $userId)->value('code');
+        } catch (\Throwable) {
+            return null;
+        }
+        return is_string($have) && $have !== '' ? $have : null;
+    }
+
     public static function codeFor(int $userId): ?string
     {
         if ($userId < 1) return null;
@@ -323,19 +340,54 @@ final class ReferralService
      * The email comparison covers the buyer who is not signed in but types the owner's
      * address — same attack, one step further along.
      */
-    private static function isOwnCode(object $row, ?int $buyerUserId, string $buyerEmail): bool
+    private static function isOwnCode(object $row, ?int $buyerUserId, string $buyerEmail, string $buyerPhone = ''): bool
     {
         if ($buyerUserId !== null && $buyerUserId > 0 && (int) $row->user_id === $buyerUserId) return true;
 
-        $buyerEmail = strtolower(trim($buyerEmail));
-        if ($buyerEmail === '') return false;
-
         try {
-            $ownerEmail = DB::table('gates_users')->where('id', (int) $row->user_id)->value('email');
+            $owner = DB::table('gates_users')->where('id', (int) $row->user_id)->first();
         } catch (\Throwable) {
             return false;
         }
-        return is_string($ownerEmail) && strtolower(trim($ownerEmail)) === $buyerEmail;
+        if (!$owner) return false;
+
+        // The same address under a "+tag" is the same inbox: ada+1@… and ada+2@… each passed
+        // an exact comparison, so the owner could buy through their own link as a guest.
+        if ($buyerEmail !== '' && self::normalEmail((string) ($owner->email ?? '')) === self::normalEmail($buyerEmail)) return true;
+
+        // And the phone the ticket or order was bought with, where both have one: a second
+        // address is free, a second number is not.
+        $digits = static fn (string $p): string => substr((string) preg_replace('/\D+/', '', $p), -10);
+        $ownerPhone = $digits((string) ($owner->phone_e164 ?? $owner->phone ?? ''));
+        return $ownerPhone !== '' && strlen($ownerPhone) === 10 && $digits($buyerPhone) === $ownerPhone;
+    }
+
+    /** An email in the one shape two spellings of one inbox share: lower case, no "+tag". */
+    private static function normalEmail(string $e): string
+    {
+        $e = strtolower(trim($e));
+        if (!str_contains($e, '@')) return $e;
+        [$local, $domain] = explode('@', $e, 2);
+        return explode('+', $local, 2)[0] . '@' . $domain;
+    }
+
+    /** Who paid, as the referral gate counts people (2027_05_04_referral_buyer). */
+    public static function buyerHash(string $email): ?string
+    {
+        $e = self::normalEmail($email);
+        return $e === '' ? null : hash('sha256', $e);
+    }
+
+    /** The phone a credited purchase was made with, for the self-referral check. */
+    private static function buyerPhone(string $sourceType, int $sourceId): string
+    {
+        $table = ['registration' => 'gates_event_registrations', 'shop_order' => 'gates_shop_orders'][$sourceType] ?? null;
+        if ($table === null || !SchemaHas::column($table, 'phone')) return '';
+        try {
+            return (string) (DB::table($table)->where('id', $sourceId)->value('phone') ?? '');
+        } catch (\Throwable) {
+            return '';
+        }
     }
 
     /**
@@ -429,7 +481,7 @@ final class ReferralService
             if (!$row) return false;
 
             // Refused HERE and not only at checkout. See isOwnCode().
-            if (self::isOwnCode($row, $buyerUserId, $buyerEmail)) return false;
+            if (self::isOwnCode($row, $buyerUserId, $buyerEmail, self::buyerPhone($sourceType, $sourceId))) return false;
 
             $paid = max(0, $paidNaira);
             if ($paid < 1) return false;   // a free ticket earns nothing to take a share of
@@ -459,7 +511,7 @@ final class ReferralService
                 'commission_naira' => $commission,
                 'rate_bps'         => $rate,
                 'created_at'       => Carbon::now()->toDateTimeString(),
-            ]);
+            ] + (SchemaHas::column('gates_referral_credits', 'buyer_hash') ? ['buyer_hash' => self::buyerHash($buyerEmail)] : []));
 
             return true;
         } catch (\Throwable) {
@@ -542,9 +594,17 @@ final class ReferralService
         // ALREADY PAID OUT is the case nothing can undo automatically: the commission has
         // left by bank transfer. The credit stops counting either way; somebody has to
         // decide whether to recover it, so it is said rather than netted silently.
+        // An error_log line on a host with no shell reaches nobody, so it is an admin alert,
+        // and liability() carries the total so the Finance screen shows it.
         if ($credit->paid_out_at !== null) {
             error_log('[referral] reversed a credit that was already paid out: #' . (int) $credit->id
                 . ' (member ' . (int) $credit->user_id . ', ₦' . (int) $credit->commission_naira . ')');
+            try {
+                Notifier::adminAlert(null, 'A referral commission was paid, then its sale was refunded',
+                    'Credit #' . (int) $credit->id . ' (member ' . (int) $credit->user_id . '): ₦'
+                    . number_format((int) $credit->commission_naira) . " was paid out before the sale behind it was refunded.\n\n"
+                    . 'Reason: ' . ($reason !== '' ? $reason : 'refund') . "\n\nDecide whether to recover it; nothing is netted automatically.");
+            } catch (\Throwable) {}
         }
 
         try {
@@ -564,6 +624,18 @@ final class ReferralService
      * none of them. `reversed_at` is younger than the table, so the filter is added through
      * SchemaHas — its absence means no reversal has been recorded, the same answer as none.
      */
+    /**
+     * How many PEOPLE a set of credits is, for the gate ("once ten people have paid"). Counted
+     * by buyer, not by row: one buyer with ten orders is one person. A credit from before the
+     * buyer was recorded counts once, as it always did.
+     */
+    private static function peopleSql(): string
+    {
+        return SchemaHas::column('gates_referral_credits', 'buyer_hash')
+            ? '(COUNT(DISTINCT buyer_hash) + SUM(CASE WHEN buyer_hash IS NULL THEN 1 ELSE 0 END))'
+            : 'COUNT(*)';
+    }
+
     public static function liveCredits(): \Illuminate\Database\Query\Builder
     {
         $q = DB::table('gates_referral_credits');
@@ -584,7 +656,7 @@ final class ReferralService
         // Reversed credits are out of the count as well as the money: a refunded ticket is
         // not one of the ten paid referrals the gate asks for.
         $rows = self::liveCredits()->where('user_id', $userId)
-            ->selectRaw('COUNT(*) as n, COALESCE(SUM(paid_naira),0) as gross, '
+            ->selectRaw(self::peopleSql() . ' as n, COALESCE(SUM(paid_naira),0) as gross, '
                       . 'COALESCE(SUM(commission_naira),0) as accrued, '
                       . 'COALESCE(SUM(CASE WHEN paid_out_at IS NULL THEN 0 ELSE commission_naira END),0) as paid_out')
             ->first();
@@ -654,7 +726,7 @@ final class ReferralService
         // beside the totals, and a screen that hardcodes "10%" is a screen that lies the
         // day RATE_BPS changes.
         $empty = ['payable_naira' => 0, 'accrued_naira' => 0, 'locked_naira' => 0,
-                  'paid_out_naira' => 0, 'gross_naira' => 0, 'referrals' => 0,
+                  'paid_out_naira' => 0, 'gross_naira' => 0, 'referrals' => 0, 'paid_then_reversed_naira' => 0,
                   'earners' => 0, 'owed_members' => 0, 'rows' => [],
                   'threshold' => self::threshold(), 'rate_pct' => self::ratePct()];
 
@@ -670,7 +742,7 @@ final class ReferralService
             // comparison stats() makes — rather than restating it as a HAVING clause that
             // would quietly disagree the day THRESHOLD changes.
             $per = self::liveCredits()
-                ->selectRaw('user_id, COUNT(*) as n, '
+                ->selectRaw('user_id, ' . self::peopleSql() . ' as n, '
                           . 'COALESCE(SUM(paid_naira),0) as gross, '
                           . 'COALESCE(SUM(commission_naira),0) as accrued, '
                           . 'COALESCE(SUM(CASE WHEN paid_out_at IS NULL THEN 0 ELSE commission_naira END),0) as paid_out')
@@ -720,6 +792,14 @@ final class ReferralService
 
         // Largest debts first: that is the order somebody settling them works in.
         usort($rows, static fn (array $a, array $b): int => $b['owed'] <=> $a['owed']);
+        // Paid out, then the sale behind it refunded: money that left and is no longer owed by
+        // anybody's sale. liveCredits() drops reversed rows, so without this it showed nowhere.
+        try {
+            if (SchemaHas::column('gates_referral_credits', 'reversed_at')) {
+                $out['paid_then_reversed_naira'] = (int) DB::table('gates_referral_credits')
+                    ->whereNotNull('reversed_at')->whereNotNull('paid_out_at')->sum('commission_naira');
+            }
+        } catch (\Throwable) {}
         $out['rows'] = self::nameRows(array_slice($rows, 0, max(1, $limit)));
 
         return $out;

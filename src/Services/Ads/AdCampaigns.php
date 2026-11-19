@@ -30,6 +30,7 @@ final class AdCampaigns
 
     /** What the advertiser is told, per derived state. */
     public const DELIVERY = [
+        'unpaid'       => 'Waiting for payment',
         'in_review'    => 'In review',
         'not_approved' => 'Not approved',
         'scheduled'    => 'Scheduled',
@@ -68,7 +69,10 @@ final class AdCampaigns
 
         $v = self::validate($in);
         $errors = $v['errors'];
-        if ($imagePath === null || $imagePath === '') $errors['image'] ??= 'Add a square image.';
+        // A trial never runs where only paying campaigns may (AdRules::PAID_ONLY).
+        $v['placements'] = array_values(array_diff($v['placements'], AdRules::PAID_ONLY));
+        if ($v['placements'] === []) $errors['placements'] ??= 'The free trial runs on the other places. Choose at least one.';
+        if ($imagePath === null || $imagePath === '') $errors['image'] ??= 'Add an image.';
         // Meta and Google both make an advertiser accept the standards before an ad is sent;
         // so does this. The confirmation is stored, not just ticked.
         if (empty($in['standards'])) $errors['standards'] = 'Confirm your ad meets the ad standards.';
@@ -189,6 +193,12 @@ final class AdCampaigns
                 $c['errors'][$k . '_ref'] = sprintf('%s is needed for this kind of ad.', AdRules::APPROVALS[$k][0]);
             }
         }
+        // A new shape needs an image cut to it: the old one is the old shape, and the card
+        // would crop it to the new box from the middle, which is the fault ImageProfiles exists
+        // to prevent.
+        if (isset($c['row']['shape']) && $c['row']['shape'] !== AdRules::shape($ad->shape ?? null) && ($imagePath === null || $imagePath === '')) {
+            $c['errors']['image'] = 'A new shape needs a new image, cut to it.';
+        }
         if ($c['errors'] !== []) return ['ok' => false, 'errors' => $c['errors']];
         DB::table('gates_ads')->where('id', $adId)->update($c['row'] + [
             'image_path' => $imagePath ?: $ad->image_path, 'review' => 'pending', 'review_reason' => null,
@@ -196,6 +206,88 @@ final class AdCampaigns
             'reviewed_by' => null, 'reviewed_at' => null, 'updated_at' => date('Y-m-d H:i:s'),
         ]);
         return ['ok' => true];
+    }
+
+    // ── VERSIONS (owner, 2 Nov 2026: "improve the advertising feature") ─────────
+    //
+    // A set may hold AdRules::ADS_PER_SET ads and the builder made one, so the rotation in
+    // AdDelivery had nothing to rotate and an advertiser could never learn which picture or
+    // headline worked. Now a campaign takes up to that many VERSIONS, each reviewed like the
+    // first. They are shown in turn until each has TEST_VIEWS views; then, if one is clearly
+    // ahead, it is shown LEAD_SHARE of the time and the others share the rest — so a version
+    // that started slowly still gets its chance, and the result keeps being checked.
+    public const TEST_VIEWS  = 200;    // views EACH version needs before any is favoured
+    public const LEAD_MARGIN = 1.2;    // its click rate at least a fifth better than the next
+    public const LEAD_CLICKS = 5;      // and at least this many clicks: two lucky taps decide nothing
+    public const LEAD_SHARE  = 70;     // per cent of showings for the leader
+
+    /**
+     * The version people click most, once that is a measurement and not luck, or null.
+     * ONE answer, read by delivery (AdDelivery::rotate()) and by the campaign page's
+     * "Leading" mark, so the page can never name a leader the rotation is not favouring.
+     *
+     * @param array<int,array{views:int,clicks:int}> $stats approved versions only, by ad id
+     */
+    public static function leader(array $stats): ?int
+    {
+        if (count($stats) < 2) return null;
+        $rates = [];
+        foreach ($stats as $id => $s) {
+            if ((int) $s['views'] < self::TEST_VIEWS) return null;
+            $rates[(int) $id] = (int) $s['clicks'] / max(1, (int) $s['views']);
+        }
+        arsort($rates);
+        $ids = array_keys($rates);
+        [$best, $next] = [$rates[$ids[0]], $rates[$ids[1]]];
+        if ((int) $stats[$ids[0]]['clicks'] < self::LEAD_CLICKS) return null;
+        return $best >= $next * self::LEAD_MARGIN && $best > $next ? $ids[0] : null;
+    }
+
+    /** All-time views and clicks per ad. @param list<int> $adIds @return array<int,array{views:int,clicks:int}> */
+    public static function adTotals(array $adIds): array
+    {
+        return self::statsByAd($adIds);
+    }
+
+    /**
+     * Another version of a campaign's ad, sent for review. Only the advertiser's own, only
+     * while the campaign can still run, and only up to AdRules::ADS_PER_SET. The image is
+     * required: a version is a different picture or different words, and an ad is a picture.
+     *
+     * @param array<string,mixed> $in
+     * @return array{ok:bool, id?:int, errors?:array<string,string>}
+     */
+    public static function addAd(int $campaignId, int $userId, array $in, ?string $imagePath): array
+    {
+        if (!self::ready()) return ['ok' => false, 'errors' => ['form' => 'Ads are not available right now.']];
+        $c = DB::table('gates_ad_campaigns')->where('id', $campaignId)->where('user_id', $userId)->first();
+        if (!$c) return ['ok' => false, 'errors' => ['form' => 'That campaign cannot be changed.']];
+        $sum = self::summary($c);
+        $set = $sum['_set'];
+        if (!$set || !self::editable($sum['delivery'])) return ['ok' => false, 'errors' => ['form' => 'A campaign that has ended cannot be changed.']];
+        if (DB::table('gates_ads')->where('ad_set_id', $set->id)->count() >= AdRules::ADS_PER_SET) {
+            return ['ok' => false, 'errors' => ['form' => sprintf('A campaign has at most %d versions.', AdRules::ADS_PER_SET)]];
+        }
+        $v = AdRules::creative($in);
+        $category = (string) ($c->category ?? 'general');
+        if (!AdRules::inBeta()) {
+            foreach (AdRules::missingApprovals($category, $in + ['licence_ref' => $c->licence_ref ?? '']) as $k) {
+                $v['errors'][$k . '_ref'] = sprintf('%s is needed for this kind of ad.', AdRules::APPROVALS[$k][0]);
+            }
+        }
+        if ($imagePath === null || $imagePath === '') $v['errors']['image'] ??= 'Add the image for this version.';
+        if ($v['errors'] !== []) return ['ok' => false, 'errors' => $v['errors']];
+        $now = date('Y-m-d H:i:s');
+        try {
+            $id = (int) DB::table('gates_ads')->insertGetId($v['row'] + [
+                'ad_set_id' => (int) $set->id, 'image_path' => $imagePath, 'review' => 'pending',
+                'review_flags' => implode(' · ', AdRules::flags($v['row'] + ['_category' => $category, 'licence_ref' => $c->licence_ref ?? null], $userId)) ?: null,
+                'created_at' => $now, 'updated_at' => $now,
+            ]);
+        } catch (\Throwable) {
+            return ['ok' => false, 'errors' => ['form' => 'That did not save. Try again.']];
+        }
+        return ['ok' => true, 'id' => $id];
     }
 
     /** May an ad in a campaign in this delivery state still be edited? */
@@ -228,11 +320,17 @@ final class AdCampaigns
         return array_map(static fn ($c) => self::summary($c), $rows);
     }
 
-    /** One campaign of the advertiser's, in full, or null. */
-    public static function detail(int $id, int $userId): ?array
+    /**
+     * One campaign in full, or null. The advertiser's own when a user is given; any
+     * campaign for the console (null), which is the same page of facts staff need to answer
+     * an advertiser's question about it.
+     */
+    public static function detail(int $id, ?int $userId): ?array
     {
         if (!self::ready()) return null;
-        $c = DB::table('gates_ad_campaigns')->where('id', $id)->where('user_id', $userId)->first();
+        $q = DB::table('gates_ad_campaigns')->where('id', $id);
+        if ($userId !== null) $q->where('user_id', $userId);
+        $c = $q->first();
         if (!$c) return null;
         $out = self::summary($c);
         $set = $out['_set'];
@@ -242,17 +340,40 @@ final class AdCampaigns
             'id' => (int) $a->id, 'headline' => (string) $a->headline, 'body' => (string) $a->body,
             'cta' => AdRules::CTAS[(string) $a->cta] ?? 'Learn more', 'cta_key' => (string) $a->cta, 'url' => (string) $a->url,
             'domain' => AdRules::displayDomain((string) $a->url),
-            'advertiser' => (string) $c->advertiser, 'logo' => $c->logo_path ? (string) $c->logo_path : null,
+            'advertiser' => (string) $c->advertiser, 'logo' => \AfricaGates\Support\Media::url($c->logo_path ? (string) $c->logo_path : null, 'avatar'),
+            'logo_srcset' => \AfricaGates\Support\ImageProfiles::srcset($c->logo_path ? (string) $c->logo_path : null),
             'initials' => mb_strtoupper(implode('', array_slice(\AfricaGates\Support\AvatarMark::letters((string) $c->advertiser), 0, 2))) ?: '?',
             'external' => !str_starts_with((string) $a->url, '/'),
-            'image' => $a->image_path ? (string) $a->image_path : null,
+            'image' => \AfricaGates\Support\Media::url($a->image_path ? (string) $a->image_path : null, AdRules::imageProfile($a->shape ?? null)),
+            'image_srcset' => \AfricaGates\Support\ImageProfiles::srcset($a->image_path ? (string) $a->image_path : null),
+            'shape' => AdRules::shape($a->shape ?? null), 'video' => AdVideo::url($a->video_path ?? null), 'video_seconds' => (int) ($a->video_seconds ?? 0),
             'offer' => $a->offer ? (string) $a->offer : null, 'offer_code' => $a->offer_code ? (string) $a->offer_code : null,
             'review' => (string) $a->review, 'reason' => (string) ($a->review_reason ?? ''),
             'arcon_ref' => (string) ($a->arcon_ref ?? ''), 'nafdac_ref' => (string) ($a->nafdac_ref ?? ''),
             'views' => $byAd[(int) $a->id]['views'] ?? 0, 'clicks' => $byAd[(int) $a->id]['clicks'] ?? 0,
+            'plays' => $byAd[(int) $a->id]['plays'] ?? 0, 'completes' => $byAd[(int) $a->id]['completes'] ?? 0,
+            // How it is put together, and what would make it better (AdStrength: words only,
+            // it moves nothing about delivery).
+            'strength' => AdStrength::score((array) $a, (string) $c->objective, (string) ($a->image_path ?? '') !== '', (string) ($c->logo_path ?? '') !== ''),
         ], $ads);
-        $out['days'] = self::daily(array_map(static fn ($a) => (int) $a->id, $ads), 14);
-        $out['days_max'] = max(1, ...array_map(static fn ($d) => (int) $d['views'], $out['days']));
+        // Which version is being favoured, by the same function the rotation asks.
+        $approved = [];
+        foreach ($out['ads'] as $a) if ($a['review'] === 'approved') $approved[$a['id']] = ['views' => $a['views'], 'clicks' => $a['clicks']];
+        $out['leader'] = self::leader($approved);
+        foreach ($out['ads'] as &$a) $a['ctr'] = $a['views'] > 0 ? round(100 * $a['clicks'] / $a['views'], 1) : null;
+        unset($a);
+        $out['can_add'] = $set !== null && self::editable($out['delivery']) && count($ads) < AdRules::ADS_PER_SET;
+        // The last fourteen days, from the day it STARTED: rows of noughts from before the
+        // campaign existed are a table to scroll past, and read as a campaign that did nothing.
+        $from = $set && $set->starts_at ? substr((string) $set->starts_at, 0, 10) : null;
+        $out['days'] = $from === null ? [] : array_values(array_filter(self::daily(array_map(static fn ($a) => (int) $a->id, $ads), 14),
+            static fn ($d) => $d['day'] >= $from));
+        $out['days_max'] = max(1, 0, ...array_map(static fn ($d) => (int) $d['views'], $out['days']));
+        // The count every card of this campaign carries in public (AdDelivery::seenLabel), so
+        // the preview is the card readers see.
+        $seen = AdDelivery::seenLabel((int) $out['views']);
+        foreach ($out['ads'] as &$a) $a['seen'] = $seen;
+        unset($a);
         $out['editable'] = self::editable($out['delivery']);
         // The approvals this kind of ad needs, so an edit carries them (and keeps what was given).
         $out['needs'] = AdRules::CATEGORIES[$out['category']][2] ?? [];
@@ -264,6 +385,9 @@ final class AdCampaigns
                                 'ctr' => $n['views'] > 0 ? round(100 * $n['clicks'] / $n['views'], 1) : null];
         }
         $out['benchmark'] = $set ? self::benchmark((int) $set->id) : null;
+        $out['source'] = (string) ($c->source ?? 'self');
+        $out['pace'] = AdAdvice::pace($out);
+        $out['advice'] = AdAdvice::for($out);
         return $out;
     }
 
@@ -276,7 +400,7 @@ final class AdCampaigns
     {
         $set = DB::table('gates_ad_sets')->where('campaign_id', $c->id)->orderBy('id')->first();
         $reviews = $set ? DB::table('gates_ads')->where('ad_set_id', $set->id)->pluck('review')->all() : [];
-        $t = $set ? self::totals((int) $set->id) : ['views' => 0, 'clicks' => 0, 'spent_kobo' => 0, 'by_placement' => []];
+        $t = $set ? self::totals((int) $set->id) : ['views' => 0, 'clicks' => 0, 'spent_kobo' => 0, 'by_placement' => [], 'plays' => 0, 'completes' => 0];
         $delivery = self::delivery($c, $set, $reviews, $t);
         $views = (int) $t['views'];
         $clicks = (int) $t['clicks'];
@@ -289,6 +413,8 @@ final class AdCampaigns
             'delivery' => $delivery['key'], 'delivery_label' => self::DELIVERY[$delivery['key']], 'delivery_note' => $delivery['note'],
             'views' => $views, 'clicks' => $clicks,
             'ctr' => $views > 0 ? round(100 * $clicks / $views, 1) : null,
+            // A video ad's own figures: started, and watched through (Meta's ThruPlay).
+            'plays' => (int) ($t['plays'] ?? 0), 'completes' => (int) ($t['completes'] ?? 0),
             'spent_kobo' => (int) $t['spent_kobo'], 'budget_kobo' => $set ? (int) $set->budget_kobo : 0,
             'spent_label' => AdRateCard::format((int) $t['spent_kobo']),
             'budget_label' => $set && (int) $set->budget_kobo > 0 ? AdRateCard::format((int) $set->budget_kobo) : null,
@@ -299,6 +425,17 @@ final class AdCampaigns
             'placements' => $set ? array_values(array_filter(explode(',', (string) $set->placements))) : [],
             'logo' => $c->logo_path ? (string) $c->logo_path : null,
             'by_placement' => $t['by_placement'],
+            // The payment, for a paid campaign: what was charged, its VAT, what went back.
+            'payment' => (int) $c->trial === 1 ? null : [
+                'ref' => (string) ($c->payment_ref ?? ''), 'paid' => $c->paid_at !== null,
+                'paid_label' => AdRateCard::format((int) ($c->paid_kobo ?? 0)),
+                'vat_label' => AdRateCard::format((int) ($c->vat_kobo ?? 0)),
+                'vat_pct' => (int) ($c->vat_bps ?? 0) / 100,
+                'refunded' => ($c->refunded_at ?? null) !== null,
+                'refunded_label' => AdRateCard::format((int) ($c->refunded_kobo ?? 0)),
+                'note' => (string) ($c->refund_note ?? ''),
+                'days' => $set && isset($set->days) ? (int) $set->days : null,
+            ],
             '_set' => $set,
         ];
     }
@@ -314,6 +451,10 @@ final class AdCampaigns
     {
         $now ??= date('Y-m-d H:i:s');
         if ((string) $c->status === self::ST_CANCELLED) return ['key' => 'cancelled', 'note' => ''];
+        // A paid campaign shows nothing until the gateway confirms its payment.
+        if ((int) ($c->trial ?? 0) !== 1 && ($c->paid_at ?? null) === null) {
+            return ['key' => 'unpaid', 'note' => 'Pay for it to send it on; nothing runs before the payment clears.'];
+        }
         if (!$set || $reviews === []) return ['key' => 'in_review', 'note' => ''];
         if (!in_array('approved', $reviews, true)) {
             return in_array('pending', $reviews, true) ? ['key' => 'in_review', 'note' => 'A person checks every ad before it runs.']
@@ -337,21 +478,25 @@ final class AdCampaigns
     public static function totals(int $setId): array
     {
         $set = DB::table('gates_ad_sets')->where('id', $setId)->first();
-        if (!$set || !SchemaHas::table('gates_ad_stats')) return ['views' => 0, 'clicks' => 0, 'spent_kobo' => 0, 'by_placement' => []];
+        if (!$set || !SchemaHas::table('gates_ad_stats')) return ['views' => 0, 'clicks' => 0, 'spent_kobo' => 0, 'by_placement' => [], 'plays' => 0, 'completes' => 0];
+        // Plays and watch-throughs (AdVideo) ride in the same rows, once the columns exist.
+        $vid = SchemaHas::column('gates_ad_stats', 'plays');
         $rows = DB::table('gates_ad_stats as st')->join('gates_ads as a', 'a.id', '=', 'st.ad_id')
             ->where('a.ad_set_id', $setId)->groupBy('st.placement')
-            ->selectRaw('st.placement as placement, SUM(st.views) as v, SUM(st.clicks) as c')->get()->all();
+            ->selectRaw('st.placement as placement, SUM(st.views) as v, SUM(st.clicks) as c'
+                . ($vid ? ', SUM(st.plays) as p, SUM(st.completes) as f' : ''))->get()->all();
         $rates = json_decode((string) $set->rates, true) ?: [];
-        $views = $clicks = $spent = 0;
+        $views = $clicks = $spent = $plays = $done = 0;
         $by = [];
         foreach ($rows as $r) {
             $v = (int) $r->v; $c = (int) $r->c;
             $views += $v; $clicks += $c;
+            $plays += (int) ($r->p ?? 0); $done += (int) ($r->f ?? 0);
             $spent += AdRateCard::cost($v, (int) ($rates[(string) $r->placement] ?? 0));
             $by[(string) $r->placement] = ['views' => $v, 'clicks' => $c];
         }
         if ((int) $set->budget_kobo > 0) $spent = min($spent, (int) $set->budget_kobo);
-        return ['views' => $views, 'clicks' => $clicks, 'spent_kobo' => $spent, 'by_placement' => $by];
+        return ['views' => $views, 'clicks' => $clicks, 'spent_kobo' => $spent, 'by_placement' => $by, 'plays' => $plays, 'completes' => $done];
     }
 
     /**
@@ -382,23 +527,33 @@ final class AdCampaigns
                     ->join('gates_ad_campaigns as c', 'c.id', '=', 's.campaign_id')
                     ->where('a.id', $fromAdId)->select('c.user_id', 'c.advertiser')->first();
                 if (!$owner) return ['advertiser' => null, 'ads' => []];
-                $q->where('c.user_id', (int) $owner->user_id);
+                // Staff-posted campaigns have no account behind them (AdStaff), so they are
+                // one advertiser by NAME; everybody else by account.
+                (int) $owner->user_id > 0 ? $q->where('c.user_id', (int) $owner->user_id)
+                                          : $q->where('c.user_id', 0)->where('c.advertiser', (string) $owner->advertiser);
                 $name = (string) $owner->advertiser;
             }
             $rows = $q->get()->all();
         } catch (\Throwable) {
             return ['advertiser' => null, 'ads' => []];
         }
+        // The views each card carries on the page, so the library shows the card as readers
+        // meet it — nothing beyond what the ad itself already shows the public.
+        $views = AdDelivery::viewsBySet(array_map(static fn ($r) => (int) $r->ad_set_id, $rows));
         return ['advertiser' => $name, 'ads' => array_map(static fn ($r) => [
             'id' => (int) $r->id, 'advertiser' => (string) $r->advertiser,
             'initials' => mb_strtoupper(implode('', array_slice(\AfricaGates\Support\AvatarMark::letters((string) $r->advertiser), 0, 2))) ?: '?',
-            'logo' => $r->logo_path ? (string) $r->logo_path : null,
+            'logo' => \AfricaGates\Support\Media::url($r->logo_path ? (string) $r->logo_path : null, 'avatar'),
+            'logo_srcset' => \AfricaGates\Support\ImageProfiles::srcset($r->logo_path ? (string) $r->logo_path : null),
             'body' => (string) $r->body, 'headline' => (string) $r->headline,
-            'image' => $r->image_path ? (string) $r->image_path : null,
+            'image' => \AfricaGates\Support\Media::url($r->image_path ? (string) $r->image_path : null, AdRules::imageProfile($r->shape ?? null)),
+            'image_srcset' => \AfricaGates\Support\ImageProfiles::srcset($r->image_path ? (string) $r->image_path : null),
+            'shape' => AdRules::shape($r->shape ?? null), 'video' => AdVideo::url($r->video_path ?? null), 'video_seconds' => (int) ($r->video_seconds ?? 0),
             'offer' => $r->offer ? (string) $r->offer : null, 'offer_code' => $r->offer_code ? (string) $r->offer_code : null,
             'cta' => AdRules::CTAS[(string) $r->cta] ?? 'Learn more', 'url' => (string) (AdRules::safeUrl((string) $r->url) ?? '#'),
             'domain' => AdRules::displayDomain((string) $r->url), 'external' => !str_starts_with((string) $r->url, '/'),
             'since' => (string) $r->starts_at,
+            'seen' => AdDelivery::seenLabel($views[(int) $r->ad_set_id] ?? 0),
             'placements' => array_values(array_filter(explode(',', (string) $r->placements))),
         ], $rows)];
     }
@@ -408,9 +563,10 @@ final class AdCampaigns
     {
         if ($adIds === [] || !SchemaHas::table('gates_ad_stats')) return [];
         $out = [];
+        $vid = SchemaHas::column('gates_ad_stats', 'plays');
         foreach (DB::table('gates_ad_stats')->whereIn('ad_id', $adIds)->groupBy('ad_id')
-                     ->selectRaw('ad_id, SUM(views) as v, SUM(clicks) as c')->get() as $r) {
-            $out[(int) $r->ad_id] = ['views' => (int) $r->v, 'clicks' => (int) $r->c];
+                     ->selectRaw('ad_id, SUM(views) as v, SUM(clicks) as c' . ($vid ? ', SUM(plays) as p, SUM(completes) as f' : ''))->get() as $r) {
+            $out[(int) $r->ad_id] = ['views' => (int) $r->v, 'clicks' => (int) $r->c, 'plays' => (int) ($r->p ?? 0), 'completes' => (int) ($r->f ?? 0)];
         }
         return $out;
     }

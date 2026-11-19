@@ -9,9 +9,13 @@ use Illuminate\Database\Capsule\Manager as DB;
 use AfricaGates\Admin\Services\AuditService;
 use AfricaGates\Admin\Support\Permissions;
 use AfricaGates\Services\PointsService;
+use AfricaGates\Admin\Services\MemberAccountsService;
+use AfricaGates\Admin\Support\DataRegistry;
+use Slim\Views\Twig;
+use Slim\Exception\HttpNotFoundException;
 
 /**
- * Admin actions on member accounts. Currently just the manual points
+ * Member directory and audited actions on member accounts. Manual points
  * adjustment — the dispute-resolution lever ("your purchase should have earned
  * points and didn't", "we're compensating you") that otherwise required a raw
  * DB write. Goes through the audited, atomic, ledger-backed PointsService::award
@@ -19,7 +23,33 @@ use AfricaGates\Services\PointsService;
  */
 final class UsersController
 {
-    public function __construct(private readonly AuditService $audit) {}
+    public function __construct(
+        private readonly AuditService $audit,
+        private readonly Twig $view,
+        private readonly MemberAccountsService $members,
+    ) {}
+
+    /** A purpose-built view over the existing member dataset; identical dataset access. */
+    public function index(Request $req, Response $res): Response
+    {
+        if (!DataRegistry::canRole('users', (string) ($_SESSION['admin_role'] ?? ''))) {
+            throw new HttpNotFoundException($req);
+        }
+        return $this->view->render($res, 'admin/users/index.twig', $this->members->directory($req->getQueryParams()) + [
+            'page_title' => 'Members — Admin', 'admin_page' => 'members',
+        ]);
+    }
+
+    public function show(Request $req, Response $res, array $args): Response
+    {
+        $role = (string) ($_SESSION['admin_role'] ?? '');
+        if (!DataRegistry::canRole('users', $role)) throw new HttpNotFoundException($req);
+        $account = $this->members->account((int) ($args['id'] ?? 0), $role);
+        if (!$account) throw new HttpNotFoundException($req);
+        return $this->view->render($res, 'admin/users/detail.twig', $account + [
+            'page_title' => 'Member #' . $account['id'] . ' — Admin', 'admin_page' => 'members',
+        ]);
+    }
 
     /** POST /admin/users/{id}/points — grant (positive) or deduct (negative) points. Admin+ only. */
     public function adjustPoints(Request $req, Response $res, array $args): Response

@@ -62,6 +62,37 @@ final class MigrationRunner
     }
 
     /**
+     * Raise the memory limit to at least `$bytes`, never lower it.
+     *
+     * This was `ini_set('memory_limit', '512M')`, which is a CEILING as much as a floor:
+     * on a host configured for 1G, or unlimited (-1, the CLI default), it cut the
+     * process to 512M for the rest of the request. The test harness runs every
+     * migration through here once, so the whole suite then ran under a 512M cap it had
+     * never asked for — and peaked at 511M, one test from a fatal that names whatever
+     * test happened to be running.
+     */
+    public static function raiseMemoryTo(int $bytes): void
+    {
+        $now = self::bytes((string) ini_get('memory_limit'));
+        if ($now === -1 || $now >= $bytes) return;
+        @ini_set('memory_limit', (string) $bytes);
+    }
+
+    /** "512M" → bytes; -1 for unlimited. */
+    public static function bytes(string $v): int
+    {
+        $v = trim($v);
+        if ($v === '' || $v === '-1') return -1;
+        $n = (int) $v;
+        return match (strtolower(substr($v, -1))) {
+            'g' => $n * 1024 ** 3,
+            'm' => $n * 1024 ** 2,
+            'k' => $n * 1024,
+            default => $n,
+        };
+    }
+
+    /**
      * Apply the next batch of pending steps. Designed to be called repeatedly from
      * the web trigger (it auto-reloads while pending > 0). Doing only a few steps
      * per request means no single request can hit max_execution_time / memory_limit
@@ -72,7 +103,7 @@ final class MigrationRunner
     public static function run(int $maxSteps = self::STEPS_PER_RUN): array
     {
         @set_time_limit(0);
-        @ini_set('memory_limit', '512M');
+        self::raiseMemoryTo(512 * 1024 * 1024);
         $deadline = microtime(true) + 12.0;
         $root   = dirname(__DIR__, 2);
         $driver = DB::connection()->getDriverName();

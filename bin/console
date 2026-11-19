@@ -20,6 +20,7 @@ use Symfony\Component\Console\Application;
 use AfricaGates\Services\{PaymentService, OtpService};
 use AfricaGates\Console\Commands\{
     DemoSeedCommand,
+    DirectoryPushCommand,
     LegalSeedCommand,
     AdminCreateCommand,
     AssetsBuildCommand,
@@ -60,6 +61,7 @@ $app->add(new CollusionScanCommand());
 $app->add(new CpiRecomputeCommand());
 $app->add(new CycleAdvanceCommand());
 $app->add(new CycleAuditCommand());
+$app->add(new DirectoryPushCommand());
 $app->add(new DoctorCommand());
 $app->add(new MailCheckoutCommand());
 $app->add(new MediaMigrateCommand());

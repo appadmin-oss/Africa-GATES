@@ -246,6 +246,13 @@ final class SupportContext
                             . "payment page or the bank showed them; if they are signed in and have not given one, use "
                             . "my_transactions first and try their most recent unconfirmed payment.",
              'args' => ['reference' => 'the payment reference']],
+            ['name' => 'find_payment',
+             'description' => "Find somebody's payments WITHOUT a reference, from the email address they paid with. Use it "
+                            . "the moment they say they do not have or cannot find the reference — never ask for the "
+                            . "reference a second time. It re-checks every unconfirmed payment under that address with "
+                            . "the gateway (adding any votes that were paid for) and emails the references to that "
+                            . "address. Works for people who are not signed in.",
+             'args' => ['email' => 'the email address they paid with']],
             ['name' => 'resend_receipt',
              'description' => "Send the receipt for a confirmed payment again. Use when the votes ARE there but the email never "
                             . "arrived. It always goes to the address on the payment, which cannot be changed here.",
@@ -573,6 +580,7 @@ final class SupportContext
                 'lookup_reference' => $this->lookupReference((string) ($args['reference'] ?? '')),
                 'fix_payment'      => $this->fixPayment((string) ($args['reference'] ?? '')),
                 'resend_receipt'   => $this->resendReceipt((string) ($args['reference'] ?? '')),
+                'find_payment'     => $this->findPayment((string) ($args['email'] ?? '')),
                 'check_reference'  => $this->checkReference((string) ($args['reference'] ?? '')),
                 'free_vote_help'   => $this->freeVoteHelp(),
                 'refund_status'    => RefundService::statusFor((string) ($args['reference'] ?? '')),
@@ -1454,6 +1462,116 @@ final class SupportContext
                 ? "We have no payment with the reference {$ref}. Check it against your payment email or SMS — one wrong character is the usual cause."
                 : $r['message'],
         ];
+    }
+
+
+    /**
+     * "I paid, and I do not know the reference."
+     *
+     * ── WHY THIS EXISTS ──────────────────────────────────────────────────────
+     *
+     * Every repair here was keyed on the reference, and the reference is the one thing a
+     * person whose payment went wrong is least likely to have: it is on the page they were
+     * bounced away from and in the receipt that never came. A real ticket went round three
+     * times — "please provide the AFG- reference", "I don't know the reference", "please
+     * check your confirmation" — and ended with the assistant handing it to the team, about
+     * a payment the platform could have found and repaired from the address alone.
+     *
+     * ── WHAT IT TELLS, AND TO WHOM ───────────────────────────────────────────
+     *
+     * The repair is unscoped and discloses nothing, exactly as {@see fixPayment()} argues, so
+     * it runs for any address. What the payments ARE is about a person, so it is shown in the
+     * chat only for the member's own address or one this browser typed
+     * ({@see \AfricaGates\Support\TypedEmails::owns()}); for anything else the references go
+     * to that inbox and the chat says only that they were sent — the same sentence whether or
+     * not the address ever paid, so this is not a way to ask "did X pay us?".
+     *
+     * @return array<string,mixed>
+     */
+    private function findPayment(string $email): array
+    {
+        $e = mb_strtolower(trim($email));
+        if ($e === '' && $this->isMember()) $e = mb_strtolower(trim((string) $this->viewerEmail));
+        if ($e === '' || !filter_var($e, FILTER_VALIDATE_EMAIL)) {
+            return ['ok' => false, 'say' => 'Which email address did you pay with? I can find the payment from that.'];
+        }
+        if (!$this->spendRepair()) {
+            return ['ok' => false, 'outcome' => 'RATE_LIMITED',
+                    'say' => 'That has been checked several times in the last hour. Give it a few minutes, and the team has it if it still has not landed.'];
+        }
+
+        try {
+            $rows = DB::table('gates_donations')
+                ->whereRaw('LOWER(donor_email) = ?', [$e])
+                ->where('created_at', '>=', date('Y-m-d H:i:s', time() - 60 * 86400))
+                ->orderByDesc('id')->limit(10)
+                ->get(['id', 'payment_ref', 'amount_naira', 'tier', 'bonus_votes', 'votes_used', 'status', 'refunded_at', 'created_at']);
+        } catch (\Throwable $ex) {
+            error_log('[support] find_payment failed: ' . $ex->getMessage());
+            return ['ok' => false, 'outcome' => 'UNAVAILABLE', 'say' => 'I could not check that just now. The team has it.'];
+        }
+
+        // Re-check what is still unconfirmed and recent — the stuck payment this is for.
+        $added = 0; $rechecked = 0;
+        $reconciler = new PaymentReconciler($this->payments ?? new PaymentService());
+        foreach ($rows as $r) {
+            if ((string) $r->status === 'confirmed' || (string) $r->status === 'failed' || $r->refunded_at !== null) continue;
+            if (strtotime((string) $r->created_at) < time() - 14 * 86400 || $rechecked >= 3) continue;
+            try {
+                $res = $reconciler->reclaim((string) $r->payment_ref, null);
+                $rechecked++;
+                $added += (int) ($res['minted'] ?? 0);
+            } catch (\Throwable $ex) {
+                error_log('[support] find_payment reclaim failed: ' . $ex->getMessage());
+            }
+        }
+        // Read again: a repair may have confirmed a row.
+        $list = [];
+        foreach ($rows as $r) {
+            $fresh = DB::table('gates_donations')->where('id', $r->id)
+                ->first(['payment_ref', 'amount_naira', 'tier', 'bonus_votes', 'votes_used', 'status', 'refunded_at', 'created_at']) ?? $r;
+            $list[] = [
+                'kind'      => ($fresh->tier ?? '') === 'paid-vote' ? 'vote purchase' : 'donation',
+                'reference' => (string) $fresh->payment_ref,
+                'amount'    => self::CURRENCY . number_format((float) $fresh->amount_naira),
+                'when'      => (string) $fresh->created_at,
+                'state'     => self::paymentState($fresh),
+            ];
+        }
+
+        $theirs = \AfricaGates\Support\TypedEmails::owns($e, $this->viewerEmail);
+        $mailed = false;
+        if ($list !== [] && !$theirs) {
+            // Per ADDRESS as well as per connection: nobody's inbox is filled by somebody else asking.
+            $okToMail = $this->limits === null
+                || $this->limits->check(hash('sha256', $e), 'support_find_payment_mail', 2, 3600);
+            if ($okToMail) {
+                try {
+                    $res = \AfricaGates\Services\Mail\Emails::send(OtpService::boot(), $e, 'payment-found', [
+                        'items' => array_map(static fn (array $p): array => [$p['reference'], $p['kind'] . ' · ' . $p['amount'] . ' · ' . substr($p['when'], 0, 16) . ' — ' . $p['state']], $list),
+                        'added' => $added,
+                        'action_url' => rtrim(\AfricaGates\Support\SiteUrl::base(), '/') . '/vote/verify',
+                    ]);
+                    $mailed = !empty($res['ok']);
+                } catch (\Throwable $ex) {
+                    error_log('[support] find_payment mail failed: ' . $ex->getMessage());
+                }
+            }
+        }
+
+        if ($theirs) {
+            return ['ok' => true, 'outcome' => $list === [] ? 'NONE' : 'FOUND', 'payments' => $list,
+                    'rechecked' => $rechecked, 'votes_added' => $added,
+                    'say' => $list === []
+                        ? 'There is no payment in the last 60 days under that address. If you paid with a different email, tell me that one; a bank debit with no payment here usually reverses by itself within a few days.'
+                        : ($added > 0 ? "I re-checked your payment with the gateway and added {$added} votes that had not been counted."
+                                      : 'Here are your recent payments and where each one stands.')];
+        }
+        // The same words whether or not the address ever paid: this must not answer "did X pay?".
+        return ['ok' => true, 'outcome' => 'SENT_IF_FOUND', 'rechecked' => $rechecked > 0,
+                'say' => 'If that address made a payment in the last 60 days, it has been re-checked with the gateway — any votes '
+                       . 'that were paid for and missing are added now — and its reference has been emailed there. Check that '
+                       . 'inbox (and spam) in a few minutes. Nothing arrives if no payment was made with that address.'];
     }
 
     /**

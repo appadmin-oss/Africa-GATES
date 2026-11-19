@@ -337,7 +337,7 @@
   @param label    what the set is, for the landmark
 #}
 {% macro subnav(items, current, label) %}
-<nav class="ag-subnav" aria-label="{{ label }}">
+<nav class="ag-subnav" aria-label="{{ label }}" data-tabs="subnav">
   {% for it in items %}
   <a class="ag-subnav__i" href="{{ it.href }}"{{ it.key == current ? ' aria-current="page"' }}>{{ it.label }}</a>
   {% endfor %}
