@@ -80,6 +80,17 @@
 .vn-race__row{ display:flex; justify-content:space-between; gap:6px 12px; flex-wrap:wrap; font-size:var(--ag-fs-13); color:var(--ag-ink-2) }
 .vn-race__v{ font-weight:700; color:var(--ag-green-deep); font-variant-numeric:tabular-nums }
 .vn-race__note{ font-size:var(--ag-fs-12-5); line-height:1.5; color:var(--ag-soft) }
+/* The vote target (CommunityReturnPool): this nominee's counted votes against the edition's
+   target. Ink, not a colour field: the race above is the page's green, and "reached" is
+   said in words (and weight), never by a hue alone. */
+.vn-goal{ display:flex; flex-direction:column; gap:8px; padding:18px; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-18) }
+.vn-goal__h{ margin:0; font-weight:700; font-size:var(--ag-fs-15) }
+.vn-goal__left{ margin:0; font-weight:700; font-size:var(--ag-fs-17); font-variant-numeric:tabular-nums }
+.vn-goal__bar{ display:block; height:10px; border-radius:5px; background:var(--ag-ground); overflow:hidden }
+.vn-goal__bar span{ display:block; height:100%; border-radius:5px; background:var(--ag-ink-2); transition:width var(--ag-dur-2) var(--ag-ease) }
+.vn-goal.is-reached .vn-goal__bar span{ background:var(--ag-ink) }
+.vn-goal__row{ margin:0; font-size:var(--ag-fs-13); color:var(--ag-ink-2); font-variant-numeric:tabular-nums }
+.vn-goal__note{ margin:0; font-size:var(--ag-fs-12-5); line-height:1.5; color:var(--ag-soft) }
 .vn-recovered{ margin:0; padding:12px 14px; border:1px solid var(--ag-line-2); border-radius:var(--ag-r-14); font-size:var(--ag-fs-13-5); line-height:1.5; color:var(--ag-ink-2) }
 .vn-recovered b{ color:var(--ag-ink) }
 .vn-recovered a{ color:var(--ag-green); font-weight:600 }

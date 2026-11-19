@@ -498,6 +498,37 @@
 
     {% endif %}
 
+    {% if vote_target %}
+    {#- THE VOTE TARGET (CommunityReturnPool). Every approved nominee in the edition has the
+        same target, and the pool is shared only by those who reach it. The figure is the
+        votes that COUNT towards it — the ledger, free and paid, but no grant, no wallet vote
+        and nothing fraud-flagged — so it can sit below the total above, and the note says so
+        rather than leaving two numbers to contradict each other. Drawn by the server; while
+        voting is open vote.js patches it from the tallies poll, so it counts down live and
+        is still right with no script. Settled: the target written down at settlement. -#}
+    {% set _t = vote_target %}
+    {% set _live = voting_open and not _t.settled %}
+    <section class="vn-goal{{ _t.reached ? ' is-reached' }}" aria-labelledby="vn-goal-h" data-vote-target
+             data-nominee="{{ n.id }}" data-cycle="{{ n.cycle_id }}"{% if _live %} data-tallies="{{ tallies_url }}"{% endif %}
+             data-w-left="{{ '%n% votes to go'|trans }}" data-w-left1="{{ '1 vote to go'|trans }}" data-w-reached="{{ 'Target reached'|trans }}"
+             data-w-of="{{ '%v% of %t% votes'|trans }}">
+      <h2 class="vn-goal__h" id="vn-goal-h">{{ (_t.settled ? 'Vote target, settled: %t% votes'  : 'Vote target: %t% votes')|trans({'%t%': _t.target|number_format}) }}</h2>
+      <p class="vn-goal__left" aria-live="polite" data-goal-left>
+        {%- if _t.reached -%}{{ 'Target reached'|trans }}
+        {%- elseif _t.settled -%}{{ (_t.to_go == 1 ? 'Finished 1 vote short' : 'Finished %n% votes short')|trans({'%n%': _t.to_go|number_format}) }}
+        {%- else -%}{{ (_t.to_go == 1 ? '1 vote to go' : '%n% votes to go')|trans({'%n%': _t.to_go|number_format}) }}{%- endif -%}
+      </p>
+      <span class="vn-goal__bar" role="img" aria-label="{{ '%v% of %t% votes'|trans({'%v%': _t.votes|number_format, '%t%': _t.target|number_format}) }}" data-goal-label>
+        <span aria-hidden="true" style="width:{{ _t.pct }}%" data-goal-bar></span>
+      </span>
+      <p class="vn-goal__row"><span data-goal-of>{{ '%v% of %t% votes'|trans({'%v%': _t.votes|number_format, '%t%': _t.target|number_format}) }}</span></p>
+      <p class="vn-goal__note">
+        {{- 'These are the votes that count towards the target: free and contributed votes, but not bonus votes, votes paid from a wallet or votes flagged for review, so the figure can differ from the total above.'|trans }}
+        {{ _t.settled ? 'The pool has been shared between the nominees who reached it.'|trans : 'Every nominee has the same target; those who reach it share the edition’s pool by their votes when voting closes.'|trans -}}
+      </p>
+    </section>
+    {% endif %}
+
     {% set _case = n.story|default('') ?: (profile.bio|default('') ?: n.tagline) %}
     {% if _case %}
     <section class="vn-sec" aria-labelledby="vn-why">

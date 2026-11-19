@@ -313,10 +313,50 @@
           };
           d.categories.forEach(function (c) { patch($('[data-race="' + c.category_id + '"]'), c.nominees); });
           patch($('[data-race="all"]'), d.overall);
+          /* "N to go" against the vote target, in every list a nominee is drawn in. A row
+             the server drew no target for is left alone: the figure is the server's call. */
+          if (d.target && !d.target.settled) {
+            (d.target.nominees || []).forEach(function (x) {
+              $$('[data-nominee="' + x.id + '"] [data-goal-left]', root).forEach(function (g) {
+                g.textContent = x.reached ? root.getAttribute('data-w-reached')
+                  : fill(root.getAttribute(x.to_go === 1 ? 'data-w-goal1' : 'data-w-goal'), { n: fmt(x.to_go) });
+                g.classList.toggle('is-reached', !!x.reached);
+              });
+            });
+          }
         }).catch(function () {});
       };
       pg.every(poll, 10000);
     }
+  }
+
+  /* ── the vote target on a nominee's page (CommunityReturnPool) ───────────────
+     The server draws the figure; this keeps it counting down from the same cached
+     tallies poll the race uses, every 10s while the tab is visible. Only while voting is
+     open and the pool unsettled (the template omits data-tallies otherwise), and only from
+     the edition the page is about: the poll is the programme's CURRENT edition. Words are
+     the template's (data-w-*); nothing here decides what "reached" means. */
+  function goalBox(box) {
+    var url = box.getAttribute('data-tallies');
+    if (!url || !window.fetch) return;
+    var nid = Number(box.getAttribute('data-nominee')), cy = Number(box.getAttribute('data-cycle'));
+    var left = $('[data-goal-left]', box), bar = $('[data-goal-bar]', box), of = $('[data-goal-of]', box), lab = $('[data-goal-label]', box);
+    var poll = function () {
+      if (document.hidden) return;
+      fetch(url, { headers: { Accept: 'application/json' } }).then(function (r) { return r.json(); }).then(function (d) {
+        var t = d && d.ok && d.target; if (!t || Number(t.cycle_id) !== cy || t.settled) return;
+        var x = (t.nominees || []).filter(function (n) { return Number(n.id) === nid; })[0]; if (!x) return;
+        var words = x.reached ? box.getAttribute('data-w-reached')
+          : fill(box.getAttribute(x.to_go === 1 ? 'data-w-left1' : 'data-w-left'), { n: fmt(x.to_go) });
+        if (left && left.textContent !== words) left.textContent = words;   // a polite live region: speak only on change
+        var ofw = fill(box.getAttribute('data-w-of'), { v: fmt(x.votes), t: fmt(t.target) });
+        if (of) of.textContent = ofw;
+        if (lab) lab.setAttribute('aria-label', ofw);
+        if (bar) bar.style.width = x.pct + '%';
+        box.classList.toggle('is-reached', !!x.reached);
+      }).catch(function () {});
+    };
+    pg.every(poll, 10000);
   }
 
   /* ── the nominee ballot ──────────────────────────────────────────────────── */
@@ -588,6 +628,7 @@
   function boot() {
     var h = $('[data-vote-hub]'); if (h) hub(h);
     var v = $('[data-vote-page]'); if (v) votePage(v);
+    $$('[data-vote-target]').forEach(goalBox);
     $$('[data-ballot]').forEach(ballotForm);
     // A vote the server just confirmed (the page drew the celebration from the session):
     // record it here too, so a vote cast on another tab of this page is not missed.

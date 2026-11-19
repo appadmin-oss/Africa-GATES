@@ -166,6 +166,96 @@ final class CommunityReturnPool
         ];
     }
 
+    /**
+     * One nominee's place against the target, read out of a progress() result.
+     *
+     * THE one answer to "this nominee's vote target and the votes counted towards it". The
+     * wallet, the nominee's vote page, the vote list and the live poll all ask it, so none of
+     * them can disagree about when a nominee has reached it. It takes a progress() the caller
+     * already holds, never a cycle id: a list of sixty rows asks progress() once and this
+     * sixty times in memory (the vote list was the reason).
+     *
+     * null when no target is set (0 is "not set", never "reached by everybody") or the
+     * nominee is not one of the edition's approved nominees.
+     *
+     * @param  array<string,mixed> $progress a progress() result
+     * @return array{target:int, votes:int, to_go:int, reached:bool, pct:int, settled:bool}|null
+     */
+    public static function standingIn(array $progress, int $nomineeId): ?array
+    {
+        $target = (int) ($progress['target'] ?? 0);
+        if ($target < 1) return null;
+        foreach ($progress['rows'] ?? [] as $r) {
+            if ((int) $r['id'] !== $nomineeId) continue;
+            $v = (int) $r['votes'];
+            return ['target' => $target, 'votes' => $v, 'to_go' => max(0, $target - $v), 'reached' => $v >= $target,
+                    'pct' => (int) min(100, floor(100 * $v / $target)), 'settled' => !empty($progress['settled'])];
+        }
+        return null;
+    }
+
+    /**
+     * Where the edition stands, for a PUBLIC page — or null where nothing should be drawn.
+     *
+     * The one gate for every public reader of the target (the award page's box, the nominee's
+     * vote page, the vote list and its live poll), so a page cannot show a target another page
+     * of the same edition hides:
+     *
+     *   · the edition runs the target pool;
+     *   · paid voting is on (CommunityReturnService::active()) — with no vote sales there is
+     *     no pool and a target is a promise of nothing — OR the pool has settled. A settled
+     *     target is no longer a promise but a record of who was paid, and switching vote sales
+     *     off after the close used to take it off the award page with the money already in
+     *     winners' wallets;
+     *   · a target is set. `each` is 0 while the edition has no milestone or no approved
+     *     nominee, and the award page drew "Target today: 0 votes each" beside "0 of 3 have
+     *     reached it" for it: a target of nothing is not set, so nothing is drawn;
+     *   · not the sandbox. Keyed on a cycle, this reader never walks the category chain the
+     *     public pages' containment rests on, so it asks the one clause
+     *     (DemoSeeder::liveAwardOnly) about the edition's nominees, and a rehearsal edition
+     *     — every nominee of which is in an inactive programme — draws nothing.
+     *
+     * @return array<string,mixed>|null a progress() result
+     */
+    public static function forPublic(int $cycleId): ?array
+    {
+        if ($cycleId < 1 || !self::applies($cycleId)) return null;
+        $settled = self::settlement($cycleId) !== null;
+        if (!$settled && !CommunityReturnService::active()) return null;
+        $p = self::progress($cycleId);
+        if ($p['target'] < 1 || $p['rows'] === []) return null;
+        try {
+            $live = DemoSeeder::liveAwardOnly(DB::table('gates_nominees')->whereIn('gates_nominees.id', array_column($p['rows'], 'id')))
+                ->pluck('gates_nominees.id')->map(fn ($v) => (int) $v)->all();
+        } catch (\Throwable) {
+            return null;
+        }
+        if ($live === []) return null;
+        return $p;
+    }
+
+    /**
+     * The live poll's part: every nominee's standing, as a LIST (a map keyed by id would
+     * encode as a JSON array whenever the ids happen to run 0…n). Same arithmetic as the page,
+     * through standingIn(), so the poll cannot drift from what the server drew.
+     *
+     * @param  list<int>|null $only the nominees the caller lists; null for all of them
+     * @return array{cycle_id:int, target:int, settled:bool, nominees:list<array<string,mixed>>}|null
+     */
+    public static function pollPayload(int $cycleId, ?array $only = null): ?array
+    {
+        $p = self::forPublic($cycleId);
+        if ($p === null) return null;
+        $keep = $only === null ? null : array_flip(array_map('intval', $only));
+        $out = [];
+        foreach ($p['rows'] as $r) {
+            if ($keep !== null && !isset($keep[(int) $r['id']])) continue;
+            $s = self::standingIn($p, (int) $r['id']);
+            if ($s !== null) $out[] = ['id' => (int) $r['id'], 'votes' => $s['votes'], 'to_go' => $s['to_go'], 'reached' => $s['reached'], 'pct' => $s['pct']];
+        }
+        return ['cycle_id' => $cycleId, 'target' => (int) $p['target'], 'settled' => !empty($p['settled']), 'nominees' => $out];
+    }
+
     /** What the pool holds before settling: every accrual in the edition, net of reversals. */
     public static function poolKobo(int $cycleId): int
     {

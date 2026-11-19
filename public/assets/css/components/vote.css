@@ -171,6 +171,9 @@
 .vp-row__n{ font-weight:700; font-size:var(--ag-fs-16); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 .vp-row__meta{ font-size:var(--ag-fs-13); color:var(--ag-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 .vp-row__meta:empty{ display:none }
+/* "N to go" against the edition's vote target (CommunityReturnPool), patched by the poll. */
+.vp-row__goal{ font-size:var(--ag-fs-12-5); color:var(--ag-ink-2); font-variant-numeric:tabular-nums }
+.vp-row__goal.is-reached{ font-weight:700; color:var(--ag-ink) }
 .vp-row__bar{ display:block; height:6px; border-radius:3px; background:var(--ag-ground); overflow:hidden }
 .vp-row__bar span{ display:block; height:100%; border-radius:3px; background:var(--ag-green-light); transition:width var(--ag-dur-2) var(--ag-ease) }
 .vp-row__bar span.is-lead{ background:var(--ag-green) }

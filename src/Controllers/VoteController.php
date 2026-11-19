@@ -113,6 +113,14 @@ class VoteController {
 
         $year = (int) ($p['cycle']['year'] ?? date('Y'));
         $noms = $this->awards->getNominees((int) $p['id'], 0, $year);
+        // The vote target, where the edition has one: asked ONCE for the edition and read per
+        // row in memory (standingIn), never per nominee — sixty rows, one progress().
+        $cycleId = (int) (($p['cycle']['id'] ?? null) ?: ($p['cycle_id'] ?? 0));
+        $target  = \AfricaGates\Services\CommunityReturnPool::forPublic($cycleId);
+        foreach ($noms as &$tn) {
+            $tn['to_target'] = $target !== null ? \AfricaGates\Services\CommunityReturnPool::standingIn($target, (int) $tn['id']) : null;
+        }
+        unset($tn);
         $byCat = [];
         foreach ($p['categories'] as $c) { $byCat[(int) $c['id']] = ['category' => $c, 'nominees' => []]; }
         foreach ($noms as $n) {
@@ -182,7 +190,6 @@ class VoteController {
         // The award's campaign (Support\AwardCampaign) and, where the host turned it on, the
         // Supporter Spotlight for this edition. Both draw nothing until an operator says so.
         $campaign  = \AfricaGates\Support\AwardCampaign::forProgramme((int) $p['id']);
-        $cycleId   = (int) (($p['cycle']['id'] ?? null) ?: ($p['cycle_id'] ?? 0));
         $price     = PaidVoteService::enabled() ? PaidVoteService::pricePerVote() : 0;
         $sharePer  = $campaign['beneficiary'] !== '' && $campaign['share_pct'] > 0 ? intdiv($price * $campaign['share_pct'], 100) : 0;
         $spotlight = ($campaign['spotlight'] || $sharePer > 0) && $cycleId > 0 && $tab === 'vote'
@@ -209,6 +216,9 @@ class VoteController {
             'categories'       => $cats,
             'overall'          => $overall,
             'cat_view'         => $catView,
+            // The edition's vote target, for the one line above the lists saying what the
+            // rows' "N to go" counts (each row carries its own figure as `to_target`).
+            'vote_target'      => $target !== null ? ['target' => (int) $target['target'], 'settled' => !empty($target['settled'])] : null,
             'front'            => \AfricaGates\Services\VoteFront::programme($p, $cats, $catId),
             'tab'              => $tab,
             'breadcrumbs'      => [
@@ -544,7 +554,11 @@ class VoteController {
                     $overall[] = ['id' => (int) $n['id'], 'votes' => (int) $n['vote_count'], 'rank' => (int) $n['rank'], 'gap' => $n['gap'], 'next' => $n['next_rank'] ?? null, 'pct' => (int) $n['pct']];
                 }
             }
-            return ['ok' => true, 'at' => date('c'), 'categories' => $out, 'overall' => $overall];
+            // The vote target's countdown rides the same cached poll: the nominee's own page
+            // and the list both read it, so one request every ten seconds keeps the race and
+            // "N votes to go" in step, and a rally costs the database nothing more.
+            $target = \AfricaGates\Services\CommunityReturnPool::pollPayload((int) ($p['cycle']['id'] ?? 0));
+            return ['ok' => true, 'at' => date('c'), 'categories' => $out, 'overall' => $overall, 'target' => $target];
         });
 
         // CacheService stores and returns ARRAYS (it json_decodes on read), so the
@@ -950,6 +964,17 @@ class VoteController {
             // omits the block entirely — a permanent "0 recovered votes" would be noise
             // on 100% of pages to be honest about 0% of them.
             'recovered'        => \AfricaGates\Services\VoteRecoveryService::disclosureFor((int) $nom->id),
+            // ── THE VOTE TARGET ──────────────────────────────────────────────
+            //
+            // On the target pool every approved nominee has the same vote target, and the
+            // pool is shared only by those who reach it — the one figure a supporter can
+            // move, and it was printed only on the award page as an edition-wide count. Here
+            // it is THIS nominee's: counted votes, the target, how many to go (null where no
+            // target applies; CommunityReturnPool::forPublic is the gate, standingIn the
+            // arithmetic). `tallies` is the poll that keeps it counting down.
+            'vote_target'      => ($tp = \AfricaGates\Services\CommunityReturnPool::forPublic((int) $nom->cycle_id)) !== null
+                                      ? \AfricaGates\Services\CommunityReturnPool::standingIn($tp, (int) $nom->id) : null,
+            'tallies_url'      => '/vote/' . rawurlencode((string) $nom->programme_slug) . '/tallies',
             'standing_headline'=> \AfricaGates\Services\StandingsService::headline($standing),
             'standing_cta'     => \AfricaGates\Services\StandingsService::callToAction($standing),
             'flier_url'        => $nomPath . '/flier',

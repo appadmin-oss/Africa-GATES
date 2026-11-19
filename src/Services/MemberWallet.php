@@ -677,12 +677,11 @@ final class MemberWallet
     {
         try {
             $p = CommunityReturnPool::progress($cycleId);
-            if ($p['settled'] || $p['target'] < 1) return null;
-            foreach ($p['rows'] as $r) {
-                if ((int) $r['id'] === $nomineeId) {
-                    return ['target' => (int) $p['target'], 'votes' => (int) $r['votes'], 'to_go' => (int) $r['to_go'], 'reached' => (bool) $r['reached']];
-                }
-            }
+            if ($p['settled']) return null;
+            // The one resolver (standingIn), so the wallet and the public vote page cannot
+            // disagree about whether this nominee has reached it.
+            $s = CommunityReturnPool::standingIn($p, $nomineeId);
+            if ($s !== null) return ['target' => $s['target'], 'votes' => $s['votes'], 'to_go' => $s['to_go'], 'reached' => $s['reached']];
         } catch (\Throwable) {}
         return null;
     }
