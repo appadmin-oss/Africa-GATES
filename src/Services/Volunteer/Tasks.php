@@ -24,6 +24,16 @@ final class Tasks
     public const HANDED_IN = 'handed_in';
     public const DONE = 'done';
     public const DROPPED = 'dropped';
+    /**
+     * Staff took the work back (release, or reassignment to somebody else). Not DROPPED: that is
+     * the volunteer handing it back and counts on their Effect; this is a decision about the task
+     * and counts nowhere. Fits the VARCHAR(16) the column has always been.
+     */
+    public const RELEASED = 'released';
+    /** A nudge is at most one message a day per take. */
+    public const NUDGE_HOURS = 24;
+    /** The Tasks tab's filters over the takes on the go: everything, waiting on staff, behind. */
+    public const SHOW = ['all' => 'All on the go', 'waiting' => 'Handed in, waiting', 'overdue' => 'Overdue'];
     /** Held by the volunteer and not yet accepted: what "Mine" and every "on the go" count mean. */
     public const ON_THE_GO = [self::TAKEN, self::HANDED_IN];
 
@@ -94,8 +104,8 @@ final class Tasks
         $have = DB::table('gates_vol_task_takes')->where('task_id', $taskId)->where('volunteer_id', $v->id)->first();
         if ($have) {
             if ($have->status === self::DONE) return ['ok' => false, 'error' => 'You’ve already finished this task. It’s under Tasks › Done.'];
-            if ($have->status === self::DROPPED) DB::table('gates_vol_task_takes')->where('id', $have->id)->where('status', self::DROPPED)
-                ->update(['status' => self::TAKEN, 'taken_at' => date('Y-m-d H:i:s'), 'handed_in_at' => null]);
+            if (in_array((string) $have->status, [self::DROPPED, self::RELEASED], true)) DB::table('gates_vol_task_takes')->where('id', $have->id)->where('status', $have->status)
+                ->update(['status' => self::TAKEN, 'taken_at' => date('Y-m-d H:i:s'), 'handed_in_at' => null, 'nudged_at' => null]);
             return ['ok' => true];
         }
         DB::table('gates_vol_task_takes')->insert(['task_id' => $taskId, 'volunteer_id' => $v->id, 'status' => self::TAKEN, 'taken_at' => date('Y-m-d H:i:s')]);
@@ -218,6 +228,149 @@ final class Tasks
     public static function handedInCount(): int
     {
         return (int) DB::table('gates_vol_task_takes')->where('status', self::HANDED_IN)->count();
+    }
+
+    // ── Getting the work finished: the Tasks tab's view of every take on the go ────────────
+    //
+    // The tab could accept handed-in work and edit or close a task, but could not say who was
+    // behind or do anything about it short of closing the whole task (addendum of 19 Nov 2026 to
+    // docs/audits/2026-11-02-volunteer-tasks.md). Overdue is ONE definition, here: held (not
+    // handed in) past the task's due date — the same rule Effect counts as late, so the tab and
+    // the volunteer's reliability chip cannot disagree about who is behind.
+
+    private static function onTheGo(string $show): \Illuminate\Database\Query\Builder
+    {
+        $q = DB::table('gates_vol_task_takes as k')->join('gates_vol_tasks as t', 't.id', '=', 'k.task_id')
+            ->join('gates_volunteers as v', 'v.id', '=', 'k.volunteer_id')->join('gates_users as u', 'u.id', '=', 'v.user_id');
+        return match ($show) {
+            'waiting' => $q->where('k.status', self::HANDED_IN),
+            'overdue' => $q->where('k.status', self::TAKEN)->whereNotNull('t.due_at')->where('t.due_at', '<', date('Y-m-d H:i:s')),
+            default => $q->whereIn('k.status', self::ON_THE_GO),
+        };
+    }
+
+    /**
+     * Every take on the go (or one filter of them), behind first, then by due date, each with its
+     * due date and an `overdue` flag. An unknown filter is everything, never an error: a stale
+     * bookmark shows the list.
+     *
+     * @return list<object>
+     */
+    public static function takes(string $show = 'all', int $limit = 300): array
+    {
+        $now = date('Y-m-d H:i:s');
+        $rows = self::onTheGo(isset(self::SHOW[$show]) ? $show : 'all')
+            ->orderByRaw("CASE WHEN k.status = ? AND t.due_at IS NOT NULL AND t.due_at < ? THEN 0 ELSE 1 END", [self::TAKEN, $now])
+            ->orderByRaw('CASE WHEN t.due_at IS NULL THEN 1 ELSE 0 END')->orderBy('t.due_at')->orderBy('k.id')->limit($limit)
+            ->get(['k.id', 'k.task_id', 'k.volunteer_id', 'k.status', 'k.progress', 'k.taken_at', 'k.handed_in_at', 'k.nudged_at',
+                   't.title', 't.target', 't.due_at', 't.module_key', 't.scope_kind', 't.scope_id', 'v.display_name', 'u.name'])->all();
+        foreach ($rows as $r) {
+            $r->overdue = $r->status === self::TAKEN && $r->due_at !== null && (string) $r->due_at < $now;
+            $r->nudgeable = $r->status === self::TAKEN && ($r->nudged_at === null || (string) $r->nudged_at <= date('Y-m-d H:i:s', time() - self::NUDGE_HOURS * 3600));
+        }
+        return $rows;
+    }
+
+    /** @return array{all:int, waiting:int, overdue:int} what each filter would show */
+    public static function takeCounts(): array
+    {
+        $out = [];
+        foreach (array_keys(self::SHOW) as $k) $out[$k] = (int) self::onTheGo($k)->count();
+        return $out;
+    }
+
+    /**
+     * Staff nudge the person holding a take: ONE message to them, about this task, with an
+     * optional line from staff. Recorded on the take (`nudged_at`, which the tab shows so a second
+     * member of staff does not nudge again) and in gates_broadcast_log through Reminders::deliver,
+     * the volunteer messages' one mail path. At most once in NUDGE_HOURS: the stamp is a
+     * compare-and-set, so two presses cannot both send. A send that fails puts the stamp back,
+     * so "nudged" is never shown for a message nobody received.
+     *
+     * Only a take still `taken`: handed-in work is waiting on staff, not on the volunteer.
+     *
+     * @param callable(string,string,string,string):bool $send Reminders::sender($mailer)
+     * @return array{ok:bool, error?:string}
+     */
+    public static function nudge(int $takeId, string $note, string $byName, callable $send): array
+    {
+        $k = DB::table('gates_vol_task_takes as k')->join('gates_vol_tasks as t', 't.id', '=', 'k.task_id')->where('k.id', $takeId)
+            ->first(['k.id', 'k.status', 'k.volunteer_id', 'k.nudged_at', 'k.progress', 't.title', 't.due_at', 't.target']);
+        if (!$k || $k->status !== self::TAKEN) return ['ok' => false, 'error' => 'Only a task somebody holds and hasn’t handed in can be nudged.'];
+        $who = Reminders::person((int) $k->volunteer_id);
+        if ($who === null) return ['ok' => false, 'error' => 'They can’t be emailed: they are on a break, have left, or have no working address.'];
+        $now = date('Y-m-d H:i:s');
+        $since = date('Y-m-d H:i:s', time() - self::NUDGE_HOURS * 3600);
+        // `nudged_at = now` always differs from what it replaces, so MySQL's changed-rows count
+        // and SQLite's matched-rows count agree.
+        $claimed = DB::table('gates_vol_task_takes')->where('id', $takeId)->where('status', self::TAKEN)
+            ->where(static fn ($w) => $w->whereNull('nudged_at')->orWhere('nudged_at', '<=', $since))->update(['nudged_at' => $now]);
+        if ($claimed !== 1) return ['ok' => false, 'error' => 'They were already nudged about this in the last day. Give them a little time.'];
+
+        $late = $k->due_at && (string) $k->due_at < $now;
+        $lines = ['Hello ' . $who[1] . ',',
+                  $late ? 'Your task ' . $k->title . ' was due on ' . Workspace::day((string) $k->due_at) . ' and is still with you.'
+                        : 'A quick word about your task ' . $k->title . ($k->due_at ? ', due on ' . Workspace::day((string) $k->due_at) : '') . '.'];
+        if ($k->target) $lines[] = 'So far: ' . (int) $k->progress . ' of ' . (int) $k->target . '.';
+        $note = trim(mb_substr($note, 0, 500));
+        if ($note !== '') $lines[] = $byName . ' says: ' . $note;
+        $lines[] = 'When it is finished, hand it in from Tasks › Mine so a lead can accept it. If you can’t finish it, drop it there so somebody else can, or reply and tell us what you need.';
+        // The once-a-day rule is the stamp above; the log key only has to be unique per message.
+        $ok = Reminders::deliver('vol-nudge:' . $takeId . ':' . bin2hex(random_bytes(6)), $who[0], ($late ? 'Overdue: ' : 'About your task: ') . $k->title, $lines, '/volunteer/tasks/mine', $send);
+        if (!$ok) {
+            DB::table('gates_vol_task_takes')->where('id', $takeId)->where('nudged_at', $now)->update(['nudged_at' => $k->nudged_at]);
+            return ['ok' => false, 'error' => 'The message could not be sent, so nothing is recorded. Try again in a minute.'];
+        }
+        return ['ok' => true];
+    }
+
+    /**
+     * Staff take a held task back: it leaves the volunteer's Mine, is offered again, and counts
+     * against nobody (RELEASED, not DROPPED). Handed-in work can be released too — staff decide
+     * that, with the reason the confirm dialog asks for.
+     *
+     * @return ?object the take as it was, or null if it was not on the go
+     */
+    public static function release(int $takeId): ?object
+    {
+        $k = DB::table('gates_vol_task_takes as k')->join('gates_vol_tasks as t', 't.id', '=', 'k.task_id')->where('k.id', $takeId)
+            ->whereIn('k.status', self::ON_THE_GO)->first(['k.id', 'k.task_id', 'k.volunteer_id', 'k.status', 't.title']);
+        if (!$k) return null;
+        $moved = DB::table('gates_vol_task_takes')->where('id', $takeId)->whereIn('status', self::ON_THE_GO)->update(['status' => self::RELEASED]);
+        return $moved === 1 ? $k : null;
+    }
+
+    /**
+     * Staff give a held task to somebody else: the first holder's take is released and the new
+     * person holds it as if they had taken it. The new person must be somebody who COULD take it
+     * — approved, trained for it, on that event's team for an event task — because a
+     * reassignment is not a way round the rules the library keeps. Its due date is not a bar:
+     * staff may pass on overdue work, and change the date on the task.
+     *
+     * @return array{ok:bool, error?:string, from?:object, to?:object, title?:string}
+     */
+    public static function reassign(int $takeId, int $toVolunteerId): array
+    {
+        $k = DB::table('gates_vol_task_takes')->where('id', $takeId)->whereIn('status', self::ON_THE_GO)->first();
+        if (!$k) return ['ok' => false, 'error' => 'That task isn’t held by anybody now, so there is nothing to reassign.'];
+        if ((int) $k->volunteer_id === $toVolunteerId) return ['ok' => false, 'error' => 'That is the same person who has it now.'];
+        $t = DB::table('gates_vol_tasks')->where('id', $k->task_id)->first();
+        $to = DB::table('gates_volunteers')->where('id', $toVolunteerId)->first();
+        if (!$t || !$to) return ['ok' => false, 'error' => 'Pick a volunteer to give it to.'];
+        if (!in_array(Volunteers::role($to), ['new', 'active', 'lead'], true)) return ['ok' => false, 'error' => 'Only an approved volunteer who isn’t on a break can be given a task.'];
+        if ($t->module_key && !Training::holds((int) $to->id, (string) $t->module_key)) return ['ok' => false, 'error' => 'They need the training for this task first.'];
+        if ((string) $t->scope_kind === 'event' && !Workspace::place($to, 'event', (int) $t->scope_id)) return ['ok' => false, 'error' => 'That task is for the team at its event, and they aren’t on it.'];
+        $have = DB::table('gates_vol_task_takes')->where('task_id', $t->id)->where('volunteer_id', $toVolunteerId)->first();
+        if ($have && !in_array((string) $have->status, [self::DROPPED, self::RELEASED], true)) return ['ok' => false, 'error' => 'They already have this task, or have finished it.'];
+        $ok = DB::connection()->transaction(static function () use ($k, $t, $have, $toVolunteerId): bool {
+            if (DB::table('gates_vol_task_takes')->where('id', $k->id)->whereIn('status', self::ON_THE_GO)->update(['status' => self::RELEASED]) !== 1) return false;
+            $row = ['status' => self::TAKEN, 'taken_at' => date('Y-m-d H:i:s'), 'handed_in_at' => null, 'nudged_at' => null, 'progress' => 0, 'accepted' => 0];
+            if ($have) DB::table('gates_vol_task_takes')->where('id', $have->id)->update($row);
+            else DB::table('gates_vol_task_takes')->insert($row + ['task_id' => $t->id, 'volunteer_id' => $toVolunteerId]);
+            return true;
+        });
+        if (!$ok) return ['ok' => false, 'error' => 'Somebody changed that take a moment ago. Look again.'];
+        return ['ok' => true, 'from' => DB::table('gates_volunteers')->where('id', $k->volunteer_id)->first(), 'to' => $to, 'title' => (string) $t->title, 'task' => $t];
     }
 
     /**

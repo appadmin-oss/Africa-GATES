@@ -54,6 +54,9 @@ final class Effect
             // On time is measured by when the VOLUNTEER finished — the hand-in — and only falls
             // back to the acceptance for takes from before a volunteer could hand work in. A take
             // handed in and waiting for staff is not late, however long staff take to answer.
+            // Released by staff (Tasks::release / reassign) is neither finished nor handed back:
+            // it is not the volunteer's to count either way.
+            if ($k->status === Tasks::RELEASED) continue;
             if ($k->status === Tasks::DONE) {
                 $done++;
                 $finished = $k->handed_in_at ?: $k->done_at;

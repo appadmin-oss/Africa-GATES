@@ -20,6 +20,10 @@
  *                                       definition: every database that ran 2027_04_12 holds
  *                                       the plain index, and only this file reaches them.
  *
+ *   gates_vol_task_takes.nudged_at      new, nullable: when staff last nudged the holder from the
+ *                                       Tasks tab (addendum, 19 Nov 2026). The take's status also
+ *                                       gains `released` (staff freed it; not the volunteer's drop).
+ *
  * DUPLICATES ARE RESOLVED BEFORE THE KEY, keeping the EARLIEST row of each (ref_kind, ref_id).
  * A later copy is not deleted: it is detached (ref_kind/ref_id NULL, which a UNIQUE allows any
  * number of on both engines) and declined with a reason the volunteer reads on their Hours page.
@@ -45,6 +49,12 @@ if ($schema->hasTable('gates_vol_task_takes')) {
     if (!$schema->hasColumn('gates_vol_task_takes', 'handed_in_at')) {
         DB::statement('ALTER TABLE gates_vol_task_takes ADD COLUMN handed_in_at ' . ($sqlite ? 'TEXT' : 'DATETIME') . ' NULL');
         echo "  + gates_vol_task_takes.handed_in_at\n";
+    }
+    // When staff last nudged the holder (Tasks::nudge): shown on the Tasks tab, and the
+    // compare-and-set that keeps a nudge to one a day. Nullable, so no row needs a value.
+    if (!$schema->hasColumn('gates_vol_task_takes', 'nudged_at')) {
+        DB::statement('ALTER TABLE gates_vol_task_takes ADD COLUMN nudged_at ' . ($sqlite ? 'TEXT' : 'DATETIME') . ' NULL');
+        echo "  + gates_vol_task_takes.nudged_at\n";
     }
     echo SchemaIndex::ensure('gates_vol_task_takes', 'idx_voltake_status', ['status', 'handed_in_at']), "\n";
 }

@@ -63,3 +63,51 @@ Migration: `database/migrations/2027_06_09_vol_task_handin.php`.
   the typed WAT time as if it were UTC.)
 - A take on a task closed with work outstanding can still turn "late" on its due date if never
   handed in; that is the volunteer's commitment and is left counted.
+
+## Addendum, 19 Nov 2026 — on the newest line, and getting work finished
+
+The fixes above were written on a branch none of the other lines contained. An audit of
+`afv/shop-upgrade` (the newest line, which holds `claude/ai-assistance-judges-features`) found all
+of it missing there: no hand-in (the Mine row offered only "Drop"), no "What to do", past-due tasks
+takeable, no staff edit/close/progress, no task notices although the page promised them, and
+`Effect` judging "on time" by staff acceptance. This branch now merges `afv/shop-upgrade` and
+`afv/affectionate-babbage-k2ztoz` (not contained in the shop line) and carries every fix above on
+top of what they changed:
+
+- The shop line's event-team rule (an event's task only for that event's team) is kept in
+  `library()` and `take()`, and now also in `Tasks::fits()`, so the new-task notice does not tell
+  anybody outside the team. Its own `accept()` bounds and transaction are kept, with the
+  compare-and-set over `ON_THE_GO` so handed-in work can be accepted; the event lead's console
+  (`EventPages::volTasks`, `acceptForEvent`, `forEvent`) lists and accepts handed-in work too.
+- The migration was renamed `2027_05_03_vol_task_handin` → `2027_06_09_vol_task_handin` to sort
+  after every merged line's migrations (the shop line runs to `2027_06_08`); it was never deployed.
+
+### Achievement on the Tasks tab
+
+Found: staff could accept handed-in work and edit or close a task, but no take showed its due
+date, nothing said overdue, the list could not be narrowed to what was waiting or late, and the
+only remedies for somebody behind were to wait or close the whole task.
+
+Fixed (`tests/Unit/VolunteerTaskAchievementTest.php`, seven cases, all failing before the change):
+
+1. "Who is working on what": every take on the go with its due date, overdue first, and
+   **Overdue** in words. `Tasks::takes()` is the one definition — held, not handed in, past the
+   task's due date — the same rule `Effect` counts as late.
+2. Filters "All on the go · Handed in, waiting · Overdue" with counts (`Tasks::takeCounts()`); an
+   unknown filter falls back to everything.
+3. **Nudge**: one email to the holder about that task, with an optional line from staff, through
+   `Reminders::deliver()` — the volunteer messages' one mail path, now shared by the sweep
+   (`Reminders::sender()`/`person()` extracted, no second sender). Recorded on the take
+   (`gates_vol_task_takes.nudged_at`, added in the same migration) and in the broadcast log; at most
+   once in 24 hours by a compare-and-set on the stamp; a failed send puts the stamp back. Only a
+   take still `taken` can be nudged.
+4. **Release** (`Tasks::RELEASED`, not `dropped`): the task is offered again and the release
+   counts against nobody on `Effect`; the person may take it again. **Give to somebody else**
+   (`Tasks::reassign`): refuses the same person, anybody not approved, untrained, or off an event
+   task's team, and anybody who already holds or finished it; the first holder's take is released
+   in the same transaction. Both people are told, through the same mail path.
+5. All three sit behind the page's existing `canWrite` gate, are audited as `volunteer_take`, and
+   are not drawn for a role that cannot write.
+
+Still open: the overdue list reads the stored (UTC) due date through `|when`, but the volunteer
+screens still use `Workspace::day()` (see above).

@@ -33,3 +33,5 @@
 /* Changing or closing a task is folded away under its name until somebody asks for it. */
 .vl-edit { margin-top: 6px; font-size: var(--cn-fs-13); }
 .vl-edit summary { cursor: pointer; color: var(--cn-ink-2); }
+/* Overdue is a word first; the red repeats it (WCAG 1.4.1). */
+.vl-late { color: var(--cn-red-ink); font-weight: 600; }

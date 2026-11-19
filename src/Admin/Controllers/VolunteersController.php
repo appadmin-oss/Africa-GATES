@@ -6,6 +6,8 @@ namespace AfricaGates\Admin\Controllers;
 use AfricaGates\Admin\Services\AuditService;
 use AfricaGates\Admin\Support\Permissions;
 use AfricaGates\Services\Grants;
+use AfricaGates\Services\OtpService;
+use AfricaGates\Services\Volunteer\Reminders;
 use AfricaGates\Services\Volunteer\Hours;
 use AfricaGates\Support\Csv;
 use AfricaGates\Services\Volunteer\Outreach;
@@ -37,12 +39,18 @@ final class VolunteersController
     /** What the audit row's target id points at, per action. */
     private const AUDIT_TARGET = ['approve' => 'volunteer', 'decline' => 'volunteer', 'ref_replied' => 'volunteer_reference', 'grant' => 'grant',
                                   'revoke' => 'grant', 'task' => 'volunteer_task', 'accept' => 'volunteer_take', 'progress' => 'volunteer_take',
-                                  'task_edit' => 'volunteer_task', 'task_close' => 'volunteer_task', 'module' => 'training_module', 'hours' => 'volunteer_hours'];
+                                  'task_edit' => 'volunteer_task', 'task_close' => 'volunteer_task',
+                                  'nudge' => 'volunteer_take', 'release' => 'volunteer_take', 'reassign' => 'volunteer_take', 'module' => 'training_module', 'hours' => 'volunteer_hours'];
 
     public const TABS = ['applications' => 'Applications', 'roster' => 'Roster', 'tasks' => 'Tasks',
                          'training' => 'Training', 'hours' => 'Hours to confirm', 'reports' => 'Contact reports'];
 
-    public function __construct(private readonly Twig $view, private readonly AuditService $audit) {}
+    /**
+     * The mailer is optional so a screen that sends nothing can still be built bare; the nudge and
+     * reassignment notices go through Reminders::sender() with it — the volunteer messages' one
+     * mail path — and without one they report "could not be sent" rather than pretend.
+     */
+    public function __construct(private readonly Twig $view, private readonly AuditService $audit, private readonly ?OtpService $mailer = null) {}
 
     public function index(Request $req, Response $res): Response
     {
@@ -63,7 +71,9 @@ final class VolunteersController
         $data = $ready ? match ($tab) {
             'applications' => ['rows' => $this->applications()],
             'roster' => ['rows' => $this->roster((string) ($req->getQueryParams()['sort'] ?? 'name')), 'sort' => (string) ($req->getQueryParams()['sort'] ?? 'name'), 'caps' => Grants::CAPABILITIES, 'places' => $this->places()],
-            'tasks' => ['rows' => $this->tasks(), 'waiting' => Tasks::handedIn(), 'checked' => Tasks::CHECKED_BY, 'places' => $this->places(), 'modules' => Training::titles()],
+            'tasks' => ['rows' => $this->tasks(), 'waiting' => Tasks::handedIn(), 'takes' => Tasks::takes($show = isset(Tasks::SHOW[$qp['show'] ?? '']) ? (string) $qp['show'] : 'all'),
+                        'show' => $show, 'shows' => Tasks::SHOW, 'take_counts' => Tasks::takeCounts(), 'givers' => $this->givers(),
+                        'can_write' => Permissions::canWrite((string) ($_SESSION['admin_role'] ?? '')), 'checked' => Tasks::CHECKED_BY, 'places' => $this->places(), 'modules' => Training::titles()],
             'training' => ['rows' => DB::table('gates_vol_modules')->orderBy('title')->get()->all(), 'caps' => Grants::CAPABILITIES],
             'hours' => ['rows' => Hours::waiting()],
             'reports' => ['report' => Outreach::report($cycles, $days, 200), 'awards' => $this->awardsWithContacts(), 'cycle' => $cycle, 'days' => $days,
@@ -99,6 +109,9 @@ final class VolunteersController
             'accept' => $this->acceptTake($b, $adminName),
             'progress' => [Tasks::progress((int) ($b['take'] ?? 0), (int) ($b['progress'] ?? 0), (int) ($b['accepted'] ?? 0)), 'Progress saved. They see it on their task.', (int) ($b['take'] ?? 0)],
             'task_edit' => $this->created(Tasks::update((int) ($b['task'] ?? 0), $b), 'Saved. Volunteers see the change now.'),
+            'nudge' => $this->nudge($b, $adminName),
+            'release' => $this->release($b),
+            'reassign' => $this->reassign($b),
             'task_close' => [Tasks::close((int) ($b['task'] ?? 0)), 'Closed. It is no longer offered; anybody part-way through can still hand it in.', (int) ($b['task'] ?? 0)],
             'module' => $this->created(Training::save($b), 'Saved. Volunteers see it in Training.'),
             'hours' => $this->hours($b, $adminId, $adminName),
@@ -106,7 +119,7 @@ final class VolunteersController
         };
         // Typed by what the id IS: every row used to say `volunteer`, so for most actions the
         // log could not answer "which volunteer" (AUDIT-AND-PLAN VO-13).
-        if ($ok) $this->audit->record($adminId, 'volunteers.' . $do, self::AUDIT_TARGET[$do] ?? 'volunteer', (int) $target, array_intersect_key($b, array_flip(['id', 'capability', 'scope_kind', 'scope_id', 'expires_at', 'title', 'reason', 'kept', 'verdict', 'task', 'take', 'progress', 'accepted', 'hours', 'due_at'])));
+        if ($ok) $this->audit->record($adminId, 'volunteers.' . $do, self::AUDIT_TARGET[$do] ?? 'volunteer', (int) $target, array_intersect_key($b, array_flip(['id', 'capability', 'scope_kind', 'scope_id', 'expires_at', 'title', 'reason', 'kept', 'verdict', 'task', 'take', 'progress', 'accepted', 'hours', 'due_at', 'note', 'to'])));
         return $this->back($res, $tab, $ok, $msg);
     }
 
@@ -271,6 +284,51 @@ final class VolunteersController
         return Tasks::accept($take, $hours, (int) ($b['accepted'] ?? 0), $adminName)
             ? [true, 'Accepted: the hours are on their record.', $take]
             : [false, 'That has already been accepted, or was dropped.', $take];
+    }
+
+    /** Who a task can be given to: approved volunteers not on a break, by name. */
+    private function givers(): array
+    {
+        return DB::table('gates_volunteers as v')->join('gates_users as u', 'u.id', '=', 'v.user_id')->where('v.status', 'active')
+            ->orderByRaw('COALESCE(v.display_name, u.name)')->limit(300)->get(['v.id', 'v.display_name', 'u.name'])->all();
+    }
+
+    private function nudge(array $b, string $adminName): array
+    {
+        $take = (int) ($b['take'] ?? 0);
+        $r = Tasks::nudge($take, (string) ($b['note'] ?? ''), $adminName, Reminders::sender($this->mailer));
+        return [$r['ok'], $r['ok'] ? 'Nudged. They have one email about it; the next nudge is possible in a day.' : (string) $r['error'], $take];
+    }
+
+    private function release(array $b): array
+    {
+        $take = (int) ($b['take'] ?? 0);
+        $k = Tasks::release($take);
+        if (!$k) return [false, 'That task isn’t held by anybody now, so there is nothing to release.', $take];
+        $this->tell((int) $k->volunteer_id, 'vol-released:' . $take, 'Task released: ' . $k->title,
+            ['The task ' . $k->title . ' has been taken off your list by the volunteer team.', 'Nothing is held against you for it. You can find other work in Tasks › Library.']);
+        return [true, 'Released. It is offered to everybody again, and it does not count against them.', $take];
+    }
+
+    private function reassign(array $b): array
+    {
+        $take = (int) ($b['take'] ?? 0);
+        $r = Tasks::reassign($take, (int) ($b['to'] ?? 0));
+        if (!$r['ok']) return [false, (string) $r['error'], $take];
+        $this->tell((int) $r['from']->id, 'vol-released:' . $take, 'Task passed on: ' . $r['title'],
+            ['The volunteer team has passed the task ' . $r['title'] . ' to somebody else.', 'Nothing is held against you for it. You can find other work in Tasks › Library.']);
+        $due = $r['task']->due_at ? ' It is due on ' . Workspace::day((string) $r['task']->due_at) . '.' : '';
+        $this->tell((int) $r['to']->id, 'vol-given:' . $take . ':' . (int) $r['to']->id, 'A task for you: ' . $r['title'],
+            ['The volunteer team has given you the task ' . $r['title'] . '.' . $due, 'It is in Tasks › Mine. Hand it in there when it is finished, or drop it if you can’t take it on.']);
+        return [true, 'Given to ' . Volunteers::name($r['to']) . '. Both of them have been told.', $take];
+    }
+
+    /** One service message to one volunteer, through the reminders' mail path. Best effort. */
+    private function tell(int $volId, string $key, string $subject, array $lines): void
+    {
+        $p = Reminders::person($volId);
+        if ($p === null) return;
+        Reminders::deliver($key, $p[0], $subject, ['Hello ' . $p[1] . ',', ...$lines], '/volunteer/tasks/mine', Reminders::sender($this->mailer));
     }
 
     private function back(Response $res, string $tab, bool $ok, string $msg): Response

@@ -62,27 +62,66 @@ final class Reminders
     public static function sweep(?OtpService $mailer, ?callable $send = null, ?string $site = null): int
     {
         if (!Volunteers::ready()) return 0;
-        $send ??= static function (string $to, string $subject, string $html, string $plain) use ($mailer): bool {
-            if ($mailer === null) return false;
-            $r = $mailer->sendBranded($to, $subject, $html, $plain, 'Volunteering');
-            return ($r['success'] ?? false) === true;
-        };
-        $site = rtrim($site ?? SiteUrl::base(), '/');
+        $send ??= self::sender($mailer);
         // Before reading who is due: a break that ended must not keep somebody out of it.
         Volunteers::resumeEndedBreaks();
         $sent = 0;
         foreach (self::due() as [$key, $email, $subject, $lines, $href]) {
             if ($sent >= self::BATCH) break;
-            if (!BroadcastLog::claim($key, $email)) continue;
-            $plain = implode("\n", $lines) . "\n\n" . $site . $href;
-            $html = implode('', array_map(static fn (string $l): string => '<p>' . htmlspecialchars($l) . '</p>', $lines))
-                  . '<p><a href="' . htmlspecialchars($site . $href) . '">Open it in your volunteering</a></p>';
-            $ok = false;
-            try { $ok = $send($email, $subject, $html, $plain); } catch (\Throwable) {}
-            BroadcastLog::settle($key, $email, $ok);
-            if ($ok) $sent++;
+            if (self::deliver($key, $email, $subject, $lines, $href, $send, $site)) $sent++;
         }
         return $sent;
+    }
+
+    /**
+     * The one way a volunteer service message is sent: through the branded transport, under the
+     * "Volunteering" category. The sweep and the Tasks tab's nudge and reassignment notices all
+     * take it, so there is no second mail path to drift from this one.
+     *
+     * @return callable(string $to, string $subject, string $html, string $plain): bool
+     */
+    public static function sender(?OtpService $mailer): callable
+    {
+        return static function (string $to, string $subject, string $html, string $plain) use ($mailer): bool {
+            if ($mailer === null) return false;
+            $r = $mailer->sendBranded($to, $subject, $html, $plain, 'Volunteering');
+            return ($r['success'] ?? false) === true;
+        };
+    }
+
+    /**
+     * Claim, send and settle ONE message. Claimed in gates_broadcast_log before it is sent, so a
+     * repeat of the same key mails nobody twice; a claim that dies mid-send is not retried.
+     *
+     * @param list<string> $lines plain sentences; the link to the workspace page goes last
+     */
+    public static function deliver(string $key, string $email, string $subject, array $lines, string $href, callable $send, ?string $site = null): bool
+    {
+        if (!BroadcastLog::claim($key, $email)) return false;
+        $site = rtrim($site ?? SiteUrl::base(), '/');
+        $plain = implode("\n", $lines) . "\n\n" . $site . $href;
+        $html = implode('', array_map(static fn (string $l): string => '<p>' . htmlspecialchars($l) . '</p>', $lines))
+              . '<p><a href="' . htmlspecialchars($site . $href) . '">Open it in your volunteering</a></p>';
+        $ok = false;
+        try { $ok = (bool) $send($email, $subject, $html, $plain); } catch (\Throwable) {}
+        BroadcastLog::settle($key, $email, $ok);
+        return $ok;
+    }
+
+    /**
+     * Who a message about their own work may go to: an address that is one, and a volunteer who
+     * is not on a break or gone. Null otherwise. [email, first name].
+     *
+     * @return ?array{0:string,1:string}
+     */
+    public static function person(int $volId): ?array
+    {
+        $r = DB::table('gates_volunteers as v')->join('gates_users as u', 'u.id', '=', 'v.user_id')->where('v.id', $volId)
+            ->first(['v.*', 'u.email', 'u.name as user_name']);
+        if (!$r || !filter_var((string) $r->email, FILTER_VALIDATE_EMAIL)) return null;
+        // On a break, or gone: nothing is sent, as the break promises.
+        if (in_array((string) $r->status, ['paused', 'left', 'declined'], true)) return null;
+        return [(string) $r->email, trim((string) strtok(Volunteers::name($r), ' ')) ?: 'there'];
     }
 
     /**
@@ -95,15 +134,7 @@ final class Reminders
     {
         $now = date('Y-m-d H:i:s');
         $out = [];
-        $person = static function (int $volId): ?array {
-            $r = DB::table('gates_volunteers as v')->join('gates_users as u', 'u.id', '=', 'v.user_id')->where('v.id', $volId)
-                ->first(['v.*', 'u.email', 'u.name as user_name']);
-            if (!$r || !filter_var((string) $r->email, FILTER_VALIDATE_EMAIL)) return null;
-            // On a break, or gone: nothing is sent, as the break promises.
-            if (in_array((string) $r->status, ['paused', 'left', 'declined'], true)) return null;
-            $first = trim((string) strtok(Volunteers::name($r), ' ')) ?: 'there';
-            return [(string) $r->email, $first];
-        };
+        $person = static fn (int $volId): ?array => self::person($volId);
 
         // A meeting tomorrow, to the organiser and everybody who hasn't said no.
         array_push($out, ...Meetings::due(self::MEETING_HOURS));

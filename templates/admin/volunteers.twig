@@ -157,6 +157,57 @@
     </table>{% endif %}
   </section>
 
+  {#
+    WHO IS WORKING ON WHAT (addendum of 19 Nov 2026 to docs/audits/2026-11-02-volunteer-tasks.md).
+    Every take on the go with its due date, behind first. "Overdue" is said in words (never a
+    colour alone) and means Tasks' one definition: held, not handed in, past the task's due date —
+    the same rule the volunteer's reliability counts as late. The remedies are here, not only
+    "wait" or "close the whole task": a nudge (one email, at most one a day, recorded on the take),
+    release (the task is offered again and counts against nobody) and give-to-somebody-else.
+    Each is its own form beside the others, never nested; release asks for a reason.
+  #}
+  <section class="cn-card vl-sec" aria-labelledby="vlTakesH">
+    <h2 class="vl-h" id="vlTakesH">Who is working on what</h2>
+    <div class="cn-fchips" role="group" aria-label="Show" data-tabs="volunteer-takes">
+      {% for k, l in shows %}
+        <a class="cn-fchip{{ show == k ? ' is-on' }}" href="/admin/volunteers?tab=tasks&amp;show={{ k }}"{% if show == k %} aria-current="true"{% endif %}>{{ l }} · {{ take_counts[k] }}</a>
+      {% endfor %}
+    </div>
+    {% if takes is empty %}{{ kit.empty(show == 'overdue' ? 'Nobody is behind' : (show == 'waiting' ? 'Nothing handed in' : 'Nobody has a task'), show == 'all' ? 'When a volunteer takes a task it shows here with its due date.' : 'Nothing here matches this filter.', 'list') }}{% else %}
+    <table class="cn-table">
+      <thead><tr><th scope="col">Volunteer</th><th scope="col">Task</th><th scope="col">Due</th><th scope="col">Where it stands</th>{% if can_write %}<th scope="col">Act</th>{% endif %}</tr></thead>
+      <tbody>
+        {% for k in takes %}
+          <tr data-take="{{ k.id }}"><td>{{ k.display_name ?: k.name }}</td>
+            <td>{{ k.title }}{% if k.target %}<br><span class="vl-help">{{ k.progress }} of {{ k.target }} recorded</span>{% endif %}</td>
+            <td>{% if k.due_at %}Due {{ k.due_at|when('j M Y, H:i') }}{% else %}<span class="vl-help">No due date</span>{% endif %}</td>
+            <td>{% if k.overdue %}<strong class="vl-late">Overdue</strong>{% elseif k.status == 'handed_in' %}Handed in {{ k.handed_in_at|when('j M, H:i') }}{% if k.due_at %}<br><span class="vl-help">{{ k.handed_in_at <= k.due_at ? 'before' : 'after' }} the due date</span>{% endif %}{% else %}Taken {{ k.taken_at|when('j M') }}{% endif %}
+              {% if k.nudged_at %}<br><span class="vl-help">Nudged {{ k.nudged_at|when('j M, H:i') }}</span>{% endif %}</td>
+            {% if can_write %}<td>
+              {% if k.status == 'taken' %}
+                {% if k.nudgeable %}
+                <form method="post" action="/admin/volunteers" class="vl-inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="tab" value="tasks">
+                  <input type="hidden" name="do" value="nudge"><input type="hidden" name="take" value="{{ k.id }}">
+                  <label class="sr-only" for="nn{{ k.id }}">A line from you, optional</label><input id="nn{{ k.id }}" name="note" maxlength="500" placeholder="A line from you, optional">
+                  <button class="cn-btn cn-btn--sm" type="submit">Nudge</button></form>
+                {% else %}<span class="vl-help">Nudged in the last day</span>{% endif %}
+              {% endif %}
+              <details class="vl-edit"><summary>Release or give to somebody else</summary>
+                <form method="post" action="/admin/volunteers" class="vl-inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="tab" value="tasks">
+                  <input type="hidden" name="do" value="reassign"><input type="hidden" name="take" value="{{ k.id }}">
+                  <label class="sr-only" for="rg{{ k.id }}">Give it to</label>
+                  <select id="rg{{ k.id }}" name="to" required><option value="">Give it to…</option>{% for g in givers %}{% if g.id != k.volunteer_id %}<option value="{{ g.id }}">{{ g.display_name ?: g.name }}</option>{% endif %}{% endfor %}</select>
+                  <button class="cn-btn cn-btn--sm" type="submit">Give it</button></form>
+                <form method="post" action="/admin/volunteers" class="vl-inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="tab" value="tasks">
+                  <input type="hidden" name="do" value="release"><input type="hidden" name="take" value="{{ k.id }}">
+                  <button class="cn-btn cn-btn--sm" type="submit" data-confirm="Release this task from {{ k.display_name ?: k.name }}? It is offered to everybody again and does not count against them. They are told.">Release</button></form>
+              </details>
+            </td>{% endif %}</tr>
+        {% endfor %}
+      </tbody>
+    </table>{% endif %}
+  </section>
+
   <section class="cn-card vl-sec" aria-label="Open tasks">
     <h2 class="vl-h">Open tasks</h2>
     {% if rows is empty %}{{ kit.empty('No open tasks', 'Post one above.', 'list') }}{% else %}
