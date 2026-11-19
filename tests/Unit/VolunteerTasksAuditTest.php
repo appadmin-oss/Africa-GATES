@@ -349,7 +349,7 @@ final class VolunteerTasksAuditTest extends TestCase
         $first = (int) DB::table('gates_vol_hours')->insertGetId($row);
         $second = (int) DB::table('gates_vol_hours')->insertGetId($row);
         ob_start();
-        require dirname(__DIR__, 2) . '/database/migrations/2027_05_03_vol_task_handin.php';
+        require dirname(__DIR__, 2) . '/database/migrations/2027_06_09_vol_task_handin.php';
         ob_end_clean();
         $this->assertTrue(\AfricaGates\Support\SchemaIndex::exists('gates_vol_hours', 'uq_volhours_ref'));
         $this->assertSame('verified', DB::table('gates_vol_hours')->where('id', $first)->value('status'), 'the earliest stands');

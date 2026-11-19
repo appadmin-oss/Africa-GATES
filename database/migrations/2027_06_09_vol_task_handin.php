@@ -27,6 +27,11 @@
  * Rewards::sync() reverses any credited row that is no longer verified, and a deleted row would
  * simply never be looked at again, leaving the double payment in the ledger.
  *
+ * DATED AFTER EVERY OTHER LINE'S MIGRATIONS. It was written as 2027_05_03 on a branch that never
+ * deployed; the shop line has since run migrations up to 2027_06_08 (two of them on gates_vol_tasks),
+ * so it was renamed on merge to run last. MigrateCommand records files by name, so no database
+ * has a record of the old name to collide with.
+ *
  * Indexes through SchemaIndex (never CREATE INDEX IF NOT EXISTS). Idempotent. NEVER exit/die.
  */
 require_once __DIR__ . '/../bootstrap.php';
