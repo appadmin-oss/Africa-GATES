@@ -309,8 +309,8 @@ final class Tasks
 
         $late = $k->due_at && (string) $k->due_at < $now;
         $lines = ['Hello ' . $who[1] . ',',
-                  $late ? 'Your task ' . $k->title . ' was due on ' . Workspace::day((string) $k->due_at) . ' and is still with you.'
-                        : 'A quick word about your task ' . $k->title . ($k->due_at ? ', due on ' . Workspace::day((string) $k->due_at) : '') . '.'];
+                  $late ? 'Your task ' . $k->title . ' was due on ' . Workspace::due((string) $k->due_at, true) . ' and is still with you.'
+                        : 'A quick word about your task ' . $k->title . ($k->due_at ? ', due on ' . Workspace::due((string) $k->due_at, true) : '') . '.'];
         if ($k->target) $lines[] = 'So far: ' . (int) $k->progress . ' of ' . (int) $k->target . '.';
         $note = trim(mb_substr($note, 0, 500));
         if ($note !== '') $lines[] = $byName . ' says: ' . $note;

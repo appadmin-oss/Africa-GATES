@@ -631,7 +631,7 @@ final class EventPages
         $secs[] = $open
             ? ['k' => 'rows', 'h' => 'Open tasks', 'items' => array_map(static fn ($t) => [
                 't' => (string) $t->title,
-                'sub' => trim(($t->due_at ? 'Due ' . Workspace::day((string) $t->due_at) . ' · ' : '') . (\AfricaGates\Services\Volunteer\Tasks::CHECKED_BY[$t->checked_by] ?? '')
+                'sub' => trim(($t->due_at ? 'Due ' . Workspace::due((string) $t->due_at) . ' · ' : '') . (\AfricaGates\Services\Volunteer\Tasks::CHECKED_BY[$t->checked_by] ?? '')
                     . (count($t->takes) ? ' · taken by ' . count($t->takes) : ' · nobody yet') . (!empty($t->posted_by_name) ? ' · posted by ' . $t->posted_by_name : ''), ' ·'),
                 'cta' => ['label' => 'Close', 'post' => ['do' => 'vtask_close', 'event' => $id, 'task' => (int) $t->id]]], $open)]
             : ['k' => 'note', 'tone' => 'mute', 'text' => 'No open tasks for this event yet. Post one below; the volunteers with a role here see it in their Tasks at once.'];

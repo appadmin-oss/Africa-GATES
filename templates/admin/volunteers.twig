@@ -146,7 +146,7 @@
         {% for k in waiting %}
           <tr><td>{{ k.display_name ?: k.name }}</td>
             <td>{{ k.title }}{% if k.target %}<br><span class="vl-help">{{ k.progress }} of {{ k.target }} recorded</span>{% endif %}</td>
-            <td>{{ k.handed_in_at|date('j M, H:i') }}{% if k.due_at and k.handed_in_at <= k.due_at %}<br><span class="vl-help">before the due date</span>{% elseif k.due_at %}<br><span class="vl-help">after the due date</span>{% endif %}</td>
+            <td>{{ k.handed_in_at|when('j M, H:i') }}{% if k.due_at and k.handed_in_at <= k.due_at %}<br><span class="vl-help">before the due date</span>{% elseif k.due_at %}<br><span class="vl-help">after the due date</span>{% endif %}</td>
             <td><form method="post" action="/admin/volunteers" class="vl-inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="tab" value="tasks">
               <input type="hidden" name="do" value="accept"><input type="hidden" name="take" value="{{ k.id }}">
               <label class="sr-only" for="wh{{ k.id }}">Hours it earned</label><input id="wh{{ k.id }}" type="number" name="hours" min="0" step="0.25" placeholder="Hours" required>
@@ -216,7 +216,7 @@
       <tbody>
         {% for t in rows %}
           <tr><td>{{ t.title }}{% if t.status != 'open' %} <span class="vl-help">· closed, still held</span>{% endif %}<br><span class="cn-code--soft">{{ checked[t.checked_by]|default('') }}</span>
-              {% if t.due_at %}<br><span class="vl-help">Due {{ t.due_at|date('j M Y, H:i') }}</span>{% endif %}
+              {% if t.due_at %}<br><span class="vl-help">Due {{ t.due_at|when('j M Y, H:i') }}</span>{% endif %}
               {% if t.status == 'open' %}
               <details class="vl-edit"><summary>Change or close</summary>
                 <form method="post" action="/admin/volunteers" class="vl-form"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="tab" value="tasks">
@@ -235,7 +235,7 @@
               {% endif %}</td>
             <td>{% for k in t.takes %}
               <div class="vl-take">
-                <span>{{ k.display_name ?: k.name }}{% if k.status == 'handed_in' %} · handed in {{ k.handed_in_at|date('j M') }}{% endif %}{% if t.target %} · {{ k.progress }} of {{ t.target }}{% endif %}</span>
+                <span>{{ k.display_name ?: k.name }}{% if k.status == 'handed_in' %} · handed in {{ k.handed_in_at|when('j M') }}{% endif %}{% if t.target %} · {{ k.progress }} of {{ t.target }}{% endif %}</span>
                 <form method="post" action="/admin/volunteers" class="vl-inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="tab" value="tasks">
                   <input type="hidden" name="do" value="progress"><input type="hidden" name="take" value="{{ k.id }}">
                   <label class="sr-only" for="tp{{ k.id }}">Done so far</label><input id="tp{{ k.id }}" type="number" name="progress" min="0" placeholder="Done so far" value="{{ k.progress }}">

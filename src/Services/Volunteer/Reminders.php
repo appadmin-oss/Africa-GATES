@@ -158,7 +158,7 @@ final class Reminders
                      ->where('k.status', Tasks::TAKEN)->whereNotNull('t.due_at')->where('t.due_at', '>', $now)->where('t.due_at', '<=', $soon)
                      ->limit(self::BATCH)->get(['k.id as take_id', 'k.volunteer_id', 't.title', 't.due_at']) as $r) {
             if (!$p = $person((int) $r->volunteer_id)) continue;
-            $lines = ['Hello ' . $p[1] . ',', 'Your task ' . $r->title . ' is due on ' . Workspace::day((string) $r->due_at) . ' at ' . date('H:i', (int) strtotime((string) $r->due_at)) . '.',
+            $lines = ['Hello ' . $p[1] . ',', 'Your task ' . $r->title . ' is due on ' . Workspace::due((string) $r->due_at, true) . '.',
                       'When it is finished, hand it in from Tasks › Mine so a lead can accept it. If you can’t finish it, drop it so somebody else can.'];
             $out[] = ['vol-taskdue:' . $r->take_id, $p[0], 'Due tomorrow: ' . $r->title, $lines, '/volunteer/tasks/mine'];
         }
@@ -201,7 +201,7 @@ final class Reminders
                     $seen[$key] ??= BroadcastLog::handled($key);
                     if (isset($seen[$key][$hash])) continue;
                     $lines = ['Hello ' . $first . ',', 'A new task fits you: ' . $t->title . '.'];
-                    if ($t->due_at) $lines[] = 'Due: ' . Workspace::day((string) $t->due_at) . '.';
+                    if ($t->due_at) $lines[] = 'Due: ' . Workspace::due((string) $t->due_at, true) . '.';
                     $lines[] = 'You can change how often we tell you about new tasks in your volunteering, under Notifications.';
                     $out[] = [$key, (string) $v->email, 'A new task for you: ' . $t->title, $lines, '/volunteer/tasks/library'];
                 }
@@ -211,7 +211,7 @@ final class Reminders
             $week = array_values(array_filter($fit, static fn ($t) => (int) strtotime((string) $t->created_at) >= $weekStart - 7 * 86400 && (int) strtotime((string) $t->created_at) < $weekStart));
             if ($week === []) continue;
             $lines = ['Hello ' . $first . ',', (count($week) === 1 ? 'One new task fits you' : count($week) . ' new tasks fit you') . ' from last week:'];
-            foreach (array_slice($week, 0, 10) as $t) $lines[] = '· ' . $t->title . ($t->due_at ? ', due ' . Workspace::day((string) $t->due_at) : '');
+            foreach (array_slice($week, 0, 10) as $t) $lines[] = '· ' . $t->title . ($t->due_at ? ', due ' . Workspace::due((string) $t->due_at) : '');
             $lines[] = 'You can change how often we tell you about new tasks in your volunteering, under Notifications.';
             $out[] = [$weekKey, (string) $v->email, 'New tasks that fit you', $lines, '/volunteer/tasks/library'];
         }

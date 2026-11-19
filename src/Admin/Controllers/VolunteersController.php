@@ -317,7 +317,7 @@ final class VolunteersController
         if (!$r['ok']) return [false, (string) $r['error'], $take];
         $this->tell((int) $r['from']->id, 'vol-released:' . $take, 'Task passed on: ' . $r['title'],
             ['The volunteer team has passed the task ' . $r['title'] . ' to somebody else.', 'Nothing is held against you for it. You can find other work in Tasks › Library.']);
-        $due = $r['task']->due_at ? ' It is due on ' . Workspace::day((string) $r['task']->due_at) . '.' : '';
+        $due = $r['task']->due_at ? ' It is due on ' . Workspace::due((string) $r['task']->due_at, true) . '.' : '';
         $this->tell((int) $r['to']->id, 'vol-given:' . $take . ':' . (int) $r['to']->id, 'A task for you: ' . $r['title'],
             ['The volunteer team has given you the task ' . $r['title'] . '.' . $due, 'It is in Tasks › Mine. Hand it in there when it is finished, or drop it if you can’t take it on.']);
         return [true, 'Given to ' . Volunteers::name($r['to']) . '. Both of them have been told.', $take];

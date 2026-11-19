@@ -139,7 +139,7 @@ final class WorkspacePages
         $week = [];
         // Due this week: only what is still theirs to finish. Handed-in work is waiting on staff.
         foreach (Tasks::mine($v) as $t) if ($t->take_status === Tasks::TAKEN && $t->due_at && strtotime((string) $t->due_at) < strtotime('+7 days')) {
-            $week[] = ['at' => (string) $t->due_at, 'time' => date('D', (int) strtotime((string) $t->due_at)), 't' => $t->title . ' due', 'd' => self::progressWords($t), 'st' => ''];
+            $week[] = ['at' => (string) $t->due_at, 'time' => \AfricaGates\Support\DisplayTime::show((string) $t->due_at, 'D'), 't' => $t->title . ' due', 'd' => self::progressWords($t), 'st' => ''];
         }
         foreach (Meetings::mine($v) as $m) if ($m->next && strtotime((string) $m->next) < strtotime('+7 days') && $m->answer !== 'no') {
             $week[] = ['at' => (string) $m->next, 'time' => date('D', (int) strtotime((string) $m->next)), 't' => (string) $m->title, 'd' => date('H:i', (int) strtotime((string) $m->next)), 'st' => 'next'];
@@ -350,7 +350,7 @@ final class WorkspacePages
                 // it waits for staff, and says so, with nothing left for the volunteer to press.
                 $in = $t->take_status === Tasks::HANDED_IN;
                 $row = ['t' => (string) $t->title, 'sub' => self::checkWords($t) . ($in ? ' · handed in ' . Workspace::day($t->handed_in_at) . ', waiting for a lead to accept it'
-                                                                               : ($t->due_at ? ' · due ' . Workspace::day($t->due_at) : '')),
+                                                                               : ($t->due_at ? ' · due ' . Workspace::due($t->due_at) : '')),
                         'body' => self::taskBody($t),
                         'chip' => $in ? ['Handed in', 'info'] : null,
                         'cta' => $in ? null : ['label' => 'Hand it in', 'primary' => true, 'post' => ['do' => 'handin', 'task' => $t->id], 'confirm' => 'Hand this task in as finished?'],
@@ -363,7 +363,7 @@ final class WorkspacePages
         } elseif ($tab === 'library') {
             $rows = [];
             foreach (Tasks::library($v) as $t) {
-                $rows[] = ['t' => (string) $t->title, 'sub' => trim(($t->from_home ? 'From home · ' : '') . ($t->est_minutes ? 'about ' . self::minutes((int) $t->est_minutes) . ' · ' : '') . ($t->due_at ? 'due ' . Workspace::day($t->due_at) . ' · ' : '') . self::checkWords($t), ' ·'),
+                $rows[] = ['t' => (string) $t->title, 'sub' => trim(($t->from_home ? 'From home · ' : '') . ($t->est_minutes ? 'about ' . self::minutes((int) $t->est_minutes) . ' · ' : '') . ($t->due_at ? 'due ' . Workspace::due($t->due_at) . ' · ' : '') . self::checkWords($t), ' ·'),
                            'body' => self::taskBody($t),
                            'chip' => $t->module_key ? ($t->trained ? ['Trained', 'ok'] : ['Needs training', 'mute']) : ($t->from_home ? ['From home', 'ok'] : null),
                            'cta' => $t->trained ? ['label' => 'Take it', 'post' => ['do' => 'take', 'task' => $t->id]] : ['label' => 'Train first', 'href' => '/volunteer/training/take/' . $t->module_key]];
@@ -776,7 +776,7 @@ final class WorkspacePages
             foreach ($tasks as $t) {
                 $st = $held[(int) $t->id] ?? null;
                 $trained = !$t->module_key || Training::holds((int) $v->id, (string) $t->module_key);
-                $rows[] = ['t' => (string) $t->title, 'sub' => trim(($t->due_at ? 'Due ' . Workspace::day($t->due_at) . ' · ' : '') . self::checkWords($t), ' ·'),
+                $rows[] = ['t' => (string) $t->title, 'sub' => trim(($t->due_at ? 'Due ' . Workspace::due($t->due_at) . ' · ' : '') . self::checkWords($t), ' ·'),
                            'body' => self::taskBody($t),
                            'chip' => match ($st) { Tasks::DONE => ['Done', 'ok'], Tasks::HANDED_IN => ['Handed in', 'info'], Tasks::TAKEN => ['Yours', 'ok'], default => null },
                            'cta' => $st !== null ? null : ($trained ? ['label' => 'Take it', 'post' => ['do' => 'take', 'task' => $t->id]] : ['label' => 'Train first', 'href' => '/volunteer/training/take/' . $t->module_key])];

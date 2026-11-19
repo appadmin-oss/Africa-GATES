@@ -453,6 +453,24 @@ final class Workspace
         return $at ? date('D j M', (int) strtotime($at)) : '';
     }
 
+    /**
+     * A task's due date, in Nigerian time (the display zone): "Sat 21 Nov", or with the time
+     * "Sat 21 Nov, 18:00 WAT".
+     *
+     * `gates_vol_tasks.due_at` is stored UTC — `Tasks::due()` writes it through
+     * `DisplayTime::toStored()` — so `day()` printed it an hour early: a task set due 00:30 on
+     * Saturday read as due on FRIDAY, on the volunteer's own page, in the reminder mail and on
+     * the staff screen, while the date the lead typed was right. `day()` itself must NOT
+     * convert: meetings store the wall clock exactly as typed (Meetings::create), so the same
+     * conversion there would move every meeting an hour. One helper for each kind of value.
+     */
+    public static function due(?string $at, bool $time = false): string
+    {
+        if (!$at) return '';
+        return \AfricaGates\Support\DisplayTime::show($at, $time ? 'D j M, H:i' : 'D j M')
+             . ($time ? ' ' . \AfricaGates\Support\DisplayTime::abbr() : '');
+    }
+
     public static function span(?string $a, ?string $b): string
     {
         if (!$a) return '';
