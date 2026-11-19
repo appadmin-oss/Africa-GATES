@@ -95,6 +95,9 @@ final class VoteFront
                 // cannot disagree with the phase logic that gates the vote.
                 'left'    => !empty($phase['closing_soon'])
                                  ? self::leftWords($left) : '',
+                // A voting extension, said on the hub too; its reason is on the award's pages.
+                'extended' => ($cycle && ($x = VotingExtension::notice((int) $cycle->id)) !== null)
+                                 ? Translator::t('Voting extended from %f% to %t%', ['%f%' => $x['from'], '%t%' => $x['to']]) : '',
             ];
         }
 

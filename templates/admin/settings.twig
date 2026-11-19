@@ -315,6 +315,15 @@
           </select>
           <div style="font-size:12px;color:var(--cn-soft);margin-top:4px">Stored times stay in UTC, so changing this re-labels what you see — it does not move any existing deadline.</div>
         </div>
+        {# Result release. Manual by default: a results date passing only shows the public a
+           "result is late" notice until somebody presses Release (Admin → Result release). #}
+        <div><label for="f-results_release_mode">Publishing results</label>
+          <select name="results_release_mode" id="f-results_release_mode">
+            <option value="manual"{% if values.results_release_mode|default('manual') != 'auto' %} selected{% endif %}>Manual: an admin presses Release (recommended)</option>
+            <option value="auto"{% if values.results_release_mode|default('manual') == 'auto' %} selected{% endif %}>Automatic: publish on the results date</option>
+          </select>
+          <div style="font-size:12px;color:var(--cn-soft);margin-top:4px">With manual release, once an edition's results date passes the public pages say the result is late (with your note from the cycle editor) until you release it.</div>
+        </div>
       </div>
     </div>
   </div></div>

@@ -118,7 +118,11 @@ final class PaidVoteController
         // honour is the whole problem. Refusing here is a sentence the buyer can
         // act on; a mint refused four minutes later is money gone and nothing to
         // show for it. Free OTP voting is untouched and runs to the bell.
-        if (!PaidVoteService::checkoutOpenFor((int) $nominee->category_id))   return $bail('cutoff');
+        if (!PaidVoteService::checkoutOpenFor((int) $nominee->category_id)) {
+            // Stopped by a voting extension's paid cutoff: say THAT, with both dates
+            // (VotingExtension::paidClosedSentence), not the closing-bell sentence.
+            return $bail(\AfricaGates\Services\VotingExtension::paidClosedFor((int) $nominee->category_id) ? 'extended' : 'cutoff');
+        }
         // Paying from the member's wallet (WalletVotes) rather than a gateway: the same
         // checks above and below, with the account's own address for the terms record.
         $fromWallet = str_starts_with($provider, 'wallet:');

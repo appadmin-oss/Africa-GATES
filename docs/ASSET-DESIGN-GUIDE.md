@@ -34,6 +34,43 @@ The owner likes the warm African community illustration and a mix of human warmt
 
 Earlier generated concepts remain in `/workspace/generated_images`; they have not replaced production photographs or been added to runtime pages. Do not treat every generated draft as an approved asset.
 
+## House art style: "Golden Welcome"
+
+Named by the owner on 17 Nov 2026 as **the art style for Africa GATES** (first used for the
+*Transcend into Love* voting extension). Reference: `docs/design/art-style/golden-welcome-reference.webp`.
+Web copies: `public/assets/img/announcements/golden-welcome-{800,1200}.{webp,jpg}`.
+
+**What makes it this style**
+- **Look:** warm flat-vector editorial illustration with soft gradients, clean shapes and
+  gentle light. Friendly and celebratory, never cartoonish or childish.
+- **Palette:** deep emerald/forest-green sky, warm gold (gates, finials, light), cream
+  stone and walls, coral and terracotta accents (hibiscus, hearts, fabric), soft sunset
+  glow at the horizon. The greens and golds sit close to the site's brand green and gold.
+- **Motifs:** an ornate golden gate with Nigerian/West African geometric patterning (the
+  "GATES" in the name), opening onto a lit path; a ribbon of light forming a heart; small
+  floating hearts and confetti; tropical leaves and hibiscus framing the corners.
+- **People:** diverse Nigerians and Africans in a believable mix of dress (gele and iro,
+  agbada and fila, ankara shirts, a student with books, a photographer). They are smiling,
+  arriving and welcoming each other. Movement runs toward the gate: people are being let
+  in, not left out.
+- **Composition:** the gate is the centred focal point, figures frame it at the left and
+  right edges, and the upper third stays open sky (crop-safe for a title or a pop-up's
+  close button). It reads at 4:3 and survives a centre crop to 1:1.
+- **Never:** text, letters or numbers in the image (words stay in HTML); logos; neon or
+  heavy glow; photographic realism presented as real people; real recipients' likenesses.
+
+**Prompt seed** (append the subject):
+> Warm, friendly flat-vector illustration in a modern African editorial style, "Golden
+> Welcome": an ornate golden gate with West African geometric patterning, deep emerald
+> sky, warm gold, cream stone, coral accents, tropical leaves and hibiscus framing the
+> corners, soft sunset light, diverse smiling Nigerians in gele, agbada and ankara,
+> gentle gradients, open upper third. Joyful, inclusive, premium. No text, no letters,
+> no logos, no numbers.
+
+**Alt text pattern:** describe what it shows, not the style. Example: "Illustration: a
+golden gate stands open under a heart of light as smiling people in Nigerian dress arrive
+and welcome each other."
+
 ## Accessibility and responsive use
 
 Follow the purpose of the image, as W3C recommends. Decorative images receive `alt=""`; informative images receive concise text conveying their essential information; functional images describe the action. Complex charts need their information in accessible text/tables. Keep headlines, instructions, dates and calls to action as HTML, not pixels in an image.

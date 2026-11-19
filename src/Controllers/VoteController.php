@@ -200,6 +200,8 @@ class VoteController {
             'champion'         => $spotlight['champion'] ?? null,
             'vote_price'       => $price,
             'paid_only'        => PaidVoteService::freeVotingDisabled(),
+            // A voting extension on this edition (VotingExtension), stated beside the close.
+            'extension'        => \AfricaGates\Services\VotingExtension::notice($cycleId),
             'page_title'       => $p['title'] . ' — Vote — Africa GATES',
             'meta_description' => 'Vote in ' . $p['title'] . ' — browse the nominees by category and back the African excellence you believe deserves continental recognition.',
             'gates_page'       => 'awards',
@@ -628,6 +630,8 @@ class VoteController {
         // order that cannot finish in time is one we should never have taken.
         'cutoff'      => 'Card payment for this category has closed so payments in progress can finish. '
                        . 'Free voting is still open — use the ballot above.',
+        // Replaced by VotingExtension::paidClosedSentence() in nomineeBallot(), which has the dates.
+        'extended'    => 'Paid voting for this edition closed when voting was extended; free voting stays open.',
         'unavailable' => 'That payment method is unavailable right now. Please try another.',
         'email'       => 'Please enter a valid email address for your receipt.',
         'terms'       => 'Please accept the award terms before contributing. No payment was taken.',
@@ -813,6 +817,11 @@ class VoteController {
             $paidNotice = (string) $_SESSION['wallet_vote_notice'];
             unset($_SESSION['wallet_vote_notice']);
         }
+        // Refused by a voting extension's paid cutoff: the sentence carries both dates.
+        if (($req->getQueryParams()['paid'] ?? '') === 'extended') {
+            $paidNotice = \AfricaGates\Services\VotingExtension::paidClosedSentence((int) $nom->cycle_id)
+                ?? self::PAID_REASONS['cutoff'];
+        }
         if ($paidNotice !== null && ($retry['detail'] ?? '') !== '') {
             $paidNotice .= ' ' . $retry['detail'] . '.';
         }
@@ -982,6 +991,10 @@ class VoteController {
             'phase'            => $phase,
             'voting_open'      => (bool) ($phase['is_voting_open'] ?? false),
             'paid_notice'      => $paidNotice,
+            // A voting extension on this edition (VotingExtension): the public notice, and —
+            // once its paid cutoff has passed — the sentence that replaces the paid option.
+            'extension'        => \AfricaGates\Services\VotingExtension::notice((int) $nom->cycle_id),
+            'paid_ext_closed'  => \AfricaGates\Services\VotingExtension::paidClosedSentence((int) $nom->cycle_id),
             // Repopulates the buy-votes form after a bounce. Empty on a normal visit.
             'paid_retry'       => $retry,
             'turnstile_site_key' => Env::get('TURNSTILE_SITE_KEY', ''),

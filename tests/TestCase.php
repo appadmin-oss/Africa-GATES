@@ -63,6 +63,7 @@ abstract class TestCase extends BaseTestCase
 
         // Static per-process caches must never leak between tests.
         \AfricaGates\Services\SpamService::resetThresholdCache();
+        \AfricaGates\Support\ResultReleaseMode::forget();
         // The error log is a throwaway file per process, emptied per test. The console alerts
         // on it (ConsoleAlerts `faults`), so a test that records a deliberate fault must not
         // raise an alert in the next one — nor on the developer's own console afterwards.

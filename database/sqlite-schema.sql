@@ -1253,3 +1253,18 @@ CREATE TABLE IF NOT EXISTS gates_status_alerts (
 CREATE UNIQUE INDEX IF NOT EXISTS uq_sta_who ON gates_status_alerts(email_hash);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_sta_token ON gates_status_alerts(token);
 CREATE INDEX IF NOT EXISTS idx_sta_live ON gates_status_alerts(confirmed_at, cancelled_at);
+
+-- ─── Voting extensions, on the record (migrations/2027_06_03_voting_extensions.php) ───
+CREATE TABLE IF NOT EXISTS gates_voting_extensions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  cycle_id INTEGER NOT NULL,
+  previous_close TEXT NOT NULL,
+  new_close TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  paid_cutoff_at TEXT NULL,
+  snapshot_ref TEXT NULL,
+  mode TEXT NOT NULL DEFAULT 'moved',
+  admin_id INTEGER NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_voting_ext_cycle ON gates_voting_extensions(cycle_id, id);

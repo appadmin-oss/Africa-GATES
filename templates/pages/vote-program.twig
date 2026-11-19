@@ -132,6 +132,7 @@
     {% endif %}
     <p class="vp-hero__line">{{ _f.meta }}</p>
   </div>
+  {% include 'partials/voting-extension.twig' with {x: extension|default(null), cls: 'vp-card'} only %}
 
   {# ── WHY VOTE: the award's campaign, as a celebration card (Support\AwardCampaign) ──
      The handoff's celebration card (Celebration.dc.html, `win`: gold wash, the white kicker

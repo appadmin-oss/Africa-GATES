@@ -374,6 +374,67 @@
   </div>
 
   <div>
+    {# ══ EXTEND VOTING, ON THE RECORD (Services\VotingExtension) ═══════════════
+       Its own form and action, outside the cycle form (a <form> inside another is dropped by
+       the parser). Editing "Voting close" in the cycle form moves the date and records
+       nothing; this records the extension, publishes the reason, captures the standings and,
+       by default, stops paid checkout at the previous close. It also records an extension
+       already made by editing the date: leave "New close" at the current close.
+       Policy: docs/VOTING-EXTENSION-POLICY.md. #}
+    {% if cycle %}
+    <div class="ad-card" id="extend" style="margin-bottom:14px">
+      <div class="ad-card__head"><div class="ad-card__title">Extend voting<small>Applies to every category and every nominee in this edition. The reason is published on the voting pages.</small></div></div>
+      <div class="ad-card__body">
+        {% if not extensions_ready %}
+        <p style="margin:0;font-size:13px;color:var(--cn-ink)">Extensions can be recorded once the <code>2027_06_03_voting_extensions</code> migration has run.</p>
+        {% else %}
+        {% if extensions|length %}
+        <div class="ad-table-wrap" style="margin-bottom:12px">
+          <table class="ad-table">
+            <thead><tr><th scope="col">From</th><th scope="col">To</th><th scope="col">Paid stops</th><th scope="col">Kind</th><th scope="col">Snapshot</th><th scope="col">Recorded</th></tr></thead>
+            <tbody>
+              {% for x in extensions %}
+              <tr>
+                <td>{{ x.previous_close|when_zoned('j M Y, H:i') }}</td>
+                <td>{{ x.new_close|when_zoned('j M Y, H:i') }}</td>
+                <td>{{ x.paid_cutoff_at ? x.paid_cutoff_at|when_zoned('j M Y, H:i') : 'no cutoff' }}</td>
+                <td>{{ x.mode == 'recorded' ? 'recorded (date already moved)' : 'moved the date' }}</td>
+                <td>{% if x.snapshot_ref %}<code style="font-size:11px" title="{{ x.snapshot_ref }}">{{ x.snapshot_ref|slice(0, 12) }}…</code>{% else %}none{% endif %}</td>
+                <td>{{ x.created_at|when_zoned('j M Y, H:i') }}{% if x.admin_id %} · admin {{ x.admin_id }}{% endif %}</td>
+              </tr>
+              <tr><td colspan="6" style="font-size:12px;color:var(--cn-soft)">Reason: {{ x.reason }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+        <form class="ad-form" method="post" action="/admin/programmes/{{ programme.id }}/cycle/extend"
+              data-confirm="Extend voting for every category in this edition? The reason is published.">
+          <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="cycle_id" value="{{ cycle.id }}">
+          <div class="ad-grid-2">
+            <div><label for="xt-prev">Previous close ({{ timezone }})</label><input type="datetime-local" step="1" name="previous_close" id="xt-prev" value="{{ cycle.voting_close|default('')|when_input }}" required></div>
+            <div><label for="xt-new">New close ({{ timezone }})</label><input type="datetime-local" step="1" name="new_close" id="xt-new" value="{{ cycle.voting_close|default('')|when_input }}" required></div>
+          </div>
+          <p class="hint" style="margin:0">To <strong>move</strong> the date, set the new close later than the current one. To <strong>record an extension already made</strong> by editing the date, leave the new close at the current close and set the previous close to the date it was before.</p>
+          <div><label for="xt-reason">Public reason <span class="hint" style="font-weight:400">{{ extension_reason_min }}–{{ extension_reason_max }} characters · shown to everyone</span></label>
+            <textarea name="reason" id="xt-reason" rows="3" minlength="{{ extension_reason_min }}" maxlength="{{ extension_reason_max }}" required placeholder="e.g. Verification codes were not delivered to many voters on 14 Nov because of an email provider outage."></textarea></div>
+          <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px">
+            <input type="checkbox" name="stop_paid" value="1" checked>
+            <span><strong>Stop paid votes at the previous close</strong>. The extra time is free voting only. Orders already started still complete.</span>
+          </label>
+          {% if extensions|length %}
+          <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px">
+            <input type="checkbox" name="further" value="1">
+            <span><strong>This is a further extension</strong>. The policy allows one; a second needs its own documented cause.</span>
+          </label>
+          {% endif %}
+          <p class="hint" style="margin:0">Refused once results are released, or if the new close is at or after the results date. The standings are captured when you press the button.</p>
+          <div><button class="ad-btn ad-btn--primary ad-btn--sm" type="submit">Extend voting</button></div>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
     {# ══ PRIZES, BY PLACE, FOR THIS EDITION (EditionPrizes) ═══════════════════
        Its own form, outside the cycle form: a <form> inside another is dropped by the parser. #}
     {% if cycle %}

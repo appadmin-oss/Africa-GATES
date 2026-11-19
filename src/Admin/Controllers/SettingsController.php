@@ -713,6 +713,14 @@ class SettingsController
             }
         }
 
+        // Result release: manual (default) or automatic on the results date.
+        if (array_key_exists('results_release_mode', $b)) {
+            $mode = (string) $b['results_release_mode'] === \AfricaGates\Support\ResultReleaseMode::AUTO
+                ? \AfricaGates\Support\ResultReleaseMode::AUTO : \AfricaGates\Support\ResultReleaseMode::MANUAL;
+            $this->settings->set(\AfricaGates\Support\ResultReleaseMode::SETTING, $mode, $adminId);
+            \AfricaGates\Support\ResultReleaseMode::forget();
+        }
+
         // The ads rate card. Marker-gated like the arrivals block below: a blank price is how
         // a placement is taken off sale, so anything else that posts here (a test send, a
         // probe) must not be read as "every price is now blank".
