@@ -1,0 +1,152 @@
+{
+  "inventory": {
+    "images": [
+      {
+        "id": "photo:creative",
+        "alt": "A designer draping indigo fabric in her studio",
+        "loaded": true,
+        "src": "/assets/img/honour/creative-480.webp?v=3b19eef5de",
+        "loading": "eager"
+      },
+      {
+        "id": "photo:teacher",
+        "alt": "A teacher guiding two students at a classroom table",
+        "loaded": true,
+        "src": "/assets/img/honour/teacher-480.webp?v=b521b1f71a",
+        "loading": "eager"
+      },
+      {
+        "id": "photo:nurse",
+        "alt": "A community nurse checking an elderly woman’s blood pressure",
+        "loaded": true,
+        "src": "/assets/img/honour/nurse-480.webp?v=741eb4ad50",
+        "loading": "eager"
+      },
+      {
+        "id": "photo:community-leader",
+        "alt": "A community leader speaking at a neighbourhood meeting",
+        "loaded": true,
+        "src": "/assets/img/honour/community-leader-480.webp?v=ef9faee551",
+        "loading": "eager"
+      },
+      {
+        "id": "utility:creative-tools",
+        "alt": "",
+        "loaded": true,
+        "src": "/assets/img/utility/creative-tools.svg?v=b29edf7dcb",
+        "loading": "eager"
+      },
+      {
+        "id": "photo:business",
+        "alt": "A shop founder at the counter of her boutique",
+        "loaded": true,
+        "src": "/assets/img/honour/business-480.webp?v=560d19b3c0",
+        "loading": "eager"
+      },
+      {
+        "id": "photo:young-leader",
+        "alt": "A young volunteer holding a clipboard at a youth event",
+        "loaded": true,
+        "src": "/assets/img/honour/young-leader-480.webp?v=900b302c4d",
+        "loading": "eager"
+      },
+      {
+        "id": "utility:events-calendar",
+        "alt": "",
+        "loaded": true,
+        "src": "/assets/img/utility/events-calendar.svg?v=3ac2fec06d",
+        "loading": "eager"
+      },
+      {
+        "id": "utility:awards-certificate",
+        "alt": "",
+        "loaded": true,
+        "src": "/assets/img/utility/awards-certificate.svg?v=183592cc4a",
+        "loading": "eager"
+      },
+      {
+        "id": "utility:shop-ribbon",
+        "alt": "",
+        "loaded": true,
+        "src": "/assets/img/utility/shop-ribbon.svg?v=6c65e50736",
+        "loading": "eager"
+      },
+      {
+        "id": "utility:community-leaves",
+        "alt": "",
+        "loaded": true,
+        "src": "/assets/img/utility/community-leaves.svg?v=d0182b2f59",
+        "loading": "eager"
+      },
+      {
+        "id": "utility:organisation-checklist",
+        "alt": "",
+        "loaded": true,
+        "src": "/assets/img/utility/organisation-checklist.svg?v=3ac67b7aaa",
+        "loading": "eager"
+      },
+      {
+        "id": "utility:business-briefcase",
+        "alt": "",
+        "loaded": true,
+        "src": "/assets/img/utility/business-briefcase.svg?v=6a74648263",
+        "loading": "eager"
+      },
+      {
+        "id": "utility:government-civic",
+        "alt": "",
+        "loaded": true,
+        "src": "/assets/img/utility/government-civic.svg?v=501c737288",
+        "loading": "eager"
+      },
+      {
+        "id": "utility:recognition-steps",
+        "alt": "",
+        "loaded": true,
+        "src": "/assets/img/utility/recognition-steps.svg?v=288884e20d",
+        "loading": "eager"
+      }
+    ],
+    "slides": 1,
+    "rotates": false
+  },
+  "responsive": [
+    {
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "width": 768,
+      "overflow": false
+    },
+    {
+      "width": 1024,
+      "overflow": false
+    },
+    {
+      "width": 1440,
+      "overflow": false
+    }
+  ],
+  "textSpacing": true,
+  "zoom": true,
+  "fallback": {
+    "width": 144.671875,
+    "height": 144.671875,
+    "inner": 144.671875
+  },
+  "axe": [],
+  "carousel": {
+    "autoplay": true,
+    "pausePersists": true,
+    "manualNavigationPauses": true,
+    "explicitResume": true,
+    "focusPauses": true,
+    "reducedMotion": true
+  },
+  "pageErrors": []
+}

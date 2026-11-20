@@ -1,0 +1,204 @@
+<?php
+declare(strict_types=1);
+
+namespace AfricaGates\Controllers;
+
+use AfricaGates\Services\GatedFormService;
+use AfricaGates\Services\NomineeDetails;
+use AfricaGates\Services\UserAccountService;
+use Illuminate\Database\Capsule\Manager as DB;
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
+use Slim\Views\Twig;
+
+/**
+ * A nominee's own page (owner, 30 Oct 2026): from the first email to an account, and from then
+ * on their contact, photographs, evidence and bio, kept up to date for as long as they like.
+ * Since 2 Nov 2026 the first email is "You've been nominated", so the page exists before review
+ * (keyed on the nomination) and approval moves it under the nominee (NomineeDetails::early).
+ *
+ *   GET  /nominee/start/{token}               the emailed link: signs them in or makes the
+ *                                             account, then ties the page to it once (bind)
+ *   GET  /account/nomination[/{id}]           the page: a checklist until it is whole, a review after
+ *   GET  /account/nomination/pending/{nid}    the same page while the nomination waits for review
+ *   POST either of the last two               one section at a time, by `do`
+ */
+final class NomineeProfileController
+{
+    public function __construct(private readonly Twig $view, private readonly UserAccountService $accounts) {}
+
+    public function start(Request $req, Response $res, array $args): Response
+    {
+        $raw = (string) $args['token'];
+        $user = $this->accounts->current();
+        $row = GatedFormService::resolve($raw);
+        $early = $row && $row->purpose === 'nomination';
+        $nominee = $row && $row->purpose === 'nominee' ? DB::table('gates_nominees as n')->leftJoin('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+            ->where('n.id', $row->subject_id)->first(['n.id', 'n.name', 'c.title as category'])
+            : ($early ? DB::table('gates_nominations as nm')->leftJoin('gates_award_categories as c', 'c.id', '=', 'nm.category_id')
+                ->where('nm.id', $row->subject_id)->first(['nm.id', 'nm.nominee_name as name', 'c.title as category']) : null);
+        if (!$user) {
+            // The email box posts straight to the code request; every sign-in path reads this.
+            if (!\AfricaGates\Support\Speculative::is()) $_SESSION['login_next'] = '/nominee/start/' . $raw;
+            $d = $nominee ? DB::table('gates_nominee_details')->where($early ? 'nomination_id' : 'nominee_id', $nominee->id)->first() : null;
+            return $this->view->render($res, 'nominee/start.twig', ['page_title' => 'Your nomination — Africa GATES', 'nominee' => $nominee, 'early' => $early,
+                'state' => $nominee ? (GatedFormService::status($row) === 'ok' || ($d && $d->user_id) ? 'signin' : 'spent') : 'invalid',
+                'email' => $d ? (NomineeDetails::list($d->emails)[0] ?? '') : '']);
+        }
+        if (!$this->accounts->isVerified($user)) {
+            return $this->view->render($res, 'nominee/start.twig', ['page_title' => 'Your nomination — Africa GATES', 'nominee' => $nominee, 'early' => $early, 'state' => 'verify', 'email' => (string) $user->email]);
+        }
+        $r = NomineeDetails::bind($raw, (int) $user->id);
+        if (!$r['ok']) {
+            return $this->view->render($res->withStatus(410), 'nominee/start.twig', ['page_title' => 'Your nomination — Africa GATES', 'nominee' => $nominee, 'early' => $early,
+                'state' => 'refused', 'error' => $r['error'], 'email' => '']);
+        }
+        $_SESSION['nominee_ok'] = 'Welcome. This page is yours now; finish the steps below.';
+        return $res->withHeader('Location', $r['href'])->withStatus(303);
+    }
+
+    public function page(Request $req, Response $res, array $args): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login?next=/account/nomination')->withStatus(302);
+        $mine = NomineeDetails::forUser((int) $user->id);
+        $id = (int) ($args['id'] ?? 0);
+        $d = $id ? NomineeDetails::mine($id, (int) $user->id) : ($mine[0] ?? null);
+        if ($id && !$d) throw new \Slim\Exception\HttpNotFoundException($req);
+        return $this->render($res, $mine, $d);
+    }
+
+    /** The page while its nomination waits for review; once approved it lives under the nominee. */
+    public function pending(Request $req, Response $res, array $args): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login?next=/account/nomination')->withStatus(302);
+        $nid = (int) $args['nid'];
+        $d = NomineeDetails::minePending($nid, (int) $user->id);
+        if (!$d) {
+            $moved = DB::table('gates_nominee_details')->where('nomination_id', $nid)->where('user_id', (int) $user->id)->whereNotNull('nominee_id')->first();
+            if ($moved) return $res->withHeader('Location', NomineeDetails::href($moved))->withStatus(302);
+            throw new \Slim\Exception\HttpNotFoundException($req);
+        }
+        return $this->render($res, NomineeDetails::forUser((int) $user->id), $d);
+    }
+
+    private function render(Response $res, array $mine, ?object $d): Response
+    {
+        $ctx = ['page_title' => 'My nomination — Africa GATES', 'mine' => $mine, 'd' => $d, 'ok' => $this->take('nominee_ok'), 'error' => $this->take('nominee_error'),
+                'open' => (string) ($this->take('nominee_open') ?? '')];
+        if ($d) {
+            $nom = NomineeDetails::nomination($d);
+            if ($nom) {
+                // Before review: who the nomination is FOR, and nothing the nominator wrote.
+                $n = DB::table('gates_nominations as nm')->leftJoin('gates_award_categories as c', 'c.id', '=', 'nm.category_id')
+                    ->leftJoin('gates_award_cycles as cy', 'cy.id', '=', 'nm.cycle_id')->leftJoin('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
+                    ->where('nm.id', $nom->id)->first(['nm.id', 'nm.nominee_name as name', 'c.title as category', 'p.title as programme']);
+                $terms = GatedFormService::subjectTermsUrl('nomination', (int) $nom->id);
+            } else {
+                $n = DB::table('gates_nominees as n')->leftJoin('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+                    ->leftJoin('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')->leftJoin('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
+                    ->where('n.id', $d->nominee_id)->first(['n.id', 'n.name', 'c.title as category', 'p.title as programme']);
+                $terms = GatedFormService::subjectTermsUrl('nominee', (int) $d->nominee_id);
+            }
+            $check = NomineeDetails::checklist($d);
+            $ctx += ['n' => $n, 'check' => $check, 'done' => count(array_filter($check)), 'steps' => NomineeDetails::STEPS,
+                'base' => NomineeDetails::href($d), 'pending' => $nom !== null, 'closed' => !NomineeDetails::open($d),
+                'places' => $nom ? NomineeDetails::places($nom) : null, 'sent_evidence' => $nom ? NomineeDetails::nominationEvidence($nom) : 0,
+                'phones' => NomineeDetails::list($d->phones), 'emails' => NomineeDetails::list($d->emails),
+                'photos' => NomineeDetails::filesOf($d, 'photo'), 'evidence' => NomineeDetails::filesOf($d, 'evidence'),
+                'reason' => $nom ? '' : NomineeDetails::reason($d), 'terms_url' => $terms,
+                'max' => ['phones' => NomineeDetails::MAX_PHONES, 'emails' => NomineeDetails::MAX_EMAILS, 'photos' => NomineeDetails::MAX_PHOTOS,
+                          'evidence' => NomineeDetails::MAX_EVIDENCE, 'bio' => NomineeDetails::BIO_MAX, 'thanks' => \AfricaGates\Services\NomineeThanks::MAX]];
+            // Who's behind them, their updates and their voice, once the nomination is a nominee
+            // (NomineeBackers, NomineeUpdates, NomineeVoice).
+            if (!$nom && $d->nominee_id) {
+                $nid = (int) $d->nominee_id;
+                $voice = \AfricaGates\Services\NomineeVoice::forNominee($nid);
+                $ctx += ['backing' => \AfricaGates\Services\NomineeBackers::dashboard($nid),
+                         'note_max' => \AfricaGates\Services\NomineeBackers::NOTE_MAX,
+                         'updates_on' => \AfricaGates\Services\NomineeUpdates::ready(),
+                         'updates' => \AfricaGates\Services\NomineeUpdates::mine($nid),
+                         // Only while it is still in the future: the form shows otherwise.
+                         'update_next' => (static fn (?\Illuminate\Support\Carbon $t) => $t && $t->isFuture() ? $t : null)(\AfricaGates\Services\NomineeUpdates::nextAt($nid)),
+                         'update_rules' => ['min' => \AfricaGates\Services\NomineeUpdates::MIN, 'max' => \AfricaGates\Services\NomineeUpdates::MAX,
+                                            'grace' => \AfricaGates\Services\NomineeUpdates::GRACE_MINUTES, 'days' => intdiv(\AfricaGates\Services\NomineeUpdates::COOLDOWN_HOURS, 24)],
+                         'followers' => \AfricaGates\Services\NomineeUpdates::followers($nid),
+                         'voice_on' => \AfricaGates\Services\NomineeVoice::ready(), 'voice' => $voice,
+                         'voice_url' => $voice ? \AfricaGates\Support\NomineeUrl::path($nid) . '/voice?v=' . strtotime((string) $voice->created_at) : '',
+                         'voice_max' => \AfricaGates\Services\NomineeVoice::MAX_SECONDS];
+            }
+            // Thanking supporters, once the nomination is a nominee (NomineeThanks).
+            if (!$nom && $d->nominee_id && \AfricaGates\Services\NomineeThanks::ready()) {
+                $t = \AfricaGates\Services\NomineeThanks::forNominee((int) $d->nominee_id);
+                $ctx += ['thanks_on' => true, 'thanks' => $t, 'thanks_editable' => \AfricaGates\Services\NomineeThanks::editable($t),
+                         'audience' => \AfricaGates\Services\NomineeThanks::audience((int) $d->nominee_id),
+                         'grace' => \AfricaGates\Services\NomineeThanks::GRACE_MINUTES, 'min' => ['thanks' => \AfricaGates\Services\NomineeThanks::MIN]];
+            }
+        }
+        return $this->view->render($res, 'nominee/profile.twig', $ctx);
+    }
+
+    public function save(Request $req, Response $res, array $args): Response
+    {
+        $user = $this->accounts->current();
+        $d = !$user ? null : (isset($args['nid']) ? NomineeDetails::minePending((int) $args['nid'], (int) $user->id)
+                                                   : NomineeDetails::mine((int) $args['id'], (int) $user->id));
+        if (!$d) throw new \Slim\Exception\HttpNotFoundException($req);
+        $back = NomineeDetails::href($d);
+        // A nomination turned down while the page was open keeps what was sent and takes no more.
+        if (!NomineeDetails::open($d)) {
+            $_SESSION['nominee_error'] = 'This nomination is no longer waiting for review, so nothing more can be added here.';
+            return $res->withHeader('Location', $back)->withStatus(303);
+        }
+        $b = (array) $req->getParsedBody();
+        $files = $req->getUploadedFiles();
+        $do = (string) ($b['do'] ?? '');
+        $r = match ($do) {
+            'contact' => NomineeDetails::saveContact($d, (array) ($b['phones'] ?? []), (array) ($b['emails'] ?? [])),
+            'bio' => NomineeDetails::saveBio($d, (string) ($b['bio'] ?? '')),
+            'terms' => empty($b['accept']) ? ['ok' => false, 'error' => 'Tick the box to accept.'] : NomineeDetails::acceptTerms($d),
+            'photo' => isset($files['photo']) && $files['photo']->getError() !== UPLOAD_ERR_NO_FILE
+                ? NomineeDetails::addPhoto($d, $files['photo'], (string) ($b['label'] ?? '')) : ['ok' => false, 'error' => 'Choose a photograph first.'],
+            'evidence' => NomineeDetails::addEvidence($d, $files['file'] ?? null, (string) ($b['url'] ?? ''), (string) ($b['label'] ?? '')),
+            'remove' => NomineeDetails::remove($d, (int) ($b['file'] ?? 0)) ? ['ok' => true] : ['ok' => false, 'error' => 'That was already removed.'],
+            'thanks' => $d->nominee_id ? \AfricaGates\Services\NomineeThanks::save((int) $d->nominee_id, (int) $user->id, (string) ($b['message'] ?? ''))
+                                       : ['ok' => false, 'error' => 'You can thank your supporters once your nomination is approved.'],
+            'thank' => $d->nominee_id ? \AfricaGates\Services\NomineeBackers::thank((int) $d->nominee_id, (int) ($b['recruit'] ?? 0), (string) ($b['note'] ?? ''), $this->mailer())
+                                      : ['ok' => false, 'error' => 'You can thank your supporters once your nomination is approved.'],
+            'update' => !$d->nominee_id ? ['ok' => false, 'error' => 'You can post updates once your nomination is approved.']
+                : ((int) ($b['update'] ?? 0) > 0 ? \AfricaGates\Services\NomineeUpdates::edit((int) $d->nominee_id, (int) $b['update'], (string) ($b['body'] ?? ''))
+                                                 : \AfricaGates\Services\NomineeUpdates::post((int) $d->nominee_id, (int) $user->id, (string) ($b['body'] ?? ''))),
+            'update_remove' => $d->nominee_id && \AfricaGates\Services\NomineeUpdates::remove((int) $d->nominee_id, (int) ($b['update'] ?? 0)) ? ['ok' => true] : ['ok' => false, 'error' => 'That was already taken down.'],
+            'voice' => $d->nominee_id ? \AfricaGates\Services\NomineeVoice::record((int) $d->nominee_id, (int) $user->id, $files['voice'] ?? null, (int) ($b['seconds'] ?? 0))
+                                      : ['ok' => false, 'error' => 'You can record a thank-you once your nomination is approved.'],
+            'voice_remove' => $d->nominee_id && \AfricaGates\Services\NomineeVoice::remove((int) $d->nominee_id) ? ['ok' => true] : ['ok' => false, 'error' => 'That was already taken down.'],
+            default => ['ok' => false, 'error' => 'That isn’t something this page can do.'],
+        };
+        $section = match ($do) { 'remove' => (string) ($b['section'] ?? ''), 'thank' => 'backing', 'update_remove' => 'update', 'voice_remove' => 'voice', default => $do };
+        $_SESSION[$r['ok'] ? 'nominee_ok' : 'nominee_error'] = $r['ok'] ? match ($do) { 'remove' => 'Removed.', 'terms' => 'Accepted. Thank you.',
+            'thanks' => 'Saved. It goes to your supporters in ' . \AfricaGates\Services\NomineeThanks::GRACE_MINUTES . ' minutes; you can change it until then.',
+            'thank' => 'Sent. They will hear it from you.', 'update_remove' => 'Taken down.', 'voice_remove' => 'Taken down.',
+            'update' => 'Saved. It goes to the people following you in ' . \AfricaGates\Services\NomineeUpdates::GRACE_MINUTES . ' minutes; you can change it until then.',
+            'voice' => 'Saved. Everybody who opens your vote page can hear it now.', default => 'Saved.' } : (string) $r['error'];
+        if (!$r['ok']) $_SESSION['nominee_open'] = $section;
+        return $res->withHeader('Location', $back . ($section !== '' ? '#nm-' . $section : ''))->withStatus(303);
+    }
+
+    /** The mailer, where mail is configured — a thank-you that cannot be sent says so. */
+    private function mailer(): ?\AfricaGates\Services\OtpService
+    {
+        try {
+            return \AfricaGates\Services\OtpService::boot();
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function take(string $k): ?string
+    {
+        $v = $_SESSION[$k] ?? null;
+        unset($_SESSION[$k]);
+        return $v === null ? null : (string) $v;
+    }
+}

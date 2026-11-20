@@ -1,0 +1,22 @@
+{#
+  The head every edition result page shares (ResultsPage.dc.html): the breadcrumb, the
+  H1 "Results · {edition}", and the edition switcher — sticky at top:0 on a phone, where the
+  app bar carries the title and the breadcrumb and H1 are not drawn. Each edition is a LINK
+  (a page with an address), never a tab a script swaps.
+  Context: e (an edition, released or open), switcher, host.
+#}
+<nav class="rs-crumb" aria-label="{{ 'Breadcrumb'|trans }}">
+  {% if host and host.name %}<span>{{ host.name }}</span><span aria-hidden="true">/</span>{% endif %}
+  <a href="/awards/{{ e.programme_slug }}">{{ e.programme }}</a><span aria-hidden="true">/</span>
+  <span aria-current="page">{{ 'Results'|trans }}</span>
+</nav>
+<div class="rs-top">
+  <h1 class="rs-h1">{{ 'Results · %ed%'|trans({'%ed%': e.edition ?: e.year}) }}</h1>
+  {% if switcher|length > 1 %}
+  <nav class="rs-eds" aria-label="{{ 'Edition'|trans }}">
+    {% for s in switcher %}
+      <a class="rs-ed" href="{{ s.url }}"{% if s.on %} aria-current="page"{% endif %}><b>{{ s.label }}</b><span>{{ s.state }}</span></a>
+    {% endfor %}
+  </nav>
+  {% endif %}
+</div>

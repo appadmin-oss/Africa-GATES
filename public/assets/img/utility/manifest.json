@@ -1,0 +1,137 @@
+{
+  "format": "SVG",
+  "background": "transparent",
+  "people": false,
+  "assets": {
+    "teacher-book": {
+      "title": "Teaching",
+      "width": 160,
+      "height": 128
+    },
+    "nurse-care": {
+      "title": "Care",
+      "width": 160,
+      "height": 128
+    },
+    "community-linked": {
+      "title": "Community",
+      "width": 160,
+      "height": 128
+    },
+    "creative-tools": {
+      "title": "Creative work",
+      "width": 160,
+      "height": 128
+    },
+    "business-shop": {
+      "title": "Business",
+      "width": 160,
+      "height": 128
+    },
+    "young-leader-spark": {
+      "title": "Leadership",
+      "width": 160,
+      "height": 128
+    },
+    "events-calendar": {
+      "title": "Events calendar",
+      "width": 160,
+      "height": 128
+    },
+    "events-ticket": {
+      "title": "Event tickets",
+      "width": 160,
+      "height": 128
+    },
+    "awards-certificate": {
+      "title": "Award management",
+      "width": 160,
+      "height": 128
+    },
+    "awards-podium": {
+      "title": "Awards programme",
+      "width": 160,
+      "height": 128
+    },
+    "shop-frame": {
+      "title": "Certificate frames",
+      "width": 160,
+      "height": 128
+    },
+    "shop-ribbon": {
+      "title": "Recognition keepsake",
+      "width": 160,
+      "height": 128
+    },
+    "community-network": {
+      "title": "Community recognition",
+      "width": 160,
+      "height": 128
+    },
+    "community-leaves": {
+      "title": "Community contribution",
+      "width": 160,
+      "height": 128
+    },
+    "organisation-building": {
+      "title": "Organisations",
+      "width": 160,
+      "height": 128
+    },
+    "organisation-checklist": {
+      "title": "Organising awards",
+      "width": 160,
+      "height": 128
+    },
+    "business-briefcase": {
+      "title": "Team recognition",
+      "width": 160,
+      "height": 128
+    },
+    "business-growth": {
+      "title": "Business contribution",
+      "width": 160,
+      "height": 128
+    },
+    "government-civic": {
+      "title": "Public institutions",
+      "width": 160,
+      "height": 128
+    },
+    "government-document": {
+      "title": "Public recognition",
+      "width": 160,
+      "height": 128
+    },
+    "recognition-star": {
+      "title": "Recognition",
+      "width": 160,
+      "height": 128
+    },
+    "recognition-laurel": {
+      "title": "Recognition",
+      "width": 160,
+      "height": 128
+    },
+    "recognition-frame": {
+      "title": "Recognition",
+      "width": 160,
+      "height": 128
+    },
+    "recognition-seal": {
+      "title": "Recognition",
+      "width": 160,
+      "height": 128
+    },
+    "recognition-path": {
+      "title": "Every contribution matters",
+      "width": 160,
+      "height": 128
+    },
+    "recognition-steps": {
+      "title": "Celebrate contribution",
+      "width": 160,
+      "height": 128
+    }
+  }
+}

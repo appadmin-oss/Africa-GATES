@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#f1efe9}a{color:#237b22}a:hover{color:#145213}</style>
+</helmet>
+<div style="max-width:1240px;margin:0 auto;padding:48px 32px 80px;display:flex;flex-direction:column;gap:56px;font-family:'DM Sans',system-ui,sans-serif;color:#10292c">
+  <header style="display:flex;flex-direction:column;gap:10px;max-width:780px">
+    <span style="font-size:13px;font-weight:700;color:#237b22">Default graphics</span>
+    <h1 style="margin:0;font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:44px;line-height:1.08">When there’s no photo</h1>
+    <p style="margin:0;font-size:16.5px;line-height:1.6;color:#3a4a4c">One component, <code style="font-family:'JetBrains Mono',monospace;font-size:.9em">partials/cover.twig</code>, fills every image slot that has no upload. It is CSS, sized by its own box, so the same markup works as a 72px list thumbnail, a card, a hero or a share image.</p>
+  </header>
+
+  <section aria-labelledby="g-carry" style="display:flex;flex-direction:column;gap:18px">
+    <div style="display:flex;flex-direction:column;gap:4px"><h2 id="g-carry" style="margin:0;font-size:21px;font-weight:700">What it carries</h2><span style="font-size:14.5px;color:#626a6e">Pick the content that the surrounding layout <b>doesn’t</b> already show.</span></div>
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px">
+      <sc-for list="{{ modes }}" as="m" hint-placeholder-count="3">
+        <figure style="margin:0;display:flex;flex-direction:column;gap:10px"><dc-import name="DefaultCover" kind="{{ m.kind }}" content="{{ m.content }}" title="{{ m.title }}" radius="18px" hint-size="100%,220px"></dc-import><figcaption style="display:flex;flex-direction:column;gap:2px"><b style="font-size:15px">{{ m.name }}</b><span style="font-size:13.5px;line-height:1.5;color:#3a4a4c">{{ m.use }}</span></figcaption></figure>
+      </sc-for>
+    </div>
+  </section>
+
+  <section aria-labelledby="g-size" style="display:flex;flex-direction:column;gap:18px">
+    <div style="display:flex;flex-direction:column;gap:4px"><h2 id="g-size" style="margin:0;font-size:21px;font-weight:700">Cleaner as it gets smaller</h2><span style="font-size:14.5px;color:#626a6e">Four densities, chosen by the box’s shorter side, never by the screen. Each step drops something rather than shrinking everything.</span></div>
+    <div style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:24px">
+      <sc-for list="{{ sizes }}" as="s" hint-placeholder-count="4">
+        <figure style="margin:0;display:flex;flex-direction:column;gap:8px;width:{{ s.w }}"><dc-import name="DefaultCover" kind="community" ratio="{{ s.ratio }}" radius="{{ s.r }}" hint-size="{{ s.w }},{{ s.hpx }}"></dc-import><figcaption style="display:flex;flex-direction:column;gap:1px"><b style="font-size:13.5px">{{ s.name }}</b><span style="font-size:12.5px;color:#626a6e">{{ s.rule }}</span></figcaption></figure>
+      </sc-for>
+    </div>
+  </section>
+
+  <section aria-labelledby="g-site" style="display:flex;flex-direction:column;gap:22px">
+    <div style="display:flex;flex-direction:column;gap:4px"><h2 id="g-site" style="margin:0;font-size:21px;font-weight:700">On the site, slot by slot</h2><span style="font-size:14.5px;color:#626a6e">The same component in each place it fills, at its real size.</span></div>
+
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) 390px;gap:28px;align-items:start">
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <span style="font-size:13px;font-weight:700;color:#3a4a4c">Events index · desktop cards · 16:9 · content=date</span>
+        <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px">
+          <sc-for list="{{ cards }}" as="c" hint-placeholder-count="3">
+            <article style="display:flex;flex-direction:column;background:#fff;border:1px solid #e8e5dd;border-radius:20px;overflow:hidden">
+              <sc-if value="{{ c.hasPhoto }}" hint-placeholder-val="{{ false }}"><span style="position:relative;display:block"><span role="img" aria-label="{{ c.alt }}" style="display:block;aspect-ratio:16 / 9;background:#e8e5dd center/cover no-repeat;background-image:{{ c.img }}"></span><span style="position:absolute;top:10px;left:10px;display:flex;flex-direction:column;align-items:center;min-width:42px;padding:5px 8px 6px;border-radius:12px;background:#fff"><b style="font-size:11.5px;color:#7a5600">Dec</b><span style="font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:21px;line-height:1">6</span></span></span></sc-if>
+              <sc-if value="{{ c.noPhoto }}" hint-placeholder-val="{{ true }}"><dc-import name="DefaultCover" kind="{{ c.kind }}" date="{{ c.iso }}" hint-size="100%,170px"></dc-import></sc-if>
+              <div style="display:flex;flex-direction:column;gap:4px;padding:14px 16px 16px"><b style="font-size:16px;line-height:1.3">{{ c.title }}</b><span style="font-size:13.5px;color:#626a6e">{{ c.place }}</span></div>
+            </article>
+          </sc-for>
+        </div>
+        <span style="font-size:13px;line-height:1.5;color:#626a6e">The date moves into the image for every card, photo or not, so the body loses its date line and photos and defaults line up.</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <span style="font-size:13px;font-weight:700;color:#3a4a4c">Phone list rows · 1:1 · 72px · xs</span>
+        <div style="display:flex;flex-direction:column;background:#fff;border:1px solid #e8e5dd;border-radius:20px;overflow:hidden">
+          <sc-for list="{{ rows }}" as="r" hint-placeholder-count="3">
+            <div style="display:flex;align-items:center;gap:14px;min-height:96px;padding:12px 14px;border-top:{{ r.sep }}"><span style="flex:none;width:72px"><dc-import name="DefaultCover" kind="{{ r.kind }}" date="{{ r.iso }}" ratio="1 / 1" radius="14px" hint-size="72px,72px"></dc-import></span><span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px"><b style="font-size:15px;line-height:1.3">{{ r.title }}</b><span style="font-size:13px;color:#626a6e">{{ r.meta }}</span></span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#b3b9ba" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg></div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) 390px;gap:28px;align-items:start">
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <span style="font-size:13px;font-weight:700;color:#3a4a4c">Event detail · desktop main column · 16:9 · content=none (title and date sit above it)</span>
+        <div style="display:flex;flex-direction:column;gap:12px;padding:22px;background:#f1efe9;border:1px dashed #c9c4b8;border-radius:20px">
+          <span style="font-size:14px;font-weight:700;color:#b0224f">Saturday 14 November 2026 · 16:00 EAT</span>
+          <b style="font-family:'Playfair Display',Georgia,serif;font-size:30px;line-height:1.1">Pitching to brands: a live clinic</b>
+          <dc-import name="DefaultCover" kind="webinar" content="none" logo="assets/okun-alimosho-logo.png" radius="22px" hint-size="100%,380px"></dc-import>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <span style="font-size:13px;font-weight:700;color:#3a4a4c">Event detail · phone · 4:3 full bleed · content=none</span>
+        <div style="position:relative;border-radius:28px;overflow:hidden;border:1px solid #d6d4cc;background:#f1efe9">
+          <div style="position:relative"><dc-import name="DefaultCover" kind="webinar" content="none" ratio="4 / 3" logo="assets/okun-alimosho-logo.png" hint-size="100%,292px"></dc-import>
+            <div style="position:absolute;top:8px;left:8px;right:8px;display:flex;justify-content:space-between"><span style="width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.94);box-shadow:0 2px 10px rgba(16,41,44,.15);display:flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10292c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg></span><span style="width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.94);box-shadow:0 2px 10px rgba(16,41,44,.15)"></span></div>
+          </div>
+          <div style="position:relative;margin-top:-22px;border-radius:22px 22px 0 0;background:#f1efe9;padding:22px 16px 20px;display:flex;flex-direction:column;gap:8px"><span style="font-size:13px;font-weight:700;color:#b0224f">Sat 14 Nov · 16:00 EAT</span><b style="font-family:'Playfair Display',Georgia,serif;font-size:24px;line-height:1.15">Pitching to brands: a live clinic</b><span style="font-size:14px;color:#3a4a4c">Online · Okun Alimosho</span></div>
+        </div>
+        <span style="font-size:13px;line-height:1.5;color:#626a6e">The pill sits clear of the content sheet’s 22px overlap; the floating buttons sit on the pattern, never on the logo.</span>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px">
+      <sc-for list="{{ others }}" as="o" hint-placeholder-count="4">
+        <div style="display:flex;flex-direction:column;gap:10px"><span style="font-size:13px;font-weight:700;color:#3a4a4c">{{ o.where }}</span><article style="display:flex;flex-direction:column;background:#fff;border:1px solid #e8e5dd;border-radius:20px;overflow:hidden"><dc-import name="DefaultCover" subject="{{ o.subject }}" ratio="{{ o.ratio }}" content="{{ o.content }}" title="{{ o.title }}" hint-size="100%,170px"></dc-import><div style="display:flex;flex-direction:column;gap:3px;padding:12px 14px 14px"><b style="font-size:15px;line-height:1.3">{{ o.body }}</b><span style="font-size:13px;color:#626a6e">{{ o.meta }}</span></div></article></div>
+      </sc-for>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <span style="font-size:13px;font-weight:700;color:#3a4a4c">Challenge strip and account banner · 3:1 · full (banner shape)</span>
+      <dc-import name="DefaultCover" subject="challenge" variant="full" ratio="3 / 1" radius="20px" title="Celebrate Nigeria: nominate 10, win ₦6,000" date="2026-10-31" time="23:59 WAT" place="11 prizes left" hint-size="100%,300px"></dc-import>
+    </div>
+  </section>
+
+  <section aria-labelledby="g-share" style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;flex-direction:column;gap:4px"><h2 id="g-share" style="margin:0;font-size:21px;font-weight:700">Off the site · full</h2><span style="font-size:14.5px;color:#626a6e">Link previews, WhatsApp and Google carry no page around the image, so it carries the facts. Rendered server-side at 1200px wide.</span></div>
+    <div style="display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) minmax(0,.8fr);gap:16px;align-items:start">
+      <figure style="margin:0;display:flex;flex-direction:column;gap:8px"><dc-import name="DefaultCover" variant="full" ratio="1.91 / 1" radius="14px" hint-size="100%,330px"></dc-import><figcaption style="font-size:13px;color:#626a6e"><b style="color:#10292c">og:image</b> · 1200×630</figcaption></figure>
+      <figure style="margin:0;display:flex;flex-direction:column;gap:8px"><dc-import name="DefaultCover" variant="full" kind="community" ratio="4 / 3" radius="14px" title="Mathare clean-up day" date="2026-10-25" time="08:00 EAT" place="Mathare, Nairobi" host="Mathare Youth Choir" hint-size="100%,250px"></dc-import><figcaption style="font-size:13px;color:#626a6e">4:3 · 1200×900</figcaption></figure>
+      <figure style="margin:0;display:flex;flex-direction:column;gap:8px"><dc-import name="DefaultCover" variant="full" kind="webinar" ratio="1 / 1" radius="14px" title="Pitching to brands: a live clinic" date="2026-11-14" time="16:00 EAT" place="Online" hint-size="100%,250px"></dc-import><figcaption style="font-size:13px;color:#626a6e">1:1 · 1200×1200</figcaption></figure>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;max-width:420px"><span style="font-size:13px;font-weight:700;color:#3a4a4c">Arabic (RTL) · pattern and text mirror</span><dc-import name="DefaultCover" variant="full" dir="rtl" ratio="1.91 / 1" radius="14px" title="حفل جوائز الاقتصاد الإبداعي في كينيا" place="نيروبي" hint-size="100%,220px"></dc-import></div>
+  </section>
+
+  <section aria-labelledby="g-kinds" style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;flex-direction:column;gap:4px"><h2 id="g-kinds" style="margin:0;font-size:21px;font-weight:700">The full set</h2><span style="font-size:14.5px;color:#626a6e">Tone and pattern are fixed by type, so a type always looks the same.</span></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px">
+      <sc-for list="{{ kinds }}" as="k" hint-placeholder-count="12"><figure style="margin:0;display:flex;flex-direction:column;gap:6px"><dc-import name="DefaultCover" kind="{{ k.kind }}" date="{{ k.iso }}" radius="14px" hint-size="100%,112px"></dc-import><figcaption style="display:flex;justify-content:space-between;font-size:12.5px"><b>{{ k.kind }}</b><span style="color:#626a6e">{{ k.meta }}</span></figcaption></figure></sc-for>
+    </div>
+  </section>
+
+  <section aria-labelledby="g-av" style="display:flex;flex-direction:column;gap:20px">
+    <div style="display:flex;flex-direction:column;gap:4px"><h2 id="g-av" style="margin:0;font-size:21px;font-weight:700">People and organisations without a picture</h2><span style="font-size:14.5px;color:#626a6e">Same tones and arcs as the covers. Shape says person or organisation; a small badge says which kind, or that a person is verified.</span></div>
+    <div style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:28px">
+      <sc-for list="{{ avKinds }}" as="a" hint-placeholder-count="6"><figure style="margin:0;display:flex;flex-direction:column;align-items:center;gap:10px;width:120px"><dc-import name="DefaultAvatar" label="{{ a.name }}" kind="{{ a.kind }}" verified="{{ a.ver }}" size="{{ 72 }}" hint-size="72px,72px"></dc-import><figcaption style="display:flex;flex-direction:column;align-items:center;gap:1px;text-align:center"><b style="font-size:13.5px;line-height:1.3">{{ a.name }}</b><span style="font-size:12.5px;color:#626a6e">{{ a.cap }}</span></figcaption></figure></sc-for>
+    </div>
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px;align-items:start">
+      <div style="display:flex;flex-direction:column;gap:10px"><span style="font-size:13px;font-weight:700;color:#3a4a4c">Every size it’s used at</span><div style="display:flex;align-items:flex-end;gap:18px;flex-wrap:wrap;padding:20px;background:#fff;border:1px solid #e8e5dd;border-radius:20px"><sc-for list="{{ avSizes }}" as="z" hint-placeholder-count="6"><span style="display:flex;flex-direction:column;align-items:center;gap:6px"><dc-import name="DefaultAvatar" label="Thandiwe Nkosi" size="{{ z.n }}" verified="{{ z.ver }}" hint-size="{{ z.px }},{{ z.px }}"></dc-import><span style="font-size:12px;color:#626a6e">{{ z.px }}</span></span></sc-for></div>
+        <div style="display:flex;align-items:flex-end;gap:18px;flex-wrap:wrap;padding:20px;background:#fff;border:1px solid #e8e5dd;border-radius:20px"><sc-for list="{{ avSizes }}" as="z" hint-placeholder-count="6"><span style="display:flex;flex-direction:column;align-items:center;gap:6px"><dc-import name="DefaultAvatar" label="Kings College Lagos" kind="organisation" size="{{ z.n }}" hint-size="{{ z.px }},{{ z.px }}"></dc-import><span style="font-size:12px;color:#626a6e">{{ z.px }}</span></span></sc-for></div></div>
+      <div style="display:flex;flex-direction:column;gap:10px"><span style="font-size:13px;font-weight:700;color:#3a4a4c">In context</span>
+        <div style="display:flex;flex-direction:column;background:#fff;border:1px solid #e8e5dd;border-radius:20px;overflow:hidden">
+          <sc-for list="{{ avRows }}" as="r" hint-placeholder-count="4"><div style="display:flex;align-items:center;gap:14px;min-height:68px;padding:10px 16px;border-top:{{ r.sep }}"><dc-import name="DefaultAvatar" label="{{ r.name }}" kind="{{ r.kind }}" verified="{{ r.ver }}" size="{{ 44 }}" hint-size="44px,44px"></dc-import><span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><b style="font-size:15px">{{ r.name }}</b><span style="font-size:13px;color:#626a6e">{{ r.meta }}</span></span><span style="font-size:13px;font-weight:600;color:#237b22">{{ r.act }}</span></div></sc-for>
+        </div>
+        <div style="display:flex;gap:12px;padding:16px;background:#fff;border:1px solid #e8e5dd;border-radius:20px"><dc-import name="DefaultAvatar" label="Fatou Diallo" size="{{ 32 }}" hint-size="32px,32px"></dc-import><span style="display:flex;flex-direction:column;gap:3px"><span style="font-size:14px"><b>Fatou Diallo</b> <span style="color:#626a6e">· 2h</span></span><span style="font-size:14.5px;line-height:1.5">She taught my daughter to read in one term. Every vote she gets is earned.</span></span></div>
+      </div>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const K=['ceremony','gala','conference','workshop','training','webinar','livestream','community','concert','sports','fundraiser','exhibition'];
+const META={ceremony:'gold · arches',gala:'gold · arches',conference:'info · dots',workshop:'green · grid',training:'green · grid',webinar:'info · signal',livestream:'live · signal',community:'green · rings',concert:'live · weave',sports:'green · stripes',fundraiser:'live · stripes',exhibition:'stone · weave'};
+const T=[['#effaf0','#1a6118','#cfe6ce'],['#fcf4de','#7a5600','#f0dfae'],['#fdecef','#b0224f','#f6c7d3'],['#e6f0f4','#1f5f8b','#c9dde8'],['#e8e5dd','#10292c','#d6d4cc']];
+const hs=s=>{let x=7;for(const c of s)x=(x*31+c.charCodeAt(0))>>>0;return x;};
+class Component extends DCLogic {
+  renderVals(){
+    return {
+      modes:[{name:'date · the default for cards',use:'Cards, rows and rails, where the date is the first thing people scan for. The card body then drops its date line.',content:'date',kind:'ceremony',title:''},
+        {name:'title · when nothing else names it',use:'Featured stories, challenge tiles and share-sheet previews, where the image stands alone.',content:'title',kind:'community',title:'Mathare clean-up day'},
+        {name:'none · next to a heading',use:'Detail heroes, where the title and date are right above. Shows the host’s logo instead.',content:'none',kind:'webinar',title:''}],
+      sizes:[['xs · under 96px','date tile only','72px','72px','1 / 1','14px'],['sm · under 200px','date + type pill','168px','168px','1 / 1','16px'],['md · under 420px','full spacing','320px','180px','16 / 9','18px'],['lg · 420px and up','sizes stop growing','560px','315px','16 / 9','20px']].map(s=>({name:s[0],rule:s[1],w:s[2],hpx:s[3],ratio:s[4],r:s[5]})),
+      cards:[{hasPhoto:true,noPhoto:false,img:'url(https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=800&q=60)',alt:'Stage at a previous ceremony',title:'KCEA 11th Edition ceremony',place:'KICC, Nairobi · 18:00 EAT'},
+        {hasPhoto:false,noPhoto:true,kind:'webinar',iso:'2026-11-14',title:'Pitching to brands: a live clinic',place:'Online · 16:00 EAT'},
+        {hasPhoto:false,noPhoto:true,kind:'community',iso:'2026-10-25',title:'Mathare clean-up day',place:'Mathare, Nairobi · 08:00 EAT'}],
+      rows:[['ceremony','2026-12-06','KCEA 11th Edition ceremony','KICC, Nairobi · 18:00'],['training','2026-11-02','Grant-writing for artists','Accra · 10:00'],['fundraiser','2026-11-21','Run for the camps','Kano · 06:30']].map((r,i)=>({kind:r[0],iso:r[1],title:r[2],meta:r[3],sep:i?'1px solid #eeece6':'0'})),
+      others:[['Awards · 4:3','award','4 / 3','none','','SME Champions · 2nd Edition','Sahel Enterprise Council'],['Giving · 16:9','campaign','16 / 9','none','','Fund a leadership camp in Kano','₦6.8M of ₦10M'],['Blog · 16:9','blog','16 / 9','none','','How the judges score','6 min read'],['Shop · 4:5','product','4 / 5','none','','Heritage Tee','₦18,500']].map(o=>({where:o[0],subject:o[1],ratio:o[2],content:o[3],title:o[4],body:o[5],meta:o[6]})),
+      kinds:K.map((k,i)=>({kind:k,meta:META[k],iso:'2026-'+String(10+(i%3)).padStart(2,'0')+'-'+String(3+i*2).padStart(2,'0')})),
+      avKinds:[['Amara Okonkwo','person','Person',false],['Kwame Asante','person','Verified person',true],['Kings College Lagos','organisation','Organisation',false],['Soko Bank','business','Business',false],['Lagos State Ministry of Education','government','Government',false],['Ọlá Adébáyọ̀','person','Yorùbá name',false]].map(a=>({name:a[0],kind:a[1],cap:a[2],ver:a[3]})),
+      avSizes:[24,32,44,56,96,160].map(n=>({n,px:n+'px',ver:n>=56})),
+      avRows:[['Wanjiru Kamau','person','Founder · Nairobi · 164 nominations','Nominate',true],['Nairobi Creative Assembly','organisation','Host · 14 editions','Follow',false],['Soko Bank','business','Recognises staff · 3 programmes','Follow',false],['Neema Joseph','person','Nurse · Dar es Salaam','Nominate',false]].map((r,i)=>({name:r[0],kind:r[1],meta:r[2],act:r[3],ver:r[4],sep:i?'1px solid #eeece6':'0'}))
+    };
+  }
+}
+</script>
+</body>
+</html>

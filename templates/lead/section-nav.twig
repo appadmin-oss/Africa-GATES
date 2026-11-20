@@ -1,0 +1,13 @@
+{# Named sections stay reachable without script, including forms far down a phone page. #}
+{% set named = sections|filter(s => s.h|default('')) %}
+{# Only on a long page: on three sections it was a box saying "3 sections" above three sections. #}
+{% if named|length > 4 %}
+<details class="sh7-section-nav">
+  <summary>On this page <span class="sh7-section-nav__count">{{ named|length }} sections</span></summary>
+  <nav aria-label="On this page"><ul>
+    {% for section in sections %}{% if section.h|default('') %}
+      <li><a href="#{{ section.anchor|default('lead-section-' ~ loop.index) }}">{{ section.h }}</a></li>
+    {% endif %}{% endfor %}
+  </ul></nav>
+</details>
+{% endif %}

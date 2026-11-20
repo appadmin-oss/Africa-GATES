@@ -1,0 +1,20 @@
+{#- Plain-text part for event-report.html.twig. -#}
+{{ place }}
+
+{{ state == 'submitted' ? 'A report to sign off, ' ~ first_name : (state == 'approved' ? 'Signed off, ' ~ first_name : 'Sent back, ' ~ first_name) }}
+
+{% if state == 'submitted' %}{{ by }} submitted the written report for {{ place }}, with the figures as they stood. Sign it off to make it final, or send it back with a note saying what to change.
+{% elseif state == 'approved' %}{{ by }} signed off your report for {{ place }}. It is final, and stays on the event’s Reports page.
+{% else %}{{ by }} sent your report for {{ place }} back. Change it and submit it again.
+{% endif %}
+Event: {{ place }}{% if note %}
+Note: {{ note }}{% endif %}
+
+{{ action_label }}: {{ action_url }}
+
+Every step is recorded with who took it and when.
+
+—
+{{ state == 'submitted' ? 'You own an Africa GATES event, and its lead submitted the written report.' : 'You submitted the written report for an Africa GATES event.' }}
+{{ postal_address }}
+Help: {{ site_url }}/help · Privacy: {{ site_url }}/privacy

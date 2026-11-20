@@ -1,0 +1,204 @@
+<!--
+  AFRICA GATES — "your payment went through, your votes did not arrive"
+  ============================================================================
+  A reusable template for the supporters affected by the unminted-vote incident.
+
+  HOW TO USE
+  ----------
+  Replace these tokens before sending. Every one appears at least twice, so use
+  find-and-replace rather than editing by hand:
+
+      {{FIRST_NAME}}   the buyer's first name, or "there" if you do not have one
+      {{REFERENCE}}    their AFG- reference (e.g. AFG-PVOTE-9f2a1c)
+      {{VOTES}}        how many votes the order was for (e.g. 20)
+      {{NOMINEE}}      the nominee the order was placed for
+      {{SITE}}         https://afg.afrovanguard.org.ng   (no trailing slash)
+
+  WHY IT IS SHAPED LIKE THIS
+  --------------------------
+  1. The apology is in the first line and it is unconditional. Somebody who paid
+     and got nothing does not want context first.
+  2. TWO routes, and the fast one leads. The assistant can re-check the payment
+     with the bank and add the votes on the spot, without an account — most
+     people are finished in under a minute and never need us. The ticket is for
+     when that does not work.
+  3. Their reference is printed large. It is the one thing they need and the one
+     thing they will not be able to find.
+  4. No blame, no "please be patient", no explanation of webhooks. What went
+     wrong is our problem; what happens next is the only thing they need.
+  5. Table layout with inline styles, 600px, no external CSS, no web fonts, no
+     images. Gmail strips <style> blocks in some clients and Outlook ignores most
+     modern CSS — this renders the same everywhere, including on a mid-range
+     Android in a bank app's in-app browser.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>About your Africa GATES votes</title>
+</head>
+<body style="margin:0;padding:0;background:#eef0ec;">
+
+<!-- Preheader: the grey line shown beside the subject in most inboxes. Without
+     one, clients pull the first visible words, which here would be the logo. -->
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">
+  Your payment went through but your votes were not added. Here is how to fix it in under a minute.
+</div>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#eef0ec;">
+<tr><td align="center" style="padding:28px 14px;">
+
+  <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:100%;">
+
+    <!-- ── header ─────────────────────────────────────────────────────── -->
+    <tr>
+      <td style="padding:0 4px 18px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td style="width:34px;height:34px;background:#10292C;border-radius:9px;text-align:center;vertical-align:middle;
+                       font-family:Georgia,'Times New Roman',serif;font-size:17px;font-weight:bold;color:#7FC87C;">G</td>
+            <td style="padding-left:10px;font-family:Georgia,'Times New Roman',serif;font-size:16px;color:#10292C;">
+              Africa <span style="font-family:Arial,Helvetica,sans-serif;font-size:11px;letter-spacing:.14em;color:#177015;">GATES</span>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- ── the apology, first ─────────────────────────────────────────── -->
+    <tr>
+      <td style="background:#ffffff;border:1px solid #dfe4e0;border-radius:18px;padding:30px 30px 26px;">
+
+        <h1 style="margin:0 0 14px;font-family:Georgia,'Times New Roman',serif;font-size:23px;line-height:1.28;
+                   font-weight:bold;color:#10292C;">
+          We took your payment and your votes never arrived. We are sorry.
+        </h1>
+
+        <p style="margin:0 0 15px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.65;color:#39464a;">
+          Hi {{FIRST_NAME}},
+        </p>
+
+        <p style="margin:0 0 15px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.65;color:#39464a;">
+          You paid for <strong style="color:#10292C;">{{VOTES}} votes for {{NOMINEE}}</strong> and they were not added
+          to the tally. Your money is not lost and nothing has gone wrong with your bank &mdash; the fault is at our
+          end, and it is fixable.
+        </p>
+
+        <!-- The reference, large. It is the one thing they need and the one
+             thing they will not be able to find on their own. -->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+               style="margin:0 0 22px;background:#f4f7f4;border:1px solid #d6e8d3;border-radius:12px;">
+          <tr>
+            <td style="padding:15px 18px;">
+              <div style="font-family:Arial,Helvetica,sans-serif;font-size:10.5px;font-weight:bold;letter-spacing:.09em;
+                          text-transform:uppercase;color:#5a6d6f;">Your payment reference</div>
+              <div style="margin-top:5px;font-family:'Courier New',Courier,monospace;font-size:19px;font-weight:bold;
+                          color:#10292C;word-break:break-all;">{{REFERENCE}}</div>
+              <div style="margin-top:6px;font-family:Arial,Helvetica,sans-serif;font-size:12.5px;line-height:1.5;color:#5a6d6f;">
+                Keep this. If you paid inside a bank or wallet app, that app shows its own different number &mdash;
+                this is the one we can look up.
+              </div>
+            </td>
+          </tr>
+        </table>
+
+        <!-- ── route one: the fast one ─────────────────────────────────── -->
+        <h2 style="margin:0 0 8px;font-family:Georgia,'Times New Roman',serif;font-size:17px;color:#10292C;">
+          Fastest fix &mdash; about a minute, no account needed
+        </h2>
+        <p style="margin:0 0 16px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.65;color:#39464a;">
+          Open the support assistant and paste the reference above. It re-checks the payment directly with the bank
+          and adds your votes on the spot if the money arrived. It is safe to run more than once and it can never
+          double-count anything.
+        </p>
+
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 26px;">
+          <tr>
+            <td style="background:#177015;border-radius:999px;">
+              <a href="{{SITE}}/support/assistant?q={{REFERENCE}}"
+                 style="display:inline-block;padding:14px 28px;font-family:Arial,Helvetica,sans-serif;font-size:15px;
+                        font-weight:bold;color:#ffffff;text-decoration:none;">
+                Fix my votes now &rarr;
+              </a>
+            </td>
+          </tr>
+        </table>
+
+        <!-- ── route two: a person ─────────────────────────────────────── -->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+               style="border-top:1px solid #e6eae7;">
+          <tr><td style="padding-top:22px;">
+
+            <h2 style="margin:0 0 8px;font-family:Georgia,'Times New Roman',serif;font-size:17px;color:#10292C;">
+              If that does not sort it &mdash; open a ticket
+            </h2>
+            <p style="margin:0 0 16px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.65;color:#39464a;">
+              Sign in to your account and raise a ticket. It becomes a thread you can follow, with our replies in one
+              place instead of scattered through your inbox, and a person picks it up &mdash; usually within one
+              business day. Quote the reference above.
+            </p>
+
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 8px;">
+              <tr>
+                <td style="border:1px solid #10292C;border-radius:999px;">
+                  <a href="{{SITE}}/account/login?next=%2Fsupport%2Ftickets"
+                     style="display:inline-block;padding:13px 26px;font-family:Arial,Helvetica,sans-serif;font-size:14.5px;
+                            font-weight:bold;color:#10292C;text-decoration:none;">
+                      Sign in &amp; open a ticket
+                  </a>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:12.5px;line-height:1.55;color:#5a6d6f;">
+              No account yet? Creating one takes a moment and uses the same email address you paid with.
+            </p>
+
+          </td></tr>
+        </table>
+
+        <!-- ── the promise ─────────────────────────────────────────────── -->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+               style="margin-top:24px;background:#f4f7f4;border:1px solid #d6e8d3;border-radius:12px;">
+          <tr>
+            <td style="padding:15px 18px;font-family:Arial,Helvetica,sans-serif;font-size:13.5px;line-height:1.62;color:#2d4a2c;">
+              <strong>If we cannot deliver your votes, you get your money back.</strong>
+              We do not keep payment for votes we did not count. Where voting has already closed and the votes can no
+              longer be added, the refund is issued automatically &mdash; you do not have to ask, and you will get an
+              email when it is on its way.
+            </td>
+          </tr>
+        </table>
+
+        <p style="margin:22px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.65;color:#39464a;">
+          Thank you for backing {{NOMINEE}}, and for your patience with us on this one.
+        </p>
+        <p style="margin:14px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.65;color:#39464a;">
+          &mdash; The Africa GATES team
+        </p>
+
+      </td>
+    </tr>
+
+    <!-- ── footer ─────────────────────────────────────────────────────── -->
+    <tr>
+      <td style="padding:18px 8px 0;font-family:Arial,Helvetica,sans-serif;font-size:11.5px;line-height:1.7;color:#7a8a86;">
+        You are receiving this because you bought votes on Africa GATES and we did not deliver them.<br>
+        Questions: <a href="mailto:gates@afrovanguard.org.ng" style="color:#177015;">gates@afrovanguard.org.ng</a>
+        &nbsp;&middot;&nbsp;
+        <a href="{{SITE}}/help/paid-but-no-votes" style="color:#177015;">Read the full explanation</a>
+        &nbsp;&middot;&nbsp;
+        <a href="{{SITE}}/help" style="color:#177015;">Help Centre</a>
+        <br><br>
+        &copy; Africa GATES &mdash; an Afrovanguard initiative.
+      </td>
+    </tr>
+
+  </table>
+
+</td></tr>
+</table>
+
+</body>
+</html>

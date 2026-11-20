@@ -1,14 +1,8 @@
 <?php
 /** Add gates_collusion_findings (cluster-level collusion review queue).
  *  Idempotent + driver-aware (SQLite + MySQL). */
-require __DIR__ . '/../../vendor/autoload.php';
-Dotenv\Dotenv::createImmutable(__DIR__ . '/../../')->safeLoad();
+require __DIR__ . '/../bootstrap.php';
 use Illuminate\Database\Capsule\Manager as DB;
-
-$c = new DB();
-$c->addConnection(require __DIR__ . '/../../config/database.php');
-$c->setAsGlobal();
-$c->bootEloquent();
 
 $sqlite = DB::connection()->getDriverName() === 'sqlite';
 

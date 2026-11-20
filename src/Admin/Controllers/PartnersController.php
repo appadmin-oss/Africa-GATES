@@ -55,10 +55,12 @@ class PartnersController
     public function exportCsv(Request $req, Response $res): Response
     {
         $rows = DB::table('gates_partner_enquiries')->orderByDesc('id')->get();
-        $csv = Writer::createFromString('');
+        $csv = Writer::fromString('');
         $csv->insertOne(['id','org_name','contact_name','contact_email','contact_phone','partnership_type','status','created_at','message']);
         foreach ($rows as $r) {
-            $csv->insertOne([$r->id, $r->org_name, $r->contact_name, $r->contact_email, $r->contact_phone, $r->partnership_type, $r->status, $r->created_at, $r->message]);
+            // Every cell neutralised: an enquiry is typed by a stranger (Support\Csv).
+            $csv->insertOne(array_map([\AfricaGates\Support\Csv::class, 'cell'],
+                [$r->id, $r->org_name, $r->contact_name, $r->contact_email, $r->contact_phone, $r->partnership_type, $r->status, $r->created_at, $r->message]));
         }
         $this->audit->record((int)$_SESSION['admin_id'], 'partner.export_csv', null, null, ['count' => count($rows)]);
 

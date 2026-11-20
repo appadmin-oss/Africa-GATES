@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>@keyframes geeSpin{to{transform:rotate(360deg)}}@keyframes geeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}@media (prefers-reduced-motion:reduce){.gee *{animation:none!important;transition:none!important}}</style>
+</helmet>
+<div class="gee" style="position:absolute;right:{{ right }};left:{{ left }};bottom:{{ bottom }};top:{{ top }};z-index:35;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-end;pointer-events:none;font-family:'DM Sans',system-ui,sans-serif;color:#10292c">
+  <sc-if value="{{ closed }}" hint-placeholder-val="{{ true }}">
+    <button onClick="{{ open }}" aria-label="{{ fabAria }}" style="pointer-events:auto;display:flex;align-items:center;gap:10px;height:52px;padding:0 {{ fabPad }};border:0;border-radius:999px;background:#10292c;color:#fff;font-family:inherit;font-weight:600;font-size:15px;box-shadow:0 14px 30px -12px rgba(16,41,44,.6);cursor:pointer">
+      <span style="position:relative;width:28px;height:28px;border-radius:50%;background:#7fc87c;color:#10292c;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:16px">G<sc-if value="{{ isSupport }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="position:absolute;right:-2px;bottom:-2px;width:10px;height:10px;border-radius:50%;background:#f3b416;border:2px solid #10292c"></span></sc-if></span>
+      <sc-if value="{{ showLabel }}" hint-placeholder-val="{{ true }}"><span>{{ fabLabel }}</span></sc-if>
+    </button>
+  </sc-if>
+  <sc-if value="{{ isOpen }}" hint-placeholder-val="{{ false }}">
+    <div role="dialog" aria-label="{{ dlgLabel }}" style="pointer-events:auto;width:{{ w }};height:{{ h }};max-height:100%;display:flex;flex-direction:column;background:#fff;border:1px solid #e8e5dd;border-radius:24px;overflow:hidden;box-shadow:0 30px 70px -24px rgba(16,41,44,.45)">
+      <div style="flex:none;display:flex;align-items:center;gap:10px;padding:14px 12px 12px 18px;border-bottom:1px solid {{ headLine }}">
+        <span style="position:relative;flex:none;width:34px;height:34px;border-radius:50%;background:#7fc87c;color:#10292c;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:17px">G<span aria-hidden="true" style="position:absolute;right:-1px;bottom:-1px;width:11px;height:11px;border-radius:50%;background:{{ gDot }};border:2px solid #fff"></span></span>
+        <span style="flex:1;min-width:0;display:flex;flex-direction:column"><b style="font-size:15px">{{ gName }}</b><span style="font-size:12px;line-height:1.35;color:#626a6e">{{ gStatus }}</span></span>
+        <sc-if value="{{ isSupport }}" hint-placeholder-val="{{ false }}"></sc-if>
+        <button onClick="{{ reset }}" aria-label="New conversation" style="width:40px;height:40px;border:0;border-radius:50%;background:transparent;color:#3a4a4c;display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4z"></path></svg></button>
+        <button onClick="{{ close }}" aria-label="Close Gee" style="width:40px;height:40px;border:0;border-radius:50%;background:#f1efe9;color:#10292c;display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"></path></svg></button>
+      </div>
+
+      <div role="log" aria-live="polite" style="flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:12px;padding:14px 16px 16px">
+        <sc-if value="{{ empty }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;flex-direction:column;gap:6px;padding:8px 2px 4px"><span style="font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:25px;line-height:1.15">{{ hello }}</span><span style="font-size:14px;line-height:1.5;color:#626a6e">{{ helloSub }}</span></div>
+
+          <sc-if value="{{ supportSigned }}" hint-placeholder-val="{{ false }}">
+            <section aria-label="From your account" style="display:flex;flex-direction:column;gap:8px">
+              <span style="font-size:12.5px;font-weight:600;color:#626a6e;padding:0 2px">From your account</span>
+              <div style="display:flex;flex-direction:column;border:1px solid #e8e5dd;border-radius:16px;overflow:hidden">
+                <div style="display:grid;grid-template-columns:36px 1fr auto;gap:12px;align-items:center;padding:12px 12px 12px 14px"><span aria-hidden="true" style="width:36px;height:36px;border-radius:11px;background:#fff8df;color:#7a5600;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h18v10H3zM3 11h18"></path></svg></span><span style="min-width:0;display:flex;flex-direction:column;gap:2px"><b style="font-size:14px">₦2,000 · M-Pesa</b><span style="font-size:12.5px;color:#7a5600;font-weight:600">Pending for 6 min</span><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#626a6e;white-space:nowrap">AFG-PVOTE-7F3K2</span></span><button onClick="{{ checkPay }}" style="height:40px;padding:0 14px;border:0;border-radius:999px;background:#10292c;color:#fff;font-family:inherit;font-weight:700;font-size:13.5px;cursor:pointer">Check now</button></div>
+                <button onClick="{{ toTickets }}" style="display:grid;grid-template-columns:36px 1fr 16px;gap:12px;align-items:center;padding:12px 14px;border:0;border-top:1px solid #eeece6;background:transparent;color:#10292c;font-family:inherit;text-align:start;cursor:pointer"><span aria-hidden="true" style="width:36px;height:36px;border-radius:11px;background:#f1efe9;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v10H9l-5 4z"></path></svg></span><span style="display:flex;flex-direction:column;gap:2px"><b style="font-size:14px">Ticket #4821 · Refund for a ticket</b><span style="font-size:12.5px;color:#626a6e">A person replied 2 hours ago</span></span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#b3b9ba" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg></button>
+              </div>
+            </section>
+          </sc-if>
+          <sc-if value="{{ supportGuest }}" hint-placeholder-val="{{ false }}">
+            <form onSubmit="{{ submitRef }}" style="display:flex;flex-direction:column;gap:8px;padding:14px;border:1px solid #e8e5dd;border-radius:16px">
+              <label style="font-size:13.5px;font-weight:600" for="gee-ref">Have a reference? I’ll check it now.</label>
+              <div style="display:flex;gap:8px"><input id="gee-ref" value="{{ ref }}" onChange="{{ onRef }}" placeholder="AFG-…" autocapitalize="characters" spellcheck="false" style="flex:1;min-width:0;height:46px;padding:0 14px;border:1px solid #d6d4cc;border-radius:12px;font-family:'JetBrains Mono',monospace;font-size:16px;color:#10292c"><button type="submit" style="height:46px;padding:0 16px;border:0;border-radius:12px;background:#10292c;color:#fff;font-family:inherit;font-weight:700;font-size:14px;cursor:pointer">Check</button></div>
+              <span style="font-size:12.5px;color:#626a6e">It’s in your payment email or SMS. <a href="SignIn.dc.html" style="color:#10292c;text-decoration:underline">Sign in</a> to see everything you’ve paid.</span>
+            </form>
+          </sc-if>
+
+          <sc-if value="{{ isSupport }}" hint-placeholder-val="{{ false }}">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><sc-for list="{{ fixes }}" as="c" hint-placeholder-count="4"><button onClick="{{ c.ask }}" style="display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-height:84px;padding:12px;border:1px solid #e8e5dd;border-radius:16px;background:#fff;color:#10292c;font-family:inherit;text-align:start;cursor:pointer" style-hover="background:#f6f7f6"><span aria-hidden="true" style="width:32px;height:32px;border-radius:10px;background:{{ c.bg }};color:{{ c.fg }};display:flex;align-items:center;justify-content:center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="{{ c.d }}"></path></svg></span><span style="font-size:13.5px;font-weight:600;line-height:1.3">{{ c.label }}</span></button></sc-for></div>
+          </sc-if>
+          <sc-if value="{{ isGuide }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;flex-direction:column;gap:8px"><sc-for list="{{ starters }}" as="c" hint-placeholder-count="4"><button onClick="{{ c.ask }}" style="display:flex;align-items:center;gap:12px;min-height:52px;padding:0 14px;border:1px solid #e8e5dd;border-radius:14px;background:#fff;color:#10292c;font-family:inherit;font-size:14.5px;font-weight:500;text-align:start;cursor:pointer" style-hover="background:#f6f7f6"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#237b22" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ c.d }}"></path></svg><span style="flex:1">{{ c.label }}</span><span aria-hidden="true" style="color:#b3b9ba">→</span></button></sc-for></div>
+          </sc-if>
+          <sc-if value="{{ showPrivacy }}" hint-placeholder-val="{{ true }}"><div role="note" style="display:flex;gap:10px;align-items:flex-start;padding:10px 12px;background:#f6f7f6;border-radius:12px;font-size:12px;line-height:1.5;color:#3a4a4c"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3a4a4c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;margin-top:1px"><path d="M12 2.4l7.6 2.7v5.8c0 4.7-3.1 8.3-7.6 10-4.5-1.7-7.6-5.3-7.6-10V5.1z"></path></svg><span style="flex:1">Chats are kept for 30 days, then deleted. Never share card numbers or passwords. <a href="DocPage.dc.html" style="color:#10292c;text-decoration:underline">Privacy</a></span><button onClick="{{ dismissPrivacy }}" aria-label="Dismiss privacy notice" style="flex:none;width:28px;height:28px;margin:-5px -6px 0 0;border:0;border-radius:50%;background:transparent;color:#626a6e;cursor:pointer">×</button></div></sc-if>
+        </sc-if>
+
+        <sc-for list="{{ log }}" as="m" hint-placeholder-count="0"><div style="display:flex;justify-content:{{ m.align }};animation:geeIn .25s ease-out both"><span style="max-width:85%;padding:11px 14px;border-radius:{{ m.rad }};background:{{ m.bg }};color:{{ m.fg }};font-size:14.5px;line-height:1.55">{{ m.text }}</span></div></sc-for>
+
+        <sc-if value="{{ showWork }}" hint-placeholder-val="{{ false }}">
+          <div role="status" style="display:flex;flex-direction:column;gap:2px;padding:12px 14px;border:1px solid #e8e5dd;border-radius:16px;animation:geeIn .25s ease-out both">
+            <sc-for list="{{ work }}" as="s" hint-placeholder-count="3"><div style="display:flex;align-items:center;gap:10px;min-height:32px;font-size:14px;color:{{ s.fg }}"><span aria-hidden="true" style="flex:none;width:18px;height:18px;border-radius:50%;box-sizing:border-box;border:{{ s.ring }};background:{{ s.fill }};display:flex;align-items:center;justify-content:center;animation:{{ s.spin }}"><sc-if value="{{ s.done }}" hint-placeholder-val="{{ false }}"><svg width="10" height="10" viewBox="0 0 20 20" fill="none"><path d="M4 10.5 8.5 15 16 5.5" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path></svg></sc-if></span>{{ s.t }}</div></sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{ showResult }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:12px;padding:14px;background:#f4faf4;border:1px solid #cfe6ce;border-radius:16px;animation:geeIn .3s ease-out both">
+            <span style="display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700;color:#1a6118"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="9" fill="#237b22"></circle><path d="M6 10.5 8.8 13.3 14 7.5" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg>Fixed. 10 votes added to Achieng Otieno.</span>
+            <div style="display:flex;flex-direction:column;background:#fff;border-radius:12px;overflow:hidden"><sc-for list="{{ receipt }}" as="r" hint-placeholder-count="3"><div style="display:flex;justify-content:space-between;gap:12px;padding:9px 12px;border-top:{{ r.sep }};font-size:13.5px"><span style="color:#626a6e">{{ r.k }}</span><b style="text-align:end;font-variant-numeric:tabular-nums">{{ r.v }}</b></div></sc-for></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap"><a href="NomineePage.dc.html" style="display:flex;align-items:center;height:38px;padding:0 14px;border-radius:999px;background:#fff;border:1px solid #cfe6ce;color:#10292c;font-size:13.5px;font-weight:600;text-decoration:none">See the race</a><a href="#" style="display:flex;align-items:center;height:38px;padding:0 14px;border-radius:999px;background:#fff;border:1px solid #cfe6ce;color:#10292c;font-size:13.5px;font-weight:600;text-decoration:none">View receipt</a></div>
+          </div>
+          <sc-if value="{{ askFixed }}" hint-placeholder-val="{{ true }}"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:4px 2px"><span style="font-size:14px;font-weight:600">Did that fix it?</span><span style="display:flex;gap:6px"><button onClick="{{ fixedYes }}" style="height:40px;padding:0 16px;border:1px solid #d6d4cc;border-radius:999px;background:#fff;color:#10292c;font-family:inherit;font-weight:600;font-size:14px;cursor:pointer">Yes</button><button onClick="{{ fixedNo }}" style="height:40px;padding:0 16px;border:1px solid #d6d4cc;border-radius:999px;background:#fff;color:#10292c;font-family:inherit;font-weight:600;font-size:14px;cursor:pointer">No</button></span></div></sc-if>
+          <sc-if value="{{ saidYes }}" hint-placeholder-val="{{ false }}"><div style="display:flex;justify-content:flex-start"><span style="padding:11px 14px;border-radius:18px 18px 18px 6px;background:#f1efe9;font-size:14.5px;line-height:1.55">Great. Your receipt is on its way to chioma.o@mail.com.</span></div></sc-if>
+        </sc-if>
+        <sc-if value="{{ showHandoff }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:10px;padding:14px;border:1px solid #d6d4cc;border-radius:16px;animation:geeIn .3s ease-out both">
+            <span style="display:flex;align-items:center;gap:10px"><span aria-hidden="true" style="width:36px;height:36px;border-radius:50%;background:#10292c;color:#fff;display:flex;align-items:center;justify-content:center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 11a4 4 0 1 0-8 0M3 21a9 9 0 0 1 18 0"></path></svg></span><span style="display:flex;flex-direction:column;gap:1px"><b style="font-size:14.5px">{{ handoffTitle }}</b><span style="font-size:12.5px;color:#626a6e">A person usually replies within 2 hours</span></span></span>
+            <sc-if value="{{ ticketOpen }}" hint-placeholder-val="{{ false }}"><span style="font-size:13.5px;line-height:1.55;color:#3a4a4c">This conversation is attached, so you won’t have to explain again. We’ll email <b>chioma.o@mail.com</b>, and you can follow it in Your support tickets.</span></sc-if>
+            <sc-if value="{{ ticketAsk }}" hint-placeholder-val="{{ true }}"><button onClick="{{ openTicket }}" style="height:46px;border:0;border-radius:12px;background:#10292c;color:#fff;font-family:inherit;font-weight:700;font-size:14.5px;cursor:pointer">Pass this to a person</button></sc-if>
+          </div>
+        </sc-if>
+        <sc-if value="{{ showLinks }}" hint-placeholder-val="{{ false }}"><div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ links }}" as="a" hint-placeholder-count="2"><a href="HelpCentre.dc.html" style="display:flex;align-items:center;height:34px;padding:0 12px;border-radius:999px;background:#f1efe9;color:#10292c;font-size:13px;font-weight:600;text-decoration:none">{{ a }} ↗</a></sc-for></div></sc-if>
+      </div>
+
+      <div style="flex:none;padding:10px 12px 12px;border-top:1px solid #f1efe9">
+        <div style="display:flex;align-items:center;gap:6px;padding:5px 5px 5px 6px;border:1px solid #e8e5dd;border-radius:999px;background:#f6f7f6"><sc-if value="{{ isSupport }}" hint-placeholder-val="{{ false }}"><button aria-label="Attach a screenshot" style="flex:none;width:36px;height:36px;border:0;border-radius:50%;background:transparent;color:#3a4a4c;display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 11-8.6 8.6a5 5 0 0 1-7-7L14 4a3.3 3.3 0 0 1 4.7 4.7l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4L15.5 7"></path></svg></button></sc-if><input aria-label="{{ inputAria }}" placeholder="{{ inputPh }}" style="flex:1;min-width:0;height:36px;padding:0 0 0 8px;border:0;outline:0;background:transparent;font-family:inherit;font-size:15px;color:#10292c"><button aria-label="Send" style="flex:none;width:36px;height:36px;border:0;border-radius:50%;background:#10292c;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"></path></svg></button></div>
+        <p style="margin:8px 0 0;text-align:center;font-size:11.5px;color:#626a6e">{{ footLead }} · <button onClick="{{ talkPerson }}" style="padding:0;border:0;background:transparent;color:#10292c;font-family:inherit;font-size:11.5px;text-decoration:underline;cursor:pointer">Talk to a person</button></p>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:440,&quot;height&quot;:700},&quot;layout&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;desktop&quot;,&quot;phone&quot;],&quot;default&quot;:&quot;desktop&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;mode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;guide&quot;,&quot;support&quot;],&quot;default&quot;:&quot;support&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;startOpen&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;signedIn&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;openSignal&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;number&quot;}}">
+const Q=[['How do I vote?','M4 12.5 9 17.5 20 6.5','Open a nominee’s page and tap “Vote for …”. We email you a 6-digit code to confirm. One free vote per category, and extra votes can be contributed where the host allows it.',['How voting works','Voting rules']],['My payment didn’t go through','M3 7h18v10H3zM3 11h18','A failed payment is never charged. Switch me to the help desk and I’ll re-check it with the provider.',['Refunds','Payment help']],['Find tickets for an event','M4 5h16v15H4zM4 10h16','Pick a ticket type on the event page and pay with M-Pesa or card. Tickets arrive by email and SMS with a QR code.',['Events','Ticket transfers']],['Nominate someone','M12 5v14M5 12h14','Choose an open award, pick up to 3 categories and write why (at least 40 characters). Evidence is optional.',['Open awards','Nomination guide']]];
+const FIX=[['Check a payment','M3 7h18v10H3zM3 11h18','#fff8df','#7a5600',null],['Resend a receipt','M6 3h12v18l-3-2-3 2-3-2-3 2z','#effaf0','#1a6118','Give me the reference or the email you paid with and I’ll resend it now.',['Receipts']],['Code didn’t arrive','M4 6h16v12H4zM4 7l8 6 8-6','#e8f1f7','#1f6fa3','Codes can take up to 2 minutes. Check spam first. I can send it again, or by WhatsApp. Which email or number did you use?',['Code not arriving','It says I already voted']],['A result looks wrong','M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z','#fdecef','#b0224f','I can open an audit request. Someone independent of the original decision reviews it, and we acknowledge within 48 hours.',['Dispute a result','How results are sealed']]];
+const STEPS=['Found your order AFG-PVOTE-7F3K2','Asking M-Pesa about the payment','Adding your votes'];
+class Component extends DCLogic {
+  state = { open:!!this.props.startOpen, asked:null, priv:true, ref:'', flow:null, step:0, fixed:null, handoff:false, ticket:false };
+  timers=[];
+  componentDidUpdate(pp){ if(this.props.openSignal && this.props.openSignal!==pp.openSignal) this.setState({open:true}); }
+  componentWillUnmount(){ this.timers.forEach(clearTimeout); }
+  runCheck(){ this.timers.forEach(clearTimeout); this.timers=[]; this.setState({asked:null,flow:'checking',step:0,fixed:null,handoff:false,ticket:false});
+    [700,1500,2300].forEach((t,i)=>this.timers.push(setTimeout(()=>this.setState(i<2?{step:i+1}:{step:3,flow:'done'}),t))); }
+  renderVals(){
+    const S=this.state, set=o=>this.setState(o), phone=(this.props.layout ?? 'desktop')==='phone', sup=(this.props.mode ?? 'guide')==='support', signed=this.props.signedIn ?? true;
+    const a=S.asked!=null?(sup?FIX[S.asked]:Q[S.asked]):null, answer=a?(sup?a[4]:a[2]):null;
+    const log=[]; if(S.flow) log.push({text:'Check payment AFG-PVOTE-7F3K2',me:true}); if(a) log.push({text:a[0],me:true},{text:answer,me:false}); if(S.handoff&&!S.flow) log.push({text:'I’d like to talk to a person',me:true});
+    const empty=!a&&!S.flow&&!S.handoff;
+    return {
+      closed:!S.open, isOpen:S.open, open:()=>set({open:true}), close:()=>set({open:false}), reset:()=>{ this.timers.forEach(clearTimeout); set({asked:null,flow:null,fixed:null,handoff:false,ticket:false}); },
+      right:phone?'12px':'24px', left:phone&&S.open?'12px':'auto', bottom:this.props.offset ?? (phone?'96px':'24px'), top:S.open?(phone?'56px':'24px'):'auto', w:phone?'100%':'400px', h:phone?'min(640px, 100%)':'min(600px, 100%)',
+      fabPad:phone?'12px':'18px 0 12px', showLabel:!phone, fabLabel:sup?'Help desk':'Ask Gee', fabAria:sup?'Open the Gee help desk':'Ask Gee, the Africa GATES guide',
+      isSupport:sup, isGuide:!sup, supportSigned:sup&&signed, supportGuest:sup&&!signed, hasTicketDot:signed,
+      gName:sup?'Gee · Help desk':'Gee', gDot:sup?'#f3b416':'#237b22', gStatus:sup?'Usually fixes payments in a minute':'Online · Africa GATES guide', dlgLabel:sup?'Gee help desk':'Gee, the Africa GATES guide', headLine:sup?'#f1efe9':'transparent',
+      hello:sup?(signed?'Hi Chioma. What’s gone wrong?':'What’s gone wrong?'):(signed?'Hi Chioma. How can I help?':'How can I help?'),
+      helloSub:sup?'I can check payments with the provider, resend receipts, and hand you to a person when that’s better.':'Voting, nominations, tickets or a payment. Ask anything.',
+      empty, showPrivacy:S.priv, dismissPrivacy:()=>set({priv:false}),
+      starters:Q.map((q,i)=>({label:q[0],d:q[1],ask:()=>set({asked:i})})),
+      fixes:FIX.map((f,i)=>({label:f[0],d:f[1],bg:f[2],fg:f[3],ask:()=>{ if(i===0) this.runCheck(); else set({asked:i,flow:null}); }})),
+      checkPay:()=>this.runCheck(), ref:S.ref, onRef:e=>set({ref:e.target.value.toUpperCase()}), submitRef:e=>{ e.preventDefault(); this.runCheck(); },
+      log:log.map(m=>({text:m.text,align:m.me?'flex-end':'flex-start',bg:m.me?'#10292c':'#f1efe9',fg:m.me?'#fff':'#10292c',rad:m.me?'18px 18px 6px 18px':'18px 18px 18px 6px'})),
+      showWork:!!S.flow, work:STEPS.map((t,i)=>{const done=S.step>i, act=S.step===i&&S.flow==='checking';return {t,done,fg:done||act?'#10292c':'#8b9295',ring:done?'0':act?'2px solid #d6d4cc':'2px solid #e8e5dd',fill:done?'#237b22':'transparent',spin:act?'geeSpin .9s linear infinite':'none'};}),
+      showResult:S.flow==='done', receipt:[['Amount','₦2,000'],['Paid','M-Pesa · 30 Sep, 12:04'],['Receipt','Sent to chioma.o@mail.com']].map((r,i)=>({k:r[0],v:r[1],sep:i?'1px solid #eeece6':'0'})),
+      askFixed:S.fixed===null, saidYes:S.fixed==='yes', fixedYes:()=>set({fixed:'yes'}), fixedNo:()=>set({fixed:'no',handoff:true}),
+      showHandoff:S.handoff, handoffTitle:S.ticket?'Ticket #4822 opened':'A person can take it from here', ticketOpen:S.ticket, ticketAsk:!S.ticket, openTicket:()=>set({ticket:true}),
+      talkPerson:()=>set({handoff:true}), toTickets:()=>{},
+      showLinks:!!a&&!!a[sup?5:3], links:a?(a[sup?5:3]||[]):[],
+      inputAria:sup?'Describe the problem':'Message Gee', inputPh:sup?'Describe the problem, or paste a reference':'Message Gee',
+      footLead:sup?'A person sees every unresolved message':'Gee can make mistakes'
+    };
+  }
+}
+</script>
+</body>
+</html>

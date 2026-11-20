@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>@keyframes agFill{from{transform:scaleX(0)}to{transform:scaleX(1)}}@keyframes agDrift{0%,100%{transform:translate(0,0)}50%{transform:translate(-14px,10px)}}@keyframes agTurn{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}a:focus-visible,button:focus-visible{outline:3px solid #237b22;outline-offset:2px}</style>
+</helmet>
+<section aria-roledescription="carousel" aria-label="Challenges" onMouseEnter="{{ hoverOn }}" onMouseLeave="{{ hoverOff }}" onFocus="{{ hoverOn }}" onBlur="{{ hoverOff }}" style="position:relative;width:100%;border-radius:22px;overflow:hidden;background:#fff;border:1px solid #e8e5dd;font-family:'DM Sans',system-ui,sans-serif;color:#10292c">
+  <div style="display:flex;width:{{ trackW }};transform:translateX({{ trackX }});transition:transform .6s cubic-bezier(.2,.8,.2,1)">
+    <sc-for list="{{ slides }}" as="s" hint-placeholder-count="3">
+      <a href="{{ s.href }}" role="group" aria-roledescription="slide" aria-label="{{ s.aria }}" aria-hidden="{{ s.hide }}" tabindex="{{ s.tab }}" style="position:relative;flex:none;width:{{ slideW }};min-height:{{ h }};display:grid;grid-template-columns:{{ cols }};align-items:center;gap:16px;padding:{{ pad }};box-sizing:border-box;background:{{ s.bg }};color:#10292c;text-decoration:none;overflow:hidden">
+        {{ s.deco }}
+        <span style="position:relative;display:flex;flex-direction:column;gap:7px;min-width:0">
+          <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;font-weight:700;color:{{ s.ink }}">{{ s.kicker }}<span style="height:22px;padding:0 9px;border-radius:999px;background:#fff;font-size:11.5px;display:flex;align-items:center">{{ s.state }}</span></span>
+          <b style="font-size:{{ titleSize }};font-weight:800;letter-spacing:-.02em;line-height:1.1;text-wrap:balance">{{ s.title }}</b>
+          <span style="font-size:{{ subSize }};line-height:1.45;color:#3a4a4c;max-width:46ch">{{ s.sub }}</span>
+          <span style="align-self:flex-start;display:flex;align-items:center;gap:6px;height:40px;margin-top:4px;padding:0 16px;border-radius:999px;background:{{ s.acc }};color:#fff;font-weight:700;font-size:14px;white-space:nowrap">{{ s.cta }}<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg></span>
+        </span>
+        <sc-if value="{{ showArt }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="position:relative;justify-self:end;display:block;width:{{ artW }};height:{{ artH }};background:transparent center/contain no-repeat;background-image:{{ s.artBg }}"></span></sc-if>
+      </a>
+    </sc-for>
+  </div>
+  <div style="position:absolute;left:{{ dotsL }};bottom:6px;display:flex;align-items:center">{{ dots }}<button onClick="{{ togglePause }}" aria-label="{{ pauseAria }}" style="width:32px;height:32px;margin-left:4px;border:0;border-radius:50%;background:rgba(255,255,255,.9);color:#10292c;display:flex;align-items:center;justify-content:center;cursor:pointer"><sc-if value="{{ paused }}" hint-placeholder-val="{{ false }}"><svg width="10" height="10" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true"><path d="M3 1.5v11l9-5.5z"></path></svg></sc-if><sc-if value="{{ playing }}" hint-placeholder-val="{{ true }}"><svg width="10" height="10" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true"><rect x="2" y="1" width="3.5" height="12" rx="1"></rect><rect x="8.5" y="1" width="3.5" height="12" rx="1"></rect></svg></sc-if></button></div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1000,&quot;height&quot;:200},&quot;layout&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;desktop&quot;,&quot;phone&quot;],&quot;default&quot;:&quot;desktop&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;placement&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;account&quot;,&quot;nominate&quot;],&quot;default&quot;:&quot;account&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+// Slides = promos for a placement. In production this is GET /api/promos?placement=… (gates_promos), ordered by priority.
+const P={
+ account:[
+  {k:'Independence Day challenge',st:'4 prizes left',t:'Celebrate Nigeria: win ₦6,000',s:'First 11 people to get 10 nominees verified each win.',cta:'Join the challenge',href:'ChallengePage.dc.html',bg:'#eef5ec',ink:'#1a6118',acc:'#237b22',art:'assets/alimosho-celebrates-nigeria.png'},
+  {k:'Refer and earn',st:'Ongoing',t:'Earn 10% on every ticket',s:'Share your event link. 5 paid bookings unlocks your earnings.',cta:'Get my link',href:'AccountPage.dc.html',bg:'#fdf1f4',ink:'#b0224f',acc:'#c21e56',art:''},
+  {k:'Voting closes in 2 days',st:'Live',t:'Your points are worth 12 votes',s:'Redeem them in the Kenya Creative Economy Awards.',cta:'Vote now',href:'VoteHub.dc.html',bg:'#fff8e3',ink:'#7a5600',acc:'#a47306',art:''}],
+ nominate:[
+  {k:'Independence Day challenge',st:'4 of 11 prizes left',t:'Nominate 10 people, win ₦6,000',s:'For Alimosho Awards 2026. Every nominee must be complete and verified.',cta:'See how to win',href:'ChallengePage.dc.html',bg:'#eef5ec',ink:'#1a6118',acc:'#237b22',art:'assets/alimosho-celebrates-nigeria.png'},
+  {k:'World Teachers’ Day',st:'Opens 5 Oct',t:'Thank a teacher, win gala tickets',s:'Nominate 5 teachers for the Education Awards. 20 winners drawn.',cta:'Remind me',href:'ChallengePage.dc.html',bg:'#eaf2f8',ink:'#1f5f8b',acc:'#1f6fa3',art:''}]
+};
+class Component extends DCLogic {
+  state = { slide:0, paused:false, hover:false };
+  componentDidMount(){ this.rm=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches; this.iv=setInterval(()=>{ const S=this.state, n=this.list().length; if(n>1&&!S.paused&&!S.hover&&!this.rm) this.setState({slide:(S.slide+1)%n}); },5000); }
+  componentWillUnmount(){ clearInterval(this.iv); }
+  list(){ return P[this.props.placement ?? 'account'] || P.account; }
+  renderVals(){
+    const S=this.state, set=o=>this.setState(o), h=React.createElement, phone=(this.props.layout ?? 'desktop')==='phone', L=this.list(), n=L.length, cur=Math.min(S.slide,n-1), playing=!S.paused&&!this.rm;
+    const deco=acc=>h('span',{'aria-hidden':'true',style:{position:'absolute',inset:0,pointerEvents:'none'}},
+      h('span',{style:{position:'absolute',right:'-40px',top:'-60px',width:220,height:220,borderRadius:'50%',border:`1.5px dashed ${acc}`,opacity:.28,animation:'agTurn 40s linear infinite'}}),
+      h('span',{style:{position:'absolute',right:'60px',bottom:'-50px',width:120,height:120,borderRadius:'50%',background:acc,opacity:.10,animation:'agDrift 9s ease-in-out infinite'}}),
+      h('span',{style:{position:'absolute',right:'150px',top:'18px',width:12,height:12,borderRadius:'50%',background:acc,opacity:.35,animation:'agDrift 7s ease-in-out infinite reverse'}}));
+    const dots=n<2?null:L.map((s,i)=>{const on=cur===i; return h('button',{key:'b'+i,onClick:()=>set({slide:i}),'aria-label':`Show slide ${i+1} of ${n}`,'aria-current':on?'true':'false',style:{display:'flex',alignItems:'center',justifyContent:'center',minWidth:32,height:32,padding:'0 4px',border:0,background:'transparent',cursor:'pointer'}},
+      h('span',{key:'p'+i+(on?'-'+cur:''),style:{position:'relative',display:'block',width:on?28:8,height:8,borderRadius:4,background:'rgba(16,41,44,.18)',overflow:'hidden',transition:'width .35s'}},
+        on?h('span',{style:{position:'absolute',inset:0,background:'#10292c',transformOrigin:'left',animation:playing&&!S.hover?'agFill 5s linear forwards':'none',transform:playing&&!S.hover?undefined:'scaleX(1)'}}):null));});
+    return {
+      slides:L.map((s,i)=>({kicker:s.k,state:s.st,title:s.t,sub:s.s,cta:s.cta,href:s.href,bg:s.bg,ink:s.ink,acc:s.acc,artBg:s.art?`url(${s.art})`:'none',deco:deco(s.acc),aria:`${i+1} of ${n}: ${s.t}`,hide:cur===i?'false':'true',tab:cur===i?'0':'-1'})),
+      trackW:(n*100)+'%', slideW:(100/n)+'%', trackX:`-${cur*(100/n)}%`, dots, paused:!playing, playing, togglePause:()=>set({paused:!S.paused}), pauseAria:playing?'Pause slides':'Play slides', hoverOn:()=>set({hover:true}), hoverOff:()=>set({hover:false}),
+      showArt:!phone, h:phone?'176px':'188px', cols:phone?'minmax(0,1fr)':'minmax(0,1fr) auto', pad:phone?'18px 18px 50px':'24px 30px 50px', titleSize:phone?'20px':'24px', subSize:phone?'13.5px':'14.5px', artW:'180px', artH:'156px', dotsL:phone?'12px':'22px'
+    };
+  }
+}
+</script>
+</body>
+</html>

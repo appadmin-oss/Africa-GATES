@@ -1,37 +1,75 @@
 {% extends "admin/layout.twig" %}
 {% block topbar_title %}{{ is_new ? 'New Event' : 'Edit Event' }}{% endblock %}
+
+{% block head_styles %}
+<link rel="stylesheet" href="{{ asset('/assets/css/console/event-editor.css') }}">
+{% endblock %}
+
 {% block content %}
-<div class="ad-card" style="max-width:760px">
-  <form method="post" action="{{ is_new ? '/admin/events/new' : '/admin/events/' ~ row.id }}" class="ad-form">
+{% if not is_new %}{% include 'admin/events/navigation.twig' with {event_id: row.id, current: 'edit'} only %}{% endif %}
+{# The shared stepped-form structure. See the partial for why the fields all stay in one POST. #}
+{% include 'admin/partials/form-steps.twig' %}
+
+<div class="ad-card event-editor">
+  {# `enctype`: the ticket artwork is the first real file on this form. Without it the
+     browser posts the FILENAME as a string and the upload silently never arrives. #}
+  <form method="post" enctype="multipart/form-data"
+        action="{{ is_new ? '/admin/events/new' : '/admin/events/' ~ row.id }}" class="ad-form af"
+        x-data="afSteps(['Details','Registration','Programme','Ticket design','Review'])">
+    <div class="event-editor__intro"><h2>{{ is_new ? 'Create an event' : row.title }}</h2><p>Start with the essentials. Add registration, the programme and ticket design when you’re ready.</p></div>
     <input type="hidden" name="_token" value="{{ csrf_token }}">
-    <div class="ad-form__row">
-      <label>Title *<input type="text" name="title" value="{{ row.title|default('') }}" required></label>
-      <label>Slug <small>(blank = from title)</small><input type="text" name="slug" value="{{ row.slug|default('') }}" placeholder="auto"></label>
-    </div>
-    <label>Tagline<input type="text" name="tagline" value="{{ row.tagline|default('') }}" maxlength="255"></label>
-    <label>Description<textarea name="description" rows="5">{{ row.description|default('') }}</textarea></label>
-    <div class="ad-form__row">
-      <label>Location<input type="text" name="location" value="{{ row.location|default('') }}" placeholder="Lagos · Nigeria"></label>
-      <label>Venue<input type="text" name="venue" value="{{ row.venue|default('') }}"></label>
-    </div>
-    <div class="ad-form__row">
-      <label>Starts *<input type="datetime-local" name="event_date" value="{{ row.event_date|default('')|replace({' ':'T'})|slice(0,16) }}" required></label>
-      <label>Ends<input type="datetime-local" name="end_date" value="{{ row.end_date|default('')|replace({' ':'T'})|slice(0,16) }}"></label>
-    </div>
-    <div class="ad-form__row">
-      <label>Cover image URL<input type="url" name="cover_image" value="{{ row.cover_image|default('') }}" placeholder="https://…"></label>
-      <label>RSVP / details URL<input type="text" name="rsvp_url" value="{{ row.rsvp_url|default('') }}" placeholder="/partner or https://…"></label>
-    </div>
-    <label>Status
-      <select name="status">
-        <option value="published" {% if row.status|default('draft') == 'published' %}selected{% endif %}>Published</option>
-        <option value="draft" {% if row.status|default('draft') == 'draft' %}selected{% endif %}>Draft</option>
-      </select>
-    </label>
-    <div class="ad-form__actions">
+
+    {# ── THE RAIL ─────────────────────────────────────────────────────────────
+       Four steps, grouped by the JOB rather than by the table's column order: what the event
+       is, how it sells, what happens on the day, and what an attendee is handed. Cover image
+       used to sit between capacity and status purely because that is the order of the columns. #}
+    <nav class="af__rail" aria-label="Sections of this form">
+      <template x-for="(t, i) in titles" :key="i">
+        <button type="button" class="af__tab" :class="isOn(i) ? 'is-on' : ''"
+                @click="go(i)" :aria-current="isOn(i) ? 'step' : 'false'">
+          <span class="af__n" x-text="i + 1"></span>
+          <span x-text="t"></span>
+          <template x-if="todo[i] > 0">
+            <span class="af__todo" x-text="todo[i]"
+                  :aria-label="todo[i] + ' required fields still empty'"></span>
+          </template>
+        </button>
+      </template>
+    </nav>
+
+    {# ══ STEP 1 · THE EVENT ══════════════════════════════════════════════════ #}
+    {% include 'admin/events/editor/details.twig' %}
+
+    {# ══ STEP 2 · TICKETS ════════════════════════════════════════════════════ #}
+    {% include 'admin/events/editor/registration.twig' %}
+
+    {# ══ STEP 3 · THE DAY ════════════════════════════════════════════════════ #}
+    {% include 'admin/events/editor/programme.twig' %}
+
+    {# ══ STEP 4 · THE TICKET ═════════════════════════════════════════════════ #}
+    {% include 'admin/events/editor/ticket-design.twig' %}
+    {% include 'admin/events/editor/review.twig' %}
+
+    {# ── THE BAR ──────────────────────────────────────────────────────────────
+       Sticky, so Save is never a scroll away — correcting one field used to mean finding it,
+       changing it, then scrolling past everything else to commit it. And it SAYS what state the
+       form is in: a Save button that looks identical whether or not anything has changed is a
+       button somebody presses again just in case.
+
+       Back/Next move between steps and submit NOTHING; only Save posts, and it posts every
+       field on every step at once. #}
+    <div class="af__bar">
+      <span class="af__state" :class="stateClass()" x-text="state()">{{ is_new ? 'Not saved yet' : 'Everything saved' }}</span>
+      <div class="af__steps">
+        <button type="button" class="af__ghost" @click="back()" :disabled="at === 0">← Back</button>
+        <button type="button" class="af__ghost" @click="next()"
+                :disabled="at === titles.length - 1">Next →</button>
+      </div>
       <button class="ad-btn ad-btn--primary" type="submit">Save event</button>
       <a class="ad-btn" href="/admin/events">Cancel</a>
     </div>
+
   </form>
 </div>
+<script src="{{ asset('/assets/js/admin-event-editor.js') }}" data-nav="rerun"></script>
 {% endblock %}

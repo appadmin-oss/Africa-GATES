@@ -1,0 +1,268 @@
+{% extends "admin/layout.twig" %}
+
+{# ── WHO DID WHAT, TO WHICH RECORD, FROM WHERE ────────────────────────────────
+   124 places write gates_audit_log. Before this screen it could be read two ways:
+   the dashboard's last twelve rows, and the generic table dump at
+   /admin/data/audit-log where the admin is an integer, the target is an integer,
+   `meta` is not a column at all and `ip_hash` is stripped by the _hash rule.
+
+   Every filter here narrows ONE query (AuditService::search) — the same one the
+   dashboard strip uses — so the log cannot say two different things depending on
+   which screen asked. ────────────────────────────────────────────────────────── #}
+
+{% block topbar_title %}Audit log{% endblock %}
+{% block topbar_actions %}
+  {% set _xq = (actor is defined and actor) ? params|merge({admin: actor_id}) : params %}
+  <a class="cn-btn cn-btn--sm" href="/admin/audit/export.csv{{ _xq ? '?' ~ _xq|url_encode : '' }}" download>
+    <svg aria-hidden="true" focusable="false" width="15" height="15"><use href="#ic-upload"/></svg> Export
+  </a>
+  <a class="cn-btn cn-btn--sm" href="/admin/data/audit-log">Raw table</a>
+{% endblock %}
+
+{% block content %}
+{% import 'admin/partials/kit.twig' as kit %}
+{% set span = facets.span %}
+{% set _per_actor = actor is defined and actor %}
+
+{# ── ONE ADMIN, SUMMARISED ────────────────────────────────────────────────────
+   `devices` is the count of distinct ip_hash values. That column has been written
+   on every row since the table shipped and rendered nowhere until now. ─────── #}
+{% if _per_actor %}
+<section class="cn-card aud-who">
+  <div class="aud-who__h">
+    <div>
+      <h2 class="aud-who__t">{{ result.rows|length ? (result.rows[0].admin_name ?? result.rows[0].admin_email ?? 'Admin #' ~ actor_id) : 'Admin #' ~ actor_id }}</h2>
+      <p class="aud-who__s">{{ actor.total|number_format }} recorded action{{ actor.total == 1 ? '' : 's' }}</p>
+    </div>
+    <a class="cn-btn cn-btn--sm" href="/admin/audit">All admins</a>
+  </div>
+  <dl class="aud-stats">
+    <div><dt>First seen</dt><dd>{{ actor.first_at ? actor.first_at|when : '—' }}</dd></div>
+    <div><dt>Last seen</dt><dd>{{ actor.last_at ? actor.last_at|when : '—' }}</dd></div>
+    <div><dt>Networks {{ kit.help('Distinct network fingerprints this admin acted from — hashes, never addresses') }}</dt><dd>{{ actor.devices }}</dd></div>
+    <div><dt>Browsers</dt><dd>{{ actor.agents }}</dd></div>
+  </dl>
+  {% if actor.devices > 5 %}
+    {# Not an accusation and phrased as one question, not a verdict. The number is
+       high or low only against how this person works, which the screen cannot know. #}
+    <p class="aud-note">
+      <strong>{{ actor.devices }} distinct networks.</strong> Ordinary for somebody who
+      travels or works from a phone; worth asking about beside a run of deletions.
+    </p>
+  {% endif %}
+  {% if actor.top|length %}
+    <div class="cn-fchips">
+      {% for t in actor.top %}
+        <a class="cn-fchip" href="/admin/audit?admin={{ actor_id }}&amp;action={{ t.action|url_encode }}"><span class="cn-fchip__k">{{ t.action }}</span><span class="cn-fchip__v">{{ t.n }}</span></a>
+      {% endfor %}
+    </div>
+  {% endif %}
+</section>
+{% endif %}
+
+{# ── ONE RECORD'S WHOLE HISTORY ───────────────────────────────────────────── #}
+{% if subject %}
+<section class="cn-card aud-who">
+  <div class="aud-who__h">
+    <div>
+      <p class="aud-who__s">{{ subject.label }} #{{ subject.id }}</p>
+      <h2 class="aud-who__t">{{ subject.name ?? 'No longer on file' }}</h2>
+      {% if not subject.name %}
+        {# Deleted years ago is the audit trail working, not failing. Say which it is. #}
+        <p class="aud-note">The record itself is gone. Its history is not.</p>
+      {% endif %}
+    </div>
+    {% if subject.href %}<a class="cn-btn cn-btn--sm" href="{{ subject.href }}">Open the record →</a>{% endif %}
+  </div>
+</section>
+{% endif %}
+
+{# ── SEARCH, FILTERS, WINDOW ──────────────────────────────────────────────────
+   Every control is a link or a GET form, so every view of this log is a URL somebody
+   can paste into a ticket — which is most of what an audit trail is for. The filters
+   are chips ("+ Who", "+ Area"), each one a link to the narrowed view and each
+   applied one removable by itself, so no filter is ever one somebody cannot see. ── #}
+<form class="cn-searchbar" method="get" action="{{ form_action }}" role="search">
+  {% for k, v in params %}{% if k != 'q' and v is not iterable %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{% endfor %}
+  <label class="cn-searchbar__f">
+    <svg aria-hidden="true" focusable="false"><use href="#ic-search"/></svg>
+    <span class="sr-only">Search the log</span>
+    <input type="search" name="q" value="{{ f.q }}" placeholder="Search actions and details…">
+  </label>
+  <button class="cn-btn" type="submit">Search</button>
+</form>
+
+{% set _admins = [] %}
+{% for a in facets.admins %}{% set _admins = _admins|merge([{v: a.admin_id ?? 0, l: a.name ?? (a.admin_id ? 'Admin #' ~ a.admin_id : 'Unattributed'), n: a.n}]) %}{% endfor %}
+{% set _areas = [] %}
+{% for a in facets.areas %}{% set _areas = _areas|merge([{v: a.area, l: a.area, n: a.n}]) %}{% endfor %}
+{% set _types = [] %}
+{% for t in facets.types %}{% set _types = _types|merge([{v: t.type, l: t.label, n: t.n}]) %}{% endfor %}
+{# The exact action has no select of its own — a hundred-odd actions is not a usable
+   list. Its options appear once an area is chosen: what that area actually contains. #}
+{% set _acts = [] %}
+{% for a in areaActions|default([]) %}{% set _acts = _acts|merge([{v: a.action, l: a.action, n: a.n}]) %}{% endfor %}
+{% set _defs = [] %}
+{% if not _per_actor %}{% set _defs = _defs|merge([{key: 'admin', label: 'Who', value: f.admin, options: _admins}]) %}{% endif %}
+{% set _defs = _defs|merge([
+  {key: 'area', label: 'Area', value: f.area, options: _areas},
+  {key: 'action', label: 'Action', value: f.action, options: _acts},
+  {key: 'type', label: 'Acted on', value: f.target_type, options: _types},
+  {key: 'tid', label: 'Record', value: f.target_id, options: []},
+]) %}
+
+<div class="cn-toolbar">
+  {{ kit.filters(_defs, form_action, params) }}
+  {% if f.q or (f.admin is not null and not _per_actor) or f.area or f.action or f.target_type or f.target_id %}
+    <a class="aud-clearall" href="{{ kit.url(form_action, params|filter((v, k) => k in ['range', 'from', 'to']), {}) }}">Clear all</a>
+  {% endif %}
+  <div class="cn-toolbar__end">
+    {% if all_time %}
+      <a class="cn-btn cn-btn--sm" href="{{ kit.url(form_action, params, {range: null}) }}">Last 30 days</a>
+      <span class="cn-range"><span class="cn-range__l">All time · {{ range.zone() }}</span></span>
+    {% else %}
+      {{ kit.range(range, form_action, params) }}
+      <a class="cn-btn cn-btn--sm" href="{{ kit.url(form_action, params|filter((v, k) => k not in ['from', 'to']), {range: 'all'}) }}">All time</a>
+    {% endif %}
+  </div>
+</div>
+
+{{ kit.chart(series, {label: 'Actions recorded', unit: (series.total == 1 ? 'action' : 'actions'), base: form_action, params: params}) }}
+
+{# ── WHAT THIS VIEW COVERS ────────────────────────────────────────────────────
+   Said before the rows. "No results" against an unknown corpus is unreadable — it could
+   mean a narrow filter or an empty log, and those are opposite conclusions. ──────── #}
+<p class="aud-cover">
+  Showing <strong>{{ result.total|number_format }}</strong> of {{ facets.total|number_format }} recorded
+  · log runs {{ span.first ? span.first|when : '—' }} to {{ span.last ? span.last|when : '—' }}
+  · {{ facets.admins|length }} admin{{ facets.admins|length == 1 ? '' : 's' }} across {{ facets.areas|length }} area{{ facets.areas|length == 1 ? '' : 's' }}
+</p>
+
+{# ── THE LOG ───────────────────────────────────────────────────────────────── #}
+<div class="cn-card">
+  <div class="ad-table-wrap">
+    <table class="ad-table aud-table">
+      <thead>
+        <tr>
+          <th scope="col">When <span class="aud-z">{{ range.zone() }}</span></th>
+          <th scope="col">Who</th>
+          <th scope="col">Action</th>
+          <th scope="col">Acted on</th>
+          <th scope="col">Details {{ kit.help('What the screen recorded alongside the action — the reason typed into a confirm, the values changed') }}</th>
+          <th scope="col">From {{ kit.help('A six-character network fingerprint (a hash, never an address) and the browser') }}</th>
+          <th scope="col"><span class="sr-only">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in result.rows %}
+        <tr>
+          <td class="aud-when"><span class="cn-time" title="{{ r.created_at }} UTC">{{ r.created_at|when }}</span></td>
+          <td>
+            {% if r.admin_id %}
+              <a class="aud-link" href="/admin/audit/actor/{{ r.admin_id }}">{{ r.admin_name ?? r.admin_email ?? 'Admin #' ~ r.admin_id }}</a>
+            {% else %}
+              {# Cron, console, or a session that had already expired. Worth naming
+                 rather than showing an em-dash: unattributed is a fact, not a gap. #}
+              <span class="aud-muted" title="No admin session — scheduled work, the console, or an expired session">Unattributed</span>
+            {% endif %}
+          </td>
+          <td><a class="cn-code cn-code--soft aud-act" href="{{ kit.url(form_action, params, {action: r.action}) }}" title="Only this action">{{ r.action }}</a></td>
+          <td>
+            {% if r.target_type %}
+              <a class="aud-target" href="/admin/audit?type={{ r.target_key|url_encode }}{% if r.target_id %}&amp;tid={{ r.target_id }}{% endif %}">
+                <span class="aud-target__k">{{ r.target_label }}</span>
+                <span class="aud-target__n">{{ r.target_name ?? (r.target_id ? '#' ~ r.target_id : '—') }}</span>
+              </a>
+            {% else %}
+              <span class="aud-muted">—</span>
+            {% endif %}
+          </td>
+          <td class="aud-meta">
+            {% if r.meta %}
+              {% for k, v in r.meta %}
+                <span class="aud-kv"><b>{{ k }}</b> {% if v is iterable %}{{ v|join(', ')|slice(0, 90) }}{% else %}{{ v|default('')|slice(0, 90) }}{% endif %}</span>
+              {% endfor %}
+            {% else %}
+              <span class="aud-muted">—</span>
+            {% endif %}
+          </td>
+          <td class="aud-from">
+            {% if r.device %}<span class="cn-code cn-code--soft aud-dev" title="Network fingerprint — a hash, not an address">{{ r.device }}</span>{% endif %}
+            {% if r.agent %}<span class="aud-ua">{{ r.agent }}</span>{% endif %}
+            {% if not r.device and not r.agent %}<span class="aud-muted">—</span>{% endif %}
+          </td>
+          <td class="aud-menu">
+            {% set _items = [] %}
+            {% if r.admin_id and not _per_actor %}{% set _items = _items|merge([{label: 'Only this admin', href: kit.url(form_action, params, {admin: r.admin_id})}]) %}{% endif %}
+            {% if r.admin_id %}{% set _items = _items|merge([{label: 'This admin’s whole trail', href: '/admin/audit/actor/' ~ r.admin_id}]) %}{% endif %}
+            {% if r.target_type %}{% set _items = _items|merge([{label: 'This record’s history', href: '/admin/audit?type=' ~ r.target_key|url_encode ~ (r.target_id ? '&tid=' ~ r.target_id : '')}]) %}{% endif %}
+            {% if r.target_href %}{% set _items = _items|merge([{label: 'Open the ' ~ r.target_label|lower ~ ' record', href: r.target_href}]) %}{% endif %}
+            {% set _items = _items|merge([{label: 'Copy action name', copy: r.action}]) %}
+            {{ kit.rowmenu(_items, 'Actions for entry ' ~ r.id) }}
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="7">
+          {% if f.q or f.admin is not null or f.area or f.action or f.target_type or f.target_id %}
+            {{ kit.empty('Nothing recorded matches those filters', 'Remove one above, or widen the time range.', 'search') }}
+            <p class="aud-clear"><a href="{{ form_action }}">Clear them</a> to see the whole log.</p>
+          {% elseif facets.total == 0 %}
+            {{ kit.empty('Nothing has been recorded yet', 'Every change an admin makes will be listed here.', 'search') }}
+          {% elseif not all_time %}
+            {{ kit.empty('Nothing recorded in this window', 'Try a longer range, or All time.', 'search') }}
+          {% endif %}
+        </td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    {% include 'admin/partials/pager.twig' with {
+      base: form_action,
+      qs: qs|trim('&'), page: result.page, pages: result.pages, window: window
+    } only %}
+  </div>
+</div>
+
+{% endblock %}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .aud-who{padding:18px 20px;margin-bottom:14px;display:flex;flex-direction:column;gap:14px}
+  .aud-who__h{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;flex-wrap:wrap}
+  .aud-who__t{margin:0;font-size:var(--cn-fs-17);font-weight:600;color:var(--cn-ink)}
+  .aud-who__s{margin:0;font-size:var(--cn-fs-13);color:var(--cn-ink-3)}
+  .aud-stats{display:flex;gap:28px;flex-wrap:wrap;margin:0}
+  .aud-stats dt{font-size:var(--cn-fs-12);color:var(--cn-ink-3);display:flex;gap:4px;align-items:center}
+  .aud-stats dd{margin:2px 0 0;font-size:var(--cn-fs-14);font-weight:500;color:var(--cn-ink)}
+  .aud-note{font-size:var(--cn-fs-13);color:var(--cn-ink-3);margin:0;line-height:1.5}
+  .aud-cover{font-size:var(--cn-fs-13);color:var(--cn-ink-3);margin:14px 0 10px}
+  .aud-cover strong{color:var(--cn-ink)}
+  .aud-z{font-weight:400;color:var(--cn-soft)}
+
+  .aud-table td{vertical-align:top}
+  .aud-when{white-space:nowrap;color:var(--cn-ink-3);font-size:var(--cn-fs-13)}
+  .aud-muted{color:var(--cn-soft)}
+  .aud-link{color:var(--cn-ink);text-decoration:none}
+  .aud-link:hover{text-decoration:underline}
+  .aud-act{text-decoration:none}
+  .aud-act:hover{background:var(--cn-hover)}
+  .aud-target{text-decoration:none;display:inline-flex;flex-direction:column;gap:1px;min-height:24px}
+  .aud-target__k{font-size:var(--cn-fs-12);color:var(--cn-soft)}
+  .aud-target__n{color:var(--cn-ink);font-size:var(--cn-fs-13)}
+  .aud-target:hover .aud-target__n{text-decoration:underline}
+  .aud-meta{max-width:320px}
+  .aud-kv{display:block;font-size:var(--cn-fs-12);color:var(--cn-ink-3);line-height:1.5;word-break:break-word}
+  .aud-kv b{font-weight:600;color:var(--cn-ink-2)}
+  .aud-from{white-space:nowrap}
+  .aud-ua{display:block;font-size:var(--cn-fs-12);color:var(--cn-soft);margin-top:3px}
+  .aud-menu{width:44px;text-align:end}
+  .aud-clear{text-align:center;margin:-30px 0 24px;font-size:var(--cn-fs-13);color:var(--cn-ink-3)}
+  .aud-clear a,.aud-clearall{color:var(--cn-ink)}
+  .aud-clearall{font-size:var(--cn-fs-13);min-height:24px;display:inline-flex;align-items:center}
+
+  @media (max-width:760px){
+    .aud-meta{max-width:200px}
+    .aud-ua{display:none}
+  }
+</style>
+{% endblock %}

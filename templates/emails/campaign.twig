@@ -1,0 +1,270 @@
+{#
+  A campaign whose copy lives in a database row — the bulk-mail path (Admin → Campaigns,
+  EmailCampaign::render(), sent by NomineeBroadcast through Mail\Outbox).
+
+  ── THE SKELETON IS NOT EDITABLE; THE BLOCKS ARE ──────────────────────────
+
+  What an operator edits is an ordered list of TYPED BLOCKS (EmailCampaign::BLOCKS). Each
+  block's text arrives as plain text — EmailCampaign::clean() strip_tags everything on the
+  way in — and this file supplies the markup. There is deliberately no block type that
+  emits raw HTML. Links arrive resolved (EmailCampaign::resolve()), so `b.href` is already
+  this recipient's URL. Rendered once per recipient, autoescaped.
+
+  ── REDRAWN 17 NOV 2026: THE HOUSE SHELL'S DESIGN, GENERAL-PURPOSE ─────────
+
+  It draws what templates/emails/_shell.twig draws ("Shell, final"), so a campaign looks
+  like every other message the platform sends: the masthead on the paper ground (the mark
+  at 26×26 in a 40px white tile, "Africa GATES" set as TEXT beside it), a white card with a
+  16px radius and no dark fills, Playfair Display headings over Georgia, Arial body at
+  15/25, a green pill button, and the footer under the card — why this arrived, © ·
+  postal, Help · Privacy · Unsubscribe. Colours are `c.*` (Accent::mail()); type sits on
+  the §6.2 ladder (TypeScaleTest), display sizes above 18.
+
+  What it must keep (EmailInboxCompatCase via CampaignInboxCompatTest): a fluid card
+  (width="100%" + max-width:600px) with an [if mso] fixed 600 table; the gutter on CELLS;
+  role="presentation" on every table; the hidden preheader with mso-hide:all; the VML
+  button with <w:anchorlock/> beside the [if !mso] anchor; colour-scheme metas and a
+  declared dark block; the iOS detector override; no data: URIs; absolute images; and,
+  when the countdown is drawn, its styled alt with the deadline repeated as text.
+
+  ── THE CHROME: `chrome.tag` AND `chrome.countdown` ───────────────────────
+
+  The masthead label and the voting countdown are award-specific, so they are switchable.
+  When the sender passes no `chrome`, this keeps the shape every campaign before this had
+  ("Final hours" + countdown), so an existing draft renders the same content.
+
+  ── LIGHT FORMATTING IN A PARAGRAPH, STILL PLAIN TEXT ──────────────────────
+
+  A paragraph line starting "- ", "* " or "• " is drawn as a bullet, and **double
+  asterisks** around words make them bold. Done here with split/slice, never with |raw:
+  every run is autoescaped, so nothing typed can become markup. An unmatched ** is shown
+  as typed rather than bolding the rest of the line.
+#}
+{%- set chrome = chrome ?? {tag: 'Final hours', countdown: true} -%}
+{%- set show_countdown = chrome.countdown ?? false -%}
+{%- set tag = chrome.tag ?? '' -%}
+{%- set year = year ?? 'now'|date('Y') -%}
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="format-detection" content="telephone=no, date=no, address=no, email=no, url=no">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>{{ subject }}</title>
+<!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->
+<style>
+  body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+  table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+  img { -ms-interpolation-mode: bicubic; border: 0; outline: none; text-decoration: none; }
+  body { margin: 0; padding: 0; width: 100% !important; background-color: {{ c.ground }}; }
+  a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; font-size: inherit !important; font-family: inherit !important; font-weight: inherit !important; line-height: inherit !important; }
+  u + #body a { color: inherit; text-decoration: none; }
+  #MessageViewBody a { color: inherit; text-decoration: none; }
+  p, td, a, div, h1, h2 { mso-line-height-rule: exactly; }
+  /* Gmail app's forced dark mode: keep the card and its ink as designed. */
+  [data-ogsc] .agw-card { background-color: {{ c.surface }} !important; }
+  [data-ogsc] .agw-text { color: {{ c.ink }} !important; }
+
+  @media only screen and (max-width: 620px) {
+    .agw-outer { padding: 20px 10px !important; }
+    .agw-px { padding-left: 22px !important; padding-right: 22px !important; }
+    .agw-first { padding-top: 28px !important; }
+    .agw-headline { font-size: 26px !important; line-height: 31px !important; }
+    .agw-btn { display: block !important; width: 100% !important; }
+    .agw-cd { padding-left: 22px !important; padding-right: 22px !important; padding-top: 22px !important; }
+  }
+
+  /* DARK MODE is a colour LOCK, as the house shell's is: every block's ink is inline, so a
+     card flipped dark would put all of it dark-on-dark. Clients that honour the query get
+     the light design restated; Gmail and Outlook.com, which invert regardless, have a
+     white card with dark ink and one green to work from — the case they invert best. */
+  @media (prefers-color-scheme: dark) {
+    .agw-body { background-color: {{ c.ground }} !important; }
+    .agw-card { background-color: {{ c.surface }} !important; }
+    .agw-text { color: {{ c.ink }} !important; }
+    .agw-foot { background-color: {{ c.ground }} !important; color: {{ c.soft }} !important; }
+  }
+</style>
+</head>
+<body id="body" class="agw-body" style="margin:0; padding:0; background-color:{{ c.ground }}; font-family:Arial, Helvetica, sans-serif;">
+<div style="display:none; max-height:0; max-width:0; overflow:hidden; mso-hide:all; font-size:1px; line-height:1px; color:{{ c.ground }}; opacity:0;">{{ preheader ?: (show_countdown ? 'Voting closes soon. Rally your supporters and get them a seat.' : '') }}{% for i in 1..12 %}&nbsp;&zwnj;{% endfor %}</div>
+
+<table role="presentation" class="agw-body" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="{{ c.ground }}" style="background-color:{{ c.ground }};">
+<tr><td class="agw-outer" align="center" style="padding:28px 12px;">
+  <!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;"><tr><td><![endif]-->
+  <table role="presentation" class="agw-wrapper" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:600px;">
+
+    {# MASTHEAD — on the ground, as the shell draws it. The name is TEXT so it is there
+       with images blocked; the mark's alt is styled; width AND height on the image. #}
+    <tr><td style="padding:0 8px 20px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+        <td valign="middle" width="40" align="center" bgcolor="{{ c.surface }}" style="width:38px; height:38px; border:1px solid {{ c['line-2'] }}; border-radius:8px; background-color:{{ c.surface }};">
+          <img src="{{ site_url }}/assets/img/logo-mark.png" width="26" height="26" alt="Africa GATES" style="display:block; width:26px; height:26px; border:0; font-family:Georgia, serif; font-size:12px; font-weight:700; color:{{ c.green }};">
+        </td>
+        <td align="left" valign="middle" class="agw-text" style="padding-left:10px; font-family:Arial, Helvetica, sans-serif; font-size:16px; line-height:20px; font-weight:700; color:{{ c.ink }};">Africa GATES</td>
+        {% if tag %}<td align="right" valign="middle" class="agw-text" style="font-family:Arial, Helvetica, sans-serif; font-size:11.5px; line-height:16px; font-weight:700; color:{{ c.ink }};">{{ tag }}</td>{% endif %}
+      </tr></table>
+    </td></tr>
+
+    {# THE CARD #}
+    <tr><td style="padding:0;">
+      <table role="presentation" class="agw-card" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="{{ c.surface }}" style="width:100%; background-color:{{ c.surface }}; border-radius:16px;">
+
+        {% if show_countdown %}
+        {# The nominee's own voting countdown: a GIF redrawn on every open (frame 1 is a
+           correct still for Outlook). Images off is the common case in corporate mail, so
+           the alt is STYLED, the box keeps its size, and the deadline is repeated as text. #}
+        <tr><td class="agw-cd" style="padding:32px 44px 0;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+            <td align="center" bgcolor="{{ c['green-wash'] }}" style="background-color:{{ c['green-wash'] }}; border-radius:14px; padding:24px 16px;">
+              <img src="{{ countdown_url }}" width="320" height="104" alt="{{ countdown_alt }}"
+                   style="display:block; width:100%; max-width:320px; height:auto; margin:0 auto; border:0;
+                          font-family:Arial, Helvetica, sans-serif; font-size:17px; font-weight:700;
+                          line-height:24px; color:{{ c.ink }}; text-align:center;">
+              <p style="margin:12px 0 0; font-family:Arial, Helvetica, sans-serif; font-size:13px; line-height:20px; font-weight:700; color:{{ c.soft }};">Voting closes {{ closes_human }}</p>
+            </td>
+          </tr></table>
+        </td></tr>
+        {% endif %}
+
+        {% for b in blocks %}
+        {%- set top = loop.first ? (show_countdown ? '28px' : '40px') : '0' -%}
+        {%- set first = loop.first and not show_countdown -%}
+
+        {% if b.type == 'hero' %}
+          <tr><td class="agw-px{{ first ? ' agw-first' }}" style="padding:{{ top }} 44px 0;">
+            {% if b.eyebrow is defined and b.eyebrow %}
+              <p style="margin:0 0 12px; font-family:Arial, Helvetica, sans-serif; font-size:11.5px; line-height:16px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:{{ c.green }};">{{ b.eyebrow }}</p>
+            {% endif %}
+            {% if b.headline or b.accent %}
+              <h1 class="agw-headline agw-text" style="margin:0 0 16px; font-family:'Playfair Display', Georgia, 'Times New Roman', serif; font-size:31px; line-height:37px; font-weight:700; color:{{ c.ink }};">{{ b.headline }}{% if b.accent %}{% if b.headline %} {% endif %}<span style="color:{{ c.green }};">{{ b.accent }}</span>{% endif %}</h1>
+            {% endif %}
+            {% if b.standfirst %}
+              <p style="margin:0 0 18px; font-family:Arial, Helvetica, sans-serif; font-size:17px; line-height:27px; color:{{ c['ink-2'] }};">{{ b.standfirst }}</p>
+            {% endif %}
+          </td></tr>
+
+        {% elseif b.type == 'paragraph' %}
+          <tr><td class="agw-px{{ first ? ' agw-first' }}" style="padding:{{ top }} 44px 0;">
+            {% for para in (b.paras ?? [b.text]) %}
+              {%- set bullet = para starts with '- ' or para starts with '* ' or para starts with '• ' -%}
+              {%- set line = bullet ? para|slice(2)|trim : para -%}
+              {%- set segs = line|split('**') -%}
+              {% if bullet %}
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+                  <td width="20" valign="top" style="width:20px; padding:0 0 8px; font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:25px; font-weight:700; color:{{ c.green }};">&bull;</td>
+                  <td valign="top" style="padding:0 0 8px; font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:25px; color:{{ c['ink-2'] }};">{% if segs|length is odd %}{% for s in segs %}{% if loop.index0 is odd %}<strong style="font-weight:700; color:{{ c.ink }};">{{ s }}</strong>{% else %}{{ s }}{% endif %}{% endfor %}{% else %}{{ line }}{% endif %}</td>
+                </tr></table>
+              {% else %}
+                <p style="margin:0 0 18px; font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:25px; color:{{ c['ink-2'] }};">{% if segs|length is odd %}{% for s in segs %}{% if loop.index0 is odd %}<strong style="font-weight:700; color:{{ c.ink }};">{{ s }}</strong>{% else %}{{ s }}{% endif %}{% endfor %}{% else %}{{ line }}{% endif %}</p>
+              {% endif %}
+            {% endfor %}
+            {# Bullets carry only 8px below each, so the list closes with the 18px rhythm. #}
+            {%- set tail = (b.paras ?? [b.text])|last -%}
+            {% if tail starts with '- ' or tail starts with '* ' or tail starts with '• ' %}<div style="height:10px; line-height:10px; font-size:0;">&nbsp;</div>{% endif %}
+          </td></tr>
+
+        {% elseif b.type == 'heading' %}
+          <tr><td class="agw-px{{ first ? ' agw-first' }}" style="padding:{{ loop.first ? top : '10px' }} 44px 0;">
+            <h2 class="agw-text" style="margin:0 0 12px; font-family:'Playfair Display', Georgia, 'Times New Roman', serif; font-size:19px; line-height:25px; font-weight:700; color:{{ c.ink }};">{{ b.text }}</h2>
+          </td></tr>
+
+        {% elseif b.type == 'quote' %}
+          <tr><td class="agw-px{{ first ? ' agw-first' }}" style="padding:{{ top }} 44px 0;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+              <td style="border-left:3px solid {{ c.green }}; padding:2px 0 2px 18px;">
+                <p style="margin:0; font-family:'Playfair Display', Georgia, 'Times New Roman', serif; font-size:20px; line-height:29px; font-style:italic; color:{{ c.ink }};">&ldquo;{{ b.text }}&rdquo;</p>
+                {% if b.source %}<p style="margin:8px 0 0; font-family:Arial, Helvetica, sans-serif; font-size:13px; line-height:20px; color:{{ c.soft }};">&mdash; {{ b.source }}</p>{% endif %}
+              </td>
+            </tr></table>
+            <div style="height:18px; line-height:18px; font-size:0;">&nbsp;</div>
+          </td></tr>
+
+        {% elseif b.type == 'ask' %}
+          {# Numbered by asks so far (EmailCampaign::resolve), not by position. #}
+          <tr><td class="agw-px{{ first ? ' agw-first' }}" style="padding:{{ top }} 44px 0;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+              <td width="30" valign="top" style="width:30px; padding:0 12px 18px 0; font-family:'Playfair Display', Georgia, 'Times New Roman', serif; font-size:20px; line-height:22px; font-weight:700; color:{{ c.green }};">{{ b.n }}</td>
+              <td valign="top" style="padding:0 0 18px; font-family:Arial, Helvetica, sans-serif;">
+                {% if b.title %}<p style="margin:0; font-size:15px; line-height:22px; font-weight:700; color:{{ c.ink }};">{{ b.title }}</p>{% endif %}
+                {% if b.text %}<p style="margin:3px 0 0; font-size:14px; line-height:22px; color:{{ c.soft }};">{{ b.text }}</p>{% endif %}
+                {% if b.link_label %}<p style="margin:6px 0 0;"><a href="{{ b.href }}" target="_blank" style="font-family:Arial, Helvetica, sans-serif; font-size:14px; line-height:20px; font-weight:700; color:{{ c.green }}; text-decoration:none;">{{ b.link_label }}&nbsp;&rarr;</a></p>{% endif %}
+              </td>
+            </tr></table>
+          </td></tr>
+
+        {% elseif b.type == 'callout' %}
+          {# A tinted note, not a dark fill — the house design draws none. #}
+          <tr><td class="agw-px{{ first ? ' agw-first' }}" style="padding:{{ top }} 44px 18px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+              <td bgcolor="{{ c['green-wash'] }}" style="background-color:{{ c['green-wash'] }}; border-radius:12px; padding:18px 20px;">
+                {% for para in (b.paras ?? [b.text]) %}
+                  <p style="margin:0 0 {{ loop.last ? '0' : '10px' }}; font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:24px; color:{{ c.ink }};">{{ para }}</p>
+                {% endfor %}
+              </td>
+            </tr></table>
+          </td></tr>
+
+        {% elseif b.type == 'button' %}
+          {# Both halves, and EmailInboxCompatCase checks for each: the VML roundrect is the
+             only button Outlook's Word engine draws, and <w:anchorlock/> stops it being
+             dragged. A button with no text draws nothing rather than an empty pill. #}
+          {% if b.label %}
+          <tr><td class="agw-px{{ first ? ' agw-first' }}" align="left" style="padding:{{ loop.first ? top : '6px' }} 44px 18px;">
+            <!--[if mso]>
+            <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{ b.href }}" style="height:50px;v-text-anchor:middle;width:300px;" arcsize="50%" stroke="f" fillcolor="{{ c.green }}">
+            <w:anchorlock/>
+            <center style="color:{{ c.surface }};font-family:Arial,sans-serif;font-size:15px;font-weight:bold;">{{ b.label }}</center>
+            </v:roundrect>
+            <![endif]-->
+            <!--[if !mso]><!-->
+            <a class="agw-btn" href="{{ b.href }}" target="_blank" style="display:inline-block; box-sizing:border-box; padding:15px 30px; border-radius:999px; background-color:{{ c.green }}; font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:20px; font-weight:700; color:{{ c.surface }}; text-decoration:none; text-align:center;">{{ b.label }}</a>
+            <!--<![endif]-->
+          </td></tr>
+          {% endif %}
+          {% if b.secondary_label %}
+          <tr><td class="agw-px" style="padding:0 44px 18px;">
+            <a href="{{ b.secondary_link_href }}" target="_blank" style="font-family:Arial, Helvetica, sans-serif; font-size:14px; line-height:20px; font-weight:700; color:{{ c.green }}; text-decoration:none;">{{ b.secondary_label }}&nbsp;&rarr;</a>
+          </td></tr>
+          {% endif %}
+
+        {% elseif b.type == 'signoff' %}
+          <tr><td class="agw-px{{ first ? ' agw-first' }}" style="padding:{{ loop.first ? top : '8px' }} 44px 18px;">
+            {% for para in (b.paras ?? [b.text]) %}{% if para %}
+              <p style="margin:0 0 14px; font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:24px; color:{{ c['ink-2'] }};">{{ para }}</p>
+            {% endif %}{% endfor %}
+            {% if b.salutation %}<p style="margin:0; font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:22px; color:{{ c.soft }};">{{ b.salutation }}</p>{% endif %}
+            {% if b.signature %}<p class="agw-text" style="margin:2px 0 0; font-family:'Playfair Display', Georgia, 'Times New Roman', serif; font-size:17px; line-height:24px; font-weight:700; color:{{ c.ink }};">{{ b.signature }}</p>{% endif %}
+          </td></tr>
+
+        {% elseif b.type == 'divider' %}
+          <tr><td class="agw-px" style="padding:{{ loop.first ? top : '6px' }} 44px 24px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr><td style="border-top:1px solid {{ c['line-3'] }}; font-size:0; line-height:1px;">&nbsp;</td></tr>
+            </table>
+          </td></tr>
+        {% endif %}
+        {% endfor %}
+
+        <tr><td style="padding:0 0 22px; font-size:0; line-height:1px;">&nbsp;</td></tr>
+      </table>
+    </td></tr>
+
+    {# FOOTER — under the card, on the ground: why, who and where, and the way out. The
+       Unsubscribe link is the visible half; the List-Unsubscribe header OtpService sets is
+       the half Gmail reads. MailTraction::wrap() never rewrites /email/unsubscribe. #}
+    <tr><td class="agw-foot" align="center" style="padding:20px 12px 4px; font-family:Arial, Helvetica, sans-serif; font-size:12px; line-height:19px; color:{{ c.soft }};">
+      You’re receiving this because you’re a nominee on Africa GATES.<br>
+      &copy; {{ year }} Africa GATES, an Afrovanguard initiative{% if postal_address %} &middot; {{ postal_address }}{% endif %}<br>
+      <a href="{{ site_url }}/help" target="_blank" style="color:{{ c.soft }}; text-decoration:underline;">Help</a> &nbsp;&middot;&nbsp; <a href="{{ site_url }}/privacy" target="_blank" style="color:{{ c.soft }}; text-decoration:underline;">Privacy</a> &nbsp;&middot;&nbsp; <a href="{{ unsubscribe_url }}" target="_blank" style="color:{{ c.soft }}; text-decoration:underline;">Unsubscribe</a>
+    </td></tr>
+
+  </table>
+  <!--[if mso]></td></tr></table><![endif]-->
+</td></tr>
+</table>
+</body>
+</html>

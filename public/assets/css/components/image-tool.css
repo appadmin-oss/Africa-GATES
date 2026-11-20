@@ -1,0 +1,33 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   THE IMAGE EDITOR · image-tool.js · any <input type="file" data-ag-image>
+   ══════════════════════════════════════════════════════════════════════════════
+   A frame in the profile's shape (its aspect-ratio is set inline from the profile), the
+   photo drawn into it, and one row of 44px controls under it. The frame takes the drag
+   (`touch-action:none`, or a finger dragging the photo would scroll the page instead) and
+   the keyboard; a round profile (a logo) darkens the corners the card will not show. */
+.ag-imgtool{ display:flex; flex-direction:column; gap:10px; margin-top:10px; max-width:360px }
+.ag-imgtool[hidden]{ display:none }
+.ag-imgtool__stage{
+  position:relative; width:100%; overflow:hidden; border-radius:var(--ag-r-12);
+  background:var(--ag-tint); border:1px solid var(--ag-line-2);
+  cursor:grab; touch-action:none; user-select:none;
+}
+.ag-imgtool__stage:active{ cursor:grabbing }
+.ag-imgtool__stage:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
+.ag-imgtool__stage--bad{ border-color:var(--ag-error) }
+.ag-imgtool__cv{ display:block; width:100%; height:100% }
+.ag-imgtool__stage--round::after{
+  content:""; position:absolute; inset:0; border-radius:50%; pointer-events:none;
+  box-shadow:0 0 0 999px color-mix(in srgb, var(--ag-ink) 45%, transparent);
+}
+.ag-imgtool__bar{ display:flex; align-items:center; gap:6px }
+.ag-imgtool__btn{
+  flex:none; display:inline-grid; place-items:center; width:44px; height:44px; padding:0;
+  border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill); background:var(--ag-surface); color:var(--ag-ink); cursor:pointer;
+}
+.ag-imgtool__btn:hover{ background:var(--ag-bar) }
+.ag-imgtool__btn:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
+.ag-imgtool__zoom{ flex:1; min-width:0; height:44px; accent-color:var(--ag-green) }
+.ag-imgtool__help,
+.ag-imgtool__info{ margin:0; font-size:var(--ag-fs-13); line-height:1.5; color:var(--ag-soft) }
+.ag-imgtool__info--bad{ color:var(--ag-error); font-weight:600 }

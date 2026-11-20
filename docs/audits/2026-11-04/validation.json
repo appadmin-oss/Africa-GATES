@@ -1,0 +1,39 @@
+{
+  "accountUpload": true,
+  "accountNavigationPortrait": true,
+  "accountRemoval": true,
+  "nomineeUpload": true,
+  "publicBallotPortrait": true,
+  "widths": [
+    320,
+    390,
+    768,
+    1440
+  ],
+  "pageErrors": [],
+  "sqlite": {
+    "tests": 207,
+    "assertions": 983,
+    "result": "pass"
+  },
+  "mysql": {
+    "tests": 207,
+    "assertions": 983,
+    "result": "pass"
+  },
+  "phpLint": {
+    "files": 1649,
+    "errors": 0
+  },
+  "originalAssets": {
+    "photosChecked": 12,
+    "iconsAndSvgChecked": 8,
+    "changed": 0
+  },
+  "upstream": {
+    "branch": "claude/ai-assistance-judges-features-1ka4oz",
+    "incomingCommits": 0
+  },
+  "scope": "Targeted checks, not the complete repository suite or a live production verification.",
+  "exportedArchiveBrowserChecks": "Homepage, existing assets and real member/nominee photo journeys passed against the extracted archive with local-only dependencies and preserved test uploads."
+}

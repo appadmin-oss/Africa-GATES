@@ -1,0 +1,51 @@
+{#
+  /vote/{programme}/{nominee}/poster — an A4 poster to print (VoteController::poster).
+
+  Much of the mobilising here happens on paper: a church notice board, a market stall, a school
+  corridor. The flier is an image for a phone; this is a page for a printer — the nominee, the
+  award, and a QR code a phone held at arm's length can read, with the link written out for
+  whoever types it. A4 portrait, the paper every print shop here stocks.
+
+  A page of its own, not the shell: nothing on it but the poster and two controls the printer
+  never sees (@media print). The QR is Support\Qr::svgBytes — a URL, byte mode, case kept, and
+  its four-module quiet zone, which is the specification and stays (CLAUDE.md, Qr).
+#}
+{% set colour_tier = '1' %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ page_title }}</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<style nonce="{{ csp_nonce }}">{{ ag_accents()|raw }}</style>
+<link rel="stylesheet" href="{{ asset('/assets/css/fonts.css') }}">
+<link rel="stylesheet" href="{{ asset('/assets/css/tokens.css') }}">
+<link rel="stylesheet" href="{{ asset('/assets/css/components/poster.css') }}">
+</head>
+<body class="po-body">
+<div class="po-tools">
+  <a class="po-tools__a" href="{{ path }}">Back to {{ f.name }}</a>
+  <button class="po-tools__b" type="button" data-po-print>Print this poster</button>
+  <p class="po-tools__p">A4, portrait. It prints on one page.</p>
+</div>
+<main class="po" id="main">
+  <p class="po__kicker">{{ f.place ? f.place ~ ' is celebrating its own' : f.award }}</p>
+  <h1 class="po__name">Vote for {{ f.name }}</h1>
+  <p class="po__sub">{{ f.category }} · {{ f.award }}</p>
+  <div class="po__mid">
+    {% if f.photo %}<img class="po__photo" src="{{ f.photo }}" alt="{{ f.name }}">{% endif %}
+    <div class="po__scan">
+      <div class="po__qr" role="img" aria-label="QR code to vote for {{ f.name }}">{{ qr|raw }}</div>
+      <p class="po__scan-t">Scan with your phone’s camera to vote</p>
+    </div>
+  </div>
+  <p class="po__or">Or type this address:</p>
+  <p class="po__ref">{{ link|replace({'https://': '', 'http://': ''}) }}</p>
+  <p class="po__foot">{% if f.people > 1 %}{{ f.people|number_format }} people are already backing {{ f.name|split(' ')|first }}. {% endif %}Every vote is somebody backing their own. Africa GATES</p>
+</main>
+{# A page of its own, outside the shell: site-nav never swaps it, so the script is a full load's. #}
+<script src="{{ asset('/assets/js/poster.js') }}" defer data-nav="reload"></script>
+</body>
+</html>

@@ -1,0 +1,51 @@
+{% import 'partials/field.twig' as f %}
+{# ── Signing in ────────────────────────────────────────────────────────────── #}
+  <section class="acc__sec" id="me-security" aria-labelledby="acc-sec-h">
+    <h2 class="acc__h2" id="acc-sec-h">{{ 'Signing in'|trans }}</h2>
+    <p class="acc__p">{{ 'You can always sign in with a code by email or phone.'|trans }}</p>
+    {% if passkeys_available %}
+      {% if passkeys|length %}
+        <ul class="ag-list acc__plain">
+          {% for k in passkeys %}
+            <li class="ag-list__row">
+              <span class="ag-list__b"><span class="ag-list__label">{{ k.label|default('Passkey'|trans) }}</span><span class="ag-list__sub">{{ k.last_used_at ? 'Last used %d%'|trans({'%d%': k.last_used_at|date('j M Y')}) : 'Not used yet'|trans }}</span></span>
+              <form method="post" action="/account/passkeys/{{ k.id }}/delete">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                <button class="ag-btn ag-btn--danger" type="submit">{{ 'Remove'|trans }}</button>
+              </form>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+      <button class="ag-btn ag-btn--secondary ag-btn--pill" type="button" data-passkey-add data-csrf="{{ csrf_token }}" hidden>{{ 'Add a passkey on this device'|trans }}</button>
+      <p class="acc__p" data-passkey-note role="status"></p>
+    {% endif %}
+    {# What this account holds beyond itself (Account\Roles::menu). Read-only: a staff, judging
+       or organisation role is GIVEN to this email address by whoever runs it, never added here. #}
+    {% set _held = (account_switch()|default([]))|filter(m => m.kind in ['admin', 'judge', 'org']) %}
+    {% if _held|length %}
+      <h3 class="acc__h3" id="roles">{{ 'What this account opens'|trans }}</h3>
+      <ul class="ag-list acc__plain">
+        {% for m in _held %}
+          <li class="ag-list__row"><span class="ag-list__b"><span class="ag-list__label">{{ m.label|trans }}</span><span class="ag-list__sub">{{ m.sub }}</span></span></li>
+        {% endfor %}
+      </ul>
+      <p class="acc__p">{{ 'Given to your email address by whoever runs each one. Switch between them from the top of the menu. Money and settings in the staff console ask for an emailed code; an organisation payout asks for the organisation’s password.'|trans }}</p>
+    {% endif %}
+    <section class="acx-card acx-form" id="password" aria-labelledby="password-heading">
+      <h3 class="acx-h2" id="password-heading">{{ 'Password'|trans }}</h3>
+      <form method="post" action="/account/password" class="acc__form" novalidate data-ag-validate>
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <p class="acc__p">{{ 'You can always sign in with a code instead.'|trans }}</p>
+{% if has_password %}
+        {{ f.text({id: 'p-cur', name: 'current_password', label: 'Current password'|trans, type: 'password', autocomplete: 'current-password', required: true}, '') }}
+      {% endif %}
+      {{ f.text({id: 'p-new', name: 'new_password', label: has_password ? 'New password'|trans : 'Set a password'|trans, type: 'password', minlength: 8, autocomplete: 'new-password', required: true, hint: 'At least 8 characters. You can always sign in with a code instead.'|trans}, '') }}
+        <button class="ag-btn ag-btn--primary ag-btn--pill" type="submit">{{ 'Save password'|trans }}</button>
+      </form>
+    </section>
+    <form method="post" action="/account/logout" class="acc__out">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <button class="ag-btn ag-btn--danger" type="submit">{{ 'Sign out'|trans }}</button>
+    </form>
+  </section>

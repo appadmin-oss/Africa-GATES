@@ -1,0 +1,23 @@
+{#- Plain-text part for judge.html.twig. -#}
+{% if programme %}{{ programme }}
+{% endif %}Welcome to the panel, {{ first_name }}
+
+Thank you for agreeing to judge. Here’s how it works.
+
+1. Complete your profile — your bio appears beside your name on the Meet the Judges page.
+2. Declare any conflicts — before you score, tell us if you know anyone on the shortlist. You can do it from your ballot.
+3. Score the shortlist — scoring opens only after public voting closes, so the two never mix.
+{% if scoring_opens %}
+Scoring opens: {{ scoring_opens }}{% endif %}{% if scoring_closes %}
+Scoring closes: {{ scoring_closes }}{% endif %}
+
+Complete my profile: {{ form_url }}
+This link is private to you, works once, and lasts {{ form_days }} days.
+
+Sign in to the judging panel: {{ login_url }}
+A question about judging? Ask us through the help desk: {{ help_url }}
+
+—
+You were invited to judge an Africa GATES award.
+{{ postal_address }}
+Help: {{ site_url }}/help · Privacy: {{ site_url }}/privacy

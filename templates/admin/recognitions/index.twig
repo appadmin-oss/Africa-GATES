@@ -1,0 +1,39 @@
+{% extends "admin/layout.twig" %}
+{#
+  Recognitions (Phase 6): what the platform has issued from sealed, announced releases, and
+  the one change allowed after issue — withdrawal, with a reason that is published.
+#}
+{% block topbar_title %}Recognitions{% endblock %}
+{% block content %}
+<div class="ad-card">
+  <p>{{ count|number_format }} standing recognition{{ count == 1 ? '' : 's' }}, issued when an award is announced (winner, runner-up and published finalists, from the sealed standing). A recognition cannot be edited or deleted. Withdrawing one needs a reason, which is published at <a href="/recognitions/withdrawn">/recognitions/withdrawn</a>.</p>
+  <form method="get" action="/admin/recognitions"><label for="rc-q">Find</label> <input type="search" id="rc-q" name="q" value="{{ q }}" placeholder="Name, award or reference"> <button class="ad-btn ad-btn--sm" type="submit">Search</button></form>
+</div>
+<div class="ad-card"><div class="ad-table-wrap">
+  <table class="ad-table">
+    <thead><tr><th scope="col">Reference</th><th scope="col">Recipient</th><th scope="col">Recognition</th><th scope="col">Issuer</th><th scope="col">Issued</th><th scope="col" class="col-actions">Withdraw</th></tr></thead>
+    <tbody>
+      {% for r in rows %}
+        <tr>
+          <td><code>{{ r.reference }}</code></td>
+          <td>{% if r.recipient.url %}<a href="{{ r.recipient.url }}">{{ r.recipient.name }}</a>{% else %}{{ r.recipient.name }}{% endif %}</td>
+          <td>{{ r.title }}<div>{{ r.award.edition }}</div></td>
+          <td>{{ r.issuer.name }}{% if r.issuer.verified %} · verified{% endif %}</td>
+          <td>{{ r.issued_at ? r.issued_at|date('j M Y') }}</td>
+          <td class="col-actions">
+            <form method="post" action="/admin/recognitions/{{ r.id }}/withdraw">
+              <input type="hidden" name="_token" value="{{ csrf_token }}">
+              <label class="sr-only" for="rc-why-{{ r.id }}">Reason for withdrawing {{ r.reference }}</label>
+              <input type="text" id="rc-why-{{ r.id }}" name="reason" required maxlength="2000" placeholder="Reason (published)">
+              <button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Withdraw {{ r.reference }} from {{ r.recipient.name }}? It stays on their profile marked withdrawn, with your reason, and the reason is published.">Withdraw</button>
+            </form>
+          </td>
+        </tr>
+      {% else %}<tr><td colspan="6">No recognitions yet. They are issued when an award is announced.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div></div>
+{% if withdrawals %}
+<div class="ad-card"><h2>Recent withdrawals</h2><ul>{% for w in withdrawals %}<li><code>{{ w.reference }}</code> · {{ w.recipient }} · {{ w.title }} — {{ w.reason }} ({{ w.at|date('j M Y') }})</li>{% endfor %}</ul></div>
+{% endif %}
+{% endblock %}

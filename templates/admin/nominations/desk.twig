@@ -1,0 +1,85 @@
+{% extends "admin/layout.twig" %}
+{#
+  THE REVIEW DESK — AdminConsole v2, README §10b "Review desk" (rebuilt 21 Oct 2026).
+
+  A focus view inside the work surface, three panes: the queue (up next), the nomination,
+  and the decision. The queue drops below 1080px of free width and the panes stack below
+  760, measured on the desk's own container. Open it with D on the list or the header
+  button; leave with List or Esc.
+
+  Every pane works without script: a queue row and Skip are links to ?item=, and the
+  decision is one form that posts and comes back here on the next nomination. With
+  script (review-desk.js) moving and deciding swap the two working panes in place, and
+  the session's decisions are kept in the queue's foot for as long as the page is open.
+
+  The queue is the list's own To review tab in the list's scope and quick view
+  (ReviewQueue::deskQueue), so "up next" here and "waiting" there are the same rows.
+#}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/console/list.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/console/review.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/console/desk.css') }}">{% endblock %}
+{% block topbar_title %}Review desk{% endblock %}
+{% block page_head %}{% endblock %}
+
+{% block content %}
+<div class="dk" data-dk data-dk-base="{{ qbase }}" data-dk-list="{{ list_href }}">
+  <div class="dk-top">
+    <a class="dk-btn dk-btn--list" href="{{ list_href }}" data-dk-list-link><svg aria-hidden="true" focusable="false"><use href="#ic-left"/></svg>List</a>
+    <span class="dk-top__t">
+      <h1 class="dk-top__h">Review desk</h1>
+      <span class="dk-top__s">{{ scope_line }}{% if view_label %} · {{ view_label }}{% endif %}</span>
+    </span>
+    <span class="dk-top__gap"></span>
+    <span class="dk-prog" aria-live="polite">
+      <span class="dk-prog__bar" aria-hidden="true"><span class="dk-prog__fill" data-dk-fill></span></span>
+      <span class="dk-prog__num"><span data-dk-done>0</span> done · <span data-dk-left>{{ queue|length }}</span> left</span>
+    </span>
+    <details class="dk-keys">
+      <summary class="dk-btn dk-btn--soft">Shortcuts <kbd>?</kbd></summary>
+      <div class="dk-keys__panel" role="group" aria-label="Shortcuts">
+        {% for k, l in {'A': 'Approve and go to the next', 'M': 'Ask for more, then Enter', 'R': 'Reject, then pick a reason and Enter', 'J / K': 'Next and previous', 'S': 'Skip', 'Esc': 'Back to the list'} %}
+          <span class="dk-keys__r"><kbd>{{ k }}</kbd><span>{{ l }}</span></span>
+        {% endfor %}
+      </div>
+    </details>
+  </div>
+
+  {% if n %}
+    <div class="dk-body">
+      <nav class="dk-q" aria-label="Up next">
+        <h2 class="dk-q__h">Up next <span class="dk-h__num" data-dk-qcount>{{ queue|length }}</span></h2>
+        <ol class="dk-q__list">
+          {% for r in queue %}
+            <li><a class="dk-q__i" href="{{ qbase }}item={{ r.id }}" data-dk-q="{{ r.id }}"{% if r.id == n.id %} aria-current="true"{% endif %}>
+              <span class="rq-av rq-av--{{ r.tone }}" aria-hidden="true">{{ r.initials }}</span>
+              <span class="dk-q__w"><strong>{{ r.name }}</strong><span>{{ r.category ?: 'No category' }}</span></span>
+              <span class="dk-q__dots" aria-label="{{ r.checks|map(c => c.t)|join(', ') }}">{% for c in r.checks %}<span class="rq-dot rq-dot--{{ c.tone }}"></span>{% endfor %}</span>
+            </a></li>
+          {% endfor %}
+        </ol>
+        <div class="dk-log" data-dk-log hidden>
+          <h3 class="dk-q__h">This session</h3>
+          <ol class="dk-log__list" data-dk-loglist></ol>
+        </div>
+      </nav>
+
+      <div class="dk-work" data-dk-work aria-live="polite">
+        {% include 'admin/nominations/_desk_main.twig' %}
+      </div>
+    </div>
+  {% else %}
+    <div class="ls-empty dk-empty">
+      <span class="ls-empty__t">Nothing waiting</span>
+      <span class="ls-empty__m">Every nomination in {{ scope_line|lower == 'every programme' ? 'every programme' : scope_line }} has been decided.</span>
+      <a class="cn-pillbtn" href="{{ list_href }}">Back to the list</a>
+    </div>
+  {% endif %}
+
+  <div class="dk-done" data-dk-alldone hidden>
+    <div class="ls-empty">
+      <span class="ls-empty__t">All done</span>
+      <span class="ls-empty__m" data-dk-donemsg>Nothing is left in this queue.</span>
+      <a class="cn-pillbtn" href="{{ list_href }}">Back to the list</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/review-desk.js') }}" data-nav="rerun"></script>{% endblock %}

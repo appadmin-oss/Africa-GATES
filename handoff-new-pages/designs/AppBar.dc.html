@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="z-index:20;background:{{ bg }};border-bottom:1px solid {{ line }};transition:background .2s,border-color .2s;font-family:'DM Sans',system-ui,sans-serif;color:#10292c">
+  <div style="display:grid;grid-template-columns:{{ cols }};align-items:center;height:52px;padding:0 4px">
+    <sc-if value="{{ isChild }}" hint-placeholder-val="{{ false }}"><a href="{{ back }}" aria-label="{{ backAria }}" style="width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#10292c"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg></a></sc-if>
+    <sc-if value="{{ isRoot }}" hint-placeholder-val="{{ true }}"><span></span></sc-if>
+    <div style="min-width:0;display:flex;flex-direction:column;align-items:{{ smallAlign }};justify-content:center;padding:0 6px;opacity:{{ smallOp }};transition:opacity .18s">
+      <span style="max-width:100%;font-weight:600;font-size:17px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ title }}</span>
+      <sc-if value="{{ showSubSmall }}" hint-placeholder-val="{{ false }}"><span style="max-width:100%;font-size:12.5px;color:#626a6e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ sub }}</span></sc-if>
+    </div>
+    <div style="display:flex;justify-content:flex-end">
+      <sc-if value="{{ showSearch }}" hint-placeholder-val="{{ false }}"><a href="DiscoverPage.dc.html" aria-label="Search Africa GATES" style="width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#10292c"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.6-3.6" stroke-linecap="round"></path></svg></a></sc-if>
+      <sc-if value="{{ showShare }}" hint-placeholder-val="{{ false }}"><button aria-label="Share" style="width:44px;height:44px;border:0;border-radius:50%;background:transparent;color:#10292c;display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"></path><path d="m7 8 5-5 5 5"></path><path d="M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"></path></svg></button></sc-if>
+      <sc-if value="{{ showAvatar }}" hint-placeholder-val="{{ false }}"><button onClick="{{ openQs }}" aria-label="Account, language and display" aria-haspopup="dialog" style="width:44px;height:44px;padding:0;border:0;background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="width:32px;height:32px;border-radius:50%;background:#10292c;color:#f1efe9;display:flex;align-items:center;justify-content:center;font-family:'DM Sans',sans-serif;font-weight:700;font-size:12px">CO</span></button></sc-if>
+    </div>
+  </div>
+  <sc-if value="{{ showLarge }}" hint-placeholder-val="{{ true }}"><div style="padding:0 16px 10px"><h1 style="margin:0;font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:32px;line-height:1.1;letter-spacing:-.01em">{{ title }}</h1></div></sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:390,&quot;height&quot;:110},&quot;variant&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;root&quot;,&quot;child&quot;],&quot;default&quot;:&quot;root&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;title&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Discover&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;sub&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;back&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;HomePageV3.dc.html&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;scrolled&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;search&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;share&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;avatar&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+const LG=[['English','en'],['Français','fr'],['العربية','ar'],['Kiswahili','sw'],['Português','pt'],['Hausa','ha'],['Yorùbá','yo'],['Igbo','ig']];
+class Component extends DCLogic {
+  state = { qs:false, size:0, hc:false, rm:false, lg:0, prompt:true };
+  renderVals(){
+    const p=this.props, S=this.state, set=o=>this.setState(o), root=(p.variant ?? 'root')==='root', sc=!!p.scrolled, large=root&&!sc;
+    const tog=(k,label,help,i)=>({label,help,on:!!S[k],sep:i?'1px solid #eeece6':'0',pick:()=>set({[k]:!S[k]}),track:S[k]?'#237b22':'#8b9295',justify:S[k]?'flex-end':'flex-start'});
+    return {
+      isRoot:root, isChild:!root, title:p.title ?? 'Africa GATES', sub:p.sub ?? '', back:p.back ?? 'HomePageV3.dc.html', backAria:'Back',
+      showSearch:p.search ?? root, showShare:p.share ?? !root, showAvatar:p.avatar ?? root,
+      showLarge:large, smallOp:large?'0':'1', smallAlign:root?'center':'flex-start', showSubSmall:!root&&!!p.sub,
+      cols:root?'88px minmax(0,1fr) 88px':'44px minmax(0,1fr) auto',
+      bg:sc?'#fbfbfa':(p.bg ?? '#f1efe9'), line:sc?'#e8e5dd':'transparent',
+      showPrompt:!!p.langPrompt&&S.prompt&&S.lg===0&&!sc, switchLang:()=>set({lg:1,prompt:false}), keepLang:()=>set({prompt:false}),
+      qsOpen:S.qs, openQs:()=>set({qs:true}), closeQs:()=>set({qs:false}),
+      sizes:[['Standard text','15px'],['Large text','19px'],['Largest text','23px']].map((s,i)=>({name:s[0],fs:s[1],on:S.size===i,bg:S.size===i?'#fff':'transparent',pick:()=>set({size:i})})),
+      toggles:[tog('hc','High contrast','Darker text and borders',0),tog('rm','Reduce motion','No animation or auto-play',1)],
+      langs:LG.map((l,i)=>({name:l[0],code:l[1],on:S.lg===i,bd:S.lg===i?'2px solid #10292c':'1px solid #d6d4cc',w:S.lg===i?700:500,pick:()=>set({lg:i,prompt:false})}))
+    };
+  }
+}
+</script>
+</body>
+</html>

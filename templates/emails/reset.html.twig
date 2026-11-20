@@ -1,0 +1,17 @@
+{#- Reset password · Account. Sender: AccountController::forgot.
+    Variables: reset_url, ttl ("an hour" — from UserAccountService::RESET_TTL_MINUTES).
+    Design: Email Templates.dc.html → "Reset password". -#}
+{% extends 'emails/_layout.html.twig' %}
+{% block category %}Accounts{% endblock %}
+{% block hero %}illo-shield{% endblock %}
+{% block why %}Somebody asked to reset the password on the Africa GATES account for this address.{% endblock %}
+{% block subject %}Set a new Africa GATES password{% endblock %}
+{% block preheader %}Use the link within {{ ttl }}. Didn’t ask? You can ignore this.{% endblock %}
+{% block body %}
+{%- import 'emails/_blocks.html.twig' as b -%}
+{{ b.h1('Set a new password') }}
+{{ b.p("Someone asked to reset the password on your account. If it was you, use the button within #{ttl}. It works once.") }}
+{{ b.button('Set a new password', reset_url) }}
+{{ b.url_fallback(reset_url) }}
+{{ b.warn('Your password has not changed. You can ignore this email.', 'Wasn’t you?') }}
+{% endblock %}

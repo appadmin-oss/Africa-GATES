@@ -1,0 +1,42 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  A POLL — CommunityService::getPoll() payload, on a blog post (and a thread)
+  Rebuilt in Phase 9 (inventory: _partials.md, `poll.twig`, MUST RESTORE with Pulse/blog)
+  ══════════════════════════════════════════════════════════════════════════════
+
+  `poll`: {id, question, options[{index,label,count,pct}], total, multi, is_closed, my_votes}.
+  Votes go to POST /api/community/poll (members only — the endpoint answers 401 SIGN_IN to
+  a guest), so a guest is offered sign-in, not a button that will be refused. The tally is
+  always shown as words and a bar; the bar's width is the only inline style, and state
+  rides on a class (the old rule: a string `:style` once wiped every option's padding).
+  poll.js re-draws the payload the endpoint returns. Ink, not colour: tier-neutral.
+#}
+{% if poll %}
+{% set _mine = poll.my_votes|default([]) %}
+{% set _can = is_member|default(false) and not poll.is_closed %}
+<section class="ag-poll" aria-labelledby="ag-poll-{{ poll.id }}" data-poll="{{ poll.id }}" data-multi="{{ poll.multi ? '1' : '0' }}"
+         data-voters-one="{{ '1 person has answered'|trans }}" data-voters-many="{{ '%n% people have answered'|trans }}"
+         data-failed="{{ 'That answer didn’t save. Try again.'|trans }}">
+  <h2 class="ag-poll__q" id="ag-poll-{{ poll.id }}">{{ poll.question }}</h2>
+  <ul class="ag-poll__list">
+    {% for o in poll.options %}
+      <li class="ag-poll__opt{{ o.index in _mine ? ' is-mine' }}" style="--pct:{{ o.pct }}%" data-poll-opt="{{ o.index }}">
+        {% if _can %}
+          <button class="ag-poll__btn" type="button" data-poll-vote="{{ o.index }}" aria-pressed="{{ o.index in _mine ? 'true' : 'false' }}">
+            <span class="ag-poll__label">{{ o.label }}</span><span class="ag-poll__pct" data-poll-pct>{{ o.pct }}%</span>
+          </button>
+        {% else %}
+          <span class="ag-poll__btn ag-poll__btn--read"><span class="ag-poll__label">{{ o.label }}</span><span class="ag-poll__pct" data-poll-pct>{{ o.pct }}%</span></span>
+        {% endif %}
+        <span class="ag-poll__bar" aria-hidden="true"></span>
+      </li>
+    {% endfor %}
+  </ul>
+  <p class="ag-poll__foot">
+    <span data-poll-total>{{ poll.total == 1 ? '1 person has answered'|trans : '%n% people have answered'|trans({'%n%': poll.total}) }}</span>
+    {% if poll.is_closed %}· {{ 'This poll is closed.'|trans }}
+    {% elseif not is_member|default(false) %}· <a href="/account/login?next={{ request_path|default('/')|url_encode }}">{{ 'Sign in to answer'|trans }}</a>{% endif %}
+  </p>
+  <p class="ag-poll__say" role="status" aria-live="polite" data-poll-say></p>
+</section>
+{% endif %}

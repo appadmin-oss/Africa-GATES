@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/celebration/celebration.css">
+<script src="assets/celebration/celebration.js"></script>
+<style>@keyframes agRise{0%{transform:translateY(12px);opacity:0}100%{transform:translateY(0);opacity:1}}@media (prefers-reduced-motion:reduce){.ag-cel *{animation:none!important}}</style>
+</helmet>
+<sc-if value="{{ isFull }}" hint-placeholder-val="{{ true }}">
+  <div class="ag-cel" style="position:relative;width:100%;box-sizing:border-box;display:grid;grid-template-columns:{{ cols }};align-items:center;gap:{{ gap }};padding:{{ pad }};background:{{ bg }};border-radius:24px;border:1px solid #e8e5dd;font-family:'DM Sans',system-ui,sans-serif;color:#10292c;overflow:hidden">
+    <div ref="{{ stageRef }}" style="position:relative;width:100%;height:{{ stageH }};display:flex;align-items:center;justify-content:center"></div>
+    <div style="min-width:0;display:flex;flex-direction:column;align-items:{{ align }};gap:{{ tgap }};text-align:{{ talign }}">
+      <span style="display:inline-flex;align-items:center;gap:8px;height:30px;padding:0 12px;border-radius:999px;background:#fff;border:1px solid #e8e5dd;font-size:13.5px;font-weight:600;color:{{ kickerInk }};animation:agRise .5s cubic-bezier(.2,0,0,1) .35s both"><span aria-hidden="true" style="width:7px;height:7px;border-radius:50%;background:{{ kickerDot }}"></span>{{ kicker }}</span>
+      <h2 style="margin:0;font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:{{ titleSize }};line-height:1.08;letter-spacing:-.015em;text-wrap:balance;animation:agRise .55s cubic-bezier(.2,0,0,1) .45s both">{{ title }}</h2>
+      <sc-if value="{{ hasSub }}" hint-placeholder-val="{{ true }}"><p style="margin:0;max-width:44ch;font-size:{{ subSize }};line-height:1.55;color:#3a4a4c;text-wrap:pretty;animation:agRise .55s cubic-bezier(.2,0,0,1) .55s both">{{ sub }}</p></sc-if>
+      <sc-if value="{{ hasStats }}" hint-placeholder-val="{{ true }}"><div style="display:flex;flex-wrap:wrap;justify-content:{{ align }};gap:8px;animation:agRise .55s cubic-bezier(.2,0,0,1) .65s both"><sc-for list="{{ stats }}" as="s" hint-placeholder-count="2"><span style="display:flex;flex-direction:column;align-items:{{ align }};gap:3px;min-width:96px;padding:12px 16px;border-radius:14px;background:#fff;border:1px solid #e8e5dd"><b style="font-size:{{ statSize }};font-weight:700;line-height:1;letter-spacing:-.01em;color:#10292c;font-variant-numeric:tabular-nums">{{ s.n }}</b><span style="font-size:13px;color:#626a6e">{{ s.l }}</span></span></sc-for></div></sc-if>
+      <div style="width:100%;max-width:{{ btnMax }};display:grid;grid-template-columns:{{ btnCols }};gap:8px;padding-top:6px;animation:agRise .55s cubic-bezier(.2,0,0,1) .75s both">
+        <button onClick="{{ share }}" style="height:52px;padding:0 22px;border:0;border-radius:16px;background:#237b22;color:#fff;font-family:inherit;font-weight:700;font-size:15.5px;cursor:pointer">{{ primary }}</button>
+        <button onClick="{{ onSecondary }}" style="height:52px;padding:0 20px;border:1px solid #d6d4cc;border-radius:16px;background:#fff;color:#10292c;font-family:inherit;font-weight:600;font-size:15px;cursor:pointer">{{ secondary }}</button>
+      </div>
+      <sc-if value="{{ showReplay }}" hint-placeholder-val="{{ true }}"><button onClick="{{ replay }}" style="align-self:{{ align }};min-height:44px;padding:0 4px;border:0;background:transparent;color:#3a4a4c;font-family:inherit;font-size:14px;font-weight:600;text-decoration:underline;text-underline-offset:3px;cursor:pointer">Celebrate again</button></sc-if>
+    </div>
+  </div>
+</sc-if>
+<sc-if value="{{ isInline }}" hint-placeholder-val="{{ false }}">
+  <div class="ag-cel" style="position:relative;width:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:14px;padding:16px;background:{{ inlineBg }};border-radius:20px;border:1px solid #e8e5dd;font-family:'DM Sans',system-ui,sans-serif;color:#10292c;overflow:hidden">
+    <div style="display:flex;align-items:center;gap:14px">
+      <div ref="{{ stageRef }}" style="position:relative;flex:none;width:88px;height:88px;display:flex;align-items:center;justify-content:center"></div>
+      <div style="position:relative;z-index:4;min-width:0;display:flex;flex-direction:column;gap:4px">
+        <span style="font-size:13px;font-weight:600;color:{{ kickerInk }};animation:agRise .5s cubic-bezier(.2,0,0,1) .3s both">{{ kicker }}</span>
+        <h2 style="margin:0;font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:22px;line-height:1.12;letter-spacing:-.01em;text-wrap:balance;animation:agRise .5s cubic-bezier(.2,0,0,1) .4s both">{{ title }}</h2>
+        <sc-if value="{{ hasSub }}" hint-placeholder-val="{{ true }}"><p style="margin:0;font-size:14.5px;line-height:1.5;color:#3a4a4c;text-wrap:pretty;animation:agRise .5s cubic-bezier(.2,0,0,1) .5s both">{{ sub }}</p></sc-if>
+      </div>
+    </div>
+    <div style="position:relative;z-index:4;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;animation:agRise .5s cubic-bezier(.2,0,0,1) .6s both">
+      <button onClick="{{ share }}" style="height:48px;padding:0 16px;border:0;border-radius:14px;background:#237b22;color:#fff;font-family:inherit;font-weight:700;font-size:15px;cursor:pointer">{{ primary }}</button>
+      <button onClick="{{ onSecondary }}" style="height:48px;padding:0 16px;border:1px solid #d6d4cc;border-radius:14px;background:#fff;color:#10292c;font-family:inherit;font-weight:600;font-size:15px;cursor:pointer">{{ secondary }}</button>
+    </div>
+  </div>
+</sc-if>
+<span role="status" aria-live="polite" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">{{ live }}</span>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:390,&quot;height&quot;:640},&quot;kind&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;vote&quot;,&quot;win&quot;,&quot;nominate&quot;,&quot;give&quot;,&quot;ticket&quot;],&quot;default&quot;:&quot;win&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;size&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;full&quot;,&quot;inline&quot;],&quot;default&quot;:&quot;full&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;layout&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;phone&quot;,&quot;desktop&quot;],&quot;default&quot;:&quot;phone&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;title&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;sub&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Musician of the Year, KCEA 11th Edition. The community and the jury agreed.&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;first&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Achieng&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;seenKey&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+const KIND={
+  vote:{kicker:'Vote counted',ink:'#1a6118',dot:'#237b22',primary:'Share your vote',secondary:'Vote in another category',tint:'#effaf0'},
+  win:{kicker:'Winner',ink:'#7a5600',dot:'#f3b416',primary:'Share the win',secondary:'See how it was decided',tint:'#fff4d6'},
+  nominate:{kicker:'Nomination sent',ink:'#1a6118',dot:'#237b22',primary:'Let them know',secondary:'Nominate someone else',tint:'#f1f8ec'},
+  give:{kicker:'Gift received',ink:'#b0224f',dot:'#e0245e',primary:'Share the campaign',secondary:'See where it goes',tint:'#fdf0f3'},
+  ticket:{kicker:'You’re going',ink:'#1f6fa3',dot:'#1f6fa3',primary:'Add to calendar',secondary:'View ticket',tint:'#edf4f9'}
+};
+const DEFSTATS={win:[['18402','supporters'],['9.1','jury score'],['1st','of 5 finalists']],vote:[['2nd','in the race'],['1','vote added']],give:[['1412','donors'],['68%','of goal']],nominate:[['3','categories'],['212','nominations for them']],ticket:[['2','seats'],['68','days to go']]};
+class Component extends DCLogic {
+  state = { p:0 };
+  stageRef = React.createRef();
+  componentDidMount(){ this.mountFx(); }
+  componentDidUpdate(pp){ const P=this.props; if(pp.kind!==P.kind||pp.size!==P.size||pp.layout!==P.layout||this.stageRef.current!==this._host) this.mountFx(); }
+  componentWillUnmount(){ cancelAnimationFrame(this._raf); clearTimeout(this._t); if(this._fx) this._fx.destroy(); }
+  mountFx(){
+    const host=this.stageRef.current; if(!host) return;
+    if(!window.AGCelebrate){ clearTimeout(this._t); this._t=setTimeout(()=>this.mountFx(),60); return; }
+    if(this._fx) this._fx.destroy(); this._host=host; const P=this.props;
+    this._fx=window.AGCelebrate.mount(host,{kind:P.kind,size:P.size ?? 'full',layout:P.layout ?? 'phone',seenKey:P.seenKey,ticketLabel:P.ticketLabel,ticketWhen:P.ticketWhen});
+    if(this._fx.calm){ cancelAnimationFrame(this._raf); this.setState({p:1}); } else this.count();
+  }
+  count(){ cancelAnimationFrame(this._raf); this.setState({p:0}); const t0=performance.now(); const step=t=>{ const p=Math.min(1,Math.max(0,(t-t0-500)/1300)); this.setState({p}); if(p<1) this._raf=requestAnimationFrame(step); }; this._raf=requestAnimationFrame(step); }
+  renderVals(){
+    const P=this.props, S=this.state;
+    const kind=KIND[P.kind]?P.kind:'vote', K=KIND[kind], inline=(P.size ?? 'full')==='inline', desk=(P.layout ?? 'phone')==='desktop'&&!inline;
+    const DEF={vote:'Your vote is in',win:`${P.first||'Achieng'} won.`,nominate:'Nomination sent',give:'Thank you for giving',ticket:'You’re going'};
+    const title=P.title||DEF[kind], sub=P.sub||'';
+    const raw=P.stats ?? DEFSTATS[kind], ease=1-Math.pow(1-S.p,3), fmt=v=>window.AGCelebrate?window.AGCelebrate.format(v,ease):v;
+    return {
+      stageRef:this.stageRef, isFull:!inline, isInline:inline,
+      kicker:P.kicker||K.kicker, kickerInk:K.ink, kickerDot:K.dot, title, sub, hasSub:!!sub,
+      stats:raw.map(s=>({n:fmt(s[0]),l:s[1]})), hasStats:raw.length>0, statSize:desk?'24px':'20px',
+      primary:P.primary||K.primary, secondary:P.secondary||K.secondary,
+      share:()=>{ try{ if(navigator.share) navigator.share({title,text:sub||title}); else if(navigator.clipboard) navigator.clipboard.writeText(location.href); }catch(e){} },
+      onSecondary:()=>{ if(P.onSecondary) P.onSecondary(); },
+      replay:()=>{ if(this._fx&&!this._fx.reduced){ this._fx.replay(); this.count(); } }, showReplay:true, live:title+'. '+sub,
+      cols:desk?'minmax(0,1fr) minmax(0,1.1fr)':'minmax(0,1fr)', gap:desk?'36px':'10px', pad:desk?'32px 40px':'8px 20px 24px',
+      bg:`radial-gradient(120% 90% at ${desk?'25% 45%':'50% 0%'}, ${K.tint} 0%, #fff 62%)`, inlineBg:`linear-gradient(135deg, ${K.tint} 0%, #fff 72%)`,
+      stageH:desk?'320px':'210px', align:desk?'flex-start':'center', talign:desk?'start':'center', tgap:desk?'14px':'10px',
+      titleSize:desk?'48px':'34px', subSize:desk?'17px':'16px', btnMax:desk?'480px':'420px', btnCols:desk?'auto auto':'minmax(0,1fr)'
+    };
+  }
+}
+</script>
+</body>
+</html>

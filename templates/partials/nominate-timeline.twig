@@ -1,0 +1,31 @@
+{#
+  An award's timeline — "What happens next" (NominationFlow.dc.html, the award step, the
+  context column and the done screen). From the cycle's own dates only; a phase with no
+  date in the data model (the DC's "Screening" and "Ceremony") is not drawn rather than
+  invented. Judging always comes after voting (REFERENCE §18.6). The current phase is said
+  in words ("Now") as well as by its dot — never colour alone.
+
+  Args: p (a programme from AwardService::getActiveProgrammesWithStatus), class
+#}
+{%- set _fmt = 'j M' -%}
+{%- set _now = 'now'|date('U') -%}
+{%- set _rows = [] -%}
+{%- if p.nominations_open or p.nominations_close -%}
+  {%- set _rows = _rows|merge([{name: 'Nominations'|trans, when: (p.nominations_open ? p.nominations_open|date(_fmt) : '') ~ (p.nominations_close ? ' – ' ~ p.nominations_close|date(_fmt) : ''), on: p.phase.is_nominations_open|default(false)}]) -%}
+{%- endif -%}
+{%- if p.voting_open or p.voting_close -%}
+  {%- set _rows = _rows|merge([{name: 'Public voting'|trans, when: (p.voting_open ? p.voting_open|date(_fmt) : '') ~ (p.voting_close ? ' – ' ~ p.voting_close|date(_fmt) : ''), on: p.phase.is_voting_open|default(false)}]) -%}
+{%- endif -%}
+{%- set _rows = _rows|merge([{name: 'Judging'|trans, when: 'After voting'|trans, on: p.phase.phase|default('') == 'judging'}]) -%}
+{%- if p.results_date -%}
+  {%- set _rows = _rows|merge([{name: 'Results'|trans, when: p.results_date|date('j M Y'), on: false}]) -%}
+{%- endif -%}
+<ol class="nf-tl{{ class is defined ? ' ' ~ class }}">
+  {%- for r in _rows %}
+  <li class="nf-tl__i{{ r.on ? ' nf-tl__i--on' }}">
+    <span class="nf-tl__dot" aria-hidden="true"></span>
+    <span class="nf-tl__n">{{ r.name }}{% if r.on %} <span class="ag-sr">({{ 'now'|trans }})</span>{% endif %}</span>
+    <span class="nf-tl__w">{{ r.on and loop.first ? 'Now'|trans ~ (p.nominations_close ? ' – ' ~ p.nominations_close|date(_fmt) : '') : r.when }}</span>
+  </li>
+  {%- endfor %}
+</ol>

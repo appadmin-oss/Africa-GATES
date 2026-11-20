@@ -18,6 +18,14 @@ use Psr\Log\LoggerInterface;
  * All scoring is non-blocking unless the decision is 'block'. The goal is
  * to surface suspicious patterns for human review, not to refuse legitimate
  * voters who happen to share a network or device.
+ *
+ * SCOPE: this is a best-effort PRE-CAST screen, scored from already-committed
+ * rows, so a simultaneous burst can race past it (each request sees pre-burst
+ * counts). The hard guarantees live elsewhere — UNIQUE(voter_email_hash,
+ * category_id) makes double-voting impossible, and CollusionService is the
+ * authoritative POST-HOC detector that scans committed votes for rings the
+ * live screen couldn't see. Treat a 'block' here as early rejection, not the
+ * last line of defence.
  */
 class FraudService
 {
@@ -80,11 +88,32 @@ class FraudService
             }
         } else {
             // No device fingerprint: a real browser produces one, so its absence is
-            // a mild signal of an automated/hardened client. This keeps the 'block'
-            // gate reachable for a device-less ring instead of collapsing to <=65
-            // just because the client omitted device_hash.
+            // a mild signal of an automated/hardened client.
             $score += self::SIGNALS['missing_device'];
             $signals[] = 'missing_device';
+
+            // Dropping the device hash must NOT erase detection. Fall back to IP for
+            // the same two concentration signals, but at CGNAT-tolerant thresholds
+            // (>=5, vs >0 for a device) so a busy shared mobile/carrier IP with a few
+            // legitimate voters isn't blocked — only a genuine single-IP ring is.
+            $ipCatVotes = DB::table('gates_votes')
+                ->where('ip_hash', $ipHash)
+                ->where('category_id', $categoryId)
+                ->where('voted_at', '>=', Carbon::now()->subDay()->toDateTimeString())
+                ->count();
+            if ($ipCatVotes >= 5) {
+                $score += self::SIGNALS['same_device_voted_category']; // 50 — IP stands in for device
+                $signals[] = "ip_already_voted_category:{$ipCatVotes}";
+            }
+
+            $ipHourVotes = DB::table('gates_votes')
+                ->where('ip_hash', $ipHash)
+                ->where('voted_at', '>=', Carbon::now()->subHour()->toDateTimeString())
+                ->count();
+            if ($ipHourVotes >= 5) {
+                $score += self::SIGNALS['many_categories_one_hour']; // 25
+                $signals[] = "ip_hour_votes:{$ipHourVotes}";
+            }
         }
 
         // 3. IP vote density (many different emails from same IP in 24h)
@@ -160,7 +189,19 @@ class FraudService
     }
 
     /**
-     * Dashboard summary for the admin fraud panel.
+     * Everything the vote-fraud panel shows.
+     *
+     * ── THIS WAS DEAD CODE ───────────────────────────────────────────────────
+     *
+     * Written for an admin panel that was never built. Every vote on this platform has
+     * been scored and stamped since fraud detection shipped, and the only place an
+     * operator could see any of it was a raw table dump in the data registry. The class
+     * docblock above still promises that 60–79 is "recorded + surfaced in the admin review
+     * queue"; there was no queue.
+     *
+     * That is the gap, not the scoring. Collusion, judge anomalies and judge bias each have
+     * a panel on the integrity page. Vote fraud — the oldest of the four and the first one
+     * that page's own docblock lists — did not.
      */
     public function summary(): array
     {
@@ -177,20 +218,85 @@ class FraudService
                 'avg_score_24h'  => round((float)DB::table('gates_fraud_scores')
                     ->where('created_at', '>=', Carbon::now()->subDay())
                     ->avg('risk_score') ?? 0, 1),
+                // Scored addresses, not busy ones. Without the decision filter this was
+                // the five networks that voted most in a day — a university, an office,
+                // a phone carrier's NAT — presented under a fraud heading.
                 'top_ip_hashes'  => DB::table('gates_fraud_scores')
                     ->select('ip_hash', DB::raw('COUNT(*) as hits'))
                     ->where('created_at', '>=', Carbon::now()->subDay())
+                    ->whereIn('decision', ['monitor', 'flag', 'block'])
                     ->groupBy('ip_hash')->orderByDesc('hits')->limit(5)->get()->toArray(),
+                // LEFT JOIN, and it is the whole difference between this list being right
+                // and being a lie. A BLOCKED attempt is rejected BEFORE the vote is cast,
+                // so it has no vote row and `vote_id` is NULL — an inner join dropped every
+                // one of them. The panel would have counted blocks in one number and shown
+                // none of them in the list underneath, which reads as "we stopped five
+                // things and cannot tell you what".
                 'recent_flags'   => DB::table('gates_fraud_scores AS f')
-                    ->join('gates_votes AS v', 'v.id', '=', 'f.vote_id')
-                    ->join('gates_nominees AS n', 'n.id', '=', 'v.nominee_id')
+                    ->leftJoin('gates_votes AS v', 'v.id', '=', 'f.vote_id')
+                    ->leftJoin('gates_nominees AS n', 'n.id', '=', 'v.nominee_id')
                     ->select('f.*', 'n.name AS nominee_name', 'v.voted_at')
                     ->whereIn('f.decision', ['flag', 'block'])
-                    ->orderByDesc('f.created_at')->limit(10)->get()->toArray(),
+                    // ── THE TIEBREAK IS NOT COSMETIC UNDER A LIMIT ───────────
+                    //
+                    // `created_at` is second-resolution and a burst of attempts shares
+                    // one. Without a second key the order of the tied rows is whatever
+                    // the engine feels like — SQLite and MySQL disagree, which is how
+                    // this was found — and with `limit(10)` over eleven tied rows it
+                    // decides which one is DROPPED. On this panel that means an attempt
+                    // we blocked not appearing in the list of what we blocked, which is
+                    // the exact failure the join above was fixed for.
+                    ->orderByDesc('f.created_at')->orderByDesc('f.id')
+                    ->limit(10)->get()->toArray(),
             ];
         } catch (\Throwable) {
             return [];
         }
+    }
+
+    /**
+     * Mark scored attempts as looked at.
+     *
+     * The missing write. `reviewed` was read in exactly one place — the `unreviewed`
+     * counter above — and set by nothing anywhere, so the queue could only ever grow and
+     * the registry's "Reviewed" column was false on every row that had ever existed.
+     *
+     * Marking is NOT a verdict on the vote. A reviewed flag stays flagged, its risk score
+     * is unchanged, and the vote it belongs to is untouched: this records that a person
+     * looked, which is the only thing an unreviewed count can honestly mean. Withdrawing
+     * a vote is a different act with a different audit trail
+     * ({@see \AfricaGates\Services\BonusVoteService::clawback()} for the shape of one).
+     *
+     * @param  list<int> $ids
+     * @return int how many rows this call actually changed
+     */
+    public function markReviewed(array $ids, int $adminId = 0): int
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids), static fn (int $i): bool => $i > 0)));
+        if ($ids === []) return 0;
+
+        try {
+            // `where reviewed = 0` so the count returned is what THIS call changed rather
+            // than how many rows were named — two operators clearing the same queue should
+            // not both be told they reviewed twelve things.
+            $n = DB::table('gates_fraud_scores')
+                ->whereIn('id', $ids)->where('reviewed', 0)
+                ->update(['reviewed' => 1]);
+        } catch (\Throwable $e) {
+            $this->log?->error('[fraud] mark reviewed failed: ' . $e->getMessage());
+            return 0;
+        }
+
+        if ($n > 0) {
+            try {
+                (new \AfricaGates\Admin\Services\AuditService())->record(
+                    $adminId, 'fraud.reviewed', 'fraud_score', $ids[0] ?? 0,
+                    ['ids' => $ids, 'marked' => $n]
+                );
+            } catch (\Throwable) { /* the review is recorded; the audit row is bookkeeping */ }
+        }
+
+        return (int) $n;
     }
 
     private function decide(int $score): string

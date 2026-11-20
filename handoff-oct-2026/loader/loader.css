@@ -1,0 +1,29 @@
+/* Africa GATES — entrance loader v5 (replaces components/loader.css)
+   Total 1.36s. Brand-green disc (#006432, from logo-mark.png), light-green continent,
+   "Africa" in Playfair ink, tracked green "GATES", 2px hairline.
+     0.00–0.36 disc opens · 0.16–0.50 continent rises · 0.28–0.62 Africa · 0.34–0.68 GATES
+     0.20–0.92 hairline · 1.04–1.28 mark lifts and fades · 1.12–1.36 panel fades */
+.ag-loader{ position:fixed; inset:0; z-index:var(--ag-z-loader,2147483000); display:none; align-items:center; justify-content:center; background:var(--ag-bg,#fbfbfa); }
+html.ag-loading .ag-loader{ display:flex; opacity:1; transition:opacity .24s ease, visibility .24s; }
+html.ag-loading .ag-loader.is-out{ opacity:0; visibility:hidden; }
+.ag-loader__mark{ display:flex; flex-direction:column; align-items:center; gap:22px; transition:transform .24s cubic-bezier(.2,.8,.2,1), opacity .24s ease; }
+.ag-loader.is-leaving .ag-loader__mark{ opacity:0; transform:translateY(-8px); }
+.ag-loader__logo{ width:96px; height:96px; display:block; overflow:visible; }
+.ag-loader__disc{ fill:#006432; clip-path:circle(0% at 50% 50%); }
+.ag-loader__land{ fill:#7fc87c; opacity:0; transform-box:fill-box; transform-origin:center; }
+.ag-loader__word{ display:flex; flex-direction:column; align-items:center; gap:6px; }
+.ag-loader__africa{ font:700 28px/1 var(--ag-font-display,"Playfair Display",Georgia,serif); color:var(--ag-ink,#10292c); opacity:0; }
+.ag-loader__gates{ font:700 11.5px/1 var(--ag-font,"DM Sans",system-ui,sans-serif); letter-spacing:.28em; padding-left:.28em; color:var(--ag-green,#237b22); opacity:0; }
+.ag-loader__bar{ position:relative; width:72px; height:2px; margin-top:6px; border-radius:2px; background:#e8e5dd; overflow:hidden; }
+.ag-loader__bar::after{ content:""; position:absolute; inset:0; background:var(--ag-green,#237b22); transform-origin:left; transform:scaleX(0); }
+.ag-loader.is-playing .ag-loader__disc  { animation:agLDisc .36s cubic-bezier(.2,.8,.2,1) forwards; }
+.ag-loader.is-playing .ag-loader__land  { animation:agLLand .34s .16s cubic-bezier(.2,.8,.2,1) forwards; }
+.ag-loader.is-playing .ag-loader__africa{ animation:agLWord .34s .28s cubic-bezier(.2,.8,.2,1) forwards; }
+.ag-loader.is-playing .ag-loader__gates { animation:agLTag .34s .34s cubic-bezier(.2,.8,.2,1) forwards; }
+.ag-loader.is-playing .ag-loader__bar::after{ animation:agLBar .72s .2s cubic-bezier(.65,0,.35,1) forwards; }
+@keyframes agLDisc{ from{clip-path:circle(0% at 50% 50%)} to{clip-path:circle(50% at 50% 50%)} }
+@keyframes agLLand{ from{opacity:0;transform:translateY(14px) scale(.96)} to{opacity:1;transform:none} }
+@keyframes agLWord{ from{opacity:0;letter-spacing:.06em} to{opacity:1;letter-spacing:0} }
+@keyframes agLTag { from{opacity:0;letter-spacing:.5em} to{opacity:1;letter-spacing:.28em} }
+@keyframes agLBar { to{transform:scaleX(1)} }
+@media (prefers-reduced-motion:reduce){ .ag-loader{ display:none !important; } }

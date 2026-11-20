@@ -15,14 +15,29 @@ class QueueService
 {
     private const MAX_ATTEMPTS = 5;
 
+    /** Seconds after which a held lock is assumed dead (worker crashed) and reclaimable. */
+    private const LOCK_TIMEOUT = 300;
+
     /** @var array<string, callable> */
     private array $handlers = [];
 
     /** Enqueue a job. Returns its id. */
-    public function push(string $type, array $payload = [], int $delaySeconds = 0): int
+    /**
+     * Enqueue a job. Returns its id, or 0 when $dedupeKey collides with a job
+     * that is already queued.
+     *
+     * $dedupeKey makes an enqueue idempotent. The queue is the outbox for phase
+     * side effects, and the outbox pattern guarantees AT-LEAST-once delivery,
+     * never exactly-once — a relay that publishes and then crashes before
+     * marking the row done republishes on restart. For anything with a
+     * user-visible effect (a congratulations email) that means duplicates. A key
+     * like "phase:12:results:announce" is refused by the UNIQUE index the second
+     * time. Left null, behaviour is exactly as before.
+     */
+    public function push(string $type, array $payload = [], int $delaySeconds = 0, ?string $dedupeKey = null): int
     {
         $now = Carbon::now();
-        return (int) DB::table('gates_jobs')->insertGetId([
+        $row = [
             'type'       => $type,
             'payload'    => json_encode($payload),
             'status'     => 'pending',
@@ -30,7 +45,21 @@ class QueueService
             'run_after'  => $now->copy()->addSeconds(max(0, $delaySeconds))->toDateTimeString(),
             'created_at'  => $now->toDateTimeString(),
             'updated_at'  => $now->toDateTimeString(),
-        ]);
+        ];
+        if ($dedupeKey !== null && $dedupeKey !== '') {
+            $row['dedupe_key'] = mb_substr($dedupeKey, 0, 191);
+        }
+        try {
+            return (int) DB::table('gates_jobs')->insertGetId($row);
+        } catch (\Throwable $e) {
+            // A UNIQUE violation on dedupe_key is the intended outcome, not a
+            // failure: the job is already queued. Anything else re-throws.
+            if ($dedupeKey !== null && $dedupeKey !== ''
+                && DB::table('gates_jobs')->where('dedupe_key', mb_substr($dedupeKey, 0, 191))->exists()) {
+                return 0;
+            }
+            throw $e;
+        }
     }
 
     /** Register a handler for a job type. The handler receives the decoded payload. */
@@ -47,38 +76,60 @@ class QueueService
      */
     public function work(int $limit = 20): array
     {
-        $now = Carbon::now()->toDateTimeString();
-        $jobs = DB::table('gates_jobs')
-            ->where('status', 'pending')->where('run_after', '<=', $now)->whereNull('locked_at')
+        $now = Carbon::now();
+        $reclaimable = static function ($query) use ($now) {
+            $query->whereNull('locked_at')->orWhere('locked_at', '<',
+                $now->copy()->subSeconds(self::LOCK_TIMEOUT)->toDateTimeString());
+        };
+        $jobs = DB::table('gates_jobs')->where('status', 'pending')
+            ->where('run_after', '<=', $now->toDateTimeString())->where($reclaimable)
             ->orderBy('id')->limit($limit)->get();
 
         $done = 0; $failed = 0; $retried = 0;
         foreach ($jobs as $job) {
-            // Claim: only one worker can flip locked_at from NULL.
-            $claimed = DB::table('gates_jobs')->where('id', $job->id)->whereNull('locked_at')
-                ->update(['locked_at' => $now, 'updated_at' => $now]);
-            if (!$claimed) continue;
+            // A later job needs a fresh lease, not the time this batch began.
+            $claimedAt = Carbon::now();
+            $claimTime = $claimedAt->toDateTimeString();
+            $staleBefore = $claimedAt->copy()->subSeconds(self::LOCK_TIMEOUT)->toDateTimeString();
+            $claim = DB::table('gates_jobs')->where('id', $job->id)->where('status', 'pending')
+                ->where('attempts', (int) $job->attempts)->where('run_after', '<=', $claimTime)
+                ->where(static function ($query) use ($staleBefore) {
+                    $query->whereNull('locked_at')->orWhere('locked_at', '<', $staleBefore);
+                });
 
+            if ((int) $job->attempts >= self::MAX_ATTEMPTS) {
+                $failed += $claim->update([
+                    'status' => 'failed', 'locked_at' => null,
+                    'last_error' => 'exceeded max attempts (likely crashed mid-handler)',
+                    'updated_at' => $claimTime,
+                ]);
+                continue;
+            }
+            if (!$claim->update(['locked_at' => $claimTime,
+                    'attempts' => DB::raw('attempts + 1'), 'updated_at' => $claimTime])) continue;
+
+            // attempts is the monotonic claim version. A stale worker may not
+            // acknowledge or reschedule a job since reclaimed by another worker.
+            $attempts = (int) $job->attempts + 1;
+            $owned = static fn () => DB::table('gates_jobs')->where('id', $job->id)
+                ->where('status', 'pending')->where('attempts', $attempts)->where('locked_at', $claimTime);
             try {
                 $handler = $this->handlers[$job->type] ?? null;
                 if (!$handler) throw new \RuntimeException("No handler registered for job type '{$job->type}'");
                 $handler(json_decode((string) $job->payload, true) ?: []);
-                DB::table('gates_jobs')->where('id', $job->id)->update([
-                    'status' => 'done', 'locked_at' => null, 'updated_at' => Carbon::now()->toDateTimeString(),
+                $done += $owned()->update([
+                    'status' => 'done', 'locked_at' => null,
+                    'updated_at' => Carbon::now()->toDateTimeString(),
                 ]);
-                $done++;
             } catch (\Throwable $e) {
-                $attempts = (int) $job->attempts + 1;
                 $exhausted = $attempts >= self::MAX_ATTEMPTS;
-                DB::table('gates_jobs')->where('id', $job->id)->update([
-                    'status'     => $exhausted ? 'failed' : 'pending',
-                    'attempts'   => $attempts,
-                    'locked_at'  => null,
-                    'run_after'  => Carbon::now()->addSeconds(60 * $attempts)->toDateTimeString(),
+                $settled = $owned()->update([
+                    'status' => $exhausted ? 'failed' : 'pending', 'locked_at' => null,
+                    'run_after' => Carbon::now()->addSeconds(60 * $attempts)->toDateTimeString(),
                     'last_error' => mb_substr($e->getMessage(), 0, 500),
                     'updated_at' => Carbon::now()->toDateTimeString(),
                 ]);
-                $exhausted ? $failed++ : $retried++;
+                if ($settled) $exhausted ? $failed++ : $retried++;
             }
         }
         return ['done' => $done, 'failed' => $failed, 'retried' => $retried];

@@ -1,0 +1,33 @@
+{% macro spark(series, colour, h, fillOpacity, label) %}
+  {% set h = h|default(46) %}
+  {% set label = label|default('Trend') %}
+  {% set peak = 1 %}
+  {% for p in series %}{% if p.value > peak %}{% set peak = p.value %}{% endif %}{% endfor %}
+  {% set n = series|length %}
+  {% if n > 1 %}
+    {% set pts = [] %}
+    {% for i, p in series %}
+      {% set x = (i / (n - 1) * 100)|round(2) %}
+      {% set y = (h - (p.value / peak) * (h - 2))|round(2) %}
+      {% set pts = pts|merge([x ~ ',' ~ y]) %}
+    {% endfor %}
+    <svg class="an-spark" viewBox="0 0 100 {{ h }}" preserveAspectRatio="none" role="img"
+         aria-label="{{ label }}: trend over {{ n }} days, peak {{ peak }}">
+      <polygon points="0,{{ h }} {{ pts|join(' ') }} 100,{{ h }}"
+               fill="{{ colour }}" opacity="{{ fillOpacity|default(0.13) }}"/>
+      <polyline points="{{ pts|join(' ') }}" fill="none" stroke="{{ colour }}"
+                stroke-width="1.6" vector-effect="non-scaling-stroke"
+                stroke-linejoin="round" stroke-linecap="round"/>
+    </svg>
+  {% endif %}
+  {% if series|length %}
+    <details class="an-data">
+      <summary>Daily data: {{ label }}</summary>
+      <div class="an-scroll"><table class="an-tbl">
+        <caption>{{ label }} — daily values</caption>
+        <thead><tr><th scope="col">Date</th><th scope="col">Value</th></tr></thead>
+        <tbody>{% for point in series %}<tr><th scope="row">{{ point.date }}</th><td>{{ point.value|number_format }}</td></tr>{% endfor %}</tbody>
+      </table></div>
+    </details>
+  {% endif %}
+{% endmacro %}

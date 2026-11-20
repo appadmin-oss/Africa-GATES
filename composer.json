@@ -18,7 +18,8 @@
     "symfony/console": "^6.4",
     "ramsey/uuid": "^4.7",
     "league/csv": "^9.11",
-    "guzzlehttp/guzzle": "^7.8"
+    "guzzlehttp/guzzle": "^7.8",
+    "web-auth/webauthn-lib": "^5.3"
   },
   "autoload": {
     "psr-4": {

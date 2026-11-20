@@ -1,0 +1,266 @@
+{
+  "rows": [
+    {
+      "route": "/",
+      "width": 320,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "scrollRegions": []
+    },
+    {
+      "route": "/account?tab=profile",
+      "width": 320,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "scrollRegions": []
+    },
+    {
+      "route": "/account?tab=security",
+      "width": 320,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "scrollRegions": []
+    },
+    {
+      "route": "/account?tab=settings",
+      "width": 320,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "scrollRegions": []
+    },
+    {
+      "route": "/admin/users",
+      "width": 320,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "scrollRegions": []
+    },
+    {
+      "route": "/admin/data/users/1",
+      "width": 320,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "scrollRegions": []
+    },
+    {
+      "route": "/admin/admins",
+      "width": 320,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "scrollRegions": []
+    },
+    {
+      "route": "/admin/analytics",
+      "width": 320,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "scrollRegions": [
+        {
+          "label": "Scrollable table",
+          "focusable": true
+        }
+      ]
+    },
+    {
+      "route": "/",
+      "width": 390,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "scrollRegions": []
+    },
+    {
+      "route": "/account?tab=profile",
+      "width": 390,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "scrollRegions": []
+    },
+    {
+      "route": "/account?tab=security",
+      "width": 390,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "scrollRegions": []
+    },
+    {
+      "route": "/account?tab=settings",
+      "width": 390,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "scrollRegions": []
+    },
+    {
+      "route": "/admin/users",
+      "width": 390,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "scrollRegions": []
+    },
+    {
+      "route": "/admin/data/users/1",
+      "width": 390,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "scrollRegions": []
+    },
+    {
+      "route": "/admin/admins",
+      "width": 390,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "scrollRegions": []
+    },
+    {
+      "route": "/admin/analytics",
+      "width": 390,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "scrollRegions": [
+        {
+          "label": "Scrollable table",
+          "focusable": true
+        }
+      ]
+    },
+    {
+      "route": "/",
+      "width": 768,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "scrollRegions": []
+    },
+    {
+      "route": "/account?tab=profile",
+      "width": 768,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "scrollRegions": []
+    },
+    {
+      "route": "/account?tab=security",
+      "width": 768,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "scrollRegions": []
+    },
+    {
+      "route": "/account?tab=settings",
+      "width": 768,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "scrollRegions": []
+    },
+    {
+      "route": "/admin/users",
+      "width": 768,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "scrollRegions": []
+    },
+    {
+      "route": "/admin/data/users/1",
+      "width": 768,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "scrollRegions": []
+    },
+    {
+      "route": "/admin/admins",
+      "width": 768,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "scrollRegions": []
+    },
+    {
+      "route": "/admin/analytics",
+      "width": 768,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "scrollRegions": []
+    },
+    {
+      "route": "/",
+      "width": 1440,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "scrollRegions": []
+    },
+    {
+      "route": "/account?tab=profile",
+      "width": 1440,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "scrollRegions": []
+    },
+    {
+      "route": "/account?tab=security",
+      "width": 1440,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "scrollRegions": []
+    },
+    {
+      "route": "/account?tab=settings",
+      "width": 1440,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "scrollRegions": []
+    },
+    {
+      "route": "/admin/users",
+      "width": 1440,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "scrollRegions": []
+    },
+    {
+      "route": "/admin/data/users/1",
+      "width": 1440,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "scrollRegions": []
+    },
+    {
+      "route": "/admin/admins",
+      "width": 1440,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "scrollRegions": []
+    },
+    {
+      "route": "/admin/analytics",
+      "width": 1440,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "scrollRegions": []
+    },
+    {
+      "route": "/account?tab=security",
+      "width": 1280,
+      "zoom": 2,
+      "pageOverflow": false,
+      "mainOverflow": false
+    },
+    {
+      "route": "/admin/users",
+      "width": 1280,
+      "zoom": 2,
+      "pageOverflow": false,
+      "mainOverflow": false
+    },
+    {
+      "route": "/admin/analytics",
+      "width": 1280,
+      "zoom": 2,
+      "pageOverflow": false,
+      "mainOverflow": false
+    }
+  ],
+  "checks": {
+    "publicSkipFocus": true,
+    "adminSkipFocus": true,
+    "profileErrorSummaryFocused": true,
+    "profileErrorFieldNamed": "p-name-hint p-name-err",
+    "serverErrorFocused": true
+  }
+}

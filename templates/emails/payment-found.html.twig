@@ -1,0 +1,21 @@
+{#- "I paid and I don't have the reference" · Payments.
+    Sender: SupportContext::findPayment() — the support assistant, asked from an address this
+    browser did not type, sends the references HERE rather than into the chat.
+    Variables: items (list of [reference, what · amount · when — state]), added (votes the
+    re-check just counted), action_url (/vote/verify). Only what the code does. -#}
+{% extends 'emails/_layout.html.twig' %}
+{% block category %}Payments{% endblock %}
+{% block hero %}illo-shield{% endblock %}
+{% block transactional %}1{% endblock %}
+{% block why %}Somebody asked our support assistant to find payments made with this address.{% endblock %}
+{% block subject %}Your Africa GATES payment references{% endblock %}
+{% block preheader %}The references you asked for, and where each payment stands.{% endblock %}
+{% block body %}
+{%- import 'emails/_blocks.html.twig' as b -%}
+{{ b.h1('Your payment references') }}
+{{ b.p('You asked for help with a payment and did not have its reference. These are the payments made with this address in the last 60 days. Each one that had not gone through was checked again with the payment gateway just now.') }}
+{% if added > 0 %}{{ b.p(added ~ ' votes that were paid for and missing have now been added.') }}{% endif %}
+{{ b.facts(items) }}
+{{ b.button('Check a payment’s votes', action_url) }}
+{{ b.note('Quote a reference to support and the payment is found at once. If you did not ask for this, nobody can see these payments from this email — you can ignore it.') }}
+{% endblock %}

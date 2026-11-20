@@ -1,0 +1,14 @@
+{
+  "dailyDataVisible": true,
+  "dailyRows": true,
+  "tableNamedInAccessibilityTree": true,
+  "tableKeyboardScroll": true,
+  "tableScrollName": true,
+  "confirmDialogOpen": true,
+  "dialogFocusContained": true,
+  "escapeClosesDialog": true,
+  "dialogRestoresFocus": true,
+  "forcedColoursAccountSelection": true,
+  "forcedColoursReportSelection": true,
+  "reducedMotionPreference": true
+}

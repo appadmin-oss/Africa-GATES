@@ -68,6 +68,7 @@ CREATE TABLE IF NOT EXISTS gates_comments (
   author_name TEXT NOT NULL,
   author_email TEXT,
   author_email_hash TEXT,
+  author_user_id INTEGER,
   body TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'approved' CHECK(status IN ('approved','quarantined','rejected','deleted')),
   ai_score REAL,
@@ -86,10 +87,14 @@ CREATE TABLE IF NOT EXISTS gates_cheers (
   target_type TEXT NOT NULL CHECK(target_type IN ('profile','nominee','comment','thread')),
   target_id INTEGER NOT NULL,
   fp TEXT NOT NULL,
+  -- One reaction per person per thing, changeable — so `kind` sits OUTSIDE the
+  -- unique key on purpose. See database/migrations/2026_08_05_pulse_reactions.php.
+  kind TEXT NOT NULL DEFAULT 'cheer',
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(target_type, target_id, fp)
 );
 CREATE INDEX IF NOT EXISTS idx_cheers_target ON gates_cheers(target_type, target_id);
+CREATE INDEX IF NOT EXISTS idx_cheers_kind ON gates_cheers(target_type, target_id, kind);
 
 -- Public activity feed (Pulse)
 CREATE TABLE IF NOT EXISTS gates_activity (
@@ -115,12 +120,19 @@ CREATE TABLE IF NOT EXISTS gates_threads (
   body TEXT,
   author_name TEXT NOT NULL,
   author_email_hash TEXT NOT NULL,
+  author_user_id INTEGER,
   status TEXT NOT NULL DEFAULT 'approved' CHECK(status IN ('approved','quarantined','rejected','deleted','locked')),
   ai_score REAL,
   reply_count INTEGER NOT NULL DEFAULT 0,
   cheer_count INTEGER NOT NULL DEFAULT 0,
+  repost_count INTEGER NOT NULL DEFAULT 0,
   last_activity TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   is_pinned INTEGER NOT NULL DEFAULT 0,
+  -- Photo/video on a post — see database/migrations/2026_08_01_thread_media.php.
+  media_path TEXT NULL DEFAULT NULL,
+  media_type TEXT NULL DEFAULT NULL,
+  media_w INTEGER NULL DEFAULT NULL,
+  media_h INTEGER NULL DEFAULT NULL,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY(programme_id) REFERENCES gates_award_programmes(id) ON DELETE SET NULL
 );
@@ -140,3 +152,66 @@ CREATE TABLE IF NOT EXISTS gates_moderation_log (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_modlog_target ON gates_moderation_log(target_type, target_id);
+
+-- Polls (one per target — thread or blog post; options as a JSON array; multi = WhatsApp-style multiple answers)
+CREATE TABLE IF NOT EXISTS gates_polls (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  target_type TEXT NOT NULL DEFAULT 'thread',
+  target_id INTEGER NOT NULL,
+  question TEXT NOT NULL,
+  options TEXT NOT NULL,
+  multi INTEGER NOT NULL DEFAULT 0,
+  is_closed INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(target_type, target_id)
+);
+CREATE TABLE IF NOT EXISTS gates_poll_votes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  poll_id INTEGER NOT NULL,
+  option_index INTEGER NOT NULL,
+  fp TEXT NOT NULL,
+  user_id INTEGER,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(poll_id, fp, option_index)
+);
+CREATE INDEX IF NOT EXISTS idx_pollvotes_poll ON gates_poll_votes(poll_id);
+
+-- Member follows (programme / thread / member / nominee), bookmarks + reposts
+CREATE TABLE IF NOT EXISTS gates_follows (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  target_type TEXT NOT NULL,
+  target_id INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, target_type, target_id)
+);
+CREATE INDEX IF NOT EXISTS idx_follows_target ON gates_follows(target_type, target_id);
+CREATE TABLE IF NOT EXISTS gates_bookmarks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  thread_id INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, thread_id)
+);
+CREATE TABLE IF NOT EXISTS gates_reposts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  thread_id INTEGER NOT NULL,
+  -- A line of your own. A repost without one is a bookmark with extra steps.
+  comment TEXT NULL DEFAULT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, thread_id)
+);
+
+-- Member reports: one report per member per target; content quarantines at the
+-- threshold (see CommunityService::report), operators review in /admin/moderation.
+CREATE TABLE IF NOT EXISTS gates_reports (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  target_type TEXT NOT NULL CHECK(target_type IN ('thread','comment')),
+  target_id INTEGER NOT NULL,
+  user_id INTEGER NOT NULL,
+  reason TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(target_type, target_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_reports_target ON gates_reports(target_type, target_id);

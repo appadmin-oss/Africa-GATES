@@ -1,0 +1,43 @@
+{#- Guest of honour invitation · Events. Sender: InviteMailer::compose (send, sendTest, preview).
+    Variables: salutation, name, event_title, witness (the operator's per-audience sentence),
+    when_day, when_date, when_time, where, where_short, cover_url, id_url, events_url, quota,
+    discount, tier_from, reference, letter_attached.
+    Design: Email Templates.dc.html → "Guest of honour invitation", corrected to the live
+    site (owner, 19 Oct 2026):
+      · the hero is the EVENT'S OWN artwork where it has one — an invitation to an evening
+        shows that evening — and the sealed envelope (the handoff's own hero, 20 Oct 2026) only where it has none;
+      · the greeting is "Dear <name>", not "Dear <salutation>": InviteAudience resolves the
+        word, the person is the name;
+      · the operator's reason (InviteAudience `witness`) is kept: it is the one sentence
+        that changes per programme and the reason the room is being filled;
+      · the guests' link to the tickets is kept: a code with nowhere to spend it is half an
+        ask, and InviteInboxCompatTest holds exactly two actions — the pass and the tickets;
+      · it is an ANNOUNCEMENT ('0'), not transactional as drawn: it goes out as a run to a
+        whole list, so it carries Unsubscribe and passes the transport's bounce and
+        opt-out rules (Mail\SendPolicy) — the run already refused opted-out addresses;
+      · "the formal invitation is attached" only when the letter actually was.
+    The guest code keeps the Consolas stack the compat test reads: it is read aloud at a
+    door and typed by a steward. -#}
+{% extends 'emails/_layout.html.twig' %}
+{% block category %}Invitations{% endblock %}
+{% block hero %}{{ cover_url ?: 'illo-sealed' }}{% endblock %}
+{% block why %}You are a guest of honour at an Africa GATES event.{% endblock %}
+{% block transactional %}0{% endblock %}
+{% block subject %}{{ name }}, you are invited — {{ event_title }}{% endblock %}
+{% block preheader %}{{ when_date }}{{ where_short ? ' at ' ~ where_short : '' }}. Your pass and your guests’ discount are inside.{% endblock %}
+{% block body %}
+{%- import 'emails/_blocks.html.twig' as b -%}
+{{ b.h1("#{salutation} #{name},") }}
+{{ b.p("It would be our honour to welcome you as a guest of honour at the #{event_title}.") }}
+{% if witness %}{{ b.p(witness) }}{% endif %}
+{{ b.facts([['When', "#{when_day} #{when_date} · #{when_time}", 'b'], ['Where', where ?: 'Venue to be confirmed']]) }}
+{{ b.button('Open your pass', id_url) }}
+{{ b.note('Your seat is arranged — there is no ticket for you to buy. The pass is a live page: open it on your phone at the door.') }}
+{{ b.h2('Bring your people') }}
+{{ b.p("Up to #{quota} of your guests get #{discount}% off their tickets with your code.") }}
+{% if tier_from %}{{ b.note("Tickets start at #{tier_from}.") }}{% endif %}
+<tr><td style="padding:0 0 18px;font-family:Arial,Helvetica,sans-serif;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:18px 0;border-top:1px solid {{ c['line-3'] }};border-bottom:1px solid {{ c['line-3'] }};font-family:Arial,Helvetica,sans-serif;"><div style="font-size:11.5px;line-height:16px;font-weight:700;color:{{ c.soft }};">Guest code</div><div style="margin-top:6px;font-family:Consolas,'Courier New',monospace;font-size:20px;line-height:26px;font-weight:700;letter-spacing:2px;color:{{ c.ink }};word-break:break-all;">{{ reference }}</div><div style="margin-top:6px;font-size:13px;line-height:20px;color:{{ c.soft }};">{{ discount }}% off · up to {{ quota }} guests</div></td></tr></table></td></tr>
+{{ b.link('Send them to the tickets', events_url) }}
+{% if letter_attached %}{{ b.p('The formal invitation is attached, for your records.') }}{% endif %}
+{{ b.sign('With respect,', 'Africa GATES') }}
+{% endblock %}

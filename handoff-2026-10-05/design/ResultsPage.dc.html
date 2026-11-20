@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>html,body{margin:0;height:100%;overflow:hidden}html,body{margin:0}a{color:#237b22;text-decoration:none}a:hover{color:#145213}button,input{font-family:inherit}a:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid #237b22;outline-offset:2px}</style>
+</helmet>
+<div ref="{{ rootRef }}" style="position:relative;width:100%;height:100dvh;max-height:100%;display:flex;flex-direction:column;background:#f1efe9;color:#10292c;font-family:'DM Sans',system-ui,sans-serif;overflow:hidden;-webkit-font-smoothing:antialiased">
+  <sc-if value="{{ isPhone }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:none;height:44px;padding:0 26px;display:flex;align-items:center;font-weight:600;font-size:15px">9:41</div><dc-import name="AppBar" scrolled="{{ scrolled }}" variant="child" title="Results" sub="{{ edSub }}" back="HomePageV3.dc.html" hint-size="100%,56px" style="flex:none"></dc-import>
+  </sc-if>
+  <sc-if value="{{ isDesktop }}" hint-placeholder-val="{{ true }}">
+    <dc-import name="SiteHeader" hint-size="100%,64px" style="flex:none;position:relative;z-index:40;width:100%"></dc-import>
+  </sc-if>
+
+  <main onScroll="{{ onMainScroll }}" style="flex:1;min-height:0;overflow-x:hidden;overflow-y:auto">
+    <div style="max-width:1180px;margin:0 auto;padding:{{ pagePad }};display:flex;flex-direction:column;gap:22px">
+      <nav aria-label="Breadcrumb" style="display:{{ crumbDisp }};gap:8px;flex-wrap:wrap;font-size:13px;color:#3a4a4c"><a href="#" style="color:#3a4a4c">Afrovanguard</a><span aria-hidden="true">/</span><a href="#" style="color:#3a4a4c">Africa GATES Education Awards</a><span aria-hidden="true">/</span><span style="font-weight:600;color:#10292c">Results</span></nav>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <h1 style="display:{{ h1Disp }};margin:0;font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:{{ h1Size }};line-height:1.1">{{ edTitle }}</h1>
+        <div role="tablist" aria-label="Edition" style="position:{{ edPos }};top:0;z-index:5;display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 {{ edBleed }};padding:{{ edPad }};background:#f1efe9">
+          <sc-for list="{{ editions }}" as="e" hint-placeholder-count="4">
+            <button role="tab" aria-selected="{{ e.on }}" onClick="{{ e.pick }}" style="flex:none;display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-height:52px;padding:8px 14px;border-radius:14px;border:{{ e.bw }} solid {{ e.bd }};background:{{ e.bg }};color:{{ e.fg }};cursor:pointer;text-align:start"><span style="font-weight:700;font-size:14px">{{ e.label }}</span><span style="font-size:12px;color:{{ e.sub }}">{{ e.state }}</span></button>
+          </sc-for>
+        </div>
+      </div>
+
+      <sc-if value="{{ isOverview }}" hint-placeholder-val="{{ true }}">
+        <sc-if value="{{ decided }}" hint-placeholder-val="{{ true }}">
+          <section aria-labelledby="h-overall" style="display:grid;grid-template-columns:{{ ovCols }};background:#fcf4de;border:1px solid #f0dfae;border-radius:24px;overflow:hidden">
+            <div role="img" aria-label="Portrait of {{ overall.name }}" style="position:relative;min-height:{{ ovImgH }};background:#f3b416"><span style="position:absolute;inset:0;background:transparent center/cover no-repeat;background-image:{{ overall.img }}"></span></div>
+            <div style="display:flex;flex-direction:column;justify-content:center;gap:14px;padding:{{ ovPad }}">
+              <span style="display:flex;align-items:center;gap:8px;font:700 11.5px/1 'JetBrains Mono',monospace;letter-spacing:.14em;text-transform:uppercase;color:#7a5600"><svg width="16" height="16" viewBox="0 0 24 24" fill="#c99a06" aria-hidden="true"><path d="M5 16 3 6l5 4 4-6 4 6 5-4-2 10z"></path><rect x="5" y="18" width="14" height="2.5" rx="1"></rect></svg>Overall winner · {{ edShort }}</span>
+              <h2 id="h-overall" style="margin:0;font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:{{ ovName }};line-height:1.05">{{ overall.name }}</h2>
+              <p style="margin:0;font-size:15.5px;line-height:1.55;color:#3a4a4c;max-width:48ch">{{ overall.why }}</p>
+              <div style="display:flex;flex-direction:column;gap:1px;background:#f0dfae;border:1px solid #f0dfae;border-radius:14px;overflow:hidden">
+                <sc-for list="{{ podium }}" as="p" hint-placeholder-count="3"><div style="display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 14px;background:{{ p.bg }}"><span style="font:700 13px/1 'JetBrains Mono',monospace;color:#7a5600">{{ p.rank }}</span><span style="min-width:0;display:flex;flex-direction:column;gap:1px"><span style="font-weight:700;font-size:14.5px">{{ p.name }}</span><span style="font-size:12.5px;color:#626a6e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.cat }}</span></span><span style="font:700 13px/1 'JetBrains Mono',monospace">{{ p.cpi }}</span></div></sc-for>
+              </div>
+              <div style="display:{{ ovBtnDisp }};grid-template-columns:minmax(0,1fr);gap:8px;flex-wrap:wrap"><button onClick="{{ openOverall }}" style="height:{{ ovBtnH }};padding:0 20px;border:0;border-radius:999px;background:#10292c;color:#f1efe9;font-weight:600;font-size:15px;cursor:pointer">See how it was decided</button><a href="ProfilePage.dc.html" style="display:flex;align-items:center;height:46px;padding:0 20px;border-radius:999px;border:1px solid #10292c;color:#10292c;font-weight:600;font-size:15px">View profile</a></div>
+            </div>
+          </section>
+        </sc-if>
+        <sc-if value="{{ pending }}" hint-placeholder-val="{{ false }}">
+          <section style="display:flex;align-items:center;gap:14px;padding:18px 20px;background:#fff;border:1px dashed #b3b9ba;border-radius:20px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7a5600" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M5 16 3 6l5 4 4-6 4 6 5-4-2 10z"></path></svg><span style="display:flex;flex-direction:column;gap:2px"><span style="font-weight:700;font-size:16px">Overall winner announced 14 Feb 2027</span><span style="font-size:14px;color:#3a4a4c">The highest combined score across every category, after voting and judging close.</span></span></section>
+        </sc-if>
+        <section style="display:grid;grid-template-columns:{{ sumCols }};gap:1px;background:#e8e5dd;border:1px solid #e8e5dd;border-radius:16px;overflow:hidden">
+          <sc-for list="{{ summary }}" as="s" hint-placeholder-count="4"><div style="display:flex;flex-direction:column;gap:2px;padding:14px 16px;background:#fff"><span style="font-weight:700;font-size:20px">{{ s.n }}</span><span style="font-size:13px;color:#626a6e">{{ s.l }}</span></div></sc-for>
+        </section>
+        <section aria-labelledby="h-all" style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px"><h2 id="h-all" style="margin:0;font-weight:700;font-size:20px">{{ overviewTitle }}</h2><span style="font-size:13px;color:#626a6e">{{ catCount }} categories</span></div>
+          <div style="display:grid;grid-template-columns:{{ winCols }};gap:12px">
+            <sc-for list="{{ allCats }}" as="c" hint-placeholder-count="6">
+              <button onClick="{{ c.open }}" style="display:flex;gap:14px;align-items:center;padding:14px;border-radius:16px;border:1px solid #d6d4cc;background:#fff;color:#10292c;text-align:start;cursor:pointer">
+                <span style="position:relative;flex:none;width:56px;height:56px;border-radius:50%;background:{{ c.ring }};overflow:hidden;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;color:#7a5600">{{ c.ini }}<span style="position:absolute;inset:0;background:transparent center/cover no-repeat;background-image:{{ c.img }}"></span></span>
+                <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px"><span style="font-size:12.5px;font-weight:600;color:{{ c.labelInk }}">{{ c.title }}</span><span style="font-weight:700;font-size:16px">{{ c.winner }}</span><span style="font-size:12.5px;color:#626a6e">{{ c.sub }}</span></span>
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="#626a6e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </button>
+            </sc-for>
+          </div>
+        </section>
+      </sc-if>
+      <sc-if value="{{ isCategory }}" hint-placeholder-val="{{ false }}">
+        <button onClick="{{ backToAll }}" style="align-self:flex-start;display:flex;align-items:center;gap:6px;height:40px;padding:0 4px;border:0;background:transparent;color:#237b22;font-weight:600;font-size:14.5px;cursor:pointer"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" style="transform:scaleX(-1)" aria-hidden="true"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg>All categories</button>
+      <div style="display:grid;grid-template-columns:{{ cols }};gap:24px;align-items:start">
+        <aside style="min-width:0;display:flex;flex-direction:column;gap:10px;position:{{ asidePos }};top:0">
+          <label style="display:flex;align-items:center;gap:10px;height:46px;padding:0 14px;background:#fff;border:1px solid #d6d4cc;border-radius:12px;color:#626a6e"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.6-3.6" stroke-linecap="round"></path></svg><input value="{{ q }}" onChange="{{ onQ }}" aria-label="Find a category" placeholder="Find a category" style="flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:16px;color:#10292c"></label>
+          <div style="display:flex;flex-direction:{{ catDir }};gap:1px;background:#e8e5dd;border:1px solid #e8e5dd;border-radius:14px;overflow-x:{{ catOverflow }};overflow-y:hidden;scrollbar-width:none">
+            <sc-for list="{{ cats }}" as="c" hint-placeholder-count="6">
+              <button onClick="{{ c.pick }}" aria-current="{{ c.cur }}" style="flex:none;display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:48px;padding:10px 14px;border:0;background:{{ c.bg }};color:#10292c;font-weight:{{ c.w }};font-size:14px;cursor:pointer;text-align:start;white-space:nowrap"><span>{{ c.title }}</span><span style="font-size:12px;font-weight:500;color:#626a6e">{{ c.winner }}</span></button>
+            </sc-for>
+          </div>
+        </aside>
+
+        <div style="min-width:0;display:flex;flex-direction:column;gap:22px">
+          <sc-if value="{{ pending }}" hint-placeholder-val="{{ false }}">
+            <section style="display:flex;flex-direction:column;gap:12px;padding:{{ winPad }};background:#fff;border:1px solid #d6d4cc;border-radius:20px">
+              <span style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#cc1950"><span style="width:8px;height:8px;border-radius:50%;background:#e0245e"></span>Voting open</span>
+              <h2 style="margin:0;font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:{{ winSize }};line-height:1.15">{{ catTitle }} is still being decided</h2>
+              <p style="margin:0;font-size:15px;line-height:1.6;color:#3a4a4c;max-width:60ch">Public voting closes on 24 Nov 2026 and the judges score the shortlist in December. Results are published on 14 Feb 2027 at the ceremony in Lagos. Nothing is shown before then, so no early lead can sway the vote.</p>
+              <div style="display:flex;gap:8px;flex-wrap:wrap"><a href="#" style="display:flex;align-items:center;height:44px;padding:0 18px;border-radius:999px;background:#237b22;color:#fff;font-weight:600;font-size:15px">Vote in this category</a><a href="#" style="display:flex;align-items:center;height:44px;padding:0 18px;border-radius:999px;border:1px solid #d6d4cc;color:#10292c;font-weight:600;font-size:15px">Remind me on results day</a></div>
+            </section>
+          </sc-if>
+          <sc-if value="{{ decided }}" hint-placeholder-val="{{ true }}">
+          <section aria-labelledby="h-win" style="display:flex;flex-direction:column;background:#fff;border:1px solid #d6d4cc;border-radius:20px;overflow:hidden">
+            <div style="display:flex;flex-direction:column;gap:14px;padding:{{ winPad }};background:#fcf4de">
+              <span style="font-size:13px;font-weight:700;color:#7a5600">{{ catTitle }} · Winner</span>
+              <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+                <span style="position:relative;flex:none;width:72px;height:72px;border-radius:50%;background:#f3b416;overflow:hidden;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:20px;color:#10292c">{{ win.ini }}<span role="img" aria-label="Portrait of {{ win.name }}" style="position:absolute;inset:0;background:transparent center/cover no-repeat;background-image:{{ win.img }}"></span></span>
+                <div style="flex:1;min-width:180px;display:flex;flex-direction:column;gap:3px">
+                  <h2 id="h-win" style="margin:0;font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:{{ winSize }};line-height:1.1">{{ win.name }}</h2>
+                  <span style="font-size:14px;color:#3a4a4c">{{ win.meta }}</span>
+                </div>
+                <div style="flex:none;display:flex;flex-direction:column;align-items:flex-end"><span style="font-weight:700;font-size:34px;line-height:1">{{ win.cpi }}</span><span style="font-size:12.5px;color:#3a4a4c">out of 1000</span></div>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <a href="ProfilePage.dc.html" style="display:flex;align-items:center;height:42px;padding:0 16px;border-radius:999px;background:#10292c;color:#f1efe9;font-weight:600;font-size:14px">View profile</a>
+                <button onClick="{{ togglePlay }}" style="display:flex;align-items:center;gap:8px;height:42px;padding:0 16px;border-radius:999px;border:1px solid #ab7a01;background:transparent;color:#10292c;font-weight:600;font-size:14px;cursor:pointer"><svg width="12" height="12" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true"><path d="M3 1.5v11l9-5.5z"></path></svg>{{ listenLabel }}</button>
+                <button style="height:42px;padding:0 16px;border-radius:999px;border:1px solid #ab7a01;background:transparent;color:#10292c;font-weight:600;font-size:14px;cursor:pointer">Share</button>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px;padding:{{ winPad }}">
+              <span style="font-weight:700;font-size:15px">How {{ win.first }} won, in plain words</span>
+              <p style="margin:0;font-size:15px;line-height:1.6;color:#3a4a4c;max-width:64ch">{{ plain }}</p>
+              <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:4px">
+                <div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:13px;color:#626a6e">Public votes · 45%</span><span style="font-weight:700;font-size:20px">{{ win.comm }}</span><span style="height:8px;border-radius:4px;background:#e8e5dd;overflow:hidden"><span style="display:block;height:100%;width:{{ win.commW }};background:#237b22"></span></span></div>
+                <div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:13px;color:#626a6e">Judges · 55%</span><span style="font-weight:700;font-size:20px">{{ win.judge }}</span><span style="height:8px;border-radius:4px;background:#e8e5dd;overflow:hidden"><span style="display:block;height:100%;width:{{ win.judgeW }};background:#10292c"></span></span></div>
+              </div>
+            </div>
+          </section>
+
+          <section aria-labelledby="h-st" style="display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px"><h2 id="h-st" style="margin:0;font-weight:700;font-size:18px">The full standing</h2><a href="#" style="font-size:14px;font-weight:600">Download the audit (CSV)</a></div>
+            <div role="table" aria-label="Standing" style="display:flex;flex-direction:column;gap:1px;background:#e8e5dd;border:1px solid #e8e5dd;border-radius:16px;overflow:hidden">
+              <div role="row" style="display:grid;grid-template-columns:{{ rowCols }};gap:10px;padding:10px 14px;background:#f1efe9;font-size:12.5px;font-weight:600;color:#3a4a4c"><span role="columnheader">#</span><span role="columnheader">Nominee</span><sc-if value="{{ isDesktop }}" hint-placeholder-val="{{ true }}"><span role="columnheader" style="text-align:end">Votes</span><span role="columnheader" style="text-align:end">Judges</span></sc-if><span role="columnheader" style="text-align:end">Index</span></div>
+              <sc-for list="{{ rows }}" as="r" hint-placeholder-count="5">
+                <a role="row" href="ProfilePage.dc.html" style="display:grid;grid-template-columns:{{ rowCols }};gap:10px;align-items:center;padding:12px 14px;background:#fff;color:#10292c">
+                  <span role="cell" style="font-weight:700;font-size:15px">{{ r.rank }}</span>
+                  <span role="cell" style="min-width:0;display:flex;flex-direction:column;gap:2px"><span style="font-weight:600;font-size:14.5px">{{ r.name }}</span><span style="font-size:12.5px;color:#626a6e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.meta }}</span></span>
+                  <sc-if value="{{ isDesktop }}" hint-placeholder-val="{{ true }}"><span role="cell" style="text-align:end;font-size:14px">{{ r.votes }}</span><span role="cell" style="text-align:end;font-size:14px">{{ r.judge }}</span></sc-if>
+                  <span role="cell" style="text-align:end;font-weight:700;font-size:15px">{{ r.cpi }}</span>
+                </a>
+              </sc-for>
+            </div>
+            <p style="margin:0;font-size:13px;line-height:1.55;color:#626a6e">Free and contributed votes both add to the tally; the larger part of the community score counts verified people, which money can’t buy. Judges scored all shortlisted nominees independently and the panel quorum was met. <a href="#" style="font-weight:600">Read the method</a></p>
+          </section>
+          </sc-if>
+        </div>
+      </div>
+      </sc-if>
+    </div>
+  </main>
+  <sc-if value="{{ isPhone }}" hint-placeholder-val="{{ false }}">
+    <nav aria-label="Primary" style="flex:none;display:grid;grid-template-columns:repeat(5,1fr);padding:6px 8px 22px;background:#fbfbfa;border-top:1px solid #d6d4cc">
+      <a href="#" style="display:flex;flex-direction:column;align-items:center;gap:4px;min-height:52px;justify-content:center;color:#626a6e;font-size:12px;font-weight:600"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V9.5Z"></path></svg>Home</a>
+      <a href="DiscoverPage.dc.html" style="display:flex;flex-direction:column;align-items:center;gap:4px;min-height:52px;justify-content:center;color:#626a6e;font-size:12px;font-weight:600"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.6-3.6" stroke-linecap="round"></path></svg>Discover</a>
+      <a href="#" style="display:flex;flex-direction:column;align-items:center;gap:4px;min-height:52px;justify-content:center;color:#626a6e;font-size:12px;font-weight:600"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Nominate</a>
+      <a href="#" style="display:flex;flex-direction:column;align-items:center;gap:4px;min-height:52px;justify-content:center;color:#626a6e;font-size:12px;font-weight:600"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"></rect><path d="m10 8.5 5 3.5-5 3.5z" fill="currentColor" stroke="none"></path></svg>Pulse</a>
+    <dc-import name="MobileMenu" variant="tab" hint-size="100%,52px"></dc-import></nav>
+  </sc-if>
+<sc-if value="{{ isPhone }}" hint-placeholder-val="{{ false }}"><dc-import name="Gee" layout="phone" hint-size="0px,0px"></dc-import></sc-if><sc-if value="{{ isDesktop }}" hint-placeholder-val="{{ true }}"><dc-import name="Gee" layout="desktop" hint-size="0px,0px"></dc-import></sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:390,&quot;height&quot;:844},&quot;layout&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;phone&quot;,&quot;desktop&quot;],&quot;default&quot;:&quot;phone&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+const U = id => `url(https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=240&q=60)`;
+const EDS = [['4th Edition · 2026','Voting open'],['3rd Edition · 2025','Decided'],['2nd Edition · 2024','Decided'],['1st Edition · 2023','Decided']];
+const CATS = [['STEM Educator','Amara Okonkwo'],['Teacher of the Year','Kofi Asante'],['School of the Year','Kings College Lagos'],['Early Childhood Educator','Zainab Bello'],['Education Innovator','Wanjiru Kamau'],['Rural Teacher Award','Tendai Moyo'],['Lifetime Contribution','Prof. Ama Ata']];
+const STAND = [['Amara Okonkwo',"Nsukka Girls' Secondary · Enugu, NG",'14,902','9.1',812],['Ibrahim Sow','Lycée Blaise Diagne · Dakar, SN','17,340','7.6',774],['Nokuthula Dube','Soweto STEM Academy · Johannesburg, ZA','9,118','8.4',691],['Yaw Boateng','Achimota School · Accra, GH','6,204','7.9',588],['Halima Yusuf','Kano Model School · Kano, NG','5,011','7.2',512]];
+class Component extends DCLogic {
+  state = { ed:1, cat:0, q:'', playing:false, view:'overview' };
+  rootRef=React.createRef();
+  componentDidMount(){ const el=this.rootRef.current; if(el&&window.ResizeObserver){ this.ro=new ResizeObserver(es=>{const w=Math.round(es[0].contentRect.width); if(w&&w!==this.state.w) this.setState({w});}); this.ro.observe(el); } }
+  componentWillUnmount(){ if(this.ro) this.ro.disconnect(); }
+  renderVals(){ const o=this.vals(), W=this.state.w||1440, L=this.props.layout ?? (W<600?'phone':W<1024?'tablet':'desktop');
+    o.rootRef=this.rootRef; o.rootH=this.props.layout!=null?'100%':'100dvh';
+    if(L==='tablet') Object.assign(o,{pagePad:'28px 28px 48px',h1Size:'32px',winCols:'repeat(2,minmax(0,1fr))',cols:'220px minmax(0,1fr)',ovCols:'minmax(0,1fr) minmax(0,1.2fr)',ovPad:'28px',ovName:'34px'});
+    Object.assign(o,{crumbDisp:'flex',h1Disp:'block',edPos:'static',edBleed:'0',edPad:'0',ovBtnDisp:'flex',ovBtnH:'46px'});
+    o.editions=o.editions.map(e=>({...e,bw:'1px'}));
+    if(L==='phone'){ Object.assign(o,{crumbDisp:'none',h1Disp:'none',edPos:'sticky',edBleed:'-16px',edPad:'10px 16px',ovBtnDisp:'grid',ovBtnH:'52px',pagePad:'4px 16px 40px',ovImgH:'300px'});
+      o.editions=o.editions.map(e=>({...e,bg:'#fff',fg:'#10292c',sub:'#626a6e',bd:e.on?'#10292c':'#d6d4cc',bw:e.on?'2px':'1px'})); }
+    return o; }
+  vals(){
+    const S=this.state, W=S.w||1440, L=this.props.layout ?? (W<600?'phone':W<1024?'tablet':'desktop'), isPhone=L==='phone', isDesktop=!isPhone, set=o=>this.setState(o);
+    const q=S.q.trim().toLowerCase();
+    const w=STAND[0], first=w[0].split(' ')[0];
+    return { onMainScroll:e=>{const t=e.currentTarget.scrollTop, on=!!this.state.sc; if(this._scRaf) return; this._scRaf=requestAnimationFrame(()=>{this._scRaf=0; if(!on&&t>24) this.setState({sc:true}); else if(on&&t<4) this.setState({sc:false});});}, scrolled:!!this.state.sc,
+      overall:{name:'Amara Okonkwo',img:'url(https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=900&q=65)',why:'Highest combined score of all 12 category winners: 812 points, from 14,902 public votes and the judges’ top mark of 9.1.'},
+      podium:[['1','Amara Okonkwo','STEM Educator','812'],['2','Kings College Lagos','School of the Year','796'],['3','Kofi Asante','Teacher of the Year','781']].map((p,i)=>({rank:p[0],name:p[1],cat:p[2],cpi:p[3],bg:i===0?'#fff8e6':'#fffdf7'})),
+      openOverall:()=>set({cat:0,view:'category'}), edShort:EDS[S.ed][0].split(' · ')[0],
+      ovCols:isPhone?'minmax(0,1fr)':'minmax(0,1fr) minmax(0,1.1fr)', ovImgH:isPhone?'260px':'440px', ovPad:isPhone?'20px':'40px', ovName:isPhone?'32px':'44px',
+      isPhone, isDesktop, q:S.q, onQ:e=>set({q:e.target.value}),
+      edTitle:`Results · ${EDS[S.ed][0]}`, edSub:EDS[S.ed][0], isOverview:S.view==='overview', isCategory:S.view==='category', backToAll:()=>set({view:'overview'}),
+      summary:(S.ed===0?[['13','categories'],['18,402','nominations'],['Voting','until 24 Nov'],['14 Feb 2027','ceremony · Lagos']]:[['12','categories decided'],['14,880','nominations'],['212,406','verified votes'],['60','judges · quorum met']]).map(s=>({n:s[0],l:s[1]})),
+      sumCols:isPhone?'repeat(2,minmax(0,1fr))':'repeat(4,minmax(0,1fr))', winCols:isPhone?'minmax(0,1fr)':'repeat(3,minmax(0,1fr))',
+      overviewTitle:S.ed===0?'Categories in this edition':'Every winner in this edition', catCount:CATS.length,
+      allCats:CATS.map((c,i)=>({title:c[0],winner:S.ed===0?'Voting open':c[1],sub:S.ed===0?'Results on 14 Feb 2027':'Winner · see how it was decided',ini:S.ed===0?'':c[1].replace('Prof. ','').split(' ').map(w=>w[0]).join('').slice(0,2),img:S.ed===0||i!==0?'none':U('1531123897727-8f129e1688ce'),ring:S.ed===0?'#e8e5dd':'#fcf4de',labelInk:S.ed===0?'#626a6e':'#7a5600',open:()=>set({cat:i,view:'category'})})), pending:S.ed===0, decided:S.ed!==0, h1Size:isPhone?'26px':'36px', pagePad:isPhone?'4px 16px 28px':'32px 32px 56px',
+      editions:EDS.map((e,i)=>{const on=S.ed===i;return {label:e[0],state:e[1],on,pick:()=>set({ed:i,view:'overview'}),bg:on?'#10292c':'#fff',fg:on?'#f1efe9':'#10292c',sub:on?'#f1efe9':'#626a6e',bd:on?'#10292c':'#d6d4cc'};}),
+      cols:isPhone?'minmax(0,1fr)':'280px minmax(0,1fr)', asidePos:isPhone?'static':'sticky', catDir:isPhone?'row':'column', catOverflow:isPhone?'auto':'hidden',
+      cats:CATS.filter(c=>!q||c[0].toLowerCase().includes(q)).map((c,i)=>{const on=CATS.indexOf(c)===S.cat;return {title:c[0],winner:isPhone||S.ed===0?'':c[1],pick:()=>set({cat:CATS.indexOf(c)}),bg:on?'#fcf4de':'#fff',w:on?700:500,cur:on?'true':'false'};}),
+      catTitle:CATS[S.cat][0], winPad:isPhone?'18px':'24px', winSize:isPhone?'24px':'30px',
+      win:{name:w[0],first,meta:w[1],cpi:w[4],ini:'AO',img:U('1531123897727-8f129e1688ce'),comm:'338 / 450',judge:'474 / 550',commW:'75%',judgeW:'86%'},
+      plain:`${first} had fewer public votes than Ibrahim Sow (14,902 against 17,340), but the judges scored her work highest of all five finalists: 9.1 out of 10. The judges' half carries a little more weight, so she finished 38 points ahead.`,
+      listenLabel:S.playing?'Pause':'Listen', togglePlay:()=>set({playing:!S.playing}),
+      rowCols:isPhone?'28px minmax(0,1fr) 52px':'36px minmax(0,1fr) 90px 80px 70px',
+      rows:STAND.map((r,i)=>({rank:i+1,name:r[0],meta:isPhone?`${r[2]} votes · judges ${r[3]}`:r[1],votes:r[2],judge:r[3],cpi:r[4]}))
+    };
+  }
+}
+</script>
+</body>
+</html>

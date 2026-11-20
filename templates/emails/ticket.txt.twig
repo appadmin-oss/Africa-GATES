@@ -1,0 +1,32 @@
+{#- Plain-text part for ticket.html.twig. -#}
+{% if waitlisted %}You’re on the waiting list, {{ first_name }}
+
+If a seat for {{ event }} comes free, we email you an offer. The people who have waited longest are offered first.
+
+Event: {{ event }}
+When: {{ when }}
+{% if where %}Where: {{ where }}
+{% endif %}
+See your place: {{ ticket_url }}
+{% else %}You’re going, {{ first_name }}
+
+{{ event }}
+{{ when }}
+{% if where %}{{ where }}
+{% endif %}{% if tier %}{{ tier }}
+{% endif %}{% if code %}Ticket code: {{ code }}
+{% endif %}{% if seats > 1 %}Seats: {{ seats }}
+{% endif %}{% if paid %}Paid: {{ paid }}
+{% endif %}
+{{ code ? 'Show the code at the door — on your phone or printed. Your ticket page has it too.' : 'Your name is on the list. Your ticket page has the details.' }}
+
+{% if ics_url %}Add to calendar: {{ ics_url }}
+{% endif %}Open, change or transfer this ticket: {{ ticket_url }}
+{% endif %}{% if note %}
+Before you come
+{{ note }}
+{% endif %}
+—
+You booked a ticket on Africa GATES.
+{{ postal_address }}
+Help: {{ site_url }}/help · Privacy: {{ site_url }}/privacy

@@ -1,0 +1,220 @@
+<?php
+declare(strict_types=1);
+
+namespace AfricaGates\Admin\Controllers;
+
+use AfricaGates\Admin\Services\AuditService;
+use AfricaGates\Services\Mail\MailConfig;
+use AfricaGates\Services\Mail\MailFailure;
+use AfricaGates\Services\Mail\MailEvents;
+use AfricaGates\Services\Mail\MailHealth;
+use AfricaGates\Services\Mail\MailSetup;
+use AfricaGates\Services\Mail\SendPolicy;
+use AfricaGates\Services\Mail\Suppression;
+use AfricaGates\Support\SiteUrl;
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
+use Slim\Views\Twig;
+
+/**
+ * /admin/settings/mail — is email working, and if not, exactly why.
+ *
+ * The page every mail alert links to. It shows the open incident (if any), the last
+ * automatic diagnosis step by step, the last hour of the log grouped by CAUSE rather
+ * than as raw rows, and the incident history — so "were we told, and when did it start"
+ * has an answer on a screen.
+ *
+ * Linked from Settings → Email & sender and from the console banner, never added to
+ * the rail: a sub-page belongs under the page it is about (CLAUDE.md, admin nav).
+ */
+final class MailHealthController
+{
+    public function __construct(
+        private readonly Twig $view,
+        private readonly ?AuditService $audit = null,
+    ) {}
+
+    public function index(Request $req, Response $res): Response
+    {
+        $w = MailHealth::window();
+        $causes = [];
+        foreach ($w['causes'] as $cause => $n) {
+            $causes[] = ['cause' => $cause, 'n' => $n,
+                         'title' => MailFailure::title($cause), 'fix' => MailFailure::fix($cause)];
+        }
+
+        $open = MailHealth::open();
+
+        return $this->view->render($res, 'admin/mail-health.twig', [
+            'page_title'   => 'Email health',
+            'topbar_title' => 'Email health',
+            'admin_page'   => 'settings',
+            'mail_page'    => true,
+            'open'         => $open,
+            'open_report'  => $open ? (json_decode((string) $open->report_json, true) ?: null) : null,
+            'report'       => MailHealth::lastReport(),
+            'window'       => $w,
+            'causes'       => $causes,
+            'config'       => MailConfig::load()->describe(),
+            'sending'      => self::sendingView(),
+            // The stored cause is a key; the screen says what it means.
+            'history'      => array_map(static fn (object $i): object
+                => (object) ((array) $i + ['cause_title' => MailFailure::title((string) $i->cause)]),
+                MailHealth::history()),
+            'rules'        => [
+                'window' => MailHealth::WINDOW_MIN, 'fails' => MailHealth::TRIP_FAILS,
+                'rate'   => (int) round(MailHealth::TRIP_RATE * 100),
+                'realert'=> MailHealth::REALERT_HOURS, 'probe' => MailHealth::PROBE_MIN,
+            ],
+            // The send rules, read from the class that applies them — every figure here
+            // is the one the transport acts on, never a second copy of it.
+            'send'         => [
+                'cap'        => SendPolicy::cap(),
+                'cap_min'    => SendPolicy::CAP_MIN,
+                'cap_max'    => SendPolicy::CAP_MAX,
+                'cap_hours'  => SendPolicy::CAP_HOURS,
+                'reserved'   => array_merge(array_map(static fn (string $t): string => '.' . $t, SendPolicy::RESERVED_TLDS),
+                                            SendPolicy::RESERVED_DOMAINS),
+                'reasons'    => Suppression::REASONS,
+                'counts'     => Suppression::counts(),
+                'suppressed' => Suppression::recent(20),
+                'events_url' => MailEvents::url(SiteUrl::base($req)),
+            ],
+        ]);
+    }
+
+    /**
+     * What the "How mail is sent" form draws: the values in force, never a secret, and
+     * where the login came from — the one fact that explains most "it used to work".
+     *
+     * @return array<string,mixed>
+     */
+    private static function sendingView(): array
+    {
+        $c = MailConfig::load();
+        $stored = [];
+        try {
+            $stored = \Illuminate\Database\Capsule\Manager::table('gates_settings')
+                ->whereIn('key_name', MailSetup::SMTP_KEYS)->where('value', '!=', '')->pluck('value', 'key_name')->all();
+        } catch (\Throwable) {
+        }
+        $env = MailConfig::load([]);
+        return [
+            'transport' => $c->transport, 'host' => $c->host, 'port' => $c->port,
+            'secure' => $c->secureSetting, 'username' => $c->username,
+            'pass_set' => $c->password !== '', 'api_set' => $c->hasApiKey(),
+            'login_source' => match ($c->source('username')) {
+                'settings' => 'the login saved on this page is in use',
+                'env'      => 'the login from the server’s .env file is in use',
+                default    => 'no login is set',
+            },
+            'has_stored_smtp' => $stored !== [],
+            'gas_set' => \AfricaGates\Services\Mail\AppsScriptMail::configured(),
+            'gas_url' => \AfricaGates\Services\GoogleMeetService::gasUrl(),
+            'gas_secret_set' => \AfricaGates\Services\GoogleMeetService::gasSecret() !== '',
+            'env_has_login' => $env->hasCredentials(),
+        ];
+    }
+
+    /** POST — save how mail is sent, trying each credential before it is stored. */
+    public function sending(Request $req, Response $res): Response
+    {
+        $r = (new MailSetup())->save((array) $req->getParsedBody(), (int) ($_SESSION['admin_id'] ?? 0) ?: null);
+        $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'mail.sending', null, null,
+            ['ok' => $r['ok'], 'saved' => $r['saved']]);
+        if ($r['report'] !== null) MailHealth::rememberReport($r['report']);
+        $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = $r['messages'] !== []
+            ? implode(' ', $r['messages']) : 'Nothing changed.';
+        return $res->withHeader('Location', '/admin/settings/mail#sending')->withStatus(302);
+    }
+
+    /**
+     * POST — the Apps Script address and secret, from this page. Tried before stored; see
+     * MailSetup::saveAppsScript(). The same two values Settings → Google Calendar and Meet
+     * holds, kept there too because the calendar is theirs as much as the mail's.
+     */
+    public function appsScript(Request $req, Response $res): Response
+    {
+        $b = (array) $req->getParsedBody();
+        $r = MailSetup::saveAppsScript((string) ($b['gas_url'] ?? ''), (string) ($b['gas_secret'] ?? ''),
+            (int) ($_SESSION['admin_id'] ?? 0) ?: null);
+        $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'mail.apps_script', null, null, ['ok' => $r['ok']]);
+        $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = $r['message'];
+        return $res->withHeader('Location', '/admin/settings/mail#apps-script')->withStatus(302);
+    }
+
+    /** POST — forget the SMTP values saved here; the server's .env decides again. */
+    public function useEnv(Request $req, Response $res): Response
+    {
+        $gone = MailSetup::useEnv();
+        $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'mail.use_env', null, null, ['removed' => $gone]);
+        $health = new MailHealth();
+        $d = $health->diagnoseNow();
+        try { $health->check(); } catch (\Throwable) {}
+        $_SESSION[$d['ok'] ? 'flash_ok' : 'flash_error'] = 'The saved SMTP values were removed; the .env file decides now. '
+            . ($d['ok'] ? 'Checked: the provider accepts that login.' : 'Checked, and it fails too: ' . $d['title'] . '. ' . $d['fix']);
+        return $res->withHeader('Location', '/admin/settings/mail#sending')->withStatus(302);
+    }
+
+    /** POST — the daily cap on announcements per address. */
+    public function rules(Request $req, Response $res): Response
+    {
+        $n = SendPolicy::saveCap((int) (((array) $req->getParsedBody())['cap'] ?? SendPolicy::CAP_DEFAULT));
+        $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'mail.rules', null, null, ['cap' => $n]);
+        $_SESSION['flash_ok'] = sprintf('Saved. Nobody receives more than %d announcement%s in %d hours; the rest wait.',
+                                        $n, $n === 1 ? '' : 's', SendPolicy::CAP_HOURS);
+        return $res->withHeader('Location', '/admin/settings/mail#send-rules')->withStatus(302);
+    }
+
+    /**
+     * POST — take one address off the suppression list. For an operator who has checked
+     * with the person that the address works now; the next bounce puts it straight back.
+     */
+    public function lift(Request $req, Response $res, array $args): Response
+    {
+        $id = (int) ($args['id'] ?? 0);
+        $ok = Suppression::liftById($id);
+        $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'mail.suppression.lift', 'mail_suppression', $id);
+        $_SESSION[$ok ? 'flash_ok' : 'flash_error'] = $ok
+            ? 'Removed. Announcements will reach that address again — a new bounce or complaint puts it back.'
+            : 'That address was not on the list.';
+        return $res->withHeader('Location', '/admin/settings/mail#send-rules')->withStatus(302);
+    }
+
+    /** POST — a new webhook token. The old address stops working at once. */
+    public function rotate(Request $req, Response $res): Response
+    {
+        MailEvents::rotate();
+        $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'mail.events.rotate');
+        $_SESSION['flash_ok'] = 'A new address was made. Paste it into your mail provider’s webhook settings — the old one no longer works.';
+        return $res->withHeader('Location', '/admin/settings/mail#send-rules')->withStatus(302);
+    }
+
+    /**
+     * POST — run the diagnosis now. Nothing is sent to anybody; see MailDiagnosis.
+     *
+     * Then a check, so a fix the operator just made can close the incident on the same
+     * press rather than at the next tick — and so a fault found now opens one, with its
+     * alerts, instead of waiting for the schedule to notice what the operator is looking at.
+     */
+    public function diagnose(Request $req, Response $res): Response
+    {
+        $health = new MailHealth();
+        $r = $health->diagnoseNow();
+        try { $health->check(); } catch (\Throwable) {}
+
+        $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'mail.diagnose', null, null,
+            ['ok' => $r['ok'], 'cause' => $r['cause']]);
+
+        // A pass by a FALLBACK is said as one: "every step passed" over a broken SMTP is
+        // the sentence that would stop anybody fixing it.
+        $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = match (true) {
+            !$r['ok']                      => $r['title'] . '. ' . $r['fix'],
+            !empty($r['degraded'])         => $r['title'] . '. No message was sent.',
+            ($r['road'] ?? 'smtp') !== 'smtp' => $r['title'] . '. No message was sent.',
+            default => 'Every step passed — the server accepted our login and our From address. No message was sent.',
+        };
+
+        return $res->withHeader('Location', '/admin/settings/mail')->withStatus(302);
+    }
+}

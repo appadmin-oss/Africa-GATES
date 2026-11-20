@@ -1,0 +1,45 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE PAGE'S SHARE CARD, CANONICAL AND STRUCTURED DATA — for the Phase 5 pages
+  ══════════════════════════════════════════════════════════════════════════════
+
+  The destroyed `layout/gates.twig` wrote these for every page; `layout/shell.twig` does
+  not (it prints only `meta_robots`). The award, ballot and result pages are the ones people
+  SHARE — a nominee's link in WhatsApp is the platform's commonest arrival — so they include
+  this from their `head_styles` block. Rebuilt from the old head's rules:
+
+  · never an empty `og:image` (a declared-but-broken image previews as a blank box): the
+    page's card, or the site's logo;
+  · dimensions when the page knows them, so the FIRST fetch renders the right shape;
+  · canonical from `canonical_url`, else `canonical_path` (Support\Canonical drops `?ref=`
+    and `?utm_*`, keeps `?page=`);
+  · `robots`, the name the controllers already pass, honoured when the page has not set
+    `meta_robots` (shell.twig's) — a message permalink is noindex (VoteMessageTest);
+  · the schema blob through json_encode with JSON_HEX_TAG, so `</script>` in anything a
+    nominee or partner typed cannot close the element (CLAUDE.md, "untrusted in JSON-LD").
+#}
+{%- set _site_url = site_url|default('https://africagates.org') -%}
+{%- set _canonical = canonical_url|default(_site_url ~ (canonical_path|default(request_path|default('/')))) -%}
+{%- if robots is defined and meta_robots is not defined %}<meta name="robots" content="{{ robots }}">{% endif %}
+<link rel="canonical" href="{{ _canonical }}">
+<meta property="og:type" content="{{ og_type|default('website') }}">
+<meta property="og:site_name" content="Africa GATES">
+<meta property="og:url" content="{{ _canonical }}">
+<meta property="og:title" content="{{ og_title|default(page_title|default('Africa GATES')) }}">
+{% if meta_description is defined %}<meta property="og:description" content="{{ meta_description }}">{% endif %}
+{%- set _og_image = og_image|default('') ?: (_site_url ~ '/assets/img/logo-africa-gates.png') %}
+<meta property="og:image" content="{{ _og_image }}">
+<meta property="og:image:alt" content="{{ og_image_alt|default('Africa GATES') }}">
+{% if og_image_w|default(0) and og_image_h|default(0) %}
+<meta property="og:image:width" content="{{ og_image_w }}">
+<meta property="og:image:height" content="{{ og_image_h }}">
+<meta property="og:image:type" content="{{ og_image_type|default('image/png') }}">
+{% endif %}
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="{{ _og_image }}">
+{% if schema is defined and schema %}
+<script nonce="{{ csp_nonce }}" type="application/ld+json">{{ schema|json_encode(constant('JSON_UNESCAPED_SLASHES') b-or constant('JSON_HEX_TAG') b-or constant('JSON_UNESCAPED_UNICODE'))|raw }}</script>
+{% endif %}
+{% if breadcrumbs is defined and breadcrumbs %}
+<script nonce="{{ csp_nonce }}" type="application/ld+json">{{ {'@context': 'https://schema.org', '@type': 'BreadcrumbList', 'itemListElement': breadcrumbs|map((b, i) => {'@type': 'ListItem', 'position': i + 1, 'name': b.label}|merge(b.url|default(null) ? {'item': _site_url ~ b.url} : {}))}|json_encode(constant('JSON_UNESCAPED_SLASHES') b-or constant('JSON_HEX_TAG') b-or constant('JSON_UNESCAPED_UNICODE'))|raw }}</script>
+{% endif %}
