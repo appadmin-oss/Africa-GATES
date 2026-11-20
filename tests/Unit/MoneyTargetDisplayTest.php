@@ -101,14 +101,15 @@ final class MoneyTargetDisplayTest extends TestCase
         $e = Target::editionIn($t);
         $this->assertSame(405000, $e['raised_kobo'], 'refunded and fraud-flagged money counted towards the milestone');
         // ₦5,950 to go at ₦100 a vote is 59.5 → 60 paid votes: rounded UP, never "0 to go" early.
-        $this->assertSame('₦5,950 to go · about 60 paid votes', $e['left']);
+        $this->assertSame('₦5,950 to go', $e['left']);
+        $this->assertSame(60, $e['votes_to_go'], '₦5,950 at ₦100 a vote is 59.5: rounded UP');
         $this->assertSame(40, $e['pct']);
         $this->assertNull(Target::standingIn($t, 7101), 'the edition’s milestone was given to one nominee as their own');
 
         $page = $this->words($this->goal($this->get('/vote/' . self::SLUG . '/7101-x')));
-        $this->assertStringContainsString('Edition milestone: ₦10,000', $page);
-        $this->assertStringContainsString('₦4,050 of ₦10,000 raised', $page);
-        $this->assertStringContainsString('every nominee’s share unlocks', $page);
+        $this->assertStringContainsString('Unlock rewards for every nominee!', $page);
+        $this->assertStringContainsString('₦4,050 of ₦10K raised', $page);
+        $this->assertStringContainsString('Momentum is building. Keep going!', $page, '40% there');
         $this->assertStringNotContainsString('Target reached', $page);
 
         $list = $this->get('/vote/' . self::SLUG);
@@ -116,21 +117,21 @@ final class MoneyTargetDisplayTest extends TestCase
         $this->assertStringNotContainsString('vp-row__goal', $list, 'and puts no edition figure on a nominee’s row');
 
         $award = $this->words($this->get('/awards/' . self::SLUG));
-        $this->assertStringContainsString('Edition milestone: ₦10,000 · ₦5,950 to go', $award);
+        $this->assertStringContainsString('Unlock rewards for every nominee! ₦5,950 to go', $award);
     }
 
     public function test_a_reached_and_then_confirmed_milestone_says_so(): void
     {
         $this->rule(['model' => 'milestone', 'full_pct' => 50, 'locked_pct' => 10, 'milestone_naira' => 1000]);
         $this->paid(7101, 1000);
-        $this->assertSame('Milestone reached, awaiting confirmation', Target::editionIn(Target::forPublic(71))['left'],
+        $this->assertSame('Rewards unlocking soon', Target::editionIn(Target::forPublic(71))['left'],
             'reaching the line is shown, never treated as the confirmation');
 
         $this->assertTrue(Milestone::confirm(71, 1)['ok']);
         DB::table('gates_settings')->where('key_name', 'paid_voting_enabled')->update(['value' => '0']);
         $e = Target::editionIn(Target::forPublic(71));
         $this->assertNotNull($e, 'a confirmed milestone is a record and stays when vote sales stop');
-        $this->assertSame('Milestone confirmed', $e['left']);
+        $this->assertSame('Rewards unlocked!', $e['head']);
     }
 
     public function test_a_custom_ladder_held_locked_shows_the_milestone(): void
@@ -152,19 +153,22 @@ final class MoneyTargetDisplayTest extends TestCase
         $t = Target::forPublic(71);
         $this->assertSame(['ladder', 'nominee'], [$t['kind'], $t['scope']]);
         $a = Target::standingIn($t, 7101);
-        $this->assertSame('Next step: ₦50,000 for a 30% share', $a['head']);
-        $this->assertSame('₦50 to go · about 1 paid vote', $a['left'], 'one ₦100 vote closes a ₦50 gap');
+        $this->assertSame('Power up this nominee’s reward!', $a['head']);
+        $this->assertSame('₦50 to 30%', $a['left']);
+        $this->assertSame(1, $a['votes_to_go'], 'one ₦100 vote closes a ₦50 gap');
+        $this->assertSame('So close! One big push!', $a['note'], '99% of the way');
         $b = Target::standingIn($t, 7102);
         $this->assertTrue($b['reached']);
-        $this->assertSame('Top share reached', $b['left']);
+        $this->assertSame('Top reward unlocked!', $b['head']);
+        $this->assertSame('Earning the full 50%', $b['left']);
 
         $page = $this->words($this->goal($this->get('/vote/' . self::SLUG . '/7101-x')));
-        $this->assertStringContainsString('Next step: ₦50,000 for a 30% share', $page);
-        $this->assertStringContainsString('the share now is 10%', $page);
+        $this->assertStringContainsString('Power up this nominee’s reward!', $page);
+        $this->assertStringContainsString('₦49K of ₦50K raised', $page);
 
         $list = $this->words($this->get('/vote/' . self::SLUG));
-        $this->assertStringContainsString('₦50 to go · about 1 paid vote', $list);
-        $this->assertStringContainsString('Top share reached', $list);
+        $this->assertStringContainsString('₦50 to 30%', $list);
+        $this->assertStringContainsString('Earning the full 50%', $list);
 
         $poll = json_decode($this->get('/vote/' . self::SLUG . '/tallies'), true);
         $rows = array_column($poll['target']['nominees'], null, 'id');
@@ -172,7 +176,7 @@ final class MoneyTargetDisplayTest extends TestCase
         $this->assertSame('ladder', $poll['target']['kind']);
 
         $award = $this->words($this->get('/awards/' . self::SLUG));
-        $this->assertStringContainsString('1 of 2 nominees are on the top share', $award);
+        $this->assertStringContainsString('1 of 2 nominees have unlocked the top reward', $award);
     }
 
     public function test_a_custom_ladder_on_the_edition_is_one_figure(): void
@@ -182,8 +186,21 @@ final class MoneyTargetDisplayTest extends TestCase
         $this->paid(7102, 4000);
         $t = Target::forPublic(71);
         $this->assertSame('edition', $t['scope']);
-        $this->assertSame('₦10,000 to go · about 100 paid votes', Target::editionIn($t)['left']);
+        $this->assertSame('₦10K to 40%', Target::editionIn($t)['left']);
+        $this->assertSame('Halfway there! Keep it coming!', Target::editionIn($t)['note']);
         $this->assertNull(Target::standingIn($t, 7101));
+    }
+
+    /** The edition in the owner's screenshot: short figures, not a wall of digits. */
+    public function test_big_figures_read_the_way_people_say_them(): void
+    {
+        $this->rule(['model' => 'milestone', 'full_pct' => 50, 'locked_pct' => 10, 'milestone_naira' => 5900000]);
+        $this->paid(7101, 795980);
+        $e = Target::editionIn(Target::forPublic(71));
+        $this->assertSame('₦5.1M to go', $e['left']);
+        $this->assertSame('₦795K of ₦5.9M raised', $e['of']);
+        $this->assertSame('We’re off! Every vote counts.', $e['note'], '13% there');
+        $this->assertSame(13, $e['pct']);
     }
 
     // ── nothing to draw ──────────────────────────────────────────────────────

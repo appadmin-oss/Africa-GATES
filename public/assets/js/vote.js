@@ -339,6 +339,10 @@
   function goalPatch(box, x) {
     var left = $('[data-goal-left]', box), bar = $('[data-goal-bar]', box), of = $('[data-goal-of]', box), lab = $('[data-goal-label]', box);
     if (left && left.textContent !== x.left) left.textContent = x.left;
+    /* The headline and the cheer move with the bar ("Halfway there!"), so they are patched too. */
+    var head = $('[data-goal-head]', box), note = $('[data-goal-note]', box);
+    if (head && x.head && head.textContent !== x.head) head.textContent = x.head;
+    if (note && x.note && note.textContent !== x.note) note.textContent = x.note;
     if (of && of.textContent !== x.of) of.textContent = x.of;
     if (lab) lab.setAttribute('aria-label', x.of);
     if (bar) bar.style.width = x.pct + '%';

@@ -273,13 +273,13 @@
     <div class="aw-pool">
       <p class="aw-pool__h">{{ 'Community return'|trans }}</p>
       {% if a.money.per_nominee|default(false) %}
-        <p class="aw-pool__n">{{ 'Each nominee’s share rises with what their supporters raise'|trans }}</p>
-        <span class="aw-pool__bar" role="img" aria-label="{{ '%r% of %n% nominees are on the top share'|trans({'%r%': a.money.reached, '%n%': a.money.nominees}) }}"><span style="width:{{ a.money.pct }}%"></span></span>
-        <p class="aw-pool__s">{{ '%r% of %n% nominees are on the top share. Each nominee’s vote page shows how much more lifts theirs.'|trans({'%r%': a.money.reached, '%n%': a.money.nominees}) }}</p>
+        <p class="aw-pool__n">{{ 'Every vote powers up a nominee’s reward!'|trans }}</p>
+        <span class="aw-pool__bar" role="img" aria-label="{{ '%r% of %n% nominees have unlocked the top reward'|trans({'%r%': a.money.reached, '%n%': a.money.nominees}) }}"><span style="width:{{ a.money.pct }}%"></span></span>
+        <p class="aw-pool__s">{{ '%r% of %n% nominees have unlocked the top reward. Who’s next?'|trans({'%r%': a.money.reached, '%n%': a.money.nominees}) }}</p>
       {% else %}
-        <p class="aw-pool__n">{{ a.money.head }} · {{ a.money.left }}</p>
+        <p class="aw-pool__n">{{ a.money.head }} {{ a.money.left }}</p>
         <span class="aw-pool__bar" role="img" aria-label="{{ a.money.of }}"><span style="width:{{ a.money.pct }}%"></span></span>
-        <p class="aw-pool__s">{{ a.money.of }}. {{ a.money.note }}</p>
+        <p class="aw-pool__s">{{ a.money.of }} · {{ a.money.note }}</p>
       {% endif %}
     </div>
     {% endif %}

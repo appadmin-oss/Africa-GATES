@@ -138,7 +138,7 @@ final class CommunityReturnTarget
         $t = self::forPublic($cycleId);
         if ($t === null) return null;
         if ($t['kind'] === self::KIND_POOL) return CommunityReturnPool::pollPayload($cycleId);
-        $pick = static fn (array $r): array => array_intersect_key($r, array_flip(['left', 'of', 'pct', 'reached']));
+        $pick = static fn (array $r): array => array_intersect_key($r, array_flip(['head', 'left', 'of', 'note', 'pct', 'reached']));
         $out = ['cycle_id' => $cycleId, 'kind' => $t['kind'], 'settled' => false, 'nominees' => [], 'edition' => null];
         if ($t['scope'] === 'edition') {
             $out['edition'] = $pick($t['edition']);
@@ -151,24 +151,36 @@ final class CommunityReturnTarget
 
     // ─────────────────────────────────────────────────────────────────────────
 
-    /** @return array<string,mixed> */
+    /**
+     * The edition's milestone, in words meant to MOVE people (owner, 20 Nov 2026: "too much
+     * talk … it needs to be motivational"): a call to action, what is left, one bar, and one
+     * short line. The mechanics (locked shares, confirmation) belong to the rules page and the
+     * nominee's letter, not to the box a supporter glances at before voting.
+     *
+     * @return array<string,mixed>
+     */
     private static function milestoneRow(int $targetKobo, int $raisedKobo, bool $confirmed, int $price): array
     {
         $reached = $raisedKobo >= $targetKobo;
         $toGo = max(0, $targetKobo - $raisedKobo);
-        $of = Translator::t('₦%r% of ₦%t% raised', ['%r%' => self::n($raisedKobo), '%t%' => self::n($targetKobo)]);
-        return [
+        $row = [
             'target_kobo' => $targetKobo, 'raised_kobo' => $raisedKobo, 'to_go_kobo' => $toGo, 'confirmed' => $confirmed,
             'votes_to_go' => self::votes($toGo, $price), 'reached' => $reached,
             'pct' => (int) min(100, floor(100 * $raisedKobo / $targetKobo)),
-            'head' => Translator::t('Edition milestone: ₦%t%', ['%t%' => self::n($targetKobo)]),
-            'of' => $of,
-            'left' => $confirmed ? Translator::t('Milestone confirmed')
-                : ($reached ? Translator::t('Milestone reached, awaiting confirmation') : self::toGo($toGo, $price)),
-            'note' => $confirmed
-                ? Translator::t('The milestone has been confirmed: every nominee’s share is unlocked, and every eligible paid vote from then on earns the full share.')
-                : Translator::t('One target for the whole edition, counted from paid votes. Until it is reached and confirmed, each nominee’s share is held locked; then every nominee’s share unlocks.'),
+            'of' => Translator::t('%r% of %t% raised', ['%r%' => self::money($raisedKobo), '%t%' => self::money($targetKobo)]),
         ];
+        if ($confirmed) {
+            $row += ['head' => Translator::t('Rewards unlocked!'), 'left' => Translator::t('Every vote now earns the full reward'),
+                     'note' => Translator::t('You did this. Thank you!')];
+        } elseif ($reached) {
+            $row += ['head' => Translator::t('Milestone smashed!'), 'left' => Translator::t('Rewards unlocking soon'),
+                     'note' => Translator::t('You did this. Thank you!')];
+        } else {
+            $row += ['head' => Translator::t('Unlock rewards for every nominee!'),
+                     'left' => Translator::t('%n% to go', ['%n%' => self::money($toGo, true)]),
+                     'note' => self::cheer($row['pct'])];
+        }
+        return $row;
     }
 
     /** @param list<array{0:int,1:int}> $steps @return array<string,mixed> */
@@ -188,32 +200,54 @@ final class CommunityReturnTarget
             'pct' => $next ? (int) min(100, floor(100 * $raisedKobo / $next[0])) : 100,
         ];
         if ($next === null) {
-            $row['head'] = Translator::t('Community return: %p%% share', ['%p%' => $pctNow]);
-            $row['left'] = Translator::t('Top share reached');
-            $row['of'] = Translator::t('₦%r% raised', ['%r%' => self::n($raisedKobo)]);
+            $row['head'] = Translator::t('Top reward unlocked!');
+            $row['left'] = Translator::t('Earning the full %p%%', ['%p%' => $pctNow]);
+            $row['of'] = Translator::t('%r% raised', ['%r%' => self::money($raisedKobo)]);
+            $row['note'] = Translator::t('You did this. Thank you!');
         } else {
-            $row['head'] = Translator::t('Next step: ₦%t% for a %p%% share', ['%t%' => self::n($next[0]), '%p%' => $row['share_next']]);
-            $row['left'] = self::toGo($toGo, $price);
-            $row['of'] = Translator::t('₦%r% of ₦%t% raised', ['%r%' => self::n($raisedKobo), '%t%' => self::n($next[0])]);
+            $row['head'] = $edition ? Translator::t('Power up every nominee’s reward!') : Translator::t('Power up this nominee’s reward!');
+            // Short enough to stand alone on a list row, where it is the only words there are.
+            $row['left'] = Translator::t('%n% to %p%%', ['%n%' => self::money($toGo, true), '%p%' => $row['share_next']]);
+            $row['of'] = Translator::t('%r% of %t% raised', ['%r%' => self::money($raisedKobo), '%t%' => self::money($next[0])]);
+            $row['note'] = self::cheer($row['pct']);
         }
-        $row['note'] = $edition
-            ? Translator::t('The share rises with what the whole edition raises in paid votes; the share now is %p%%.', ['%p%' => $pctNow])
-            : Translator::t('The share rises with what this nominee’s supporters raise in paid votes; the share now is %p%%.', ['%p%' => $pctNow]);
         return $row;
     }
 
-    private static function toGo(int $toGoKobo, int $price): string
+    /**
+     * The closing line, which MOVES with the bar so the box is never the same sentence twice
+     * in a campaign: a start, momentum, halfway, the last push.
+     */
+    private static function cheer(int $pct): string
     {
-        $v = self::votes($toGoKobo, $price);
-        if ($v < 1) return Translator::t('₦%n% to go', ['%n%' => self::n($toGoKobo, true)]);
-        return Translator::t($v === 1 ? '₦%n% to go · about 1 paid vote' : '₦%n% to go · about %v% paid votes',
-            ['%n%' => self::n($toGoKobo, true), '%v%' => number_format($v)]);
+        return match (true) {
+            $pct >= 75 => Translator::t('So close! One big push!'),
+            $pct >= 50 => Translator::t('Halfway there! Keep it coming!'),
+            $pct >= 25 => Translator::t('Momentum is building. Keep going!'),
+            default    => Translator::t('We’re off! Every vote counts.'),
+        };
     }
 
-    /** Whole naira; a gap rounds UP, so "₦0 to go" is never said of a gap that is not closed. */
-    private static function n(int $kobo, bool $up = false): string
+    /**
+     * Naira as people say it: exact below ₦10,000, then ₦796K, then ₦5.1M.
+     *
+     * Below ₦10,000 a gap ($up) rounds UP to the naira, so "₦0 to go" is never said of a gap
+     * that is not closed.
+     */
+    private static function money(int $kobo, bool $up = false): string
     {
-        return number_format($up ? intdiv($kobo + 99, 100) : intdiv($kobo, 100));
+        $n = $up ? intdiv($kobo + 99, 100) : intdiv($kobo, 100);
+        if ($n < 10000) return '₦' . number_format($n);
+        // Above ₦10,000 ordinary rounding: it cannot reach ₦0, and rounding a ₦5,104,020 gap UP
+        // to "₦5.2M" would overstate it by nearly ₦100,000.
+        // An amount RAISED rounds DOWN, so it never reads as having reached its target early
+        // ("₦50K of ₦50K raised" with ₦50 still to go).
+        if ($n < 1000000) {
+            $k = $up ? (int) round($n / 1000) : intdiv($n, 1000);
+            return $k >= 1000 ? '₦1M' : '₦' . $k . 'K';
+        }
+        $m = $up ? round($n / 1000000, 1) : floor($n / 100000) / 10;
+        return '₦' . rtrim(rtrim(number_format($m, 1), '0'), '.') . 'M';
     }
 
     private static function votes(int $kobo, int $price): int

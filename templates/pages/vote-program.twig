@@ -267,12 +267,12 @@
       {% set _e = money_target.edition %}
       {% if _e %}
       <div class="vp-note vp-goal-note vp-goal-ed{{ _e.reached ? ' is-reached' }}" data-goal-edition>
-        <b>{{ _e.head }}</b> · <span data-goal-left>{{ _e.left }}</span>
+        <b data-goal-head>{{ _e.head }}</b> <span data-goal-left>{{ _e.left }}</span>
         <span class="vp-goal-ed__bar" role="img" aria-label="{{ _e.of }}" data-goal-label><span aria-hidden="true" style="width:{{ _e.pct }}%" data-goal-bar></span></span>
-        <span data-goal-of>{{ _e.of }}</span>. {{ _e.note }}
+        <span data-goal-of>{{ _e.of }}</span> · <span data-goal-note>{{ _e.note }}</span>
       </div>
       {% else %}
-      <p class="vp-note vp-goal-note">{{ 'Community return: each nominee’s share rises as their supporters raise more in paid votes. Each row says how much more lifts it to the next step.'|trans }}</p>
+      <p class="vp-note vp-goal-note">{{ 'Every vote powers up a nominee’s reward. Each row shows how close they are to the next level!'|trans }}</p>
       {% endif %}
       {% endif %}
       {% if categories|length %}
