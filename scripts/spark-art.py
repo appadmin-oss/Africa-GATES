@@ -25,7 +25,7 @@ OUT = os.path.join(os.path.dirname(__file__), '..', 'public', 'assets', 'img', '
 # ── shared pieces ────────────────────────────────────────────────────────────
 
 BOLD_DEFS = '''<defs>
-<radialGradient id="bg" cx="50%" cy="45%" r="60%"><stop offset="0" stop-color="#e9f8ea"/><stop offset=".7" stop-color="#d4efd5"/><stop offset="1" stop-color="#d4efd5" stop-opacity="0"/></radialGradient>
+<radialGradient id="bg" cx="50%" cy="45%" r="60%"><stop offset="0" stop-color="#7fc87c" stop-opacity=".30"/><stop offset=".7" stop-color="#7fc87c" stop-opacity=".18"/><stop offset="1" stop-color="#7fc87c" stop-opacity="0"/></radialGradient>
 <linearGradient id="gr" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5cc95a"/><stop offset=".55" stop-color="#2e9a2c"/><stop offset="1" stop-color="#1a6118"/></linearGradient>
 <linearGradient id="go" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe27a"/><stop offset=".5" stop-color="#f3b416"/><stop offset="1" stop-color="#c98a00"/></linearGradient>
 <linearGradient id="lv" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff6b93"/><stop offset="1" stop-color="#b0224f"/></linearGradient>

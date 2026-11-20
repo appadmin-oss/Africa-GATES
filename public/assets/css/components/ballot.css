@@ -338,3 +338,12 @@ button.vn-bar__go{ border:0; cursor:pointer; font-family:inherit }
 .vn-goal [data-goal-note], .vn-goal__cheer{ margin:0; font-weight:700; font-size:var(--ag-fs-14); color:var(--ag-green-deep) }
 @media (prefers-reduced-motion:reduce){ .vn-goal--art > .vn-goal__art{ animation:none } }
 html.ag-rm .vn-goal--art > .vn-goal__art{ animation:none }
+
+/* At night the spark pictures step down a little. An image cannot read the palette, and the
+   ones with a cream backdrop (the house style, and supplied art) glared on a dark card. The
+   same two selectors as css(): the device's dark scheme unless the reader chose otherwise,
+   and the reader's own Dark. */
+@media (prefers-color-scheme:dark){
+  :root:where(:not(.ag-light):not(.ag-sepia)) :is(.vn-goal__art, .vp-goal-ed__art, .aw-pool__art, .ag-annc__art){ filter:brightness(.86) }
+}
+:root:where(.ag-dark) :is(.vn-goal__art, .vp-goal-ed__art, .aw-pool__art, .ag-annc__art){ filter:brightness(.86) }

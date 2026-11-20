@@ -306,7 +306,7 @@
 .sp-sum li.is-tot{ margin-top:var(--ag-sp-6); padding-top:var(--ag-sp-10); border-top:1px solid var(--ag-line); font-weight:700; font-size:var(--ag-fs-16) }
 .sp-fs__l{ padding:0; margin-bottom:var(--ag-sp-10); font-weight:700; font-size:var(--ag-fs-16) }
 .sp-fld{ display:flex; flex-direction:column; gap:var(--ag-sp-6); margin-bottom:var(--ag-sp-12); font-size:var(--ag-fs-14); color:var(--ag-soft) }
-.sp-fld em{ font-style:normal; color:var(--ag-mute) }
+.sp-fld em{ font-style:normal; color:var(--ag-soft) }   /* words: soft, never mute (3.53:1 at night) */
 .sp-fld input,
 .sp-fld select,
 .sp-fld textarea{ width:100%; min-height:48px; padding:var(--ag-sp-10) var(--ag-sp-12); border:1px solid var(--ag-line-2);

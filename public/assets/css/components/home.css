@@ -238,6 +238,12 @@
   background:var(--ag-gold); color:var(--ag-ink);
   box-shadow:0 0 0 3px var(--ag-surface), 0 0 0 5px var(--ag-gold-edge), 0 2px 10px color-mix(in srgb, var(--ag-ink) 30%, transparent);
 }
+/* Gold does not change at night and ink does, so a glyph in ink on gold fell to 1.57:1 in the
+   dark scheme. At night the dark word colour is `surface` (8.73:1 on gold). Same selectors as
+   Accent::css(): the device's dark unless the reader chose Light or Sepia, and the reader's Dark. */
+@media (prefers-color-scheme:dark){ :root:where(:not(.ag-light):not(.ag-sepia)) .waa__m--won .waa__dot{ color:var(--ag-surface) } }
+:root:where(.ag-dark) .waa__m--won .waa__dot{ color:var(--ag-surface) }
+
 .waa__m[aria-expanded="true"] .waa__dot{ box-shadow:0 0 0 3px var(--ag-surface), 0 0 0 6px var(--ag-green) }
 .waa__lbl{
   position:absolute; top:calc(100% - 6px); inset-inline-start:50%; transform:translateX(-50%);

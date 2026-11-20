@@ -15,6 +15,12 @@
 .spr-b__i--on{ background:var(--ag-gold-wash); border-color:var(--ag-gold-edge) }
 .spr-b__ic{ flex:none; display:grid; place-items:center; width:40px; height:40px; border-radius:50%; background:var(--ag-tint); color:var(--ag-soft) }
 .spr-b__i--on .spr-b__ic{ background:var(--ag-gold); color:var(--ag-ink) }
+/* Gold does not change at night and ink does, so a glyph in ink on gold fell to 1.57:1 in the
+   dark scheme. At night the dark word colour is `surface` (8.73:1 on gold). Same selectors as
+   Accent::css(): the device's dark unless the reader chose Light or Sepia, and the reader's Dark. */
+@media (prefers-color-scheme:dark){ :root:where(:not(.ag-light):not(.ag-sepia)) .spr-b__i--on .spr-b__ic{ color:var(--ag-surface) } }
+:root:where(.ag-dark) .spr-b__i--on .spr-b__ic{ color:var(--ag-surface) }
+
 .spr-b__t{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px }
 .spr-b__t b{ font-size:var(--ag-fs-15-5) }
 .spr-b__t span{ font-size:var(--ag-fs-13-5); color:var(--ag-soft); line-height:1.4 }

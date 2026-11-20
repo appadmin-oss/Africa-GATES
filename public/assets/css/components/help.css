@@ -150,7 +150,7 @@
 }
 .hc-stuck__words{ display:flex; align-items:center; gap:var(--ag-sp-14) }
 .hc-stuck__g{
-  flex:none; width:48px; height:48px; border-radius:50%; background:var(--ag-green-light); color:var(--ag-ink);
+  flex:none; width:48px; height:48px; border-radius:50%; background:var(--ag-green); color:var(--ag-surface);
   display:flex; align-items:center; justify-content:center;
   font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-22);
 }

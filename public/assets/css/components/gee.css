@@ -79,7 +79,9 @@
   position:relative; flex:none;
   width:28px; height:28px; border-radius:50%;
   display:flex; align-items:center; justify-content:center;
-  background:var(--ag-green-light); color:var(--ag-ink);
+  /* The primary button's pair, measured in every scheme (Accent WORDS `surface` on `green`):
+     ink on green-light lost its letter at night, where ink turns light and the fill does not. */
+  background:var(--ag-green); color:var(--ag-surface);
   font:700 var(--ag-fs-16)/1 var(--ag-font-display);
 }
 /* Support mode: the amber dot on the G (§8.22). 10 + a 2px ring, as the DC draws it. */
@@ -139,7 +141,7 @@
   position:relative; flex:none;
   width:28px; height:28px; border-radius:50%;
   display:flex; align-items:center; justify-content:center;
-  background:var(--ag-green-light); color:var(--ag-ink);
+  background:var(--ag-green); color:var(--ag-surface);   /* as .gee__g: legible in every scheme */
   font:700 var(--ag-fs-17)/1 var(--ag-font-display);
 }
 .gee__av-dot{
