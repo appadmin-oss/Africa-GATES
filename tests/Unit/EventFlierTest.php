@@ -1235,6 +1235,30 @@ final class EventFlierTest extends TestCase
         $s = 'afg.afrovanguard.org.ng';
         $this->assertGreaterThan($r->w($s, 0.0), $r->w($s, 0.8),
             'tracking widens a line, and the measurer must say so');
+        $this->assertEqualsWithDelta($r->w($s, 0.0) + 22 * 3.0, $r->w($s, 3.0), 0.001,
+            'every one of the n-1 gaps carries the tracking, and nothing else moves');
+
+        // And the line on the canvas spans what the measurer said: the ink of the tracked
+        // drawing, read back off the pixels, against width(). Stepping by each glyph's ink
+        // box (no side bearings) drew a tracked line NARROWER than the untracked one.
+        $d = new class { use \AfricaGates\Services\FlierRaster;
+            public function inkSpan(string $s, float $t): array {
+                $font = \AfricaGates\Services\FlierService::fontPath('regular');
+                $im = imagecreatetruecolor(900, 60);
+                imagefill($im, 0, 0, imagecolorallocate($im, 255, 255, 255));
+                $this->text($im, $s, 19, $font, imagecolorallocate($im, 0, 0, 0), 20, 40, $t);
+                $lo = null; $hi = null;
+                for ($x = 0; $x < 900; $x++) for ($y = 0; $y < 60; $y++) {
+                    if ((imagecolorat($im, $x, $y) & 0xFF) < 128) { $lo ??= $x; $hi = $x; break; }
+                }
+                return [$lo, $hi, $this->width($s, 19, $font, $t)];
+            }
+        };
+        [$lo0, $hi0, $w0] = $d->inkSpan($s, 0.0);
+        [$lo1, $hi1, $w1] = $d->inkSpan($s, 3.0);
+        $this->assertGreaterThan($hi0 - $lo0 + 40, $hi1 - $lo1, 'the tracked line was not drawn wider');
+        $this->assertEqualsWithDelta($w1 - $w0, ($hi1 - $lo1) - ($hi0 - $lo0), 3.0,
+            'the drawing widened by a different amount than the measurer says it did');
 
         // Zero tracking must take the original path unchanged — every other caller relies on
         // it, and a measurer that answers differently for the same input is worse than one

@@ -68,8 +68,27 @@ final class CyclePolicy
         return $phase;
     }
 
+    /**
+     * The phase the SCHEDULE promises, whatever the release mode: Results once the results
+     * date has passed even where release is manual and nobody has pressed it yet.
+     *
+     * Not an authorization input — nothing may open or close on it. It exists for the
+     * readers whose question is about the promise rather than the state: the phase audit's
+     * "results date has passed and nobody is crowned" backlog, which in manual mode is
+     * precisely the list of editions waiting on an operator, and which its SQL twin
+     * (database/audits/phase-audit.sql) computes from the dates alone. Reading phaseFor()
+     * there emptied the backlog the moment release became manual by default — the one
+     * report meant to say "these are overdue" going silent exactly when they are.
+     *
+     * @param object|array<string,mixed> $cycle a gates_award_cycles row
+     */
+    public static function scheduledPhase(object|array $cycle, ?Carbon $now = null): CyclePhase
+    {
+        return self::fromWindows((object) $cycle, $now ?? Carbon::now(), true);
+    }
+
     /** The phase the date windows alone give (see the note on the class). */
-    private static function fromWindows(object $c, Carbon $now): CyclePhase
+    private static function fromWindows(object $c, Carbon $now, ?bool $auto = null): CyclePhase
     {
         $stored = CyclePhase::fromStored($c->status ?? null);
         if ($stored === CyclePhase::Archived) return CyclePhase::Archived;
@@ -93,7 +112,7 @@ final class CyclePolicy
         // Results once an operator has released (stored status = results). This is the
         // one setting this otherwise pure function reads, cached per process.
         if ($results   && $now->gte($results)) {
-            return \AfricaGates\Support\ResultReleaseMode::isAuto()
+            return ($auto ?? \AfricaGates\Support\ResultReleaseMode::isAuto())
                 ? CyclePhase::Results : CyclePhase::Judging;
         }
         if ($voteClose && $now->gte($voteClose)) return CyclePhase::Judging;

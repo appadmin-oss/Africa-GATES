@@ -17,6 +17,17 @@ use Symfony\Component\Console\Tester\CommandTester;
  */
 class JudgeQuorumTest extends TestCase
 {
+    /**
+     * This suite exercises the SCHEDULED promotion — the results date passing and the sweep
+     * crowning. That is automatic release; manual (the default) waits for an operator and
+     * is pinned in CycleMaterialiserTest.
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+        \AfricaGates\Support\ResultReleaseMode::save(\AfricaGates\Support\ResultReleaseMode::AUTO);
+    }
+
     private function seedCycleReadyForResults(): void
     {
         DB::table('gates_award_programmes')->insert(['id' => 1, 'slug' => 'p1', 'title' => 'P1']);

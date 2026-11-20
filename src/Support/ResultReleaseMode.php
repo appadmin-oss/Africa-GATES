@@ -65,6 +65,16 @@ final class ResultReleaseMode
         self::$mode = null;
     }
 
+    /**
+     * Hold a mode for this process without a database. For tests that exercise the pure
+     * phase function ({@see \AfricaGates\Services\CyclePolicy}) with no connection, where
+     * mode() would otherwise resolve to MANUAL by failing to read. {@see forget()} undoes it.
+     */
+    public static function assume(string $mode): void
+    {
+        self::$mode = $mode === self::AUTO ? self::AUTO : self::MANUAL;
+    }
+
     /** Forget the cached mode. For tests, and for the settings screen after a save. */
     public static function forget(): void
     {

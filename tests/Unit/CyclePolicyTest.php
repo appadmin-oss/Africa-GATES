@@ -6,6 +6,7 @@ namespace Tests\Unit;
 use PHPUnit\Framework\TestCase;
 use AfricaGates\Services\CyclePhase;
 use AfricaGates\Services\CyclePolicy;
+use AfricaGates\Support\ResultReleaseMode;
 use Illuminate\Support\Carbon;
 
 /**
@@ -18,6 +19,43 @@ use Illuminate\Support\Carbon;
  */
 class CyclePolicyTest extends TestCase
 {
+    /**
+     * These cases are the SCHEDULE: they assert that the results date publishes, which is
+     * automatic release. Manual release (the default since Nov 2026) holds Judging past the
+     * date until an operator releases; that case is pinned on its own below. Held without a
+     * database because this suite has none — mode() would otherwise fail to read and answer
+     * manual, which is how all four of these went red without a line of them changing.
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+        ResultReleaseMode::assume(ResultReleaseMode::AUTO);
+    }
+
+    protected function tearDown(): void
+    {
+        ResultReleaseMode::forget();
+        parent::tearDown();
+    }
+
+    public function test_manual_release_holds_judging_past_the_results_date_until_released(): void
+    {
+        ResultReleaseMode::assume(ResultReleaseMode::MANUAL);
+        $c = $this->gapCycle('judging');
+
+        $this->assertSame(CyclePhase::Judging, CyclePolicy::phaseFor($c, $this->at('2026-09-01 00:00:00')),
+            'a results date published on its own under manual release');
+        $this->assertSame(CyclePhase::Judging, CyclePolicy::phaseFor($c, $this->at('2026-12-25 12:00:00')));
+        $this->assertSame(CyclePhase::Results, CyclePolicy::scheduledPhase($c, $this->at('2026-09-01 00:00:00')),
+            'the schedule still says the date has come, which is what the audit backlog reads');
+
+        // An operator's release is what moves it, and only once the windows say Judging.
+        $released = $this->gapCycle('results');
+        $this->assertSame(CyclePhase::Results, CyclePolicy::phaseFor($released, $this->at('2026-09-01 00:00:00')));
+        $this->assertSame(CyclePhase::Voting, CyclePolicy::phaseFor($released, $this->at('2026-08-01 12:00:00')),
+            'a stored release reached back into voting');
+    }
+
     /** A cycle with a shortlisting gap: nominations close 14 days before voting opens. */
     private function gapCycle(string $status = 'nominations'): object
     {

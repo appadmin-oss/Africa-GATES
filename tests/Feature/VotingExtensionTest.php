@@ -386,8 +386,13 @@ final class VotingExtensionTest extends TestCase
 
         $from = DisplayTime::showZoned((string) $cycle->voting_close);
         $this->assertStringContainsString('data-voting-extension', $html);
-        $this->assertStringContainsString('Voting extended from ' . $from . ' to ', $html);
-        $this->assertStringContainsString('Every vote already cast stands. Rules and prices are unchanged. The new date applies to every nominee in this edition.', $html);
+        // The compact card (owner, 17 Nov 2026): the new close first, the old one beside it,
+        // then what did not change as three ticks.
+        $this->assertStringContainsString('Voting extended to ', $html);
+        $this->assertStringContainsString('(was ' . $from . ')', $html);
+        foreach (['Votes already cast stand', 'Rules and prices unchanged', 'Same date for every nominee'] as $tick) {
+            $this->assertStringContainsString($tick, $html, 'the card no longer says what did not change');
+        }
         $this->assertStringContainsString('Paid voting closed at ' . $from . '; free voting stays open.', $html);
         $this->assertStringContainsString('&lt;script&gt;alert(1)&lt;/script&gt;', $html, 'the reason is escaped');
         $this->assertStringNotContainsString('<script>alert(1)</script>', $html);

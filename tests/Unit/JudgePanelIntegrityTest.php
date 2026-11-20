@@ -258,10 +258,17 @@ final class JudgePanelIntegrityTest extends TestCase
             'a cycle whose windows say judging was locked by a stale status column');
         $this->assertTrue($this->svc->saveScore($j, self::NOM, [1 => 7])['ok']);
 
-        // And the other way: the results date has passed, the column still says judging.
+        // Under manual release (the default) a passed results date is not the end of
+        // judging — the panel works until an operator releases — so the ballot stays open.
         DB::table('gates_award_cycles')->where('id', self::CYCLE)->update([
             'status' => 'judging', 'results_date' => Carbon::now()->subHour()->toDateTimeString(),
         ]);
+        $this->assertTrue($this->svc->ballot($j, self::PROG)['judging_open'],
+            'manual release: the date passing closed a panel nobody has released');
+
+        // And the other way: automatic release, the results date has passed, the column
+        // still says judging. The windows say results, and both readers must agree.
+        \AfricaGates\Support\ResultReleaseMode::save(\AfricaGates\Support\ResultReleaseMode::AUTO);
         $b = $this->svc->ballot($j, self::PROG);
         $this->assertFalse($b['judging_open']);
         $this->assertStringContainsString('finished', $b['lock_reason']);
