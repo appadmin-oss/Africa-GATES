@@ -6,6 +6,7 @@ use AfricaGates\Services\EventTicketService;
 use AfricaGates\Services\PaidVoteService;
 use AfricaGates\Services\Volunteer\Workspace;
 use AfricaGates\Support\SchemaHas;
+use AfricaGates\Services\Grants;
 use Illuminate\Database\Capsule\Manager as DB;
 
 /**
@@ -31,6 +32,11 @@ use Illuminate\Database\Capsule\Manager as DB;
  */
 final class Goals
 {
+    /** gates_nominations states that are not a submitted nomination. */
+    public const NOT_SUBMITTED = ['rejected', 'draft'];
+    /** gates_nominees states that are a confirmed nominee: approved, and the decided ones after release. */
+    public const CONFIRMED_NOMINEE = ['approved', 'winner', 'runner_up'];
+
     /** What a goal can measure: label, unit, and whether it needs an award to count within. */
     public const METRICS = [
         'nominations' => ['Nominations submitted', 'count', true],
@@ -101,13 +107,16 @@ final class Goals
         $by = static function ($q, string $col) use ($until) { if ($until !== null) $q->where($col, '<=', $until); return $q; };
         try {
             return match ($metric) {
-                'nominations' => (int) $by(DB::table('gates_nominations')->whereIn('category_id', $cats)->where('status', '!=', 'rejected')->whereNull('merged_into'), 'created_at')->count(),
-                'nominees'    => (int) DB::table('gates_nominees')->whereIn('category_id', $cats)->where('status', 'approved')->whereNull('merged_into')->count(),
+                // Submitted means submitted: a draft is a form somebody has not sent (EV-19).
+                'nominations' => (int) $by(DB::table('gates_nominations')->whereIn('category_id', $cats)->whereNotIn('status', self::NOT_SUBMITTED)->whereNull('merged_into'), 'created_at')->count(),
+                // Release moves the decided nominees on to winner and runner_up, so counting only
+                // 'approved' made this goal FALL on results night (AUDIT-AND-PLAN EV-19).
+                'nominees'    => (int) DB::table('gates_nominees')->whereIn('category_id', $cats)->whereIn('status', self::CONFIRMED_NOMINEE)->whereNull('merged_into')->count(),
                 'votes'       => (int) DB::table('gates_nominees')->whereIn('category_id', $cats)->whereNull('merged_into')->sum('vote_count'),
                 'revenue'     => self::revenue($cats, $until),
                 'tickets'     => EventTicketService::soldForEvent($eventId),
                 'volunteers'  => (int) DB::table('gates_grants')->where('scope_kind', 'event')->where('scope_id', $eventId)->where('capability', 'like', 'vol.%')
-                                     ->whereNull('revoked_at')->where('expires_at', '>', date('Y-m-d H:i:s'))->distinct()->count('actor_id'),
+                                     ->where(static fn ($w) => Grants::live($w))->distinct()->count('actor_id'),
                 'contacted'   => (int) self::contactsIn($eventId, $kind, $id)->whereIn('stage', ['contacted', 'yes', 'nominated'])->count(),
                 'converted'   => (int) self::contactsIn($eventId, $kind, $id)->where('stage', 'nominated')->count(),
                 default       => 0,

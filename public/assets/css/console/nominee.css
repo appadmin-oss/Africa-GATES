@@ -42,6 +42,8 @@
 .nm-quote { margin: 0; padding: 14px 16px; border-left: 3px solid var(--cn-green); background: var(--cn-ground); border-radius: 0 var(--cn-r-12) var(--cn-r-12) 0;
   font-size: var(--cn-fs-15); line-height: 1.6; color: var(--cn-ink); white-space: pre-line; }
 .nm-text { margin: 0; font-size: var(--cn-fs-15); line-height: 1.6; color: var(--cn-ink); white-space: pre-line; }
+/* The nominee's thank-you as their supporters will read it: their words, set off by a rule. */
+.nm-quote { margin: 0; padding: 4px 0 4px 16px; border-left: 3px solid var(--cn-line); font-size: var(--cn-fs-16); line-height: 1.6; color: var(--cn-ink); white-space: pre-line; overflow-wrap: anywhere; }
 .nm-hint { margin: 0; font-size: var(--cn-fs-13); color: var(--cn-ink-3); }
 
 .nm-facts { margin: 0; display: grid; gap: 8px; }
@@ -82,3 +84,57 @@
   .nm-hero__t { font-size: var(--cn-fs-24); }
   .nm-form > .ap-btn { align-self: stretch; }
 }
+
+/* ── Who's behind you, updates and the voice thank-you (NomineeBackers, NomineeUpdates,
+   NomineeVoice). ── */
+.nm-stats { margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.nm-stats div { padding: 12px; border: 1px solid var(--cn-line-card); border-radius: var(--cn-r-14); display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.nm-stats dt { order: 2; font-size: var(--cn-fs-13); color: var(--cn-ink-3); }
+.nm-stats__num { order: 1; margin: 0; font-size: var(--cn-fs-24); font-weight: 600; line-height: 1.15; }
+.nm-sub { margin: 4px 0 0; font-size: var(--cn-fs-15); font-weight: 600; }
+.nm-links { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; }
+.nm-links a, .nm-rows a { display: inline-flex; align-items: center; min-height: 44px; color: var(--cn-ink) !important; font-size: var(--cn-fs-15); text-decoration: underline; text-underline-offset: 3px; }
+.nm-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.nm-rows > li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; min-height: 52px; padding: 6px 0; border-bottom: 1px solid var(--cn-line-card); font-size: var(--cn-fs-15); }
+.nm-rows > li:last-child { border-bottom: 0; }
+.nm-rows__t { flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; gap: 2px; overflow-wrap: anywhere; }
+.nm-rows__t span { font-size: var(--cn-fs-13); color: var(--cn-ink-3); }
+.nm-rows details { flex: 1 1 100%; }
+.nm-rows details > summary { min-height: 40px; }
+.nm-voice audio { display: block; width: 100%; max-width: 420px; }
+.nm-say { margin: 0; font-size: var(--cn-fs-14); line-height: 1.5; color: var(--cn-ink-2); }
+.nm-say:empty { display: none; }
+
+/* The recorder (nominee-voice.js draws it; without script the upload alone is the form). One
+   round button is the whole interaction: green to start, red with a square to stop, so the
+   state reads from across a room and from the words beside it, never from colour alone. */
+.nm-vr { gap: 14px; }
+.nm-vr__rec { display: flex; align-items: center; gap: 16px; padding: 14px; border: 1px solid var(--cn-line-card); border-radius: var(--cn-r-16); background: var(--cn-ground); }
+.nm-vr__btn { flex: none; display: grid; place-items: center; width: 64px; height: 64px; border: 0; border-radius: 50%; background: var(--cn-green); color: var(--cn-surface); cursor: pointer;
+  transition: background-color .18s, transform .18s; }
+.nm-vr__btn:hover { transform: scale(1.04); }
+.nm-vr__btn:focus-visible { outline: 3px solid var(--cn-ink); outline-offset: 3px; }
+.nm-vr__btn[aria-pressed="true"] { background: var(--cn-red); }
+.nm-vr__ic--stop, .nm-vr__btn[aria-pressed="true"] .nm-vr__ic--mic { display: none; }
+.nm-vr__btn[aria-pressed="true"] .nm-vr__ic--stop { display: block; }
+.nm-vr__meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.nm-vr__state { margin: 0; font-size: var(--cn-fs-16); font-weight: 600; color: var(--cn-ink); }
+.nm-vr__time { margin: 0; font-size: var(--cn-fs-14); color: var(--cn-ink-2); font-variant-numeric: tabular-nums; }
+.nm-vr__bar { height: 4px; border-radius: var(--cn-r-pill); background: var(--cn-line); overflow: hidden; }
+.nm-vr__bar span { display: block; height: 100%; width: 100%; background: var(--cn-green); transform: scaleX(0); transform-origin: left; transition: transform .25s linear; }
+.nm-vr--rec .nm-vr__bar span { background: var(--cn-red); }
+.nm-vr__take { display: block; width: 100%; }
+.nm-vr > .ap-btn[hidden] { display: none; }
+/* Upload: a real file input, visually replaced by its label so the browser's own "Choose File"
+   control never shows; still focusable and announced as the input it is. */
+.nm-vr__up { position: relative; display: inline-flex; align-items: center; align-self: flex-start; min-height: 44px; padding: 0 18px;
+  border: 1px solid var(--cn-line-strong); border-radius: var(--cn-r-pill); font-size: var(--cn-fs-15); font-weight: 500; color: var(--cn-ink); cursor: pointer; }
+.nm-vr__up:focus-within { outline: 2px solid var(--cn-green); outline-offset: 2px; }
+.nm-vr__file { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+/* With no recorder, choosing a file comes first and Save after it; with one, upload is the
+   quiet alternative under Save, not a second button. */
+.nm-vr__up { order: -1; }
+.nm-vr--live .nm-vr__up { order: 1; }
+.nm-vr--live .nm-vr__up { padding: 0; border: 0; color: var(--cn-ink-2); text-decoration: underline; text-underline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) { .nm-vr__btn, .nm-vr__bar span { transition: none; } }
+@media (max-width: 600px) { .nm-stats__num { font-size: var(--cn-fs-22); } .nm-vr > .ap-btn { align-self: stretch; } }

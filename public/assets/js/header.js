@@ -239,7 +239,7 @@
       if (g && Date.now() - g < 1200) {
         g = 0;
         var to = GO[e.key.toLowerCase()];
-        if (to) { e.preventDefault(); location.href = to; }
+        if (to) { e.preventDefault(); if (window.agNav) window.agNav.go(to); else location.href = to; }
         return;
       }
       if (e.key === 'g' || e.key === 'G') g = Date.now();

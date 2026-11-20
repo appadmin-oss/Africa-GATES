@@ -162,6 +162,9 @@
 .vb-tier:has(input:focus-visible){ outline:3px solid var(--ag-green); outline-offset:2px }
 .vb-tier__q{ font-weight:700; font-size:var(--ag-fs-15); font-variant-numeric:tabular-nums }
 .vb-tier__p{ font-size:var(--ag-fs-11-5); color:var(--ag-soft) }
+/* `soft` is 4.80:1 on the ground and 4.38 on `tint` (Accent::words leaves tint out of its row),
+   so the chosen tier's price, drawn on tint, takes ink-2. */
+.vb-tier:has(input:checked) .vb-tier__p{ color:var(--ag-ink-2) }
 .vb-field{ display:flex; flex-direction:column; gap:5px }
 .vb-label{ font-weight:600; font-size:var(--ag-fs-13); color:var(--ag-ink) }
 .vb-label__o{ font-weight:400; color:var(--ag-soft) }
@@ -206,6 +209,8 @@
    width and the words beside an 88px ring wrapped to three short lines. */
 .vb-done .ag-cel--inline{ border:0; border-radius:0; padding:12px 0 0; background:none; overflow:visible }
 .vb-done .ag-cel--inline .ag-cel__actions{ grid-template-columns:minmax(0,1fr) }
+.vb-offer{ align-self:center; display:inline-flex; align-items:center; min-height:44px; color:var(--ag-ink); font-weight:700; font-size:var(--ag-fs-15); text-decoration:underline; text-underline-offset:3px }
+.vb-offer:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
 .vb-done .ag-cel--inline .ag-cel__sub{ margin-bottom:4px }
 .vb-done + *{ border-top:1px solid var(--ag-line); padding-top:16px }
 button.vn-bar__go{ border:0; cursor:pointer; font-family:inherit }
@@ -277,6 +282,20 @@ button.vn-bar__go{ border:0; cursor:pointer; font-family:inherit }
 
 /* "Bring your people" — the voter's own link after a confirmed vote (VoteRecruit). A quiet
    card under the celebration: the link to copy, three ways to send it, and the count. */
+/* "I backed …" — the supporter's card, shown as it will look when posted, then the download.
+   The same quiet card as "Bring your people" beside it; the image carries the colour. */
+.vb-card{ display:flex; flex-direction:column; gap:10px; margin:0 0 4px; padding:14px; border:1px solid var(--ag-line); border-radius:var(--ag-r-14); background:var(--ag-surface) }
+.vb-card__img{ display:block; width:100%; height:auto; aspect-ratio:1200 / 630; border-radius:var(--ag-r-10); background:var(--ag-ground) }
+.vb-card .vb-btn{ align-self:flex-start }
+.vb-follow__msg{ margin:0; font-size:var(--ag-fs-14); line-height:1.5; color:var(--ag-ink) }
+.vb-follow__msg.is-bad{ color:var(--ag-error) }
+/* The nominee's thank-you: their words, set off by a hairline rule, at reading size. */
+.vn-thanks__q{ margin:0; padding:2px 0 2px 16px; border-left:3px solid var(--ag-line-2); font-size:var(--ag-fs-17); line-height:1.6; color:var(--ag-ink); white-space:pre-line; overflow-wrap:anywhere }
+.vn-voice__a{ display:block; width:100%; max-width:480px; min-height:44px }
+.vn-upd__l{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:14px }
+.vn-upd__i{ display:flex; flex-direction:column; gap:4px; padding-left:16px; border-left:3px solid var(--ag-line-2) }
+.vn-upd__d{ font-size:var(--ag-fs-13); color:var(--ag-soft) }
+.vn-upd__b{ margin:0; font-size:var(--ag-fs-16); line-height:1.6; color:var(--ag-ink); white-space:pre-line; overflow-wrap:anywhere }
 .vb-bring{ display:flex; flex-direction:column; gap:10px; margin:0 0 4px; padding:14px; border:1px solid var(--ag-line); border-radius:var(--ag-r-14); background:var(--ag-surface) }
 .vb-bring__h{ margin:0; font-size:var(--ag-fs-15-5); font-weight:700 }
 .vb-bring__row{ display:flex; gap:8px }
@@ -288,3 +307,8 @@ button.vn-bar__go{ border:0; cursor:pointer; font-family:inherit }
 @media (hover:hover){
   .vb-bring__a:hover{ background:var(--ag-bar); border-color:var(--ag-mute); color:var(--ag-ink) }
 }
+
+/* The first supporters on a nominee's page: a face and a name each, in a wrapping row. */
+.vn-first{ margin:0; padding:0; list-style:none; display:flex; flex-wrap:wrap; gap:10px 16px }
+.vn-first__i{ display:flex; align-items:center; gap:8px; min-height:44px; font-size:var(--ag-fs-14-5); color:var(--ag-ink) }
+.vn-first__i .ag-avatar{ flex:none; border-radius:50%; box-shadow:0 0 0 2px var(--ag-surface), 0 0 0 4px var(--ag-gold) }

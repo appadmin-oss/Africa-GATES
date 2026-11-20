@@ -92,7 +92,7 @@
   if (intro) {
     var state = intro.querySelector('[data-mw-intro-state]');
     var max = parseInt(intro.getAttribute('data-max'), 10) || 60;
-    var done = function (r) { if (r && r.message && state) state.textContent = r.message; if (r && r.ok) setTimeout(function () { location.reload(); }, 900); };
+    var done = function (r) { if (r && r.message && state) state.textContent = r.message; if (r && r.ok) setTimeout(function () { if (window.agNav && window.agNav.reload) window.agNav.reload(); else location.reload(); }, 900); };
     var rec = intro.querySelector('[data-mw-intro-rec]');
     if (rec && canRecord) rec.addEventListener('click', function () { record(rec, function (blob) { post('/intro', { action: 'record' }, blob).then(done); }, max); });
     else if (rec) rec.hidden = true;

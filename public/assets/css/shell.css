@@ -78,6 +78,12 @@ html.ag-shelled body{ height:100%; overflow:hidden }
      the homepage's "All categories" link at 1280. */
   scroll-padding-bottom:calc(var(--ag-bottom-ui, 0px) + 52px + 16px + var(--ag-sp-12) + env(safe-area-inset-bottom));
 }
+/* The page's <main>, inside the scroller with the footer after it. A formatting context of
+   its own, as the scroller is, so no child's margin leaks out of it and moves the footer. */
+.ag-page{ display:flow-root }
+/* A screen that fills the scroller (Pulse) still can: its column grows to the height. */
+.ag-page:has(> .pl){ display:flex; flex-direction:column; min-height:100% }
+.ag-page > .pl{ flex:1 0 auto; width:100% }
 
 
 /* ══ Focus · REFERENCE §13 ═══════════════════════════════════════════════════

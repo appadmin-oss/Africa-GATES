@@ -884,6 +884,8 @@
 
   function open(opts) {
     opts = opts || {};
+    // Hidden on this page (Pulse, the support desk): nothing opens it here.
+    if (root.hasAttribute('data-gee-away')) return;
     if (opts.mode) setMode(opts.mode);
     if (!isOpen()) {
       var trigger = opts.trigger || fab;
@@ -1091,6 +1093,8 @@
   // A page swapped in place (site-nav.js) brings its own default; a conversation somebody
   // has open is theirs, so it is only applied while the panel is closed.
   document.addEventListener('ag:load', function () {
+    // Swapped onto a page where Gee is away: an open panel would be left open and invisible.
+    if (root.hasAttribute('data-gee-away') && isOpen()) close();
     if (!isOpen()) setMode(root.getAttribute('data-gee-default') === 'support' ? 'support' : 'guide');
   });
   paint();

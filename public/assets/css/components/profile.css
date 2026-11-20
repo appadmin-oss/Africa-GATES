@@ -162,7 +162,7 @@ a.pp-rec:focus-visible{ outline:3px solid var(--ag-green); outline-offset:-3px }
   position:sticky; bottom:0; z-index:var(--ag-z-sticky); display:flex; gap:10px; justify-content:flex-end;
   padding:12px 16px 26px; background:var(--ag-bar); border-top:1px solid var(--ag-line-2); margin-top:auto;
 }
-.pp-save .ag-btn{ height:50px }
+.pp-save .ag-btn{ min-height:50px }
 .pp-save__go{ flex:1 }
 
 /* ── Desktop (≥600, the DC's only other layout) ───────────────────────────── */

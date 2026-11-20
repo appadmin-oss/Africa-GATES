@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace AfricaGates\Services\EventPlan;
 
+use AfricaGates\Services\Grants;
 use Illuminate\Database\Capsule\Manager as DB;
 
 /**
@@ -108,7 +109,7 @@ final class Pipeline
         if (Plan::may($memberId, $eventId, 'pipeline.work')) return true;
         return \AfricaGates\Services\Grants::ready() && DB::table('gates_grants')->where('actor_kind', Plan::ACTOR)->where('actor_id', $memberId)
             ->where('scope_kind', 'event')->where('scope_id', $eventId)->where('capability', 'like', 'vol.%')
-            ->whereNull('revoked_at')->where('expires_at', '>', date('Y-m-d H:i:s'))->exists();
+            ->where(static fn ($w) => Grants::live($w))->exists();
     }
 
     /** Move a contact. The member working it, or a lead; never to "nominated" by hand. */
@@ -156,7 +157,7 @@ final class Pipeline
         $open = DB::table('gates_event_contacts')->where('event_id', $eventId)->whereNotIn('stage', ['nominated'])->get()->all();
         if (!$open) return [];
         $moved = [];
-        $noms = DB::table('gates_nominations')->whereIn('category_id', $cats)->where('status', '!=', 'rejected')->whereNull('merged_into')
+        $noms = DB::table('gates_nominations')->whereIn('category_id', $cats)->whereNotIn('status', Goals::NOT_SUBMITTED)->whereNull('merged_into')
             ->get(['id', 'nominee_email', 'nominee_phone', 'category_id'])->all();
         $byEmail = $byPhone = [];
         foreach ($noms as $n) {

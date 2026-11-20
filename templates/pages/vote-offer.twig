@@ -1,0 +1,190 @@
+{% extends 'layout/shell.twig' %}
+{#
+  /vote/{programme}/offer — WHAT YOUR SUPPORT UNLOCKS (VoteController::offer; owner, 17 Nov 2026).
+
+  Every section is drawn from the award's campaign settings (Support\AwardCampaign) and only
+  when the host has filled it in: the share of each vote, the benefits ladder, what the Champions
+  of the Day, the Week and the Award and the Mobiliser of the Week receive, the Community Opportunity Award, the
+  long-term project and how the money is accounted for. These are promises to the public, and
+  the framework is explicit that none is published before it is approved — so a blank setting
+  is a missing section, never a default sentence.
+
+  A signed-in member, or a voter arriving by their personal link (Services\OfferLink), sees
+  their own votes first, what they have unlocked, what is next, and any day they were Champion
+  of the Day with the code to claim the gift. No page script.
+  Colour: gold for honour (what is unlocked, the champions); green for the one action.
+#}
+{% set colour_tier = '2' %}
+{% set _p = programme %}
+{% set _c = campaign %}
+{% set _base = '/vote/' ~ _p.slug %}
+{% set _anon = 'A proud supporter'|trans %}
+{% set app_bar = {variant: 'child', title: 'What your support unlocks'|trans, sub: _p.title, back: _base, share: true} %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/offer.css') }}">{% endblock %}
+
+{% block content %}
+<div class="of">
+  <header class="of-head">
+    {% if _c.community %}<p class="of-head__k">{{ '%place% is celebrating its own'|trans({'%place%': _c.community}) }}</p>{% endif %}
+    <h1 class="of-head__h">{{ 'What your support unlocks'|trans }}</h1>
+    {% if _c.rally %}<p class="of-head__rally">{{ _c.rally }}</p>{% endif %}
+    {% if _c.promise %}<p class="of-head__lede">{{ _c.promise }}</p>{% endif %}
+    <a class="ag-btn ag-btn--primary ag-btn--pill of-head__go" href="{{ _base }}#vp-race">{{ me ? 'Vote again'|trans : 'Vote now'|trans }}</a>
+  </header>
+
+  {# The person reading it, first: what they have done and what it has unlocked. #}
+  {% if me or my_days|length %}
+  <section class="of-me" aria-labelledby="of-me-h">
+    <h2 class="of-me__h" id="of-me-h">{{ me ? 'You’ve given %n% votes in %award%'|trans({'%n%': me.votes|number_format, '%award%': _p.title}) : 'Your support in %award%'|trans({'%award%': _p.title}) }}</h2>
+    {% if me %}<p class="of-me__d">{{ 'You’re number %r% of %n% supporters.'|trans({'%r%': me.rank, '%n%': me.people|number_format}) }}
+      {%- if me.standing.next %} {{ (me.standing.next.more == 1 ? 'One more vote unlocks %b%.' : '%n% more votes unlock %b%.')|trans({'%n%': me.standing.next.more|number_format, '%b%': me.standing.next.benefit}) }}{% endif -%}
+    </p>{% endif %}
+    {% for d in my_days %}
+      <div class="of-won">
+        <p class="of-won__t"><b>{{ 'You were %title%'|trans({'%title%': d.title|trans}) }}</b> · <a href="{{ _base }}/champion/{{ d.day }}">{{ d.kind == 'award' ? _p.title : d.words }}</a></p>
+        {% if d.gift %}
+          <p class="of-won__d">{{ 'Your claim code'|trans }}: <span class="of-code">{{ d.code }}</span></p>
+          {% if claim %}<p class="of-won__d">{{ 'To claim your gift, contact us with this code:'|trans }} <a href="{{ claim.href }}"{% if claim.kind != 'email' %} rel="noopener"{% endif %}>{{ claim.label }}</a></p>{% endif %}
+        {% else %}
+          <p class="of-won__d">{{ 'Celebrated again. Each champion’s gift is given once per person each campaign, and yours was for an earlier win.'|trans }}</p>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  {# What can be won, in one place: each prize belongs to a champion, won by the most votes in
+     its period by the rule stated below it — a ranking, never a draw. #}
+  {% if _c.spotlight and (_c.champion_gifts|length or _c.week_gifts|length or _c.award_gifts|length) %}
+  <section class="of-sec of-honour" aria-labelledby="of-win-h">
+    <h2 class="of-sec__h" id="of-win-h">{{ 'What you can win'|trans }}</h2>
+    <p class="of-p">{{ 'Prizes go to the champions: whoever gives the most votes in a day, in a week and across the whole award.'|trans }}</p>
+    <ol class="of-ladder">
+      {% for k, l in {day: _c.champion_gifts, week: _c.week_gifts, award: _c.award_gifts} %}{% for g in l %}
+        <li class="of-ladder__i">
+          <span class="of-ladder__n">{{ (k == 'day' ? 'Champion of the Day' : (k == 'week' ? 'Champion of the Week' : 'Champion of the Award'))|trans }}</span>
+          <span class="of-ladder__b">{{ g }}</span>
+        </li>
+      {% endfor %}{% endfor %}
+    </ol>
+  </section>
+  {% endif %}
+  {% if impact or _c.remainder_note %}
+  <section class="of-sec" aria-labelledby="of-money-h">
+    <h2 class="of-sec__h" id="of-money-h">{{ 'Where your vote goes'|trans }}</h2>
+    {% if impact %}<p class="of-big">{{ impact }}</p>{% endif %}
+    {% if _c.remainder_note %}<p class="of-p">{{ _c.remainder_note }}</p>{% endif %}
+  </section>
+  {% endif %}
+
+  {% if _c.ladder|length %}
+  <section class="of-sec" aria-labelledby="of-ladder-h">
+    <h2 class="of-sec__h" id="of-ladder-h">{{ 'What your votes unlock'|trans }}</h2>
+    <p class="of-p">{{ 'Counted across everything you give in this edition.'|trans }}</p>
+    <ol class="of-ladder">
+      {% for step in _c.ladder %}
+        {% set _got = me and me.votes >= step.votes %}
+        <li class="of-ladder__i{{ _got ? ' is-got' }}">
+          <span class="of-ladder__n">{{ step.votes == 1 ? '1 vote'|trans : '%n% votes'|trans({'%n%': step.votes|number_format}) }}</span>
+          <span class="of-ladder__b">{{ step.benefit }}</span>
+          {% if _got %}<span class="of-ladder__s">{{ 'Unlocked'|trans }}</span>{% endif %}
+        </li>
+      {% endfor %}
+    </ol>
+    {% if _c.ladder_note %}<p class="of-note">{{ _c.ladder_note }}</p>{% endif %}
+  </section>
+  {% endif %}
+
+  {% if _c.spotlight %}
+  <section class="of-sec of-honour" aria-labelledby="of-champ-h">
+    <h2 class="of-sec__h" id="of-champ-h">{{ 'Champion of the Day'|trans }}</h2>
+    <p class="of-p">{{ 'Whoever gives the most votes in a day, West Africa Time, is announced the next morning at %h%:00, with a card to share. Settled votes only; a tie goes to whoever got there first.'|trans({'%h%': '%02d'|format(announce_hour)}) }}</p>
+    {% if _c.champion_gifts|length %}
+      <h3 class="of-sub">{{ 'The Champion’s gift'|trans }}</h3>
+      <ul class="of-gifts">{% for g in _c.champion_gifts %}<li>{{ g }}</li>{% endfor %}</ul>
+      <p class="of-note">{{ 'Given once per person each campaign; you can be champion again and are celebrated every time.'|trans }}{% if claim %} {{ 'Champions claim it by contacting us with the code they are sent.'|trans }}{% endif %}</p>
+    {% endif %}
+    {% if leader %}<p class="of-live"><span class="of-live__dot" aria-hidden="true"></span>{{ 'Leading today: %name%, with %n%.'|trans({'%name%': leader.name ?: _anon, '%n%': leader.votes == 1 ? '1 vote'|trans : '%n% votes'|trans({'%n%': leader.votes|number_format})}) }}</p>{% endif %}
+    {% if champions|length %}
+      <h3 class="of-sub">{{ 'Recent champions'|trans }}</h3>
+      <ul class="of-champs">
+        {% for d in champions %}
+          <li><a class="of-champs__a" href="{{ _base }}/champion/{{ d.day }}">
+            {% include 'partials/avatar.twig' with {name: d.display ?: _anon, id: d.uid ?: null, src: d.photo|default(''), size: 44, named: true} only %}
+            <span class="of-champs__t"><b>{{ d.display ?: _anon }}</b><span>{{ d.date_words }} · {{ d.votes == 1 ? '1 vote'|trans : '%n% votes'|trans({'%n%': d.votes|number_format}) }}</span></span>
+          </a></li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </section>
+
+  <section class="of-sec of-honour" aria-labelledby="of-week-h">
+    <h2 class="of-sec__h" id="of-week-h">{{ 'Champion of the Week'|trans }}</h2>
+    <p class="of-p">{{ 'Whoever gives the most votes from Monday to Sunday, West Africa Time, is announced the next Monday at %h%:00, with a card to share. Settled votes only; a tie goes to whoever got there first.'|trans({'%h%': '%02d'|format(announce_hour)}) }}</p>
+    {% if _c.week_gifts|length %}
+      <h3 class="of-sub">{{ 'The Champion’s prize'|trans }}</h3>
+      <ul class="of-gifts">{% for g in _c.week_gifts %}<li>{{ g }}</li>{% endfor %}</ul>
+      <p class="of-note">{{ 'Given once per person each campaign.'|trans }}</p>
+    {% endif %}
+    {% if week_leader and not award_champion %}<p class="of-live"><span class="of-live__dot" aria-hidden="true"></span>{{ 'Leading this week: %name%, with %n%.'|trans({'%name%': week_leader.name ?: _anon, '%n%': week_leader.votes == 1 ? '1 vote'|trans : '%n% votes'|trans({'%n%': week_leader.votes|number_format})}) }}</p>{% endif %}
+    {% if week_champions|length %}
+      <h3 class="of-sub">{{ 'Recent champions'|trans }}</h3>
+      <ul class="of-champs">
+        {% for d in week_champions %}
+          <li><a class="of-champs__a" href="{{ _base }}/champion/{{ d.day }}">
+            {% include 'partials/avatar.twig' with {name: d.display ?: _anon, id: d.uid ?: null, src: d.photo|default(''), size: 44, named: true} only %}
+            <span class="of-champs__t"><b>{{ d.display ?: _anon }}</b><span>{{ d.date_words|first|upper ~ d.date_words|slice(1) }} · {{ d.votes == 1 ? '1 vote'|trans : '%n% votes'|trans({'%n%': d.votes|number_format}) }}</span></span>
+          </a></li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </section>
+  <section class="of-sec of-honour" aria-labelledby="of-award-h">
+    <h2 class="of-sec__h" id="of-award-h">{{ 'Champion of the Award'|trans }}</h2>
+    <p class="of-p">{{ 'Whoever gives the most votes across the whole of %award% is announced the morning after voting closes, with a card to share.'|trans({'%award%': _p.title}) }}</p>
+    {% if _c.award_gifts|length %}
+      <h3 class="of-sub">{{ 'The Champion’s prize'|trans }}</h3>
+      <ul class="of-gifts">{% for g in _c.award_gifts %}<li>{{ g }}</li>{% endfor %}</ul>
+    {% endif %}
+    {% if award_champion %}
+      <a class="of-champs__a" href="{{ _base }}/champion/award">
+        {% include 'partials/avatar.twig' with {name: award_champion.display ?: _anon, id: award_champion.uid ?: null, src: award_champion.photo|default(''), size: 44, named: true} only %}
+        <span class="of-champs__t"><b>{{ award_champion.display ?: _anon }}</b><span>{{ award_champion.votes == 1 ? '1 vote'|trans : '%n% votes'|trans({'%n%': award_champion.votes|number_format}) }}</span></span>
+      </a>
+    {% elseif award_leader %}
+      <p class="of-live"><span class="of-live__dot" aria-hidden="true"></span>{{ 'Leading the award: %name%, with %n%.'|trans({'%name%': award_leader.name ?: _anon, '%n%': award_leader.votes == 1 ? '1 vote'|trans : '%n% votes'|trans({'%n%': award_leader.votes|number_format})}) }}</p>
+    {% endif %}
+  </section>
+  <section class="of-sec" aria-labelledby="of-mob-h">
+    <h2 class="of-sec__h" id="of-mob-h">{{ 'Mobiliser of the Week'|trans }}</h2>
+    <p class="of-p">{{ 'Money is not the only way to be honoured. Whoever brings the most people to vote through their own link in a week is Mobiliser of the Week.'|trans }}</p>
+    {% if _c.mobiliser_gifts|length %}<ul class="of-gifts">{% for g in _c.mobiliser_gifts %}<li>{{ g }}</li>{% endfor %}</ul>{% endif %}
+  </section>
+  {% endif %}
+
+  {% if _c.opportunity %}
+  <section class="of-sec" aria-labelledby="of-opp-h">
+    <h2 class="of-sec__h" id="of-opp-h">{{ 'Community Opportunity Award'|trans }}</h2>
+    <p class="of-p">{{ _c.opportunity }}</p>
+  </section>
+  {% endif %}
+
+  {% if _c.capital_title or _c.capital_note %}
+  <section class="of-sec" aria-labelledby="of-cap-h">
+    <h2 class="of-sec__h" id="of-cap-h">{{ _c.capital_title ?: 'Our long-term project'|trans }}</h2>
+    {% if _c.capital_note %}<p class="of-p">{{ _c.capital_note }}</p>{% endif %}
+    {% if capital_url %}<a class="ag-btn ag-btn--secondary ag-btn--pill" href="{{ capital_url }}">{{ 'Give to the project'|trans }}</a>
+    <p class="of-note">{{ 'Giving to the project is separate from voting.'|trans }}</p>{% endif %}
+  </section>
+  {% endif %}
+
+  {% if _c.accountability %}
+  <section class="of-sec" aria-labelledby="of-acc-h">
+    <h2 class="of-sec__h" id="of-acc-h">{{ 'How we account for it'|trans }}</h2>
+    <p class="of-p">{{ _c.accountability }}</p>
+  </section>
+  {% endif %}
+
+  <p class="of-foot">{% if _c.spotlight %}<a href="{{ _base }}/spotlight">{{ 'See the Supporter Spotlight'|trans }}</a> · {% endif %}<a href="{{ _base }}">{{ 'Back to the vote'|trans }}</a></p>
+</div>
+{% endblock %}

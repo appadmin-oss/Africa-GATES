@@ -640,7 +640,18 @@ class OtpService
             'created_at' => Carbon::now()->toDateTimeString(),
         ]);
 
-        $sent = $this->sendOtpEmail($email, $code);
+        // The voter's own "what your vote unlocks" link rides in the code email they are
+        // already opening, rather than in a second message (OfferLink).
+        $offer = null;
+        try {
+            $slug = (string) (DB::table('gates_nominees as n')->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+                ->join('gates_award_cycles as y', 'y.id', '=', 'c.cycle_id')->join('gates_award_programmes as p', 'p.id', '=', 'y.programme_id')
+                ->where('n.id', $nomineeId)->where('p.is_active', 1)->value('p.slug') ?? '');
+            if ($slug !== '') $offer = $this->base() . OfferLink::path($slug, VoteService::voterHash($email));
+        } catch (\Throwable) {
+            $offer = null;
+        }
+        $sent = $this->sendOtpEmail($email, $code, $offer);
 
         // ── RECORD WHETHER THE CODE ACTUALLY LEFT THE BUILDING ───────────────
         //
@@ -685,9 +696,13 @@ class OtpService
         } catch (\Throwable) { /* see the note above: silence here only costs recoverability */ }
     }
 
-    private function sendOtpEmail(string $to, string $code): array
+    private function sendOtpEmail(string $to, string $code, ?string $offer = null): array
     {
         $mins = self::VOTE_CODE_MINUTES;
+        $offerH = $offer !== null
+            ? '<p style="margin:16px 0 0;font-size:14px;line-height:1.6;color:' . \AfricaGates\Support\Accent::hex('ink-2') . '">After you vote: <a href="' . htmlspecialchars($offer, ENT_QUOTES, 'UTF-8') . '" style="color:' . \AfricaGates\Support\Accent::hex('ink') . ';font-weight:700">see what your votes unlock</a>.</p>'
+            : '';
+        $offerP = $offer !== null ? "\n\nAfter you vote, see what your votes unlock: " . $offer : '';
         $html = <<<HTML
 <h1 style="margin:0;font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:26px;color:#10292C;letter-spacing:-.01em">Confirm it's you</h1>
 <p style="margin:13px 0 0;font-size:15px;line-height:1.65;color:#4a5256">Enter this one-time code to verify your email and cast your vote. It expires in <strong style="color:#10292C">{$mins} minutes</strong>.</p>
@@ -698,13 +713,14 @@ class OtpService
   </td></tr>
 </table>
 <p style="margin:0;font-size:13px;line-height:1.6;color:#92a6a7">Didn't request this? Ignore this email — no one can vote as you, and your account stays secure. One vote per email per category.</p>
+{$offerH}
 HTML;
 
         return $this->sendBranded(
             $to,
             'Africa GATES — your verification code',
             $html,
-            "Africa GATES verification code: $code\n\nExpires in " . self::VOTE_CODE_MINUTES . " minutes. One vote per email per category.\n\nDidn't request this? Ignore this email.",
+            "Africa GATES verification code: $code\n\nExpires in " . self::VOTE_CODE_MINUTES . " minutes. One vote per email per category.\n\nDidn't request this? Ignore this email." . $offerP,
             'Security',
             $this->base() . '/assets/img/illustrations/illo-envelope.jpg'
         );

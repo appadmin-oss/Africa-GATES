@@ -112,6 +112,49 @@ final class SiteNoticeTest extends TestCase
         $this->assertSame([], SiteNotice::forPage('/status'), '/status states planned work itself');
     }
 
+    // ── the pop-up card (owner, 17 Nov 2026) ─────────────────────────────────
+
+    public function test_the_pop_up_card_is_drawn_once_and_never_for_a_page_fetched_ahead(): void
+    {
+        $this->set(['announce_text' => 'Voting is extended', 'announce_url' => '/vote', 'announce_cta' => 'Vote now',
+            'announce_popup' => '1', 'announce_title' => 'Voting is extended to Friday',
+            'announce_body' => "You have three more days.\n\nTell one more person <b>today</b>.",
+            'announce_image' => '/assets/img/announce.gif', 'announce_image_alt' => 'A gift box opening']);
+        $_SESSION = [];
+        $_SERVER['HTTP_SEC_PURPOSE'] = 'prefetch';
+        try {
+            $this->assertContains('popup', array_column(SiteNotice::forPage('/privacy'), 'kind'));
+            $this->assertContains('popup', array_column(SiteNotice::forPage('/privacy'), 'kind'), 'a page fetched ahead of a click spent the card');
+        } finally {
+            unset($_SERVER['HTTP_SEC_PURPOSE']);
+        }
+        $this->assertContains('popup', array_column(SiteNotice::forPage('/privacy'), 'kind'));
+        $this->assertSame(['announce'], array_column(SiteNotice::forPage('/privacy'), 'kind'), 'the card drawn twice to one visitor');
+        $_SESSION = [];
+        $this->assertNotContains('popup', array_column(SiteNotice::forPage('/vote/x', true), 'kind'), 'a card over a ballot');
+
+        $_SESSION = [];
+        $html = ChromeRender::html('/privacy');
+        $this->assertStringContainsString('class="ag-annc"', $html);
+        $this->assertStringContainsString('Voting is extended to Friday', $html);
+        $this->assertStringContainsString('&lt;b&gt;today&lt;/b&gt;', $html, 'the message printed as HTML');
+        $this->assertStringContainsString('src="/assets/img/announce.gif" alt="A gift box opening"', $html);
+        $this->assertStringContainsString('href="/vote"', $html);
+        $this->assertStringNotContainsString('ag-notice--popup', $html, 'the card drawn as a banner row');
+    }
+
+    public function test_the_pop_up_needs_its_switch_a_title_and_a_safe_image(): void
+    {
+        $this->set(['announce_text' => 'Voting is extended', 'announce_title' => 'Extended']);
+        $this->assertNull(SiteNotice::popup(), 'shown without being switched on');
+        $this->set(['announce_popup' => '1', 'announce_title' => '']);
+        $this->assertNull(SiteNotice::popup(), 'a card with no title');
+        $this->set(['announce_title' => 'Extended', 'announce_image' => 'javascript:alert(1)']);
+        $this->assertNull(SiteNotice::popup()['image'], 'a script URL reached an img src');
+        $this->set(['announce_text' => '']);
+        $this->assertNull(SiteNotice::popup(), 'a card outliving its announcement');
+    }
+
     // ── planned work, site-wide ──────────────────────────────────────────────
 
     public function test_planned_work_is_on_every_page_from_three_days_out_and_says_when_it_begins(): void

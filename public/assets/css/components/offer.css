@@ -1,0 +1,58 @@
+/* ══ What your support unlocks, and the Champion of the Day (pages/vote-offer.twig,
+   pages/vote-champion.twig). Colour from Support\Accent's tokens only: gold for honour (what is
+   unlocked, a champion), green for the one action. Every honour is said in words beside its
+   colour. Type on the ladder in rem; display sizes fixed per breakpoint; mono only for the claim
+   code, which is a reference. */
+.of{ display:flex; flex-direction:column; gap:var(--ag-sp-24); max-width:760px; margin:0 auto; padding:var(--ag-sp-16) var(--ag-sp-16) var(--ag-sp-40) }
+.of-head{ display:flex; flex-direction:column; align-items:flex-start; gap:8px }
+.of-head__k{ margin:0; font-weight:700; font-size:var(--ag-fs-14-5); color:var(--ag-gold-ink) }
+.of-head__h{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-32); line-height:1.12; text-wrap:balance }
+.of-head__rally{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-20); line-height:1.3; color:var(--ag-ink) }
+.of-head__lede{ margin:0; font-size:var(--ag-fs-16); line-height:1.55; color:var(--ag-ink-2) }
+.of-head__go{ margin-top:6px; min-height:48px }
+
+.of-me{ display:flex; flex-direction:column; gap:10px; padding:16px 18px; background:var(--ag-gold-wash); border:1px solid var(--ag-gold-edge); border-radius:var(--ag-r-16) }
+.of-me__h{ margin:0; font-size:var(--ag-fs-17); font-weight:700; line-height:1.35 }
+.of-me__d{ margin:0; font-size:var(--ag-fs-15); line-height:1.55; color:var(--ag-ink-2) }
+.of-me .ag-btn{ align-self:flex-start; min-height:48px }
+.of-won{ display:flex; flex-direction:column; gap:4px; padding-top:10px; border-top:1px solid var(--ag-gold-edge) }
+.of-won__t, .of-won__d{ margin:0; font-size:var(--ag-fs-15); line-height:1.5 }
+.of-won a, .of-foot a, .of-champs__a{ color:var(--ag-ink) }
+.of-code{ font-family:var(--ag-font-mono); font-weight:700; font-size:var(--ag-fs-15); letter-spacing:.04em; overflow-wrap:anywhere }
+
+.of-sec{ display:flex; flex-direction:column; gap:10px; padding:18px; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-16) }
+.of-sec .ag-btn{ align-self:flex-start; min-height:48px }
+.of-sec__h{ margin:0; font-size:var(--ag-fs-19); font-weight:700; line-height:1.3 }
+.of-sub{ margin:6px 0 0; font-size:var(--ag-fs-15-5); font-weight:700 }
+.of-p{ margin:0; font-size:var(--ag-fs-15-5); line-height:1.6; color:var(--ag-ink-2); white-space:pre-line; overflow-wrap:anywhere }
+.of-big{ margin:0; font-size:var(--ag-fs-17); font-weight:700; line-height:1.45; color:var(--ag-ink) }
+.of-note{ margin:0; font-size:var(--ag-fs-13-5); line-height:1.5; color:var(--ag-soft) }
+
+.of-ladder{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column }
+.of-ladder__i{ display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 12px; padding:10px 0; border-top:1px solid var(--ag-line-3) }
+.of-ladder__i:first-child{ border-top:0 }
+.of-ladder__n{ flex:none; min-width:84px; font-weight:700; font-size:var(--ag-fs-15) }
+.of-ladder__b{ flex:1 1 200px; font-size:var(--ag-fs-15); line-height:1.5; color:var(--ag-ink-2) }
+.of-ladder__s{ flex:none; padding:2px 10px; border-radius:var(--ag-r-pill); background:var(--ag-gold-wash); border:1px solid var(--ag-gold-edge); color:var(--ag-gold-ink); font-size:var(--ag-fs-12-5); font-weight:700 }
+.of-ladder__i.is-got .of-ladder__b{ color:var(--ag-ink) }
+
+.of-gifts{ margin:0; padding-left:20px; display:flex; flex-direction:column; gap:6px; font-size:var(--ag-fs-15); line-height:1.5 }
+.of-gifts li::marker{ color:var(--ag-gold) }
+.of-honour{ border-color:var(--ag-gold-edge) }
+.of-live{ display:flex; align-items:center; gap:8px; margin:0; font-size:var(--ag-fs-14-5); font-weight:600 }
+.of-live__dot{ flex:none; width:8px; height:8px; border-radius:50%; background:var(--ag-gold) }
+.of-champs{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column }
+.of-champs li + li{ border-top:1px solid var(--ag-line-3) }
+.of-champs__a{ display:flex; align-items:center; gap:12px; min-height:56px; padding:6px 0; text-decoration:none }
+.of-champs__a:focus-visible, .of-won a:focus-visible, .of-foot a:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
+.of-champs__t{ display:flex; flex-direction:column; gap:2px; min-width:0 }
+.of-champs__t b{ font-size:var(--ag-fs-15-5); overflow-wrap:anywhere }
+.of-champs__t span{ font-size:var(--ag-fs-13-5); color:var(--ag-soft) }
+
+.of-card{ margin:0 }
+.of-card__img{ display:block; width:100%; height:auto; border-radius:var(--ag-r-16); border:1px solid var(--ag-line) }
+.of-acts{ display:flex; flex-wrap:wrap; gap:10px }
+.of-acts .ag-btn{ min-height:48px }
+.of-foot{ margin:0; font-size:var(--ag-fs-14-5); color:var(--ag-soft) }
+.of-foot a{ display:inline-flex; align-items:center; min-height:44px; text-decoration:underline; text-underline-offset:3px }
+@media (min-width:600px){ .of{ padding-top:var(--ag-sp-32) } .of-head__h{ font-size:var(--ag-fs-44) } }

@@ -119,7 +119,7 @@ final class EmailCampaignTest extends TestCase
             'mso-hide:all'               => 'the hidden preheader',
             'prefers-color-scheme: dark' => 'a declared dark mode',
             'x-apple-data-detectors'     => 'the iOS autolink suppression',
-            'max-width:560px'            => 'the fluid-hybrid width',
+            'max-width:600px'            => 'the fluid-hybrid width',
         ] as $needle => $why) {
             $this->assertStringContainsString($needle, $html, "lost {$why}");
         }

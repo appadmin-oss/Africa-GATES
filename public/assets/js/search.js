@@ -367,8 +367,16 @@
       e.preventDefault();
       remember(input.value);
       var go = options[active >= 0 ? active : 0];
-      if (go) { location.href = go.href; return; }
-      if (input.value.trim().length >= 2) form.submit();
+      // In place where site-nav can (a full load otherwise); form.submit() fired no submit
+      // event, so site-nav never saw the search and every one was a full reload.
+      if (go) { if (window.agNav) window.agNav.go(go.href); else location.href = go.href; return; }
+      if (input.value.trim().length >= 2) {
+        if (window.agNav && (form.method || 'get').toLowerCase() === 'get') {
+          var u = new URL(form.action || location.href, location.href);
+          u.search = new URLSearchParams(new FormData(form)).toString();
+          window.agNav.go(u.pathname + u.search);
+        } else form.submit();
+      }
     });
     /* A result chosen with the mouse or a finger remembers what led to it, too. */
     list.addEventListener('click', function (e) {

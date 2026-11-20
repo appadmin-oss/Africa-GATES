@@ -227,9 +227,7 @@ final class TeamPages
                 $r = \AfricaGates\Services\Requests::find((int) $l->request_id);
                 if ($r && $r->status === 'waiting' && $r->decider_kind === Plan::ACTOR && (int) $r->decider_id === $me) $spend++;
             }
-            $changes = count(array_filter(Changes::pending($id), static fn ($c) => $c->tier === 'large' && (int) $c->proposed_by !== $me
-                && (($c->subject_kind === 'goal' && \Illuminate\Database\Capsule\Manager::table('gates_event_goals')->where('id', (int) $c->subject_id)->value('metric') === 'revenue')
-                    || ($c->subject_kind === 'gate' && \Illuminate\Database\Capsule\Manager::table('gates_event_gates')->where('id', (int) $c->subject_id)->value('approver') === 'owner'))));
+            $changes = count(array_filter(Changes::pending($id), static fn ($c) => $c->tier === 'large' && (int) $c->proposed_by !== $me && Changes::isMoney($c)));
             $items = [];
             if ($spend) $items[] = ['t' => $spend === 1 ? 'A spend request' : $spend . ' spend requests', 'sub' => 'Over the lead’s limit, waiting for your decision', 'dot' => 'warn', 'href' => EventPages::url($id, 'money', 'approvals')];
             if ($changes) $items[] = ['t' => $changes === 1 ? 'A change to a money target' : $changes . ' changes to money targets', 'sub' => 'Waiting for your decision', 'dot' => 'warn', 'href' => EventPages::url($id, 'rules', 'changes')];

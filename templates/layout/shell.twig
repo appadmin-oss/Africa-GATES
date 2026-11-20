@@ -59,9 +59,13 @@
    brain is a choice nobody can make (the old layout's reason, still true) — nor on a page
    that hides the chrome. Hoisted to template scope: it is read by the head, the `gee`
    block and the scripts. #}
-{% set _gee_off = hide_chrome|default(false)
-                  or gates_page|default('') in ['pulse', 'support']
-                  or tab|default('') == 'pulse' %}
+{#
+   And it is IN the page on Pulse and the support desk, only hidden there (`gee_away`): a page
+   without it had a different shell, so site-nav could not swap into or out of it, and every
+   visit to Pulse or the help desk was a full reload (owner, 16 Nov 2026: "fix the full reload
+   issues"). The kept launcher follows each page's `data-gee-away` (data-nav-sync). #}
+{% set _gee_off = hide_chrome|default(false) %}
+{% set gee_away = gates_page|default('') in ['pulse', 'support'] or tab|default('') == 'pulse' %}
 <!doctype html>
 <html lang="{{ lang() }}" dir="{{ lang_dir() }}" class="ag-shelled"
       data-ag-easy-font="{{ asset('/assets/css/fonts-easy.css') }}"
@@ -135,13 +139,20 @@
   <script nonce="{{ csp_nonce }}">window.agPage={_l:[],on:function(t,y,f,o){t.addEventListener(y,f,o);this._l.push(function(){t.removeEventListener(y,f,o)})},every:function(f,ms){var i=setInterval(f,ms);this._l.push(function(){clearInterval(i)});return i},leave:function(f){this._l.push(f)},_reset:function(){var l=this._l;this._l=[];l.forEach(function(f){try{f()}catch(e){}})}};</script>
 </head>
 <body data-page="{{ page_id|default('') }}" data-ag-layout="shell">
-  <a class="ag-skip" href="#main" data-skip-link>{{ 'Skip to content'|trans }}</a>
+  <a class="ag-skip" href="#content" data-skip-link>{{ 'Skip to content'|trans }}</a>
 
   <div class="ag-shell">
     {% block header %}{% include 'partials/site-header.twig' %}{% endblock %}
     {% block app_bar %}{% include 'partials/app-bar.twig' with _bar only %}{% endblock %}
 
-    <main class="ag-main" id="main" tabindex="-1">
+    {# THE SCROLLER IS NOT THE LANDMARK (accessibility audit, 16 Nov 2026). It used to be
+       <main> itself, so the footer — inside the scroller to be reached by scrolling — was
+       inside <main> too, and a screen reader moving by landmark heard the site's footer
+       navigation as part of every page's content. The scroller keeps `id="main"` and
+       `.ag-main`, which is how every script and stylesheet finds it and what site-nav swaps
+       the inside of; <main> is the page's content alone, and the footer its sibling. #}
+    <div class="ag-main" id="main" tabindex="-1">
+      <main class="ag-page" id="content">
       {# Planned work and the operator's announcement (Services\SiteNotice). Inside <main>
          so site-nav swaps it with the page; above the flash, because a notice is about the
          site and a flash is about what somebody just did. #}
@@ -150,10 +161,11 @@
       {% if gates_page|default('') != 'error' %}{% include 'partials/site-notice.twig' %}{% endif %}
       {% if not own_flash|default(false) %}{% include 'partials/flash.twig' %}{% endif %}
       {% block content %}{% endblock %}
+      </main>
       {# The site's only footer (Phase 4), inside the scroller so it is reached by scrolling
          and pinned to nothing. Not on a page that hides the chrome. #}
       {% block footer %}{% if not hide_chrome|default(false) %}{% include 'partials/site-footer.twig' %}{% endif %}{% endblock %}
-    </main>
+    </div>
 
     {# The cookie notice, the preferences sheet and the "saved" line (§7.9). Inside the
        column on purpose: on a phone the notice is a flex child above the tab bar, so the

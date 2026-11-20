@@ -229,4 +229,34 @@ final class EventFinanceAdminTest extends TestCase
         [$refused] = $this->leadPost($this->fin, ['do' => 'finance_give', 'event' => $this->ev, 'email' => 'someone@example.test', 'reason' => 'x']);
         $this->assertTrue($refused, 'only a lead of this event');
     }
+
+    /**
+     * The decider of an event's spend was fixed when the request was made and never asked
+     * again, so a finance admin whose role had ended could still approve, and nothing held
+     * the finance limit on this path (AUDIT-AND-PLAN EV-4). Both are asked at decision time
+     * now, and a lapsed request falls to the platform's finance team, which can see it.
+     */
+    public function test_a_finance_admin_whose_role_ended_cannot_decide_and_finance_can(): void
+    {
+        $this->makeFinance();
+        [, $rid] = $this->asked();
+        $r = DB::table('gates_requests')->where('id', $rid)->first();
+        $this->assertTrue(Requests::canDecide($r, 'member', $this->fin), 'the live finance admin decides');
+
+        foreach (DB::table('gates_grants')->where('capability', 'event.finance')->pluck('id') as $g) Grants::revoke((int) $g, 1);
+        $this->assertFalse(Requests::canDecide($r, 'member', $this->fin), 'a finance admin whose role ended still decided');
+        $this->assertTrue(Requests::canDecide($r, 'admin', 1, 'superadmin'), 'and it falls to the platform finance team');
+        $this->assertContains($rid, array_map(static fn ($x) => (int) $x->id, Requests::waitingOn('admin', 1, 'superadmin')), 'which can see it');
+    }
+
+    public function test_a_spend_above_the_finance_limit_goes_to_platform_finance(): void
+    {
+        DB::table('gates_settings')->insert(['key_name' => 'event_finance_limit_naira', 'value' => '1000']);
+        Plan::resetRules();
+        $this->makeFinance();
+        [, $rid] = $this->asked();
+        $r = DB::table('gates_requests')->where('id', $rid)->first();
+        $this->assertFalse(Requests::canDecide($r, 'member', $this->fin), 'over the finance admin’s limit');
+        $this->assertTrue(Requests::canDecide($r, 'admin', 1, 'superadmin'));
+    }
 }

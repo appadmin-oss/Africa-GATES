@@ -220,6 +220,12 @@ final class PaymentReconciler
             // one. A buyer who paid inside a wallet app and never came back lost the money
             // AND the seat — the hold aged out of the seat arithmetic and it was resold.
             $this->registrations($cutoff, $limit, $apply),
+            // ── STAND FEES, WHICH NOTHING SWEPT EITHER ──────────────────────────
+            //
+            // A stand payment was credited by the vendor's browser coming back and nothing
+            // else (AUDIT-AND-PLAN §2 fault 8, EV-11). The webhook now credits it too; this is
+            // the backstop for when both were lost, as it is for tickets and donations.
+            $this->stands($cutoff, $limit, $apply),
             $this->donations($cutoff, $limit, $apply),
             // Last, so a row that is still pending is handled by the ordinary sweep above
             // and never reaches the recovery pass as well.
@@ -480,6 +486,58 @@ final class PaymentReconciler
                 if ($apply) EventTicketService::cancel((int) $g->id, 'the checkout was never completed');
             }
 
+            $out[] = $row;
+        }
+        return $out;
+    }
+
+    /**
+     * Stand payments started and never credited (gates_stand_payments `started`). The gateway
+     * is asked; a success is credited through StandFee::confirm with the amount IT reports.
+     * Unanswered and older than the expiry ceiling, the row is closed as `expired` so it stops
+     * being asked — nothing is held for a stand by a started payment, so there is no seat to free.
+     */
+    private function stands(string $cutoff, int $limit, bool $apply): array
+    {
+        $out = [];
+        try {
+            if (!DB::schema()->hasTable('gates_stand_payments')) return [];
+            $rows = DB::table('gates_stand_payments as p')->leftJoin('gates_stand_applications as a', 'a.id', '=', 'p.application_id')
+                ->where('p.status', 'started')->where('p.created_at', '<', $cutoff)->orderBy('p.id')->limit($limit)
+                ->get(['p.id', 'p.reference', 'p.provider', 'p.created_at', 'a.fee_naira', 'a.paid_naira']);
+        } catch (\Throwable) {
+            return [];
+        }
+        $deadline = self::expiryCutoff()->toDateTimeString();
+        foreach ($rows as $p) {
+            $row = ['kind' => 'stand', 'ref' => (string) $p->reference, 'who' => 'stand payment',
+                    'ours' => 'started', 'gateway' => '—', 'amount_ours' => 0, 'amount_gateway' => 0,
+                    'action' => 'unverifiable', 'note' => ''];
+            $enabled = $this->payments->enabledProviderIds();
+            $stored = strtolower((string) ($p->provider ?? ''));
+            $ask = $stored !== '' && in_array($stored, $enabled, true) ? array_merge([$stored], array_values(array_diff($enabled, [$stored]))) : $enabled;
+            foreach ($ask as $provider) {
+                $v = $this->payments->verify($provider, (string) $p->reference);
+                if (!($v['ok'] ?? false)) continue;
+                $row['gateway'] = (string) ($v['status'] ?? 'pending');
+                $row['amount_gateway'] = (int) ($v['amount'] ?? 0);
+                if ($row['gateway'] !== 'success') { $row['action'] = 'pending'; break; }
+                if (!$this->currencyAgrees($v)) { $row['action'] = 'mismatch'; $row['note'] = 'not paid in NGN'; break; }
+                $row['amount_ours'] = $row['amount_gateway'];
+                $row['action'] = 'confirmed';
+                $row['note'] = $apply ? 'credited to the stand' : 'would be credited';
+                if ($apply) {
+                    $c = StandFee::confirm((string) $p->reference, $row['amount_gateway'], $provider);
+                    if (!($c['ok'] ?? false)) { $row['action'] = 'mismatch'; $row['note'] = (string) ($c['message'] ?? 'could not be credited'); }
+                    elseif ((int) ($c['credited'] ?? 0) === 0) $row['note'] = 'already credited by another path';
+                }
+                break;
+            }
+            if ($row['action'] === 'unverifiable' && (string) $p->created_at < $deadline) {
+                $row['action'] = 'expired';
+                $row['note'] = 'abandoned — no gateway has seen it';
+                if ($apply) DB::table('gates_stand_payments')->where('id', (int) $p->id)->where('status', 'started')->update(['status' => 'expired']);
+            }
             $out[] = $row;
         }
         return $out;

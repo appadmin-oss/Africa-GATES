@@ -224,7 +224,7 @@ final class LeadController
             // Goals, the numbers, the pipeline, rules and changes (EventPlan\Goals, Planner, Pipeline, Rules, Changes).
             'goal_create' => [Goals::create($int('event'), $this->goalInput($b), $me['id']), '', 'event', $int('event')],
             'goal_change' => [$this->goalChange($me, $b), '', 'event', 0],
-            'assume_set' => [Planner::setAssumption($int('assumption'), (string) ($b['value'] ?? ''), $me['id']), '', 'event', 0],
+            'assume_set' => [Planner::setAssumption($int('assumption'), (string) ($b['value'] ?? ''), $me['id'], (string) ($b['reason'] ?? '')), '', 'event', 0],
             'gate_sign' => [Goals::signGate($int('gate'), $me['id'], (string) ($b['verdict'] ?? ''), (string) ($b['note'] ?? '')), '', 'event', 0],
             'contact_add' => [Pipeline::add($int('event'), $b, $me['id']), '', 'event', $int('event')],
             'contact_import' => [Pipeline::import($int('event'), (string) ($b['list'] ?? ''), $me['id'], array_intersect_key($b, array_flip(['scope', 'owner']))), '', 'event', $int('event')],
@@ -254,6 +254,14 @@ final class LeadController
                                                     'committed', 'paid', 'budget', 'series', 'type', 'action', 'admin', 'until', 'why', 'capability', 'email',
                                                     'subject', 'verdict', 'reason', 'perms', 'ceiling', 'team_role', 'kind', 'state', 'confidence', 'note', 'proof', 'proof_type']));
         if ($do === 'decide' && isset($r['verdict'])) $meta['verdict'] = $r['verdict'];   // 'changed' is the decision's, not the form's
+        // A write about a row OF an event (a budget line, a request, a piece of work) is filed
+        // against the event too, with the row in the meta: the event's Audit tab reads by
+        // event, and approvals and spend were missing from it (AUDIT-AND-PLAN EV-9).
+        if ($type !== 'event' && !empty($r['event'])) {
+            $meta += ['row_type' => $type, 'row_id' => (int) ($r['id'] ?? $target)];
+            $type = 'event';
+            $target = (int) $r['event'];
+        }
         if ($type === 'event') {
             $target = (int) ($r['event'] ?? $target);
             foreach (['id', 'work', 'risk', 'line', 'decision', 'cue', 'sponsor', 'check', 'table', 'pass', 'vol', 'hour', 'grant', 'invite', 'volunteer', 'member', 'role', 'team'] as $k) if (!empty($r[$k] ?? $b[$k] ?? null) && $k !== 'event') $meta[$k] = (int) ($r[$k] ?? $b[$k]);
@@ -321,11 +329,16 @@ final class LeadController
                 }
                 return \AfricaGates\Services\EventPlan\Changes::proposeFinance($event, $email, (string) ($b['until'] ?? ''), (string) ($b['reason'] ?? ''), $me['id']);
             case 'finance_end':
-                return \AfricaGates\Services\EventPlan\Leads::end((int) ($b['grant'] ?? 0), $event, 0, 'event.finance')
+                // null, not 0: there is no admin 0, and the lead who ended it is on the audit
+                // row this act writes (CLAUDE.md: normalise a sentinel where it is written).
+                return \AfricaGates\Services\EventPlan\Leads::end((int) ($b['grant'] ?? 0), $event, null, 'event.finance')
                     ? ['ok' => true, 'event' => $event, 'msg' => 'Ended. Spend requests over your limit go to the platform’s finance team again.']
                     : ['ok' => false, 'error' => 'That finance access had already ended.'];
             case 'vol_invite_cancel':
-                return \AfricaGates\Services\RoleInvites::cancel((int) ($b['invite'] ?? 0), $event)
+                // Only an invitation a lead could have made: a volunteer or a team role. An owner's
+                // or finance admin's invitation was approved by the owner or given by staff, and a
+                // lead withdrawing it alone undid their decision (AUDIT-AND-PLAN EV-6).
+                return \AfricaGates\Services\RoleInvites::cancel((int) ($b['invite'] ?? 0), $event, \AfricaGates\Services\RoleInvites::LEAD_MAY_CANCEL)
                     ? ['ok' => true, 'event' => $event, 'msg' => 'Invitation withdrawn.'] : ['ok' => false, 'error' => 'That invitation had already been used or withdrawn.'];
             default:   // vol_end — only a volunteer role at THIS event
                 $g = (int) ($b['grant'] ?? 0);
@@ -430,6 +443,9 @@ final class LeadController
         if (!Plan::may($me['id'], $event, 'volunteers.checkin')) return ['ok' => false, 'error' => 'Only a lead of this event, or a team role that includes it, can check its volunteers in.'];
         $v = \Illuminate\Database\Capsule\Manager::table('gates_volunteers')->where('id', (int) ($b['vol'] ?? 0))->first();
         if (!$v) return ['ok' => false, 'error' => 'That volunteer was not found.'];
+        // A lead's tap makes hours count at once, as a witness. Nobody witnesses themselves
+        // (AUDIT-AND-PLAN VO-10): their own visit waits for another lead, like anybody's.
+        if ((int) $v->user_id === (int) $me['id']) return ['ok' => false, 'error' => 'Check yourself in from your own volunteer page. Another lead confirms your time.'];
         $r = $in ? Attendance::arrive($v, $event, Attendance::LEAD, $me['name']) : Attendance::leave($v, $event, Attendance::LEAD, $me['name']);
         return $r + ['event' => $event];
     }
@@ -448,9 +464,23 @@ final class LeadController
         $r = match ($do) {
             'vtask_add' => $T::postForEvent($event, $b, $me['id'], $me['name']) + ['msg' => 'Posted. The volunteers with a role here see it in their Tasks now.'],
             'vtask_close' => $T::closeForEvent($event, (int) ($b['task'] ?? 0)) ? ['ok' => true, 'msg' => 'Closed. Nobody new can take it.'] : ['ok' => false, 'error' => 'That task is not open on this event.'],
-            default => $T::acceptForEvent($event, (int) ($b['take'] ?? 0), (float) ($b['hours'] ?? 0), $me['name']) + ['msg' => 'Accepted. The hours are on their record.'],
+            default => self::takeIsMine((int) ($b['take'] ?? 0), (int) $me['id'])
+                ? ['ok' => false, 'error' => 'Another lead accepts your own work.']
+                : $T::acceptForEvent($event, (int) ($b['take'] ?? 0), (float) ($b['hours'] ?? 0), $me['name']) + ['msg' => 'Accepted. The hours are on their record.'],
         };
         return $r + ['event' => $event];
+    }
+
+    private static function hoursAreMine(int $hourId, int $userId): bool
+    {
+        return \Illuminate\Database\Capsule\Manager::table('gates_vol_hours as h')->join('gates_volunteers as v', 'v.id', '=', 'h.volunteer_id')
+            ->where('h.id', $hourId)->where('v.user_id', $userId)->exists();
+    }
+
+    private static function takeIsMine(int $takeId, int $userId): bool
+    {
+        return \Illuminate\Database\Capsule\Manager::table('gates_vol_task_takes as k')->join('gates_volunteers as v', 'v.id', '=', 'k.volunteer_id')
+            ->where('k.id', $takeId)->where('v.user_id', $userId)->exists();
     }
 
     /** A lead confirms a visit a volunteer recorded alone — only one at their own event. */
@@ -461,6 +491,7 @@ final class LeadController
         if (!Plan::may($me['id'], $event, 'volunteers.checkin')) return ['ok' => false, 'error' => 'Only a lead of this event, or a team role that includes it, can confirm its time on site.'];
         $here = \Illuminate\Database\Capsule\Manager::table('gates_vol_attendance')->where('event_id', $event)->where('hours_id', $hour)->exists();
         if (!$here) return ['ok' => false, 'error' => 'That time was not at this event.'];
+        if (self::hoursAreMine($hour, (int) $me['id'])) return ['ok' => false, 'error' => 'Another lead confirms your own time.'];
         return Hours::confirm($hour, true, 'member', $me['id'], $me['name']) + ['event' => $event];
     }
 

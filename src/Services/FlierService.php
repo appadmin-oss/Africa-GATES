@@ -155,7 +155,7 @@ final class FlierService
                 // on every share. See VoteController::nominee() for the same guard.
                 ->first(array_merge([
                     'n.id', 'n.name', 'n.tagline', 'n.photo_path', 'n.country_code', 'n.vote_count',
-                    'c.id as category_id', 'c.title as category', 'p.title as programme', 'p.slug as programme_slug',
+                    'c.id as category_id', 'c.title as category', 'p.id as programme_id', 'p.title as programme', 'p.slug as programme_slug',
                 ], \AfricaGates\Support\OptionalColumn::on('gates_nominees', 'organisation') ? ['n.organisation'] : []));
         } catch (\Throwable) {
             return null;
@@ -181,6 +181,9 @@ final class FlierService
             'tagline'   => (string) ($n->tagline ?? ''),
             'category'  => (string) $n->category,
             'programme' => (string) $n->programme,
+            // The community the award belongs to (Support\AwardCampaign), for "Alimosho is
+            // celebrating its own: …" on every share. '' when the host has not named one.
+            'community' => \AfricaGates\Support\AwardCampaign::forProgramme((int) $n->programme_id)['community'],
             'country'   => strtoupper(trim((string) ($n->country_code ?? ''))),
             'organisation' => trim((string) ($n->organisation ?? '')),
             'photo'     => $this->photoUrl((string) ($n->photo_path ?? ''), $base, 'flier'),

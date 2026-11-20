@@ -357,6 +357,10 @@ final class EventTeamsTest extends TestCase
         [$small, $big] = DB::table('gates_event_budget')->orderBy('id')->pluck('id')->all();
         $this->assertStringContainsString('over your limit of ₦50,000', $this->refused($ada, ['do' => 'line_approve', 'line' => $big]));
         $this->assertSame('Approved.', $this->post($ada, ['do' => 'line_approve', 'line' => $small]));
+        // The lead added both lines, and the asker never approves (AUDIT-AND-PLAN EV-1), so a
+        // second lead adds the one the lead approves here under the lead's own limit.
+        $this->assertStringContainsString('somebody else approves it', $this->refused($this->lead, ['do' => 'line_approve', 'line' => $big]));
+        DB::table('gates_event_budget')->where('id', $big)->update(['proposed_id' => $ada]);
         $this->assertSame('Approved.', $this->post($this->lead, ['do' => 'line_approve', 'line' => $big]), 'the lead’s own limit still applies to the lead');
         $this->assertSame(50000 * 100, EventPermissions::ceiling($ada, $this->ev));
         // The owner lowering the platform limit below the role's ceiling lowers the role too.

@@ -97,7 +97,8 @@ final class CampaignsController
         $body = (array) $req->getParsedBody();
         $r    = EmailCampaign::create(
             (string) ($body['name'] ?? ''), (string) ($body['subject'] ?? ''),
-            (int) ($_SESSION['admin_id'] ?? 0)
+            (int) ($_SESSION['admin_id'] ?? 0),
+            (string) ($body['starter'] ?? 'general') === 'voting' ? 'voting' : 'general'
         );
 
         $_SESSION[$r['ok'] ? 'flash' : 'flash_error'] = $r['message'];
@@ -123,7 +124,8 @@ final class CampaignsController
         // The plan is read on every load, because §6 is firm that nobody should reach
         // "send" without having seen who it reaches. It touches no network — it is
         // database work — so it is safe on page load in a way the reconciler is not.
-        $plan = (new NomineeBroadcast())->forCampaign($c)->plan();
+        $svc  = (new NomineeBroadcast())->forCampaign($c);
+        $plan = $svc->plan();
 
         // Rendered against a deliberately long sample recipient, so the size shown is the
         // worst realistic case rather than a flattering one.
@@ -139,6 +141,7 @@ final class CampaignsController
             'links'      => EmailCampaign::LINKS,
             'tokens'     => EmailCampaign::PLACEHOLDERS,
             'counts'     => $plan['counts'],
+            'why_empty'  => $svc->whyEmpty($plan),
             'ambiguous'  => array_slice($plan['ambiguous'], 0, 10),
             'bytes'      => strlen($html),
             'max_bytes'  => EmailInboxGuard::MAX_BYTES,
@@ -267,8 +270,7 @@ final class CampaignsController
         $svc  = (new NomineeBroadcast())->forCampaign($c);
         $plan = $svc->plan();
         if (($plan['queue'] ?? []) === []) {
-            $_SESSION['flash_error'] = 'No nominee resolved in a live voting cycle, so there is no real '
-                                     . 'personalisation to preview. Check the counts on this page first.';
+            $_SESSION['flash_error'] = $svc->whyEmpty($plan);
             return $this->back($res, '/admin/campaigns/' . $id);
         }
 

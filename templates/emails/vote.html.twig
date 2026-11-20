@@ -1,5 +1,6 @@
 {#- Vote receipt (a confirmed contribution) · Voting. Sender: CheckoutMailer::receipt (minted).
-    Variables: first_name, nominee, category, votes (int), votes_label, amount, reference, page_url, nominee_first_name.
+    Variables: first_name, nominee, category, votes (int), votes_label, amount, reference, page_url, nominee_first_name,
+    offer_url (the buyer's own "what your votes unlock" link, OfferLink; optional).
     Design: Email Templates.dc.html → "Vote receipt", corrected to the live site (owner, 19 Oct
     2026): this receipt is for a CONTRIBUTION — a paid order is N votes for one nominee, and a
     free vote is cast separately, so the design's "Free daily vote" line and "your free vote
@@ -19,5 +20,6 @@
 {{ b.receipt([["Contribution · #{votes_label} #{votes == 1 ? 'vote' : 'votes'}", amount]], amount) }}
 {{ b.ref('Your reference', reference) }}
 {{ b.button(nominee_first_name ? "Share #{nominee_first_name}’s page" : 'Share the page', page_url) }}
+{% if offer_url|default('') %}{{ b.link('See what your votes unlock', offer_url) }}{% endif %}
 {{ b.note("These votes count toward #{nominee ?: 'the nominee'}’s public tally and the community half of the Cultural Power Index, exactly as a free vote does. Judges never see a nominee’s vote count, and every published result shows how much of a tally was contributed. Keep this receipt.") }}
 {% endblock %}

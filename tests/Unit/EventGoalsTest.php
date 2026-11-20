@@ -104,6 +104,12 @@ final class EventGoalsTest extends TestCase
         $a = Planner::assumptions($g)['curve'];
         $this->assertFalse(Planner::setAssumption((int) $a->id, '50,10', $this->lead)['ok'], 'shares must add to 100');
         $this->assertTrue(Planner::setAssumption((int) $a->id, '50,50', $this->lead)['ok']);
+        // A figure a target rests on is a LARGE change: it waits for an owner (AUDIT-AND-PLAN EV-8).
+        $this->assertSame(3, DB::table('gates_event_gates')->where('goal_id', $g)->count(), 'nothing moves until an owner decides');
+        $c = (int) DB::table('gates_event_changes')->where('kind', 'assumption')->value('id');
+        $this->assertSame('large', (string) DB::table('gates_event_changes')->where('id', $c)->value('tier'));
+        $this->assertFalse(Changes::decide($c, $this->lead, 'approve', '')['ok'], 'the lead who asked never approves it');
+        $this->assertTrue(Changes::decide($c, 0, 'approve', '', true)['ok'], 'staff decide where the event has no owner');
         $this->assertSame(2, DB::table('gates_event_gates')->where('goal_id', $g)->count(), 'the open gates re-drafted from it');
     }
 
@@ -163,6 +169,38 @@ final class EventGoalsTest extends TestCase
         $this->assertSame('nominated', DB::table('gates_event_contacts')->where('id', $id)->value('stage'));
         Rules::setMode($this->ev, 'all', 'paused', $this->lead);
         $this->assertSame(0, DB::table('gates_event_rules')->where('event_id', $this->ev)->where('mode', '!=', 'paused')->count(), 'one switch pauses every rule');
+    }
+
+    /**
+     * The reminder rule's once-a-day promise. `said()` in run() skips only the LOG row, and a
+     * reminder changes neither of the two things heardOf() reads, so before the claim every
+     * tick re-sent it (96 a day per item). Two runs in one day must claim one send.
+     */
+    public function test_a_reminder_is_sent_once_a_day_however_many_ticks_run(): void
+    {
+        $now = strtotime(date('Y-m-d 09:00:00'));
+        DB::table('gates_event_work')->insert(['event_id' => $this->ev, 'title' => 'Book the hall', 'owner_kind' => 'member', 'owner_id' => $this->vol,
+            'due_at' => date('Y-m-d H:i:s', $now + 86400), 'status' => 'todo', 'created_at' => date('Y-m-d H:i:s', $now - 5 * 86400)]);
+        Rules::forEvent($this->ev);
+        Rules::setMode($this->ev, 'reminder', 'active', $this->lead);
+        Rules::run($this->ev, $now);
+        Rules::run($this->ev, $now + 900);
+        Rules::run($this->ev, $now + 1800);
+        $this->assertSame(1, DB::table('gates_broadcast_log')->where('campaign', 'like', 'evrule:rem:%')->count(), 'one send claimed for the day');
+        Rules::run($this->ev, $now + 2 * 86400);   // the next day the work is past due, so nothing more is sent
+        $this->assertSame(1, DB::table('gates_broadcast_log')->where('campaign', 'like', 'evrule:rem:%')->count());
+    }
+
+    public function test_the_digest_is_claimed_once_per_lead_per_day(): void
+    {
+        $this->goal();
+        Rules::forEvent($this->ev);
+        Rules::setMode($this->ev, 'digest', 'active', $this->lead);
+        $at = strtotime(date('Y-m-d 08:00:00'));
+        Rules::run($this->ev, $at);
+        DB::table('gates_event_rule_log')->delete();   // the race: a second tick that did not see the first's log row
+        Rules::run($this->ev, $at + 60);
+        $this->assertSame(1, DB::table('gates_broadcast_log')->where('campaign', 'like', 'evrule:dig:%')->count());
     }
 
     public function test_setup_reads_a_plain_sentence_and_asks_only_what_it_could_not_find(): void

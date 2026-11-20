@@ -58,6 +58,13 @@ class ProgrammesController
             'details'       => \AfricaGates\Support\AwardDetails::of($row ? (object) $row : null),
             'detail_fields' => \AfricaGates\Support\AwardDetails::FIELDS,
             'faq_max'       => \AfricaGates\Support\AwardDetails::FAQ_MAX,
+            // Why somebody should vote: the award's campaign and its Supporter Spotlight.
+            'campaign'        => \AfricaGates\Support\AwardCampaign::of($row ? (object) $row : null),
+            'campaign_fields' => \AfricaGates\Support\AwardCampaign::FIELDS,
+            'ladder_max'      => \AfricaGates\Support\AwardCampaign::LADDER_MAX,
+            'campaign_lists'  => \AfricaGates\Support\AwardCampaign::LISTS,
+            'campaign_suggested' => \AfricaGates\Support\AwardCampaign::SUGGESTED,
+            'list_max'        => \AfricaGates\Support\AwardCampaign::LIST_MAX,
         ]);
     }
 
@@ -120,9 +127,19 @@ class ProgrammesController
                 $detailsError = 'The award details could not be saved. Everything else was.';
             }
         }
+        // The campaign, likewise saved on its own after everything else.
+        if ($detailsError === null && isset($b['campaign']) && is_array($b['campaign'])) {
+            try {
+                $campaignError = \AfricaGates\Support\AwardCampaign::save($id, $b['campaign']);
+            } catch (\Throwable $e) {
+                error_log('[programmes] campaign not saved: ' . $e->getMessage());
+                $campaignError = 'The campaign could not be saved. Everything else was.';
+            }
+            if ($campaignError !== null) $detailsError = $campaignError;
+        }
         $this->bustAwardsCache();
         if ($detailsError !== null) {
-            $_SESSION['flash_error'] = 'Programme saved, but not its award details: ' . $detailsError;
+            $_SESSION['flash_error'] = 'Programme saved, but not its award details or campaign: ' . $detailsError;
             return $res->withHeader('Location', '/admin/programmes/' . $id)->withStatus(302);
         }
         $_SESSION['flash_ok'] = 'Programme saved.';

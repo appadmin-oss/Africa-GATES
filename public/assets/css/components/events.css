@@ -262,25 +262,33 @@ button.ev-btn{ cursor:pointer; font-family:inherit }
 @property --ev-a{ syntax:'<angle>'; initial-value:0deg; inherits:true }
 @keyframes edAngle{ from{ --ev-a:-40deg } to{ --ev-a:320deg } }
 @keyframes edSweep{ 0%{ opacity:0 } 10%{ opacity:1 } 82%{ opacity:1 } 100%{ opacity:0 } }
-@keyframes edHalo{ 0%{ opacity:0 } 14%{ opacity:.4 } 72%{ opacity:.32 } 100%{ opacity:0 } }
+@keyframes edHalo{ 0%{ opacity:0 } 14%{ opacity:.7 } 70%{ opacity:.55 } 100%{ opacity:0 } }
+@keyframes edBloom{ 0%{ opacity:0 } 28%{ opacity:1 } 100%{ opacity:0 } }
 .ed-glow{
   /* The tail diffuses up to the head; the head ends hard at 356deg. */
   --ev-head:transparent 210deg, var(--tier-light) 270deg, var(--tier-accent) 330deg, var(--tier-deep) 352deg, var(--tier-deep) 356deg;
   --ev-cg:conic-gradient(from var(--ev-a), var(--ag-line) 0deg 210deg, var(--ev-head), var(--ag-line) 356deg 360deg);
   --ev-halo:conic-gradient(from var(--ev-a), transparent 0deg 318deg, var(--tier-accent) 344deg, var(--tier-deep) 356deg, transparent 356deg 360deg);
   position:absolute; inset:-1px; z-index:-1; pointer-events:none;
-  animation:edAngle 1.8s cubic-bezier(.3,0,.15,1) 1 both;
+  animation:edAngle 2.4s cubic-bezier(.3,0,.15,1) 1 both;
 }
 .ed-glow__halo{
   position:absolute; inset:0; border-radius:var(--ag-r-20); background:var(--ev-halo);
-  filter:blur(4px); opacity:0;
-  animation:edHalo 1.8s var(--ag-ease) both;
+  filter:blur(8px); opacity:0;
+  animation:edHalo 2.4s var(--ag-ease) both;
+}
+/* The light the card throws on the page while the comet runs: the tier's own glow, under the
+   card, one breath, gone. */
+.ed-glow__bloom{
+  position:absolute; inset:0; border-radius:var(--ag-r-20); opacity:0;
+  box-shadow:0 22px 60px -22px var(--tier-glow), 0 0 0 1px color-mix(in srgb, var(--tier-accent) 18%, transparent);
+  animation:edBloom 2.4s var(--ag-ease) both;
 }
 .ed-glow__ring{
   position:absolute; inset:0; border-radius:var(--ag-r-20); border:2px solid transparent;
   background:linear-gradient(var(--ag-surface), var(--ag-surface)) padding-box, var(--ev-cg) border-box;
   opacity:0;
-  animation:edSweep 1.8s var(--ag-ease) both;
+  animation:edSweep 2.4s var(--ag-ease) both;
 }
 .ed-card[data-ev-idle] .ed-glow,
 .ed-card[data-ev-idle] .ed-glow > *{ animation-play-state:paused }
@@ -289,27 +297,83 @@ html.ag-rm [data-ev-glow]{ display:none }
 
 /* Tier rows: a radio group. The radio stays NEUTRAL (ink); the tier's colour is the
    selected border and wash. */
-.ed-tiers{ display:flex; flex-direction:column; gap:8px }
+/* Tickets as plan tiles: a 2-up grid of name + price (one tier fills the row; an odd last
+   tile spans it). The radio is a small neutral mark in the corner — the tier's colour is the
+   chosen tile's edge and wash. What the chosen ticket includes is ONE panel under the grid. */
+.ed-tiers{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px }
+.ed-tiers--1{ grid-template-columns:1fr }
+.ed-tier:last-child:nth-child(odd){ grid-column:1 / -1 }
 .ed-tier{
-  display:flex; align-items:flex-start; gap:11px; min-height:48px; padding:12px 14px; box-sizing:border-box;
-  border-radius:13px; border:1.5px solid color-mix(in srgb, var(--ag-ink) 12%, transparent);
+  position:relative; display:flex; flex-direction:column; align-items:flex-start; gap:2px;
+  min-height:92px; padding:14px 40px 14px 14px; box-sizing:border-box;
+  border-radius:var(--ag-r-16); border:1px solid var(--ag-line-2);
   background:var(--ag-surface); color:var(--ag-ink); font-family:inherit; text-align:start; cursor:pointer;
-  transition:border-color var(--ag-dur-1) var(--ag-ease), background-color var(--ag-dur-1) var(--ag-ease);
+  transition:border-color var(--ag-dur-1) var(--ag-ease), background-color var(--ag-dur-1) var(--ag-ease), box-shadow var(--ag-dur-1) var(--ag-ease);
 }
-.ed-tier:hover{ border-color:color-mix(in srgb, var(--ag-ink) 28%, transparent) }
-.ed-tier[aria-checked="true"]{ border-color:var(--tier-edge); background:var(--tier-wash) }
+.ed-tier:hover{ border-color:color-mix(in srgb, var(--ag-ink) 30%, transparent) }
+/* Chosen: the tier's own edge, 2px by an inset ring so the tile does not move. */
+.ed-tier[aria-checked="true"]{ border-color:var(--tier-edge); box-shadow:inset 0 0 0 1px var(--tier-edge); background:var(--tier-wash) }
 .ed-tier:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
 .ed-tier:disabled{ cursor:not-allowed; opacity:.62 }
 .ed-tier__radio{
-  flex:none; width:18px; height:18px; margin-top:2px; border-radius:50%; box-sizing:border-box;
-  border:2px solid var(--ag-chevron);
+  position:absolute; top:14px; inset-inline-end:14px; width:18px; height:18px; border-radius:50%; box-sizing:border-box;
+  border:1.5px solid var(--ag-chevron); transition:border-width var(--ag-dur-1) var(--ag-ease);
 }
-.ed-tier[aria-checked="true"] .ed-tier__radio{ border:6px solid var(--ag-ink) }
-.ed-tier__t{ flex:1; display:flex; flex-direction:column; gap:2px; min-width:0 }
-.ed-tier__n{ font-weight:700; font-size:var(--ag-fs-14-5) }
-.ed-tier__s{ font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
+.ed-tier[aria-checked="true"] .ed-tier__radio{ border:5px solid var(--ag-ink) }
+.ed-tier__n{ font-size:var(--ag-fs-14); font-weight:600; line-height:1.3; color:var(--ag-ink-2) }
+.ed-tier__p{ margin-top:auto; padding-top:6px; font-size:var(--ag-fs-20); font-weight:700; line-height:1.15; letter-spacing:-.01em; font-variant-numeric:tabular-nums }
+.ed-tier__s{ font-size:var(--ag-fs-12-5); line-height:1.35; color:var(--ag-soft) }
 .ed-tier__s--tint{ color:var(--tier-deep); font-weight:700 }
-.ed-tier__p{ flex:none; font-size:var(--ag-fs-14); font-weight:700; line-height:1.4; font-variant-numeric:tabular-nums }
+
+.ed-inc{ padding:14px 16px 16px; border-radius:var(--ag-r-16); background:var(--tier-wash, var(--ag-ground)) }
+.ed-inc[hidden]{ display:none }
+.ed-inc__h{ margin:0 0 10px; font-size:var(--ag-fs-13); font-weight:600; color:var(--ag-ink-2) }
+.ed-inc__note{ margin:0 0 10px; font-size:var(--ag-fs-14); line-height:1.5; color:var(--ag-ink) }
+.ed-inc__l{ margin:0; padding:0; list-style:none; display:grid; gap:9px }
+.ed-inc__i{ display:flex; align-items:flex-start; gap:10px; font-size:var(--ag-fs-14-5); line-height:1.4; color:var(--ag-ink) }
+.ed-inc__tick{ flex:none; margin-top:1px; color:var(--tier-deep, var(--ag-ink)) }
+
+/* THE PICK, CHOREOGRAPHED (owner, 17 Nov 2026: "make that ticket div effect more cinematic").
+   One sequence, in this order, each beat starting as the last lands — the rim's comet above
+   runs alongside:
+     1  the tile lifts (1px, a soft shadow in the tier's own glow) and a light sweeps across it
+     2  the radio's dot springs in; the price settles into place
+     3  what the ticket includes opens downward, and its lines arrive one after another
+   All of it is CSS keyed on the state (`aria-checked`, the panel losing `hidden`), so it plays
+   whatever chose the tier — a tap, the keyboard, the page's own default — and all of it is
+   dropped under reduced motion, the OS's or the site's. */
+@keyframes edTileSheen{ from{ transform:translateX(-140%) skewX(-20deg) } to{ transform:translateX(360%) skewX(-20deg) } }
+@keyframes edDot{ 0%{ transform:scale(.55) } 55%{ transform:scale(1.14) } 100%{ transform:scale(1) } }
+@keyframes edPrice{ from{ opacity:.35; transform:translateY(6px) } to{ opacity:1; transform:none } }
+@keyframes edIncOpen{ from{ opacity:0; clip-path:inset(0 0 100% 0 round var(--ag-r-16)) } to{ opacity:1; clip-path:inset(0 0 0 0 round var(--ag-r-16)) } }
+@keyframes edIncLine{ from{ opacity:0; transform:translateY(6px) } to{ opacity:1; transform:none } }
+.ed-tier{ overflow:hidden; isolation:isolate }
+.ed-tier::after{
+  content:''; position:absolute; top:-30%; bottom:-30%; left:0; width:38%; z-index:-1; pointer-events:none; opacity:0;
+  background:linear-gradient(90deg, transparent, color-mix(in srgb, var(--tier-light) 75%, transparent), transparent);
+}
+.ed-tier[aria-checked="true"]{
+  transform:translateY(-1px);
+  box-shadow:inset 0 0 0 1px var(--tier-edge), 0 14px 28px -18px var(--tier-glow);
+  transition:transform var(--ag-dur-2) cubic-bezier(.2,0,0,1), box-shadow var(--ag-dur-2) cubic-bezier(.2,0,0,1), background-color var(--ag-dur-1) var(--ag-ease), border-color var(--ag-dur-1) var(--ag-ease);
+}
+.ed-tier[aria-checked="true"]::after{ opacity:1; animation:edTileSheen 950ms cubic-bezier(.3,0,.15,1) both }
+.ed-tier[aria-checked="true"] .ed-tier__radio{ animation:edDot 420ms cubic-bezier(.3,1.4,.5,1) 120ms both }
+.ed-tier[aria-checked="true"] .ed-tier__p{ animation:edPrice 520ms cubic-bezier(.2,0,0,1) 160ms both }
+.ed-inc:not([hidden]){ animation:edIncOpen 520ms cubic-bezier(.2,0,0,1) 220ms both }
+.ed-inc:not([hidden]) .ed-inc__i{ animation:edIncLine 420ms cubic-bezier(.2,0,0,1) both }
+.ed-inc__i:nth-child(1){ animation-delay:340ms } .ed-inc__i:nth-child(2){ animation-delay:400ms }
+.ed-inc__i:nth-child(3){ animation-delay:460ms } .ed-inc__i:nth-child(4){ animation-delay:520ms }
+.ed-inc__i:nth-child(5){ animation-delay:580ms } .ed-inc__i:nth-child(6){ animation-delay:640ms }
+.ed-inc__i:nth-child(n+7){ animation-delay:700ms }
+@media (prefers-reduced-motion:reduce){
+  .ed-tier[aria-checked="true"], .ed-tier[aria-checked="true"]::after, .ed-tier[aria-checked="true"] .ed-tier__radio,
+  .ed-tier[aria-checked="true"] .ed-tier__p, .ed-inc:not([hidden]), .ed-inc:not([hidden]) .ed-inc__i{ animation:none; transform:none }
+  .ed-tier::after{ display:none }
+}
+html.ag-rm .ed-tier[aria-checked="true"], html.ag-rm .ed-tier[aria-checked="true"]::after, html.ag-rm .ed-tier[aria-checked="true"] .ed-tier__radio,
+html.ag-rm .ed-tier[aria-checked="true"] .ed-tier__p, html.ag-rm .ed-inc:not([hidden]), html.ag-rm .ed-inc:not([hidden]) .ed-inc__i{ animation:none; transform:none }
+html.ag-rm .ed-tier::after{ display:none }
 
 .ed-field{ display:flex; flex-direction:column; gap:5px }
 .ed-label{ font-weight:600; font-size:var(--ag-fs-13) }

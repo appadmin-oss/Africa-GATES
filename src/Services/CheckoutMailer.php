@@ -410,6 +410,10 @@ final class CheckoutMailer
                 'amount'             => '₦' . number_format((int) $don->amount_naira),
                 'reference'          => (string) ($don->payment_ref ?? ''),
                 'page_url'           => $nom['url'],
+                // The buyer's own "what your votes unlock" link (OfferLink): their votes, what
+                // they have unlocked, what is next — keyed on the address they paid from.
+                'offer_url'          => $nom['slug'] !== '' && trim((string) ($don->donor_email ?? '')) !== ''
+                    ? SiteUrl::base() . OfferLink::path($nom['slug'], VoteService::voterHash((string) $don->donor_email)) : '',
             ],
         ];
     }
@@ -695,17 +699,21 @@ final class CheckoutMailer
      */
     private static function nominee(int $nomineeId): array
     {
-        $out = ['name' => '', 'category' => '', 'url' => SiteUrl::base() . '/vote'];
+        $out = ['name' => '', 'category' => '', 'url' => SiteUrl::base() . '/vote', 'slug' => ''];
         if ($nomineeId < 1) return $out;
         try {
             $row = DB::table('gates_nominees as n')
                 ->leftJoin('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+                ->leftJoin('gates_award_cycles as y', 'y.id', '=', 'c.cycle_id')
+                ->leftJoin('gates_award_programmes as p', 'p.id', '=', 'y.programme_id')
                 ->where('n.id', $nomineeId)
-                ->select(['n.name', 'c.title as category'])
+                ->select(['n.name', 'c.title as category', 'p.slug as programme_slug', 'p.is_active'])
                 ->first();
             if ($row) {
                 $out['name']     = (string) ($row->name ?? '');
                 $out['category'] = (string) ($row->category ?? '');
+                // The award's slug, for the offer link — a live award only, never the sandbox.
+                $out['slug']     = (int) ($row->is_active ?? 0) === 1 ? (string) ($row->programme_slug ?? '') : '';
             }
             // One shared builder, so the link in an email is byte-identical to the
             // link on the page the buyer came from.

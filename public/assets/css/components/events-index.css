@@ -22,13 +22,50 @@
 .ei-t--live{  --ei-wash:var(--ag-cover-live-bg);  --ei-ink:var(--ag-cover-live-ink);  --ei-dot:var(--ag-cover-live-line);  --ei-edge:var(--ag-cover-live-edge) }
 .ei-t--info{  --ei-wash:var(--ag-cover-info-bg);  --ei-ink:var(--ag-cover-info-ink);  --ei-dot:var(--ag-cover-info-line);  --ei-edge:var(--ag-cover-info-edge) }
 .ei-t--stone{ --ei-wash:var(--ag-cover-stone-bg); --ei-ink:var(--ag-cover-stone-ink); --ei-dot:var(--ag-cover-stone-line); --ei-edge:var(--ag-cover-stone-edge) }
+/* AN EVENT WITH ITS OWN ARTWORK (owner, 17 Nov 2026: "it feels off. The colours do not
+   match", then "the colour must match the art"). The tone is the event's TYPE — gold for an
+   awards ceremony — and it knows nothing about the picture the organiser uploaded. So the
+   slide is painted from the artwork itself: EventArtTone reads its dominant colour and the
+   slide carries the four slots inline (`style="--ei-wash:…"`, which beats these classes).
+   Where the artwork has no colour to speak of, or could not be read, this neutral panel is the
+   fallback — never the type's colour beside a picture it does not match. A generated cover
+   (no upload) still wears its tone, because there the tone IS the picture's colour. */
+.ei-art{ --ei-wash:var(--ag-surface); --ei-ink:var(--ag-ink-2) }
+.ei-art .ei-slide__chips .ei-pill{ box-shadow:inset 0 0 0 1px var(--ag-line-2) }
+/* The panel in the artwork's own colour (EventArtTone::slots): on a DARK one every word turns
+   white and the actions invert — the go button white with the panel's colour as its words
+   (that pair is the panel's own white-text contrast, so it is measured), the line button a
+   white outline. A LIGHT one keeps the house ink, already measured against it. */
+.ei-art--dark .ei-slide__chips .ei-pill, .ei-art--light .ei-slide__chips .ei-pill{ box-shadow:none }
+.ei-art--dark .ei-slide__t a, .ei-art--dark .ei-slide__m, .ei-art--dark .ei-slide__going, .ei-art--dark .ei-slide__going b,
+.ei-art--dark .ei-slide__stand, .ei-art--dark .ei-rel, .ei-art--dark .ei-spotph__t, .ei-art--dark .ei-spotph__m{ color:var(--ag-surface) }
+.ei-art--dark .ei-rel{ border-color:color-mix(in srgb, var(--ag-surface) 45%, transparent) }
+.ei-art--dark .ei-btn--go{ background:var(--ag-surface); color:var(--ei-wash) }
+.ei-art--dark .ei-pill{ color:var(--ei-wash) }
+.ei-art--dark .ei-pill i{ background:var(--ei-wash) }
+.ei-art--dark .ei-btn--line{ border-color:var(--ag-surface); color:var(--ag-surface) }
+.ei-art--dark .ei-btn:focus-visible{ outline-color:var(--ag-surface) }
+/* THE WHOLE POSTER, ON ITS OWN COLOUR (owner, 17 Nov 2026: "is this cool?"). An organiser's
+   artwork is usually a flyer, and a flyer's words are the point: cropped to fill the box it
+   lost its edges (the date, the venue, the sponsors), and the fade that blends a photograph
+   into the panel ran across its lettering. So where the panel IS the artwork's colour, the
+   artwork is shown whole (`contain`), never faded, floating on that same colour with a soft
+   shadow — the colour carries on round it. */
+.ei-art--dark .ei-slide__fade, .ei-art--light .ei-slide__fade{ display:none }
+.ei-art--dark .ei-slide__vis .ag-photo, .ei-art--light .ei-slide__vis .ag-photo{ inset:24px 28px; width:auto; height:auto; background:none }
+.ei-art--dark .ag-photo__img, .ei-art--light .ag-photo__img{
+  object-fit:contain; filter:drop-shadow(0 18px 28px color-mix(in srgb, var(--ag-ink) 32%, transparent));
+}
+.ei-art--dark .ei-spotph__vis .ag-photo, .ei-art--light .ei-spotph__vis .ag-photo{ inset:14px 14px 0; width:auto; height:auto; background:none }
 
 .ei{ max-width:1240px; margin:0 auto; padding:4px 16px 40px; display:flex; flex-direction:column; gap:28px }
 
 /* ── buttons ── */
 .ei-btn{
   display:inline-flex; align-items:center; justify-content:center; min-height:50px; padding:0 22px;
-  border-radius:var(--ag-r-pill); font-size:var(--ag-fs-15-5); font-weight:700; text-decoration:none; white-space:nowrap;
+  border-radius:var(--ag-r-pill); font-size:var(--ag-fs-15-5); font-weight:700; text-decoration:none;
+  /* Wraps rather than runs off the screen at the largest text setting (WCAG 1.4.4). */
+  text-align:center; padding-block:8px;
 }
 .ei-btn--go{ background:var(--ag-green); color:var(--ag-surface) }
 .ei-btn--line{ padding:0 20px; border:1px solid var(--ag-ink); color:var(--ag-ink); font-size:var(--ag-fs-15); font-weight:600; background:transparent }
@@ -79,8 +116,8 @@
 /* The photo eases from 1.06 to 1 over the slide's time on stage (§Spotlight, motion). */
 .ei-slide__vis .ag-photo__img{ transform:scale(1.06); transition:transform 0s linear .6s }
 .ei-slide[data-on] .ag-photo__img{ transform:scale(1); transition:transform 7s ease-out }
-.ei-slide__fade{ position:absolute; top:0; bottom:0; inset-inline-start:0; width:96px; background:linear-gradient(to right, var(--ei-wash), transparent) }
-[dir="rtl"] .ei-slide__fade{ background:linear-gradient(to left, var(--ei-wash), transparent) }
+.ei-slide__fade{ position:absolute; top:0; bottom:0; inset-inline-start:0; width:38%; background:linear-gradient(to right, var(--ei-wash), color-mix(in srgb, var(--ei-wash) 55%, transparent) 45%, transparent) }
+[dir="rtl"] .ei-slide__fade{ background:linear-gradient(to left, var(--ei-wash), color-mix(in srgb, var(--ei-wash) 55%, transparent) 45%, transparent) }
 
 .ei-spot__ctl{ display:flex; align-items:center; justify-content:space-between; gap:16px; margin-top:12px }
 .ei-spot__ctl[hidden]{ display:none }

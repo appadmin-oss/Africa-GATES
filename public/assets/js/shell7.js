@@ -2,7 +2,8 @@
    without this file: forms post, links are links. It adds these on top:
      · a toast leaves on its own after a few seconds (and stays while hovered or focused);
      · a button with data-sh7-confirm asks first, since a dropped shift or leaving is hard to undo;
-     · Escape closes the phone's More sheet and returns focus to its button;
+     · Escape, its Close button or a tap outside closes the phone's menu sheet, and focus goes
+       back to the Menu button;
      · Find (⌘K): matches as you type from the list the page carries; Enter on nothing chosen
        submits the search, which is what happens without this file too;
      · Ask (⌘J): the console's assistant in a side panel; without this file Ask is a link to it.
@@ -44,7 +45,9 @@
   }
   // A click outside an open Updates panel or switcher closes it, as a menu does.
   document.addEventListener('click', function (e) {
-    document.querySelectorAll('.sh7-bellbox[open], .sh7-switch[open]').forEach(function (d) { if (!d.contains(e.target)) d.removeAttribute('open'); });
+    document.querySelectorAll('.sh7-bellbox[open], .sh7-switch[open], .sh7-more[open]').forEach(function (d) { if (!d.contains(e.target)) d.removeAttribute('open'); });
+    var x = e.target.closest('[data-sh7-sheet-x]');
+    if (x) { var m = x.closest('.sh7-more'); if (m) { m.removeAttribute('open'); var ms = m.querySelector('summary'); if (ms) ms.focus(); } }
   });
   document.addEventListener('click', function (e) {
     var b = e.target.closest('[data-sh7-confirm]');

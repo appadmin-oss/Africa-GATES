@@ -164,6 +164,9 @@ class ApiController {
         // (Services\Celebration: money and votes celebrate only once the record says so).
         if($termsProgramme>0) \AfricaGates\Services\AwardTerms::accept($termsProgramme,\AfricaGates\Services\AwardTerms::KIND_VOTE,$email,$nId);
         if(isset($_SESSION)&&is_array($_SESSION)) $_SESSION['vote_cast'][$nId]=time();
+        // Who just voted, as the board's person key, so the ballot can hand them their own
+        // "what your votes unlock" link (OfferLink) without an account.
+        if(isset($_SESSION)&&is_array($_SESSION)) $_SESSION['vote_key']=\AfricaGates\Services\VoteService::voterHash($email);
         // Credited to the announcement that brought them, if one did (Mail\MailTraction).
         \AfricaGates\Services\Mail\MailTraction::converted('vote', 'n'.$nId.':'.substr(hash('sha256',strtolower($email)),0,16));
         // "Bring your people" (VoteRecruit): the link this vote arrived through is credited

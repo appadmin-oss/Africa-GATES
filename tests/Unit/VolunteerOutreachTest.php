@@ -197,7 +197,8 @@ final class VolunteerOutreachTest extends TestCase
         $list = Outreach::nominees($v);
         $this->assertSame('Zainab Musa', $list[0]->name, 'due first, though Ada sorts before her by name');
         $this->assertSame(1, Outreach::dueCount($v));
-        $this->assertSame(['n' => 1, 'tone' => 'warn'], Workspace::counts($v, Volunteers::role($v))['@cycle:' . $this->cycle]);
+        // One entry for the work, wherever it is: the follow-up is counted on Nominees.
+        $this->assertSame(['n' => 1, 'tone' => 'warn'], Workspace::counts($v, Volunteers::role($v))['nominees']);
         $html = $this->page('due');
         // Find carries every nominee by name, so the list is read by its own heading and links.
         $this->assertStringContainsString('>1 nominee<', $html);
@@ -411,7 +412,8 @@ final class VolunteerOutreachTest extends TestCase
         $v = $this->volunteer([Outreach::CAPABILITY]);
         Outreach::agree($v, $this->cycle);
         $html = $this->page('all', ['n' => $n]);
-        $this->assertMatchesRegularExpression('~<p class="sh7-form__name">How it went</p>~', $html);
+        // Printed once, hidden from a reader, who hears the legend instead (16 Nov 2026).
+        $this->assertMatchesRegularExpression('~<p class="sh7-form__name" aria-hidden="true">How it went</p>~', $html);
         $this->assertMatchesRegularExpression('~<legend class="sh7-field__label sh7-sr">How it went</legend>~', $html, 'printed twice');
         $this->assertDoesNotMatchRegularExpression('~<legend class="sh7-field__label">How it went</legend>~', $html);
     }

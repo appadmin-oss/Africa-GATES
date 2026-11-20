@@ -79,7 +79,7 @@ final class EventPermissions
                                  'help' => 'Add budget lines, record what is committed and paid, and ask finance for a line.',
                                  'views' => ['money' => ['budget', 'approvals', 'vendors', 'income']], 'acts' => ['line_add', 'line_spend', 'line_ask']],
         'money.approve'      => ['label' => 'Approve spend', 'risk' => 'high', 'ceiling' => true,
-                                 'help' => 'Approve a budget line up to the ceiling the owner sets, never above the lead’s own limit.',
+                                 'help' => 'Approve a budget line up to the ceiling the owner sets, never above the lead’s own limit, and never a line you added yourself.',
                                  'views' => ['money' => ['budget', 'approvals']], 'acts' => ['line_approve']],
         'show.run'           => ['label' => 'Run the show', 'risk' => 'low',
                                  'help' => 'Write the running order and mark each cue done on the night.',
@@ -165,7 +165,10 @@ final class EventPermissions
         // goals and the reports — and never money.plan, so who asks and who approves stay two.
         if ($out['finance']) {
             foreach (self::FINANCE_PERMS as $p) if (!in_array($p, $out['perms'], true)) $out['perms'][] = $p;
-            $out['ceiling'] = max($out['ceiling'], self::financeCeiling());
+            // Never for somebody who also plans spend here: one person holding the lead's
+            // money.plan and the finance limit proposed and approved any amount alone
+            // (AUDIT-AND-PLAN EV-5). Their ceiling stays the one their other role gives.
+            if (!in_array('money.plan', $out['perms'], true)) $out['ceiling'] = max($out['ceiling'], self::financeCeiling());
         }
         $out['any'] = $out['lead'] || $out['owner'] || $out['finance'] || $out['roles'] !== [];
         return $out;
@@ -181,15 +184,13 @@ final class EventPermissions
     /** The most one budget line may be approved for by this member here, in kobo (0 = none). */
     /** What an event's finance admin may do (Grants 'event.finance'). */
     public const FINANCE_PERMS = ['money.view', 'money.approve', 'goals.view', 'reports.view'];
-    /** The most one line a finance admin approves, in kobo; the setting `event_finance_limit_naira`, 0 or unset = no limit. */
+    /**
+     * The most one line a finance admin approves, in kobo. Read through Plan::rule(), the one
+     * resolver for the event plan's limits, with a default — never "no limit".
+     */
     public static function financeCeiling(): int
     {
-        try {
-            $n = (int) \Illuminate\Database\Capsule\Manager::table('gates_settings')->where('key_name', 'event_finance_limit_naira')->value('value');
-        } catch (\Throwable) {
-            $n = 0;
-        }
-        return $n > 0 ? $n * 100 : PHP_INT_MAX;
+        return Plan::rule('event_finance_limit_naira') * 100;
     }
 
     public static function ceiling(int $userId, int $eventId): int
@@ -340,7 +341,7 @@ final class EventPermissions
         if (!SchemaHas::table('gates_event_team_members')) return [];
         $now = date('Y-m-d H:i:s');
         $grants = DB::table('gates_grants')->where('actor_kind', Plan::ACTOR)->where('actor_id', $userId)->whereIn('capability', ['event.role', 'vol.event_role'])
-            ->where('scope_kind', 'event')->where('scope_id', $eventId)->whereNull('revoked_at')->where('expires_at', '>', $now)
+            ->where('scope_kind', 'event')->where('scope_id', $eventId)->where(static fn ($w) => Grants::live($w))
             ->where(static fn ($w) => $w->whereNull('starts_at')->orWhere('starts_at', '<=', $now))->pluck('id')->map(static fn ($i) => (int) $i)->all();
         if ($grants === []) return [];
         $invites = DB::table('gates_role_invites')->whereIn('grant_id', $grants)->pluck('id')->map(static fn ($i) => (int) $i)->all();

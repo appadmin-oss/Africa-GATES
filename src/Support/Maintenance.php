@@ -202,6 +202,31 @@ final class Maintenance
             // ticket alerts beside it, and each row is CLAIMED before it is sent (AwardAlert).
             $ran[] = ['award-alerts', $this->task('award-alerts',
                 fn() => \AfricaGates\Services\AwardAlert::sweep($this->mailer()))];
+            // The Supporter Spotlight's messages (SpotlightMail): yesterday's Champion of the Day
+            // once DailyChampion has announced it, last week's Mobiliser on Monday, and a first place in
+            // the top supporters. Every tick, cheap when nothing is new; each is CLAIMED first.
+            // The Champion of the Day, announced the morning after once payments have settled,
+            // and sealed (DailyChampion). Before the Spotlight's mail, which tells the champion.
+            $ran[] = ['daily-champion', $this->task('daily-champion',
+                fn() => \AfricaGates\Services\DailyChampion::sweep())];
+            $ran[] = ['spotlight-mail', $this->task('spotlight-mail',
+                fn() => \AfricaGates\Services\SpotlightMail::sweep($this->mailer()))];
+            // Honouring the people who voted (16 Nov 2026): on results day, every backer told
+            // what became of the nominee they backed and that they were one of the people behind
+            // them (ResultsDayMail, only for an ANNOUNCED release); and a nominee's own thank-you,
+            // once its edit window is over (NomineeThanks). Both claim each address first.
+            $ran[] = ['results-day-mail', $this->task('results-day-mail',
+                fn() => \AfricaGates\Services\ResultsDayMail::sweep($this->mailer()))];
+            $ran[] = ['nominee-thanks', $this->task('nominee-thanks',
+                fn() => \AfricaGates\Services\NomineeThanks::sweep($this->mailer()))];
+            // "Your vote is working": milestones in each live race recorded, and told to the
+            // backers who asked — at most three an edition each (NomineeMilestones).
+            $ran[] = ['nominee-milestones', $this->task('nominee-milestones',
+                fn() => \AfricaGates\Services\NomineeMilestones::sweep($this->mailer()))];
+            // A nominee's own updates, once their fifteen minutes to change them are over, to the
+            // backers who asked to hear how they are doing (NomineeUpdates). Claimed per address.
+            $ran[] = ['nominee-updates', $this->task('nominee-updates',
+                fn() => \AfricaGates\Services\NomineeUpdates::sweep($this->mailer()))];
             // Volunteers' reminders (Volunteer\Reminders): the day before a meeting, training
             // about to lapse. Every tick; each message is claimed before it is sent, so
             // overlapping ticks never send one twice.

@@ -631,6 +631,12 @@ final class PaymentDestination
         if (str_starts_with($r, 'AFG-EVT')) return 'events';
         if (str_starts_with($r, 'AFG-SHP')) return 'shop';
         if (str_starts_with($r, 'AFG-ADS')) return 'ads';      // Ads\AdCheckout::REF_PREFIX
+        // A stand fee is money an event takes (StandFee::reference). It fell through to
+        // 'votes' below, so stand money settled into the votes destination, was labelled
+        // vote income, and the webhook looked for it among donations (AUDIT-AND-PLAN EV-11).
+        // 'events', not a stream of its own: finance's catalogue decides what a kind of money
+        // is, and a code it does not know is refused at settlement.
+        if (str_starts_with($r, 'AFG-STAND')) return 'events';
         if (str_starts_with($r, 'AFG-'))    return 'votes';
         return '';
     }

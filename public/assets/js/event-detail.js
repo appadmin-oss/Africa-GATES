@@ -129,6 +129,8 @@
       x.tabIndex = on ? 0 : -1;
     });
     read(r);
+    // What the chosen ticket includes: one panel, the chosen tier's.
+    qa('[data-ed-inc]', form).forEach(function (p) { p.hidden = p.getAttribute('data-ed-inc') !== String(state.id); });
     card.setAttribute('style', r.getAttribute('style') || '');
     state.off = 0;
     if (codeSaid) codeSaid.textContent = '';

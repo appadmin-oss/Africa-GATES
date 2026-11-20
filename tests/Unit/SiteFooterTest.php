@@ -53,8 +53,9 @@ final class SiteFooterTest extends TestCase
 
         $shell = ChromeRender::source('templates/layout/shell.twig');
         $this->assertStringContainsString("include 'partials/site-footer.twig'", $shell);
-        // Inside the scroller: the footer is reached by scrolling and pinned to nothing.
-        $this->assertMatchesRegularExpression('~<main class="ag-main".*partials/site-footer\.twig.*</main>~s', $shell);
+        // Inside the scroller: the footer is reached by scrolling and pinned to nothing —
+        // and AFTER </main>, so it is the page's footer landmark, not part of its content.
+        $this->assertMatchesRegularExpression('~<div class="ag-main".*</main>.*partials/site-footer\.twig~s', $shell);
     }
 
     /**

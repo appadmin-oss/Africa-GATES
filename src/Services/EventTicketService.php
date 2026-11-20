@@ -389,6 +389,9 @@ final class EventTicketService
         if (!$tier || (int) $tier->event_id !== $eventId || (int) ($tier->is_active ?? 0) !== 1) {
             return ['ok' => false, 'message' => 'That ticket type is not available.'];
         }
+        if ((int) ($tier->price_naira ?? 0) > 0 && !self::paidSalesAllowed($event)) {
+            return ['ok' => false, 'message' => 'Paid tickets for this event are not on sale yet. The organiser has been told.'];
+        }
 
         // A code-gated tier cannot be bought by guessing its id. The visible list hides
         // it; this refuses it, because the id is in the page source for anybody who has
@@ -642,17 +645,56 @@ final class EventTicketService
         $reference = trim($reference);
         $reg = self::byReference($reference);
         if (!$reg) return ['ok' => false, 'message' => 'That registration could not be found.'];
+        $payments = $payments ?? new PaymentService();
 
-        if ((string) $reg->status === 'confirmed') {
+        // ── A PAYMENT AGAINST A REFERENCE THE ROW NO LONGER WAITS ON ────────────
+        //
+        // Found through an alias (a restarted checkout, an expired waitlist offer), or on a
+        // row since cancelled. These used to answer "already confirmed" or "cancelled" and
+        // stop, so money that had really arrived was recorded nowhere (AUDIT-AND-PLAN EV-14).
+        // Now the gateway is asked; if it was paid, the row is honoured where it can be and
+        // the money is otherwise recorded as owed back, with a person told.
+        $viaAlias = (string) ($reg->reference ?? '') !== $reference;
+        $status = (string) $reg->status;
+        if ($status === 'confirmed' && !$viaAlias) {
             return ['ok' => true, 'already' => true, 'id' => (int) $reg->id,
                     'ticket_code' => (string) ($reg->ticket_code ?? ''),
                     'message' => 'This registration is already confirmed.'];
         }
-        if ((string) $reg->status === 'cancelled') {
-            return ['ok' => false, 'message' => 'That registration was cancelled.'];
+        if ($status === 'confirmed' || $status === 'cancelled' || $status === 'waitlisted') {
+            $paidV = self::paidAt($payments, $reg, $reference);
+            if ($paidV === null) {
+                return $status === 'confirmed'
+                    ? ['ok' => true, 'already' => true, 'id' => (int) $reg->id, 'ticket_code' => (string) ($reg->ticket_code ?? ''), 'message' => 'This registration is already confirmed.']
+                    : ['ok' => false, 'message' => $status === 'cancelled' ? 'That registration was cancelled.' : 'That offer has expired.'];
+            }
+            [$provider, $paid] = $paidV;
+            if ($status === 'waitlisted' && self::seatFreeFor($reg)) {
+                // The offer expired while the transfer settled, and a seat is still free:
+                // honour it. The row goes back to waiting for exactly this payment.
+                DB::table('gates_event_registrations')->where('id', (int) $reg->id)->where('status', 'waitlisted')
+                    ->update(OptionalColumn::filter('gates_event_registrations', ['status' => 'pending', 'reference' => $reference, 'amount_naira' => $paid, 'hold_expires_at' => null],
+                        ['status', 'reference', 'hold_expires_at']));
+                $reg = self::byReference($reference) ?? $reg;
+            } else {
+                if ($status === 'cancelled') {
+                    try {
+                        DB::table('gates_event_registrations')->where('id', (int) $reg->id)->where('status', 'cancelled')
+                            ->where(static fn ($q) => $q->whereNull('refund_status')->orWhere('refund_status', 'none'))
+                            ->update(OptionalColumn::filter('gates_event_registrations', ['refund_status' => 'pending', 'refund_naira' => $paid],
+                                ['refund_status', 'refund_naira']));
+                    } catch (\Throwable) {}
+                }
+                self::owedAlert($reg, $reference, $paid, match ($status) {
+                    'confirmed' => 'A second payment arrived for a ticket that is already paid (an earlier checkout that was restarted).',
+                    'cancelled' => 'A payment arrived for a booking that had been cancelled.',
+                    default     => 'A payment arrived for a waiting-list offer after it expired, and no seat is free now.',
+                });
+                return ['ok' => false, 'late' => true, 'message' => 'That payment arrived for a booking that no longer holds a seat. '
+                    . 'No ticket has been issued from it, and the money will be refunded. We have been told.'];
+            }
         }
 
-        $payments = $payments ?? new PaymentService();
         $stored   = strtolower(trim((string) ($reg->provider ?? '')));
         $order    = $stored !== '' ? array_merge([$stored], array_diff($payments->enabledProviderIds(), [$stored]))
                                    : $payments->enabledProviderIds();
@@ -671,6 +713,42 @@ final class EventTicketService
             if (strtoupper((string) ($v['currency'] ?? 'NGN')) !== 'NGN') {
                 return ['ok' => false, 'message' => 'That payment was not in naira, so it could not be '
                                                   . 'matched to this ticket. Please contact us.'];
+            }
+
+            // ── PAID AFTER THE HOLD LAPSED ──────────────────────────────────────
+            //
+            // sold() stops counting a pending row once its hold expires, so the seat may
+            // have been sold to somebody else while a bank transfer was still settling.
+            // Confirming anyway put the tier over capacity (AUDIT-AND-PLAN EV-13). So a late
+            // payment is confirmed only if a seat is still free; otherwise no ticket is
+            // issued, the money is recorded as owed back, and a person is told.
+            if (self::lapsedAndResold($reg)) {
+                $owe = $paid > 0 ? $paid : $owed;
+                try {
+                    DB::table('gates_event_registrations')->where('id', (int) $reg->id)->where('status', 'pending')
+                        ->update(OptionalColumn::filter('gates_event_registrations', [
+                            'status'        => 'cancelled',
+                            'cancelled_at'  => Carbon::now()->toDateTimeString(),
+                            'cancelled_by'  => 'system',
+                            'notes'         => 'paid after its hold lapsed; the seat had been sold',
+                            'provider'      => $provider,
+                            'provider_ref'  => $reference,
+                            'refund_status' => $owe > 0 ? 'pending' : 'none',
+                            'refund_naira'  => $owe > 0 ? $owe : null,
+                        ], ['status', 'cancelled_at', 'cancelled_by', 'notes', 'provider', 'provider_ref', 'refund_status', 'refund_naira']));
+                } catch (\Throwable $e) {
+                    error_log('[ticket] late payment could not be recorded for ' . $reference . ': ' . $e->getMessage());
+                }
+                try {
+                    Notifier::adminAlert(null, 'A ticket was paid for after its seat was sold',
+                        'Reference: ' . $reference . "\n" . 'Buyer:     ' . (string) $reg->name . ' <' . (string) $reg->email . '>' . "\n"
+                        . 'Amount:    ₦' . number_format($owe) . "\n\n"
+                        . 'The payment settled after the 30-minute hold had lapsed and the last seat at this price had gone. '
+                        . 'No ticket was issued. Refund it, or release a seat and confirm it by hand.');
+                } catch (\Throwable) {}
+                return ['ok' => false, 'late' => true,
+                        'message' => 'Your payment arrived after the seat we were holding for you had been sold. '
+                                   . 'No ticket has been issued, and the money will be refunded. We have been told.'];
             }
 
             $code = self::freshCode();
@@ -1340,9 +1418,16 @@ final class EventTicketService
 
         $won = DB::table('gates_event_registrations')->where('id', (int) $reg->id)
             ->whereRaw('COALESCE(checked_in_seats, 0) + ? <= COALESCE(quantity, 1)', [$take])
+            // A refund between the read above and this write: refused, not admitted (EV-17).
+            ->where('status', 'confirmed')
             ->update($row) > 0;
 
         if (!$won) {
+            // Cancelled under us: say so, never "already checked in".
+            $now2 = DB::table('gates_event_registrations')->where('id', (int) $reg->id)->value('status');
+            if ($now2 !== null && (string) $now2 !== 'confirmed') {
+                return $no('Cancelled ticket', 'This ticket was cancelled or refunded a moment ago. Send them to the desk.');
+            }
             // Another gate took the seats in the last few milliseconds. Honest answer, with
             // the numbers re-read rather than the ones this request started with.
             $fresh    = self::byTicketCode($code);
@@ -1497,6 +1582,96 @@ final class EventTicketService
     }
 
     /** The event a registration belongs to, or null. Only the title is used. */
+    /**
+     * May this event sell PAID tickets? Not when its organiser is a partner organisation:
+     * every ticket settles to Africa GATES's one `events` destination, and taking a partner's
+     * ticket money into it is holding client funds (D29). Until per-organiser settlement
+     * exists (stage E2) a partner's event registers people for free and sells nothing
+     * (AUDIT-AND-PLAN EV-18). NULL organiser is Africa GATES, as every event before was.
+     */
+    public static function paidSalesAllowed(object $event): bool
+    {
+        return empty($event->organiser_org_id);
+    }
+
+    /** @return array{0:string,1:int}|null the provider and naira, when a gateway says this reference was paid in naira */
+    private static function paidAt(PaymentService $payments, object $reg, string $reference): ?array
+    {
+        $stored = strtolower(trim((string) ($reg->provider ?? '')));
+        $order = $stored !== '' ? array_merge([$stored], array_diff($payments->enabledProviderIds(), [$stored])) : $payments->enabledProviderIds();
+        foreach ($order as $provider) {
+            $v = $payments->verify($provider, $reference);
+            if (($v['ok'] ?? false) && (string) ($v['status'] ?? '') === 'success' && strtoupper((string) ($v['currency'] ?? 'NGN')) === 'NGN') {
+                return [$provider, (int) ($v['amount'] ?? 0)];
+            }
+        }
+        return null;
+    }
+
+    /** Is there room on this row's tier and event for its seats, now? */
+    private static function seatFreeFor(object $reg): bool
+    {
+        $qty = max(1, (int) ($reg->quantity ?? 1));
+        try {
+            $tierId = (int) ($reg->tier_id ?? 0);
+            if ($tierId > 0) {
+                $cap = DB::table('gates_event_tiers')->where('id', $tierId)->value('capacity');
+                if ($cap !== null && self::sold($tierId) + $qty > (int) $cap) return false;
+            }
+            $ecap = DB::table('gates_site_events')->where('id', (int) $reg->event_id)->value('capacity');
+            return !($ecap !== null && self::soldForEvent((int) $reg->event_id) + $qty > (int) $ecap);
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    private static function owedAlert(object $reg, string $reference, int $naira, string $what): void
+    {
+        try {
+            Notifier::adminAlert(null, 'Money arrived with no ticket to issue',
+                $what . "\n\nReference: " . $reference . "\nBooking:   " . (string) ($reg->reference ?? '') . ' (#' . (int) $reg->id . ")\n"
+                . 'Buyer:     ' . (string) $reg->name . ' <' . (string) $reg->email . '>' . "\n" . 'Amount:    ₦' . number_format($naira) . "\n\n"
+                . 'Refund it, or issue a seat by hand.');
+        } catch (\Throwable) {}
+    }
+
+    /** Keep a reference the row is about to stop answering to, so a payment against it still finds it. */
+    public static function keepAlias(int $registrationId, string $reference, string $why): void
+    {
+        $reference = trim($reference);
+        if ($reference === '' || !\AfricaGates\Support\SchemaHas::table('gates_event_ref_aliases')) return;
+        try {
+            DB::table('gates_event_ref_aliases')->insert(['registration_id' => $registrationId, 'reference' => mb_substr($reference, 0, 80),
+                'why' => mb_substr($why, 0, 60), 'created_at' => Carbon::now()->toDateTimeString()]);
+        } catch (\Throwable) {
+            // Already kept.
+        }
+    }
+
+    /**
+     * A pending row whose hold has lapsed, on a tier or event that no longer has room for it.
+     * sold() already leaves a lapsed hold out, so "room" is simply capacity minus sold.
+     * A row with no hold expiry (from before holds existed) is never treated as lapsed.
+     */
+    private static function lapsedAndResold(object $reg): bool
+    {
+        $until = $reg->hold_expires_at ?? null;
+        if ($until === null || $until === '' || strtotime((string) $until) >= time()) return false;
+        $qty = max(1, (int) ($reg->quantity ?? 1));
+        try {
+            $tierId = (int) ($reg->tier_id ?? 0);
+            if ($tierId > 0) {
+                $cap = DB::table('gates_event_tiers')->where('id', $tierId)->value('capacity');
+                if ($cap !== null && self::sold($tierId) + $qty > (int) $cap) return true;
+            }
+            $ecap = DB::table('gates_site_events')->where('id', (int) $reg->event_id)->value('capacity');
+            if ($ecap !== null && self::soldForEvent((int) $reg->event_id) + $qty > (int) $ecap) return true;
+        } catch (\Throwable) {
+            return false;   // unable to tell: issue, as before, rather than refuse a paying guest
+        }
+        return false;
+    }
+
     private static function eventOf(int $eventId): ?object
     {
         if ($eventId < 1) return null;
@@ -1578,6 +1753,9 @@ final class EventTicketService
         $ref = self::freshReference();
 
         try {
+            // The old reference may still be settling (a transfer begun before the restart).
+            $old = (string) DB::table('gates_event_registrations')->where('id', $registrationId)->where('status', 'pending')->value('reference');
+            if ($old !== '') self::keepAlias($registrationId, $old, 'checkout restarted');
             $n = DB::table('gates_event_registrations')
                 ->where('id', $registrationId)->where('status', 'pending')
                 ->update(['reference' => $ref]);
@@ -1623,7 +1801,15 @@ final class EventTicketService
         $reference = trim($reference);
         if ($reference === '') return null;
         try {
-            return DB::table('gates_event_registrations')->where('reference', $reference)->first() ?: null;
+            $row = DB::table('gates_event_registrations')->where('reference', $reference)->first();
+            if ($row) return $row;
+            // A reference the row used to answer to (keepAlias): a restarted checkout or an
+            // expired waitlist offer. confirm() decides what such a payment may still buy.
+            if (\AfricaGates\Support\SchemaHas::table('gates_event_ref_aliases')) {
+                $id = DB::table('gates_event_ref_aliases')->where('reference', $reference)->value('registration_id');
+                if ($id) return DB::table('gates_event_registrations')->where('id', (int) $id)->first() ?: null;
+            }
+            return null;
         } catch (\Throwable) { return null; }
     }
 

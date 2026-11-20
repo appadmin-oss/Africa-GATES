@@ -86,6 +86,85 @@ final class EventTicketServiceTest extends TestCase
         };
     }
 
+    /**
+     * A bank transfer that settles after its 30-minute hold lapsed, when the seat was sold to
+     * somebody else in the meantime. sold() stops counting a lapsed hold, so confirming it
+     * anyway put the tier over capacity (AUDIT-AND-PLAN EV-13).
+     */
+    public function test_a_payment_after_the_hold_lapsed_does_not_oversell_a_resold_seat(): void
+    {
+        $tier = $this->tier(['capacity' => 1]);
+        $a = T::reserve($this->eventId, $tier, $this->who('a@x.test'));
+        $this->assertTrue($a['ok']);
+        DB::table('gates_event_registrations')->where('reference', $a['reference'])
+            ->update(['hold_expires_at' => Carbon::now()->subMinutes(5)->toDateTimeString()]);
+
+        $b = T::reserve($this->eventId, $tier, $this->who('b@x.test'));
+        $this->assertTrue($b['ok'], 'the lapsed hold should have freed the seat');
+        $gw = $this->gateway([$a['reference'] => ['status' => 'success', 'amount' => 10000],
+                              $b['reference'] => ['status' => 'success', 'amount' => 10000]]);
+        $this->assertTrue(T::confirm($b['reference'], $gw)['ok']);
+
+        $late = T::confirm($a['reference'], $gw);
+        $this->assertFalse($late['ok'], 'a second ticket was issued for a one-seat tier');
+        $row = DB::table('gates_event_registrations')->where('reference', $a['reference'])->first();
+        $this->assertSame('cancelled', (string) $row->status);
+        $this->assertNull($row->ticket_code);
+        $this->assertSame('pending', (string) $row->refund_status, 'the money is recorded as owed back');
+        $this->assertSame(1, T::sold($tier));
+    }
+
+    public function test_a_payment_after_the_hold_lapsed_is_still_confirmed_when_a_seat_is_free(): void
+    {
+        $tier = $this->tier(['capacity' => 5]);
+        $a = T::reserve($this->eventId, $tier, $this->who('a@x.test'));
+        DB::table('gates_event_registrations')->where('reference', $a['reference'])
+            ->update(['hold_expires_at' => Carbon::now()->subMinutes(5)->toDateTimeString()]);
+        $r = T::confirm($a['reference'], $this->gateway([$a['reference'] => ['status' => 'success', 'amount' => 10000]]));
+        $this->assertTrue($r['ok'], 'a late payment with room left must still become a ticket');
+    }
+
+    /**
+     * A checkout restarted at the gateway re-minted the reference, so a transfer begun under
+     * the first one arrived to "unmatched": money taken, no ticket (AUDIT-AND-PLAN EV-14).
+     */
+    public function test_a_payment_under_a_restarted_checkouts_first_reference_still_issues_the_ticket(): void
+    {
+        $tier = $this->tier(['capacity' => 5]);
+        $a = T::reserve($this->eventId, $tier, $this->who('a@x.test'));
+        $first = (string) $a['reference'];
+        $second = T::rotateReference((int) $a['id']);
+        $this->assertNotSame('', $second);
+        $r = T::confirm($first, $this->gateway([$first => ['status' => 'success', 'amount' => 10000]]));
+        $this->assertTrue($r['ok'], (string) ($r['message'] ?? ''));
+        $this->assertSame('confirmed', (string) DB::table('gates_event_registrations')->where('id', $a['id'])->value('status'));
+    }
+
+    public function test_a_payment_for_a_cancelled_booking_is_recorded_as_owed_back(): void
+    {
+        $tier = $this->tier(['capacity' => 5]);
+        $a = T::reserve($this->eventId, $tier, $this->who('a@x.test'));
+        DB::table('gates_event_registrations')->where('id', $a['id'])->update(['status' => 'cancelled']);
+        $r = T::confirm($a['reference'], $this->gateway([$a['reference'] => ['status' => 'success', 'amount' => 10000]]));
+        $this->assertFalse($r['ok']);
+        $this->assertSame('pending', (string) DB::table('gates_event_registrations')->where('id', $a['id'])->value('refund_status'),
+            'money that arrived for a cancelled booking was recorded nowhere');
+    }
+
+    /**
+     * An event belongs to Africa GATES or to a partner organisation. A partner's paid tickets
+     * would settle into Africa GATES's account — holding a client's money — so they do not
+     * sell until per-organiser settlement exists (AUDIT-AND-PLAN EV-18, D29). Free still works.
+     */
+    public function test_a_partner_organisations_event_sells_no_paid_tickets_yet(): void
+    {
+        DB::table('gates_site_events')->where('id', $this->eventId)->update(['organiser_org_id' => 7]);
+        $paid = $this->tier(['slug' => 'paid', 'price_naira' => 5000]);
+        $free = $this->tier(['slug' => 'free', 'price_naira' => 0]);
+        $this->assertFalse(T::reserve($this->eventId, $paid, $this->who('a@x.test'))['ok'], 'a partner’s ticket money would land in our account');
+        $this->assertTrue(T::reserve($this->eventId, $free, $this->who('b@x.test'))['ok']);
+    }
+
     // ══ 1. each tier's limit is its own ══════════════════════════════════════
 
     /** THE test in this file. */

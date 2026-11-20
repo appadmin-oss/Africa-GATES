@@ -75,10 +75,12 @@
 {# The phone's own bar (DC idxPhone): "Shop" and the cart, 56px. Replaces the shell's root
    bar on this page only; from 600 the site header is the bar, as everywhere. #}
 {% block app_bar %}
-  <div class="sp-pbar">
+  {# A <header>, like the shell's own app bar: the page's title outside every landmark is
+     unreachable to somebody moving by landmark (axe "region"). #}
+  <header class="sp-pbar">
     <h1 class="sp-pbar__h">{{ 'Shop'|trans }}</h1>
     {{ sb.cartBtn('sp-pbar__cart') }}
-  </div>
+  </header>
 {% endblock %}
 
 {% block content %}

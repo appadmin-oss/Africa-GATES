@@ -1,0 +1,42 @@
+{% extends 'layout/shell.twig' %}
+
+{#
+  /spotlight/hide — the way off the Supporter Spotlight (Services\SupporterSpotlight). Reached
+  from every message the Spotlight sends (a signed link) and from the board itself by a
+  signed-in member. The GET draws a button rather than hiding, because mail scanners fetch
+  every link in a message and would otherwise take somebody down on their behalf. Styled with
+  the newsletter's task card, which is the same shape of page: one question, one answer.
+#}
+{% set colour_tier = '1' %}
+{% set flow_page = true %}
+{% set app_bar = {variant: 'child', title: 'Supporter spotlight'|trans, back: '/vote'} %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/newsletter.css') }}"><meta name="robots" content="noindex, nofollow">{% endblock %}
+
+{% block content %}
+<div class="nl nl--task">
+  <section class="nl__card" aria-labelledby="spH">
+    {% if done %}
+      <p class="nl__kicker">{{ 'Done'|trans }}</p>
+      <h1 class="nl__h1" id="spH">{{ 'You are off the Spotlight'|trans }}</h1>
+      <p class="nl__p">{{ 'Your votes still count in full. On every board you are now shown as an anonymous supporter, and the Spotlight will not email you again.'|trans }}</p>
+      <a class="ag-btn ag-btn--secondary" href="/vote">{{ 'Back to voting'|trans }}</a>
+    {% elseif valid %}
+      <p class="nl__kicker">{{ 'Supporter spotlight'|trans }}</p>
+      <h1 class="nl__h1" id="spH">{{ 'Take yourself off the Spotlight?'|trans }}</h1>
+      <p class="nl__p">{{ 'Your name and photo will no longer appear among the top supporters, the Champion of the Day or the Mobiliser of the Week. Your votes are not affected.'|trans }}</p>
+      <form class="nl__form" method="post" action="/spotlight/hide">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        {% if k %}<input type="hidden" name="k" value="{{ k }}"><input type="hidden" name="t" value="{{ t }}">{% endif %}
+        <button type="submit" class="ag-btn ag-btn--primary nl__go">{{ 'Take me off'|trans }}</button>
+      </form>
+      <p class="ag-hint">{{ 'Changed your mind? Close the page. Nothing changes until you press the button.'|trans }}</p>
+    {% else %}
+      <p class="nl__kicker">{{ 'Supporter spotlight'|trans }}</p>
+      <h1 class="nl__h1" id="spH">{{ 'This link did not work'|trans }}</h1>
+      <p class="nl__p">{{ 'Your email app may have split it. Copy the whole link, or sign in and use the link beside your name on the vote page.'|trans }}</p>
+      <a class="ag-btn ag-btn--secondary" href="/account/login?next=%2Fvote">{{ 'Sign in'|trans }}</a>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

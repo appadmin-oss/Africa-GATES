@@ -88,7 +88,7 @@ final class SiteNavTest extends TestCase
         foreach (['menu-sheet' => ['menu-scrim', 'menu'], 'quick-settings' => ['quick-scrim', 'quick'], 'site-search' => ['search-scrim', 'search'], 'shortcuts' => ['kb-scrim', 'kb'], 'cookie-consent' => ['consent']] as $p => $keys) {
             foreach ($keys as $k) $this->assertStringContainsString('data-nav-keep="' . $k . '"', ChromeRender::source("templates/partials/$p.twig"), "$p is thrown away on every page");
         }
-        $this->assertStringContainsString('data-nav-keep="gee" data-nav-sync="data-gee-default"', ChromeRender::source('templates/partials/gee.twig'), 'every move between the help pages and the site would be a full load');
+        $this->assertStringContainsString('data-nav-keep="gee" data-nav-sync="data-gee-default data-gee-away"', ChromeRender::source('templates/partials/gee.twig'), 'every move between the help pages and the site would be a full load');
     }
 
     /**

@@ -67,7 +67,7 @@
 
 {% macro bar(pct, label) %}<span class="sh7-meter"><span class="sh7-meter__track"><span class="sh7-meter__fill" style="width:{{ min(100, max(0, pct)) }}%"></span></span>{% if label %}<span class="sh7-meter__label">{{ label }}</span>{% endif %}</span>{% endmacro %}
 
-{% macro field(f, quiet = false) %}
+{% macro field(f, quiet = false, desc = '') %}
   {# A page with several forms names each field's id (`f.id`), or two fields would share one.
      `quiet`: the field is alone in its form group, so the group's name above it is already its
      visible label. Printing the field's own label as well read as a stutter on every form in
@@ -76,8 +76,14 @@
      field named where it is. #}
   {% set id = f.id is defined ? f.id : 'f_' ~ f.name|replace({'[': '_', ']': ''}) %}
   {% set lc = quiet ? ' sh7-sr' : '' %}
+  {# A blind volunteer (16 Nov 2026): "some areas my screen reader is supposed to speak out,
+     it doesn't". On these forms it heard every name twice or three times — the group's
+     visible name, the field's hidden label, and the box — and never heard the help, which
+     was a paragraph beside the field and not part of it. Now the group's visible name IS
+     the label (`for`), the help is the field's description, and a quiet field adds nothing. #}
+  {% set db = desc ? ' aria-describedby="' ~ desc ~ '"' : '' %}
   {% if f.type == 'radio' %}
-    <fieldset class="sh7-field sh7-field--choice sh7-field--radio"><legend class="sh7-field__label{{ lc }}">{{ f.label }}</legend>
+    <fieldset class="sh7-field sh7-field--choice sh7-field--radio"{{ db|raw }}><legend class="sh7-field__label{{ lc }}">{{ f.label }}</legend>
       {% for k, l in f.options %}<label class="sh7-choice"><input type="radio" name="{{ f.name }}" value="{{ k }}"{{ (f.value|default('')) == k ? ' checked' }}{{ f.required|default(false) ? ' required' }}> {{ l }}</label>{% endfor %}
     </fieldset>
   {% elseif f.type == 'checks' %}
@@ -86,7 +92,7 @@
        drawn as the name, the description under it, and the risk as a chip that can be
        scanned down the list — it was one run-on line per permission. #}
     {% set _short = f.options|length >= 6 and f.options|filter(o => o|length > 24)|length == 0 %}
-    <fieldset class="sh7-field sh7-field--choice{{ _short ? ' sh7-field--grid' }}"><legend class="sh7-field__label{{ lc }}">{{ f.label }}</legend>
+    <fieldset class="sh7-field sh7-field--choice{{ _short ? ' sh7-field--grid' }}"{{ db|raw }}><legend class="sh7-field__label{{ lc }}">{{ f.label }}</legend>
       {% for k, l in f.options %}<label class="sh7-choice sh7-choice--check"><input type="checkbox" name="{{ f.name }}[]" value="{{ k }}"{{ k in f.value|default([]) ? ' checked' }}>
         {%- set _p = l|split(' — ', 2) -%}
         {%- if _p|length == 2 -%}
@@ -104,18 +110,18 @@
   {% elseif f.type == 'switch' %}
     <label class="sh7-switch"><input type="checkbox" name="{{ f.name }}" value="1"{{ f.value|default('0') == '1' ? ' checked' }}><span class="sh7-switch__track" aria-hidden="true"></span><span>{{ f.label }}</span></label>
   {% elseif f.type == 'select' %}
-    <label class="sh7-field" for="{{ id }}"><span class="sh7-field__label{{ lc }}">{{ f.label }}</span>
-      <select class="sh7-input" id="{{ id }}" name="{{ f.name }}"{{ f.required|default(false) ? ' required' }}>{% for k, l in f.options %}<option value="{{ k }}"{{ (f.value|default('')) == k ? ' selected' }}>{{ l }}</option>{% endfor %}</select></label>
+    {% if not quiet %}<label class="sh7-field" for="{{ id }}"><span class="sh7-field__label">{{ f.label }}</span>{% else %}<span class="sh7-field">{% endif %}
+      <select class="sh7-input" id="{{ id }}" name="{{ f.name }}"{{ db|raw }}{{ f.required|default(false) ? ' required' }}>{% for k, l in f.options %}<option value="{{ k }}"{{ (f.value|default('')) == k ? ' selected' }}>{{ l }}</option>{% endfor %}</select>{{ quiet ? '</span>' : '</label>' }}
   {% elseif f.type == 'textarea' %}
-    <label class="sh7-field" for="{{ id }}"><span class="sh7-field__label{{ lc }}">{{ f.label }}</span>
-      <textarea class="sh7-input" id="{{ id }}" name="{{ f.name }}" rows="4"{{ f.required|default(false) ? ' required' }}{% if f.autocomplete is defined %} autocomplete="{{ f.autocomplete }}"{% endif %}>{{ f.value|default('') }}</textarea></label>
+    {% if not quiet %}<label class="sh7-field" for="{{ id }}"><span class="sh7-field__label">{{ f.label }}</span>{% else %}<span class="sh7-field">{% endif %}
+      <textarea class="sh7-input" id="{{ id }}" name="{{ f.name }}" rows="4"{{ db|raw }}{{ f.required|default(false) ? ' required' }}{% if f.autocomplete is defined %} autocomplete="{{ f.autocomplete }}"{% endif %}>{{ f.value|default('') }}</textarea>{{ quiet ? '</span>' : '</label>' }}
   {% else %}
-    <label class="sh7-field" for="{{ id }}"><span class="sh7-field__label{{ lc }}">{{ f.label }}</span>
-      <input class="sh7-input" id="{{ id }}" type="{{ f.type }}" name="{{ f.name }}" value="{{ f.value|default('') }}"
+    {% if not quiet %}<label class="sh7-field" for="{{ id }}"><span class="sh7-field__label">{{ f.label }}</span>{% else %}<span class="sh7-field">{% endif %}
+      <input class="sh7-input" id="{{ id }}" type="{{ f.type }}" name="{{ f.name }}" value="{{ f.value|default('') }}"{{ db|raw }}
         {%- if f.placeholder is defined %} placeholder="{{ f.placeholder }}"{% endif %}
         {%- if f.min is defined %} min="{{ f.min }}"{% endif %}{% if f.max is defined %} max="{{ f.max }}"{% endif %}{% if f.step is defined %} step="{{ f.step }}"{% endif %}
         {%- if f.autocomplete is defined %} autocomplete="{{ f.autocomplete }}"{% endif %}{% if f.inputmode is defined %} inputmode="{{ f.inputmode }}"{% endif %}
-        {{- f.required|default(false) ? ' required' }}></label>
+        {{- f.required|default(false) ? ' required' }}>{{ quiet ? '</span>' : '</label>' }}
   {% endif %}
 {% endmacro %}
 
@@ -316,9 +322,25 @@
       <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="back" value="{{ here }}"><input type="hidden" name="do" value="{{ s.do }}">
       {% for k, v in s.hidden|default({}) %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
       {% for g in s.groups %}
-        <div class="sh7-form__block">
-          <div class="sh7-form__label"><p class="sh7-form__name">{{ g.label }}</p>{% if g.help is defined and g.help %}<p class="sh7-form__help">{{ g.help }}</p>{% endif %}</div>
-          <div class="sh7-form__fields">{% for f in g.fields %}{{ M.field(f, g.label|default("")|trim != "" and (g.fields|length == 1 or f.label|default("")|lower == g.label|lower)) }}{% endfor %}</div>
+        {% set _gid = 'g' ~ s.do|default('f') ~ loop.index %}
+        {% set _one = g.fields|length == 1 and g.label|default('')|trim != '' %}
+        {# Ids are the FORM's: two forms on one page each drew `f_follow_up_on`, so both labels
+           named the first box ("Follow up Follow up") and the second box had no name. #}
+        {% set _fs = g.fields|map(f => f.id is defined ? f : f|merge({id: 'f_' ~ s.do|default('form') ~ '_' ~ f.name|replace({'[': '_', ']': ''})})) %}
+        {% set _f1 = _fs|first %}
+        {% set _fid = _f1.id %}
+        {% set _box = _one and _f1.type not in ['radio', 'checks', 'segmented', 'check', 'switch'] %}
+        {% set _help = g.help is defined and g.help %}
+        {# One field: the visible name is its label (a choice list keeps the name as its legend,
+           hidden, and hides this copy from a reader). Several fields: one named group. #}
+        <div class="sh7-form__block"{% if not _one and g.label|default('') %} role="group" aria-labelledby="{{ _gid }}"{% endif %}>
+          <div class="sh7-form__label">
+            {% if _box %}<label class="sh7-form__name" for="{{ _fid }}">{{ g.label }}</label>
+            {% elseif _one %}<p class="sh7-form__name" aria-hidden="true">{{ g.label }}</p>
+            {% else %}<p class="sh7-form__name" id="{{ _gid }}">{{ g.label }}</p>{% endif %}
+            {% if _help %}<p class="sh7-form__help" id="{{ _gid }}h">{{ g.help }}</p>{% endif %}
+          </div>
+          <div class="sh7-form__fields">{% for f in _fs %}{{ M.field(f, g.label|default("")|trim != "" and (g.fields|length == 1 or f.label|default("")|lower == g.label|lower) and (_box or f.type in ['radio', 'checks', 'segmented']), _help and _one ? _gid ~ 'h' : '') }}{% endfor %}</div>
         </div>
       {% endfor %}
       {% if s.route is defined and s.route %}<p class="sh7-form__route">{{ s.route }}</p>{% endif %}

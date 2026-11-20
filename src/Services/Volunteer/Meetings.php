@@ -8,6 +8,7 @@ use AfricaGates\Services\OtpService;
 use AfricaGates\Support\BroadcastLog;
 use AfricaGates\Support\SchemaHas;
 use AfricaGates\Support\SiteUrl;
+use AfricaGates\Services\Grants;
 use Illuminate\Database\Capsule\Manager as DB;
 
 /**
@@ -63,7 +64,8 @@ final class Meetings
 
     public static function adult(object $v): bool
     {
-        return $v->dob !== null && (string) $v->dob <= date('Y-m-d', strtotime('-18 years'));
+        $age = Volunteers::age($v->dob !== null ? (string) $v->dob : null);   // the one age resolver (VO-11)
+        return $age !== null && $age >= 18;
     }
 
     /**
@@ -79,7 +81,7 @@ final class Meetings
         foreach (Workspace::places($v) as $p) {
             $ids = (DB::table('gates_grants as g')->join('gates_volunteers as v', 'v.user_id', '=', 'g.actor_id')
                 ->where('g.actor_kind', 'member')->where('g.scope_kind', $p['kind'])->where('g.scope_id', $p['id'])->where('g.capability', 'like', 'vol.%')
-                ->whereNull('g.revoked_at')->where('g.expires_at', '>', date('Y-m-d H:i:s'))->pluck('v.id')->all());
+                ->where(static fn ($w) => Grants::live($w, 'g.'))->pluck('v.id')->all());
             $ids = array_diff(array_unique(array_map('intval', $ids)), [(int) $v->id], array_keys($out));
             if (!$ids) continue;
             foreach (DB::table('gates_volunteers')->whereIn('id', $ids)->where('status', 'active')->get() as $r) {
@@ -262,7 +264,14 @@ final class Meetings
         if (!self::ready()) return [];
         $out = [];
         $soon = time() + $hours * 3600;
-        foreach (DB::table('gates_vol_meetings')->where('status', 'scheduled')->where('starts_at', '<=', date('Y-m-d H:i:s', $soon))->limit(500)->get() as $m) {
+        // Only meetings with an occurrence still ahead: a one-off already past, or a series
+        // whose last date (at most twelve months on) has gone, stays `scheduled` for ever, and
+        // 500 unordered rows of those crowded out the next meeting's reminder (VO-13).
+        $now = date('Y-m-d H:i:s');
+        foreach (DB::table('gates_vol_meetings')->where('status', 'scheduled')->where('starts_at', '<=', date('Y-m-d H:i:s', $soon))
+                     ->where('starts_at', '>=', date('Y-m-d H:i:s', strtotime('-13 months')))
+                     ->where(static fn ($w) => $w->where('repeats', '!=', 'once')->orWhere('starts_at', '>', $now))
+                     ->orderBy('starts_at')->limit(500)->get() as $m) {
             self::times($m);
             $i = array_search($m->next, $m->dates, true);
             if ($m->next === null || $i === false || strtotime($m->next) <= time() || strtotime($m->next) > $soon) continue;

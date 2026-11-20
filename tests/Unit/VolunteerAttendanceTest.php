@@ -200,7 +200,7 @@ final class VolunteerAttendanceTest extends TestCase
             ->withParsedBody(['do' => 'arrive', 'event' => $ev, 'back' => '/volunteer']), new Response());
         $this->assertStringContainsString('Checked in', (string) ($_SESSION['vol_toast'] ?? ''));
         $html = $page();
-        $this->assertMatchesRegularExpression('~name="do" value="leave"~', $html);
+        $this->assertMatchesRegularExpression('~name="do" value="checkout"~', $html, 'check-out is its own verb; "leave" is stepping back for good');
         $this->assertStringContainsString('Checked in at', $html);
     }
 

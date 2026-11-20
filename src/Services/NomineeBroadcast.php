@@ -191,7 +191,13 @@ final class NomineeBroadcast
             'countdown_alt'   => 'Voting closes ' . $close->format('D j M Y, H:i T'),
             'closes_human'    => $close->format('D j M Y, H:i T'),
             'first_name'      => $first,
+            'full_name'       => trim((string) $n->name),
             'category_name'   => (string) ($n->category_title ?? ''),
+            // Empty rather than invented when unknown, so {award_name|Africa GATES} falls back.
+            'award_name'      => trim((string) ($r['cycle']->programme_title ?? '')),
+            'edition_name'    => trim((string) ($r['cycle']->edition_label ?? '')) !== ''
+                ? trim((string) $r['cycle']->edition_label)
+                : (string) ($r['cycle']->year ?? ''),
             'vote_url'        => $this->votePage($site, $n),
             'events_url'      => $site . '/events',
             'site_url'        => $site,
@@ -238,7 +244,7 @@ final class NomineeBroadcast
             ->leftJoin('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
             ->whereNotNull('cy.voting_close')
             ->where('cy.voting_close', '>', Carbon::now()->toDateTimeString())
-            ->select('cy.id', 'cy.programme_id', 'cy.voting_close', 'p.title as programme_title');
+            ->select('cy.*', 'p.title as programme_title');
 
         // The rehearsal is seeded at status 'voting' with voting_close twenty days out,
         // precisely so the sandbox shows a usable ballot — which is also exactly the
@@ -258,9 +264,49 @@ final class NomineeBroadcast
         // thing an operator could learn from it is what a bounce looks like.
         DemoSeeder::notSandbox($q, 'cy.programme_id');
 
-        $only > 0 ? $q->where('cy.id', $only) : $q->where('cy.status', 'voting');
+        if ($only > 0) $q->where('cy.id', $only);
 
-        return $q->orderBy('cy.voting_close')->get()->all();
+        // OPEN FOR VOTING IS THE COMPUTED PHASE, NOT THE STATUS COLUMN. `status` is a cache
+        // the maintenance run moves to `judging` when voting first closes — so a cycle whose
+        // close was then EXTENDED was voting again on every public page while this read
+        // `status = 'voting'`, found nothing, and the voting-extension campaign — the one
+        // send whose whole subject is "you now have until …" — resolved nobody: "Will be
+        // sent 0", and a preview that refused with no reason. CyclePolicy::phaseFor() is
+        // what the ballot itself obeys; one answer to "is voting open", never two.
+        $rows = $q->orderBy('cy.voting_close')->get()->all();
+        if ($only > 0) return $rows;
+        return array_values(array_filter($rows, static fn ($cy) => CyclePolicy::phaseFor($cy)->isVotingOpen()));
+    }
+
+    /**
+     * Why nobody resolved, in a sentence an operator can act on. Empty when somebody did.
+     * The refusal used to be one line for every cause — no cycle, a cycle the dates say is
+     * closed, nominees with no address — and each needs a different fix.
+     */
+    public function whyEmpty(?array $plan = null): string
+    {
+        $plan ??= $this->plan();
+        if ($plan['queue'] !== []) return '';
+        if ($plan['cycles'] === []) {
+            $q = DB::table('gates_award_cycles as cy')
+                ->leftJoin('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
+                ->select('cy.*', 'p.title as programme_title')->orderByDesc('cy.id')->limit(20);
+            DemoSeeder::notSandbox($q, 'cy.programme_id');
+            $near = [];
+            foreach ($q->get() as $cy) {
+                $phase = CyclePolicy::phaseFor($cy);
+                if (in_array($phase, [CyclePhase::Archived, CyclePhase::Results], true)) continue;
+                $close = $cy->voting_close ? Carbon::parse((string) $cy->voting_close)->format('D j M Y, H:i') : 'no voting close date';
+                $near[] = trim(((string) ($cy->programme_title ?? 'Cycle ' . $cy->id)) . ' ' . ($cy->year ?? '')) . ' (' . $phase->label() . ', voting closes ' . $close . ')';
+            }
+            return 'No cycle is open for voting right now, so there is nobody to write to.'
+                . ($near ? ' Checked: ' . implode('; ', array_slice($near, 0, 3)) . '. To extend voting, set the cycle\'s voting close date in the future'
+                    . ' (and its voting open date, if it has none), then come back.' : '');
+        }
+        $c = $plan['counts'];
+        return 'Voting is open, but none of its ' . $c['nominees'] . ' nominees has a usable email address'
+            . ($c['ambiguous'] ? ' (' . $c['ambiguous'] . ' have more than one and are never guessed)' : '')
+            . '. Add addresses on the nominees, then come back.';
     }
 
     /** @return list<object> approved, unmerged nominees in a cycle */

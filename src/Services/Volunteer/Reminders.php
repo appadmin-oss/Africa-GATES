@@ -53,6 +53,8 @@ final class Reminders
             return ($r['success'] ?? false) === true;
         };
         $site = rtrim($site ?? SiteUrl::base(), '/');
+        // Before reading who is due: a break that ended must not keep somebody out of it.
+        Volunteers::resumeEndedBreaks();
         $sent = 0;
         foreach (self::due() as [$key, $email, $subject, $lines, $href]) {
             if ($sent >= self::BATCH) break;

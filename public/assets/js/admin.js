@@ -558,6 +558,21 @@
     if (el && el.form) { if (el.form.requestSubmit) el.form.requestSubmit(); else el.form.submit(); }
   });
 
+  // ── THE SUGGESTED PRIZES ───────────────────────────────────────────────────
+  //
+  // The Campaign form's "Fill in the suggested prizes": each prize list carries its
+  // suggestion in `data-suggest`, and only a list that is still EMPTY takes it — a host's own
+  // words are never overwritten. Nothing is saved until the form is.
+  document.addEventListener('click', function (e) {
+    const b = e.target.closest('[data-ag-do="fill-suggested"]');
+    if (!b || !b.form) return;
+    let n = 0;
+    b.form.querySelectorAll('textarea[data-suggest]').forEach(function (t) {
+      if (t.value.trim() === '') { t.value = t.getAttribute('data-suggest'); n++; }
+    });
+    b.textContent = n ? 'Filled in. Edit them, then save' : 'Your lists already have prizes';
+  });
+
   // ── ONE MORE PRIZE PLACE ──────────────────────────────────────────────────
   //
   // The edition's Prizes card renders every place up to the most, the spare ones hidden.

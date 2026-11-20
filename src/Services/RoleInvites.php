@@ -134,11 +134,26 @@ final class RoleInvites
         return $n;
     }
 
-    /** Stop a waiting invitation. A lead may only stop one at their own event (the caller checks). */
-    public static function cancel(int $id, int $eventId): bool
+    /** Capability prefixes a lead may withdraw an invitation for: the ones a lead can offer. */
+    public const LEAD_MAY_CANCEL = ['vol.', 'event.role'];
+
+    /**
+     * Stop a waiting invitation. A lead may only stop one at their own event (the caller checks),
+     * and only of a kind in $prefixes when given.
+     *
+     * @param list<string>|null $prefixes
+     */
+    public static function cancel(int $id, int $eventId, ?array $prefixes = null): bool
     {
-        return self::ready() && DB::table('gates_role_invites')->where('id', $id)->where('scope_kind', 'event')->where('scope_id', $eventId)
-            ->where('status', 'pending')->update(['status' => 'cancelled', 'decided_at' => date('Y-m-d H:i:s')]) > 0;
+        if (!self::ready()) return false;
+        $q = DB::table('gates_role_invites')->where('id', $id)->where('scope_kind', 'event')->where('scope_id', $eventId)->where('status', 'pending');
+        if ($prefixes !== null) {
+            $cap = (string) DB::table('gates_role_invites')->where('id', $id)->value('capability');
+            $ok = false;
+            foreach ($prefixes as $p) if (str_starts_with($cap, $p)) $ok = true;
+            if (!$ok) return false;
+        }
+        return $q->update(['status' => 'cancelled', 'decided_at' => date('Y-m-d H:i:s')]) > 0;
     }
 
     /**

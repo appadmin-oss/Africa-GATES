@@ -101,9 +101,7 @@ final class GoalPages
         if ((int) $c->proposed_by === $memberId) return false;
         if (Teams::isOwner($memberId, $eventId)) return true;
         if ($c->kind === 'finance') return false;   // who approves the money: an owner only
-        $money = ($c->subject_kind === 'goal' && \Illuminate\Database\Capsule\Manager::table('gates_event_goals')->where('id', (int) $c->subject_id)->value('metric') === 'revenue')
-              || ($c->subject_kind === 'gate' && \Illuminate\Database\Capsule\Manager::table('gates_event_gates')->where('id', (int) $c->subject_id)->value('approver') === 'owner');
-        return $money && \AfricaGates\Services\Grants::allows(Plan::ACTOR, $memberId, 'event.finance', 'event', $eventId);
+        return Changes::isMoney($c) && \AfricaGates\Services\Grants::allows(Plan::ACTOR, $memberId, 'event.finance', 'event', $eventId);
     }
 
     private static function shown(object $a): string
@@ -246,7 +244,11 @@ final class GoalPages
             $fired = ($h['active'] ?? 0) + ($h['shadow'] ?? 0);
             $rows[] = ['t' => $name, 'chip' => [$r->mode === 'active' ? 'On' : ($r->mode === 'paused' ? 'Paused' : 'Shadow'), $r->mode === 'active' ? 'ok' : 'mute'],
                        'sub' => $what . ($k === 'digest' ? ' Sent at ' . sprintf('%02d:00', (int) (json_decode((string) $r->params, true)['hour'] ?? Rules::DIGEST_HOUR)) . '.' : '')
-                              . ($fired > 0 ? ' · ' . ($r->mode === 'shadow' ? 'would have acted ' : 'acted ') . $fired . ' ' . ($fired === 1 ? 'time' : 'times') . ' this month' : ''),
+                              . ($fired > 0 ? ' · ' . ($r->mode === 'shadow' ? 'would have acted ' : 'acted ') . $fired . ' ' . ($fired === 1 ? 'time' : 'times') . ' this month' : '')
+                              // review_at was written every time a rule was set and read by
+                              // nothing (AUDIT-AND-PLAN EV-20): a live rule past it says so.
+                              . ($r->mode === 'active' && !empty($r->review_at) && strtotime((string) $r->review_at) < time()
+                                  ? ' · on for 90 days: check it still does what you want' : ''),
                        // One tap: a watching or paused rule is switched on; a live one paused.
                        'cta' => $r->mode === 'active'
                            ? ['label' => 'Pause', 'post' => ['do' => 'rule_mode', 'event' => $id, 'rule' => $k, 'mode' => 'paused']]

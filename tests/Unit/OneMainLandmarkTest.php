@@ -44,7 +44,9 @@ final class OneMainLandmarkTest extends TestCase
         foreach (['shell'] as $l) {   // `gates` was destroyed (docs/handoff/DESTROYED.md)
             $src = (string) preg_replace('~\{#.*?#\}~s', '',
                 (string) file_get_contents(dirname(__DIR__, 2) . "/templates/layout/{$l}.twig"));
-            $this->assertSame(1, preg_match_all('~<main\b[^>]*\bid="main"~', $src), "{$l}.twig");
+            $this->assertSame(1, preg_match_all('~<main\b~', $src), "{$l}.twig");
+            // The scroller is `#main`, and the landmark is inside it (16 Nov 2026).
+            $this->assertMatchesRegularExpression('~id="main"[^>]*>\s*<main\b[^>]*\bid="content"~', $src, "{$l}.twig");
         }
     }
 }

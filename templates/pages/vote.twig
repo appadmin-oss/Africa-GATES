@@ -67,7 +67,7 @@
             <span class="vh-row__thumb">{% include 'partials/photo.twig' with {identity: p.id|default(null), kind: 'thing', subject: 'award', src: p.cover, name: p.title} only %}</span>
             <span class="vh-row__text">
               <span class="vh-row__top">
-                <span class="vh-row__t">{{ p.title }}</span>
+                <span class="vh-row__t"><span class="ag-sr">{{ p.open ? 'Vote in'|trans : 'See'|trans }} </span>{{ p.title }}</span>
                 {% if p.left %}<span class="vh-row__left">{{ p.left }}</span>{% endif %}
               </span>
               {% if p.meta %}<span class="vh-row__meta">{{ p.meta }}</span>{% endif %}
@@ -125,6 +125,19 @@
         {% if paid_only|default(false) %}{{ 'Every vote is a contribution that helps fund the awards'|trans }}{% else %}{{ 'Verified by email code · one vote per category'|trans }}{% endif %}
       </span>
     </div>
+    {# The community pride board (Services\CommunityBoard): each award is its community, ranked
+       by PEOPLE backing their own — never the tally, so one big buyer cannot carry a place up it. #}
+    {% if communities|default([])|length > 1 %}
+    <div class="vh-card">
+      <b class="vh-card__how" id="vh-comm-h">{{ 'Communities celebrating their own'|trans }}</b>
+      <ol class="vh-comm" aria-labelledby="vh-comm-h">
+        {% for c in communities %}
+          <li><a class="vh-comm__a" href="/vote/{{ c.slug }}/spotlight"><span class="vh-comm__r">{{ c.rank }}</span><span class="vh-comm__t">{{ c.label }}</span><span class="vh-comm__n">{{ c.people == 1 ? '1 person'|trans : '%n% people'|trans({'%n%': c.people|number_format}) }}</span></a></li>
+        {% endfor %}
+      </ol>
+      <span class="vh-card__p">{{ 'Ranked by people backing their own, not by votes bought.'|trans }}</span>
+    </div>
+    {% endif %}
     <div class="vh-card">
       <b class="vh-card__how">{{ 'How results are decided'|trans }}</b>
       <div class="vh-split" role="img" aria-label="{{ 'Community %c%, judges %j%'|trans({'%c%': split.community ~ '%', '%j%': split.judge ~ '%'}) }}">

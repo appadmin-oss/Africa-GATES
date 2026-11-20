@@ -7,6 +7,12 @@
    green; planned work on white with the info mark; under way and closed turn to the live
    family with a breathing dot. Words carry the state; colour repeats it. */
 .ag-notices{ display:flex; flex-direction:column; gap:8px; padding:12px var(--ag-gutter) 12px }
+/* The strip takes the page's own ground (owner, 17 Nov 2026: "it does not flow … it should be
+   the same as the main page content"). Most pages sit on the body ground, which the strip
+   already shows; a document page (the Integrity Centre, the legal pages) is white from the
+   header down, so its strip is white too. The announcement itself stays on the green wash
+   (owner, same day: "make the banner green like it was. It makes it more visible"). */
+main:has(> .ag-doc) > .ag-notices{ background:var(--ag-surface) }
 
 .ag-notice{
   display:flex; align-items:flex-start;
@@ -87,3 +93,30 @@ html.ag-rm .ag-notice__k::before{ animation:none }
   background:var(--ag-live-wash); color:var(--ag-live-ink); border-bottom:1px solid var(--ag-live);
   font-size:var(--ag-fs-14); font-weight:600; text-align:center;
 }
+
+/* The pop-up card (partials/site-notice.twig, SiteNotice::popup). Floats above the bottom
+   bars (--ag-bottom-ui) without a scrim — the page stays usable behind it — and arrives once,
+   rising into place. Phone: the full width less the gutter; wider: a 380px card at the right. */
+@keyframes ag-annc-in{ from{ opacity:0; transform:translateY(18px) scale(.98) } to{ opacity:1; transform:none } }
+.ag-annc{
+  position:fixed; z-index:var(--ag-z-sheet); inset-inline:var(--ag-gutter); bottom:calc(var(--ag-bottom-ui, 0px) + 16px + env(safe-area-inset-bottom));
+  max-width:380px; margin-inline-start:auto; overflow:hidden;
+  background:var(--ag-surface); color:var(--ag-ink); border:1px solid var(--ag-line); border-radius:var(--ag-r-20);
+  box-shadow:var(--ag-sh-sheet);
+  animation:ag-annc-in 460ms cubic-bezier(.2,0,0,1) 600ms both;
+}
+.ag-annc__img{ display:block; width:100%; aspect-ratio:16 / 9; object-fit:cover; background:var(--ag-tint) }
+.ag-annc__b{ display:flex; flex-direction:column; gap:8px; padding:16px 18px 18px }
+.ag-annc__h{ margin:0; padding-inline-end:36px; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-20); line-height:1.25 }
+.ag-annc__img + .ag-annc__b .ag-annc__h{ padding-inline-end:0 }
+.ag-annc__p{ margin:0; font-size:var(--ag-fs-15); line-height:1.55; color:var(--ag-ink-2) }
+.ag-annc__go{ align-self:flex-start; margin-top:6px }
+.ag-annc__x{ position:absolute; top:8px; inset-inline-end:8px; margin:0 }
+.ag-annc__close{
+  display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; padding:0;
+  border:0; border-radius:var(--ag-r-pill); cursor:pointer;
+  background:color-mix(in srgb, var(--ag-surface) 92%, transparent); color:var(--ag-ink); box-shadow:var(--ag-sh-dot);
+}
+.ag-annc__close:focus-visible, .ag-annc__go:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
+@media (prefers-reduced-motion:reduce){ .ag-annc{ animation:none } }
+html.ag-rm .ag-annc{ animation:none }

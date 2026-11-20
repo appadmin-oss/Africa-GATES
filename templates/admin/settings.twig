@@ -288,6 +288,21 @@
         {%- elseif announce_state.ended %}Not showing: its end time has passed. Clear the end time, or the text, to tidy up.
         {%- else %}Nothing is showing. Type a sentence to put it at the top of every public page.{% endif -%}
       </p>
+      {#- The pop-up card (SiteNotice::popup): the same announcement, as a card with an image
+          or GIF, shown once to each visitor and never on a ballot or a checkout. -#}
+      <div><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="announce_popup" value="1"{{ values.announce_popup|default('') == '1' ? ' checked' }}> Also show it as a pop-up card, once to each visitor</label></div>
+      <div><label for="f-announce_title">Pop-up title</label><input type="text" name="announce_title" id="f-announce_title" maxlength="90" value="{{ values.announce_title|default('') }}" placeholder="Voting is extended to Friday"></div>
+      <div><label for="f-announce_body">Pop-up message <small>a blank line starts a new paragraph</small></label><textarea name="announce_body" id="f-announce_body" rows="4" maxlength="600" placeholder="A few short lines: what changed, and what to do.">{{ values.announce_body|default('') }}</textarea></div>
+      <div class="row">
+        <div><label for="f-announce_image">Pop-up image or GIF <small>optional: a path like /uploads/… or an https address</small></label><input type="text" name="announce_image" id="f-announce_image" value="{{ values.announce_image|default('') }}" placeholder="/assets/img/announce.gif"></div>
+        <div><label for="f-announce_image_alt">What the image shows <small>for screen readers; blank if decorative</small></label><input type="text" name="announce_image_alt" id="f-announce_image_alt" maxlength="200" value="{{ values.announce_image_alt|default('') }}"></div>
+      </div>
+      <p style="margin:6px 0 0;font-size:12px;line-height:1.55;color:var(--cn-soft)">
+        {%- if announce_state.bad_image %}<strong style="color:var(--cn-ink)">The image is not shown:</strong> use a path on this site or an address starting <code>https://</code>. {% endif -%}
+        {%- if announce_state.popup %}The pop-up is on: each visitor sees it once, over the first page they open, with the banner's link as its button.
+        {%- elseif values.announce_popup|default('') == '1' %}The pop-up is switched on but not showing: it needs the banner text above and a title.
+        {%- else %}The pop-up is off.{% endif -%}
+      </p>
       <div class="row">
         <div><label for="f-site_title">Site title</label><input type="text" name="site_title" id="f-site_title" value="{{ values.site_title|default('Africa GATES') }}"></div>
         <div><label for="f-contact_email">Contact email</label><input type="email" name="contact_email" id="f-contact_email" value="{{ values.contact_email|default('africa-gates@afrovanguard.org.ng') }}"></div>
@@ -1685,6 +1700,14 @@
             nobody intended. Clear the field to go back to the default. -#}
         <div><label for="f-review_sla_hours">Nomination review SLA (hours)</label><input type="number" name="review_sla_hours" id="f-review_sla_hours" min="1" step="1" value="{{ values.review_sla_hours|default('48') }}"></div>
         <div><label for="f-nomination_seconds">Nomination time estimate (seconds)</label><input type="number" name="nomination_seconds" id="f-nomination_seconds" min="0" step="1" value="{{ values.nomination_seconds|default('90') }}"></div>
+      </div>
+      {#- The event plan's limits (EventPlan\Plan::RULES): what one lead, or an event's
+          finance admin, may approve on a single budget line, and a person's working week.
+          They had no field, so the finance admin's ceiling could not be set from anywhere. -#}
+      <div class="row">
+        <div><label for="f-lead_spend_limit_naira">Event lead approves a line up to (₦)</label><input type="number" name="lead_spend_limit_naira" id="f-lead_spend_limit_naira" min="1" step="1" value="{{ values.lead_spend_limit_naira|default('200000') }}"></div>
+        <div><label for="f-event_finance_limit_naira">Event finance admin approves a line up to (₦)</label><input type="number" name="event_finance_limit_naira" id="f-event_finance_limit_naira" min="1" step="1" value="{{ values.event_finance_limit_naira|default('1000000') }}"></div>
+        <div><label for="f-lead_week_hours">An event team member’s week (hours)</label><input type="number" name="lead_week_hours" id="f-lead_week_hours" min="1" step="1" value="{{ values.lead_week_hours|default('40') }}"></div>
       </div>
       <div class="row">
         <div><label for="f-otp_expiry_minutes">OTP code expiry (minutes)</label><input type="number" name="otp_expiry_minutes" id="f-otp_expiry_minutes" min="0" step="1" value="{{ values.otp_expiry_minutes|default('10') }}"></div>

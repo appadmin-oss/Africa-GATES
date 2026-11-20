@@ -57,6 +57,8 @@ textarea.mw__in{ min-height:160px; resize:vertical }
    overflow, so the question being answered and the box to answer it in never leave the
    screen. The other two parts are not a conversation and scroll inside their own pane. */
 body[data-page="mw-interview"] .ag-main{ overflow:hidden; display:flex; flex-direction:column }
+/* The scroller's child is the page's <main> (shell.twig); it is the column now. */
+body[data-page="mw-interview"] .ag-page{ flex:1; min-height:0; display:flex; flex-direction:column }
 .iv{ flex:1; min-height:0; width:100%; max-width:760px; margin:0 auto; display:flex; flex-direction:column }
 .iv__top{ position:relative; flex:none; padding:6px 12px 8px; display:flex; flex-direction:column; gap:6px; border-bottom:1px solid var(--ag-line); background:var(--ag-bar) }
 .iv__test,

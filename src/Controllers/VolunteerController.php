@@ -51,6 +51,13 @@ final class VolunteerController
         $page = (string) ($args['page'] ?? 'home');
         if (!isset(Workspace::ROOT[$page]) || ($page === 'team' && $role !== 'lead')
             || ($role === 'applicant' && !in_array($page, ['home', 'training'], true))) throw new HttpNotFoundException($req);
+        // Nominees is one entry for the work, wherever it is: straight to the award's list when
+        // there is one award, the list of awards when there are several, nothing without the role.
+        if ($page === 'nominees') {
+            $to = Workspace::nomineesHref($v);
+            if ($to === null) throw new HttpNotFoundException($req);
+            if ($to !== '/volunteer/nominees') return $this->to($res, $to);
+        }
         $tabs = Workspace::TABS[$page] ?? [];
         $tab = (string) ($args['tab'] ?? array_key_first($tabs) ?? '');
         if ($tabs && !isset($tabs[$tab])) throw new HttpNotFoundException($req);
@@ -175,13 +182,17 @@ final class VolunteerController
         $toCheck = $kind === 'cycle' && in_array(NominationChecks::CAPABILITY, $p['caps'], true) ? count(NominationChecks::queue($v, (int) $p['id'])) : 0;
         $due = $kind === 'cycle' && in_array(Outreach::CAPABILITY, $p['caps'], true) ? count(Outreach::nominees($v, (int) $p['id'], '', 'due')) : 0;
         $base = $p['href'] . '/' . $page;
+        // The same menu as every other page, with this place open in it (Workspace::RAIL says why).
+        $here = ['kind' => $kind, 'id' => (int) $p['id'], 'page' => $page, 'counts' => array_filter(['queue' => $toCheck ? ['n' => $toCheck, 'tone' => 'warn'] : null])];
+        $nomsHome = Workspace::nomineesHref($v);
+        $back = $page === $first ? ['label' => 'My volunteering', 'href' => '/volunteer']
+              : ($kind === 'cycle' && $page === 'nominees'
+                  ? ($nomsHome === '/volunteer/nominees' ? ['label' => 'Nominees', 'href' => $nomsHome] : ['label' => 'My volunteering', 'href' => '/volunteer'])
+                  : ['label' => $p['name'], 'href' => $p['href']]);
         return $this->render($res, $user, $v, $role, [
-            'scope' => $kind, 'nav' => Workspace::scopeNav($kind, (int) $p['id'], $page, $p['caps'], array_filter([
-                'queue' => $toCheck ? ['n' => $toCheck, 'tone' => 'warn'] : null, 'nominees' => $due ? ['n' => $due, 'tone' => 'warn'] : null])),
+            'scope' => $kind, 'nav' => Workspace::rootNav($v, $role, '', Workspace::counts($v, $role), $here),
             'tabs' => $tabs ? Workspace::tabs($base, $tabs, $tab, ['check' => $toCheck, 'due' => $due]) : [],
-            'instance' => ['name' => $p['name'], 'sub' => implode(', ', $p['roles']), 'ini' => Workspace::initials($p['name']), 'tone' => $kind === 'event' ? 'ok' : 'info'],
-            'siblings' => Workspace::siblings($v, $kind, (int) $p['id'], $page),
-            'back' => ['label' => 'Back to my volunteering', 'href' => '/volunteer'],
+            'back' => $back,
             'crumbs' => array_values(array_filter([['label' => 'My volunteering', 'href' => '/volunteer'], ['label' => $p['name'], 'href' => $p['href']],
                         $page === $first ? null : ($tabs ? ['label' => $valid[$page][0], 'href' => $base] : ['label' => $valid[$page][0]]),
                         $tabs && $tab !== array_key_first($tabs) ? ['label' => $tabs[$tab]] : null])),
@@ -198,8 +209,8 @@ final class VolunteerController
         $page = (string) ($args['page'] ?? 'profile');
         if (!isset(Workspace::ME[$page])) throw new HttpNotFoundException($req);
         $role = $this->role($v);
-        return $this->render($res, $user, $v, $role, ['scope' => 'me', 'nav' => Workspace::scopeNav('me', 0, $page),
-            'back' => ['label' => 'Back to my volunteering', 'href' => '/volunteer'],
+        return $this->render($res, $user, $v, $role, ['scope' => 'me', 'nav' => Workspace::rootNav($v, $role, '', Workspace::counts($v, $role), ['kind' => 'me', 'page' => $page]),
+            'back' => ['label' => 'My volunteering', 'href' => '/volunteer'],
             'crumbs' => [['label' => 'Profile and access', 'href' => '/volunteer/me'], ['label' => Workspace::ME[$page][0]]], 'purposeKey' => 'me.' . $page]
             + WorkspacePages::me($v, $user, $page));
     }
@@ -303,16 +314,19 @@ final class VolunteerController
         // The confirmation, with the volunteers' WhatsApp community (owner, 13 Nov 2026). A
         // mail that fails costs nothing but the mail: the application is in either way, and the
         // workspace offers the same link.
+        // The link goes to adults only (Volunteers::communityFor, AUDIT-AND-PLAN VO-4).
+        $community = ($applied = DB::table('gates_volunteers')->where('id', (int) $r['id'])->first()) ? Volunteers::communityFor($applied) : null;
         try {
             \AfricaGates\Services\Mail\Emails::send($this->mailer ?? \AfricaGates\Services\OtpService::boot(), (string) $user->email, 'volunteer-applied', [
                 'first_name' => trim((string) strtok(trim((string) ($user->name ?? '')), ' ')) ?: 'there',
-                'community_url' => Volunteers::communityUrl(),
+                'community_url' => $community ?? '',
                 'action_url' => rtrim(\AfricaGates\Support\SiteUrl::base(), '/') . '/volunteer',
             ]);
         } catch (\Throwable $e) {
             error_log('[volunteer] application mail failed: ' . $e->getMessage());
         }
-        $_SESSION['vol_toast'] = 'Thank you. Your application is in; we’ve asked your referee. Join the volunteers’ WhatsApp community while you wait.';
+        $_SESSION['vol_toast'] = 'Thank you. Your application is in, and the volunteer team will contact your referee.'
+            . ($community !== null ? ' Join the volunteers’ WhatsApp community while you wait.' : '');
         return $this->to($res, '/volunteer');
     }
 
@@ -330,11 +344,18 @@ final class VolunteerController
 
         $r = match ((string) ($b['do'] ?? '')) {
             'arrive' => ($k = Attendance::arrive($v, (int) ($b['event'] ?? 0), Attendance::SELF, $name))['ok'] ? $ok('Checked in. Check out when you leave.') : $no((string) $k['error']),
-            'leave' => ($k = Attendance::leave($v, (int) ($b['event'] ?? 0), Attendance::SELF, $name))['ok']
+            // `checkout`, not `leave`: both arms were once spelled 'leave' in this match, PHP
+            // takes the first, and so "Leave for good" and "Withdraw my application" checked
+            // the person out of an event instead ("Not checked in.") and never ended a role
+            // (AUDIT-AND-PLAN VO-1).
+            'checkout' => ($k = Attendance::leave($v, (int) ($b['event'] ?? 0), Attendance::SELF, $name))['ok']
                 ? $ok('Checked out. ' . Level::h((float) $k['hours']) . ($k['review'] ? ' sent to a lead to confirm.' : ' added to your hours.')) : $no((string) $k['error']),
             'outreach_agree' => Outreach::agree($v, (int) ($b['cycle'] ?? 0)) ? $ok('Thanks. You can reach nominees on this award now.') : $no('That award isn’t one you reach nominees on.'),
             'outreach_log' => ($k = Outreach::log($v, (int) ($b['nominee'] ?? 0), $b))['ok'] ? $ok('Contact logged. Everybody on this award sees it on the nominee’s page; a follow-up date puts them under Follow up.') : $no((string) $k['error']),
             'outreach_email' => ($k = Outreach::email($v, (int) ($b['nominee'] ?? 0), $b, $this->mailer))['ok'] ? $ok('Sent and logged.') : $no((string) $k['error']),
+            'status_update' => ($k = \AfricaGates\Services\Volunteer\NomineeStatus::record($v, (int) ($b['nominee'] ?? 0), $b))['ok'] ? $ok('Update sent. Your lead and the team see it on the nominee’s page and in Status updates.') : $no((string) $k['error']),
+            'status_request' => ($k = \AfricaGates\Services\Volunteer\NomineeStatus::request($v, (int) ($b['cycle'] ?? 0), (string) ($b['message'] ?? ''), (string) ($b['due_on'] ?? ''), $this->mailer))['ok']
+                ? $ok('Asked. ' . (($k['emailed'] ?? 0) > 0 ? (($k['emailed'] === 1 ? 'One person was' : $k['emailed'] . ' people were') . ' emailed, and everybody') : 'Everybody') . ' reaching nominees on this award sees it on Today, with each nominee still to update marked.') : $no((string) $k['error']),
             'meet' => $active ? (($k = Meetings::schedule($v, $b, $this->mailer))['ok'] ? $ok('Scheduled. ' . ($k['invited'] === 1 ? 'One person is' : $k['invited'] . ' people are') . ' invited by email.') : $no((string) $k['error'])) : $no('Meetings open once you’re approved.'),
             'meet_answer' => Meetings::answer($v, (int) ($b['meeting'] ?? 0), (string) ($b['answer'] ?? '')) ? $ok(($b['answer'] ?? '') === 'yes' ? 'Thanks. They know you’re going.' : 'Thanks. They know you can’t come.') : $no('That meeting can’t be answered now.'),
             'meet_notes' => ($k = Meetings::notes($v, (int) ($b['meeting'] ?? 0), (string) ($b['notes'] ?? '')))['ok'] ? $ok('Notes saved. Everybody invited can read them.') : $no((string) $k['error']),
@@ -395,6 +416,28 @@ final class VolunteerController
             $next = $cycle ? Outreach::next($v, $cycle, $nid) : null;
             $back = '/volunteer/cycle/' . $cycle . '/nominees' . ($next ? '?n=' . $next->id : '');
             $_SESSION['vol_toast'] = $r['msg'] . ($next ? ' Next: ' . $next->name . '.' : ' Nobody else is waiting to be reached.');
+        }
+        // A status update: refused, it comes back with the answers chosen; sent, it opens the next
+        // nominee on the award still owed an update, so a volunteer answers a lead's request in
+        // one pass instead of going back to the list each time.
+        if (($b['do'] ?? '') === 'status_update') {
+            $nid = (int) ($b['nominee'] ?? 0);
+            $cycle = (int) (DB::table('gates_nominees as n')->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')->where('n.id', $nid)->value('c.cycle_id') ?? 0);
+            if (!$r['ok']) {
+                $_SESSION['vol_old'] = array_intersect_key($b, array_flip(['reach', 'portal', 'missing', 'channels', 'mobilising', 'backers', 'needs', 'next_step', 'status_note']));
+                $back = '/volunteer/cycle/' . $cycle . '/nominees?n=' . $nid . '#status';
+            } elseif ($cycle) {
+                $rq = \AfricaGates\Services\Volunteer\NomineeStatus::open($cycle);
+                $list = array_values(array_filter(Outreach::nominees($v, $cycle), static fn ($n) => !$n->stopped && (int) $n->id !== $nid));
+                $latest = \AfricaGates\Services\Volunteer\NomineeStatus::latest(array_map(static fn ($n) => (int) $n->id, $list));
+                $next = null;
+                foreach ($list as $n) {
+                    $st = $latest[(int) $n->id] ?? null;
+                    if ($rq ? !\AfricaGates\Services\Volunteer\NomineeStatus::answered($rq, $st) : $st === null) { $next = $n; break; }
+                }
+                $back = '/volunteer/cycle/' . $cycle . '/nominees' . ($next ? '?n=' . $next->id . '#status' : '/update');
+                $_SESSION['vol_toast'] = $r['msg'] . ($next ? ' Next to update: ' . $next->name . '.' : ' Every nominee you reach has an update now.');
+            }
         }
         // A sent check opens the next one waiting (a HubSpot-style queue), so a checker works
         // through them without returning to the list each time; the list when none is left.

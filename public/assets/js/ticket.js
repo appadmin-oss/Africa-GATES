@@ -9,6 +9,8 @@
    confirm, the moment somebody actually reads. CSRF on every write: these change a ticket. */
 (function () {
   'use strict';
+  // The page again after a change, in place where site-nav can (a full load otherwise).
+  var again = function () { if (window.agNav && window.agNav.reload) window.agNav.reload(); else location.reload(); };
   var box = document.querySelector('[data-tk-manage]');
   if (!box) return;
   var base = box.getAttribute('data-base'), csrf = box.getAttribute('data-csrf');
@@ -67,14 +69,14 @@
       var line = owed === '0' ? T('cancel0') : T('cancel').replace('%n%', Number(owed).toLocaleString('en'));
       if (!window.confirm(line)) return;
       var c = await post('cancel', { code: code }, b);
-      if (c && c.success) { b.hidden = true; setTimeout(function () { location.reload(); }, 3000); }
+      if (c && c.success) { b.hidden = true; setTimeout(again, 3000); }
       return;
     }
     if (what === 'transfer') {
       var nm = val('tkTName');
       if (!window.confirm(T('transfer').replace('%name%', nm || '…'))) return;
       var t = await post('transfer', { code: code, name: nm, email: val('tkTMail') }, b);
-      if (t && t.success) setTimeout(function () { location.reload(); }, 2500);
+      if (t && t.success) setTimeout(again, 2500);
     }
   });
 })();

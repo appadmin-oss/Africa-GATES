@@ -109,11 +109,19 @@
        it is drawn without a second card's border and tint (ballot.css, .vb-done). #}
     {% if ctx.free and ctx.confirmed %}
         <div class="vb-done" data-vb-done>
+          {# The voter, first: they just did something good, and they are one of a crowd. #}
+          {% set _ch = ctx.cheer %}
           {% include 'partials/celebration.twig' with {kind: 'vote', size: 'inline', first: first,
-              sub: '%first% moved up the race. Share the link to win more support.'|trans({'%first%': first}),
+              title: 'Thank you for backing %first%'|trans({'%first%': first}),
+              sub: (_ch and _ch.people > 1
+                     ? (_ch.place ? 'You are one of %n% people celebrating %place%’s own. Share %first%’s link and bring yours.'|trans({'%n%': _ch.people|number_format, '%place%': _ch.place, '%first%': first})
+                                  : 'You are one of %n% people backing their own. Share %first%’s link and bring yours.'|trans({'%n%': _ch.people|number_format, '%first%': first}))
+                     : '%first% moved up the race. Share the link to win more support.'|trans({'%first%': first})),
               context: {moment: 'vote_cast', confirmed: true, edition: n.programme_slug ~ '-' ~ n.year, subject: n.id ~ '-' ~ n.category_id},
               primary: {label: 'Share %first%’s voting link'|trans({'%first%': first})},
               secondary: {label: 'Vote in another category'|trans, href: '/vote/' ~ n.programme_slug}} only %}
+          {# Their own link: their votes, what they have unlocked, what is next (OfferLink). #}
+          <a class="vb-offer" href="{{ ctx.offer_url }}">{{ 'See what your votes unlock'|trans }}</a>
         </div>
     {% endif %}
 
@@ -135,6 +143,31 @@
           </div>
           <p class="vb-bring__n">{% if ctx.recruit.brought == 0 %}{{ 'Nobody yet. Send it to three people.'|trans }}{% elseif ctx.recruit.brought == 1 %}{{ 'You’ve brought 1 person.'|trans }}{% else %}{{ 'You’ve brought %n% people.'|trans({'%n%': ctx.recruit.brought|number_format}) }}{% endif %}</p>
         </section>
+
+        {# "I backed …" (Services\BackedCard): the supporter's own card about their vote, to be
+           proud to post. It names nobody but the nominee, so it is offered to whoever has voted
+           here, free or paid, with nothing to consent to. #}
+        <section class="vb-card" aria-labelledby="{{ ctx.pre }}vb-card-h">
+          <h3 class="vb-bring__h" id="{{ ctx.pre }}vb-card-h">{{ 'Your “I backed” card'|trans }}</h3>
+          <img class="vb-card__img" src="{{ ctx.url }}/backed.png" width="600" height="315" loading="lazy" decoding="async"
+               alt="{{ 'I backed %name%. %award%.'|trans({'%name%': ctx.n.name, '%award%': ctx.n.programme_title}) }}">
+          <p class="vb-hint">{{ 'Post it where your people will see it. It says who you stand with, not who you are.'|trans }}</p>
+          <a class="vb-btn vb-btn--line" href="{{ ctx.url }}/backed.png" download="i-backed-{{ ctx.n.id }}.png">{{ 'Download the card'|trans }}</a>
+        </section>
+
+        {# "Your vote is working" (Services\NomineeMilestones): opt in to hear when they reach a
+           milestone. Only an address that voted for them is accepted; three emails at most. #}
+        {% if ctx.open %}
+        <form class="vb-card vb-follow" id="{{ ctx.pre }}follow" method="post" action="/vote/follow" aria-labelledby="{{ ctx.pre }}vb-follow-h">
+          <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="nominee" value="{{ ctx.n.id }}">
+          <h3 class="vb-bring__h" id="{{ ctx.pre }}vb-follow-h">{{ 'Hear how %first% is doing'|trans({'%first%': first}) }}</h3>
+          <p class="vb-hint" id="{{ ctx.pre }}vb-follow-d">{{ 'Their milestones (at most three short emails this edition) and the updates they write to their supporters (at most one every three days). Use the address you voted with.'|trans }}</p>
+          {% if ctx.follow %}<p class="vb-follow__msg{{ ctx.follow.ok ? '' : ' is-bad' }}" role="{{ ctx.follow.ok ? 'status' : 'alert' }}">{{ ctx.follow.msg }}</p>{% endif %}
+          <label class="vb-label" for="{{ ctx.pre }}vbFollow">{{ 'Your email'|trans }}</label>
+          <input class="vb-input" id="{{ ctx.pre }}vbFollow" type="email" name="email" autocomplete="email" inputmode="email" required aria-describedby="{{ ctx.pre }}vb-follow-d" value="{{ ctx.member.email|default('') }}">
+          <button class="vb-btn vb-btn--line" type="submit">{{ 'Tell me'|trans }}</button>
+        </form>
+        {% endif %}
         {% endif %}
 
     {# ── Points ── #}
@@ -192,7 +225,7 @@
           <p class="vb-hint">{{ 'Shown on %first%’s supporters list. Leave blank to stay anonymous.'|trans({'%first%': first}) }}</p>
         </div>
         <div class="vb-field">
-          <label class="vb-label" for="{{ ctx.pre }}pvMsg">{{ 'Say something about %first%'|trans({'%first%': first}) }} <span class="vb-label__o">{{ '(optional)'|trans }}</span></label>
+          <label class="vb-label" for="{{ ctx.pre }}pvMsg">{{ 'Why do you back %first%?'|trans({'%first%': first}) }} <span class="vb-label__o">{{ '(optional)'|trans }}</span></label>
           <textarea class="vb-input vb-input--area" id="{{ ctx.pre }}pvMsg" name="message" maxlength="{{ ctx.msg_max }}" rows="3"></textarea>
           <p class="vb-hint">{{ 'Appears on this page once checked. No links or phone numbers.'|trans }}</p>
         </div>
@@ -254,9 +287,9 @@
             <p class="vb-hint" id="{{ ctx.pre }}vbPhoneHint">{{ 'Kept with your vote so each one can be checked. Never shown or shared.'|trans }}</p>
           </div>
           <details class="vb-msg">
-            <summary class="vb-msg__s">{{ '+ Add a message for %first% (optional)'|trans({'%first%': first}) }}</summary>
+            <summary class="vb-msg__s">{{ '+ Say why you back %first% (optional)'|trans({'%first%': first}) }}</summary>
             <label class="ag-sr" for="{{ ctx.pre }}vbMsg">{{ 'Your message'|trans }}</label>
-            <textarea class="vb-input vb-input--area" id="{{ ctx.pre }}vbMsg" name="message" maxlength="{{ ctx.msg_max }}" rows="3" placeholder="{{ 'What do you want people to know about %first%?'|trans({'%first%': first}) }}"></textarea>
+            <textarea class="vb-input vb-input--area" id="{{ ctx.pre }}vbMsg" name="message" maxlength="{{ ctx.msg_max }}" rows="3" placeholder="{{ 'Why do you back %first%? One line people will read.'|trans({'%first%': first}) }}"></textarea>
             <label class="vb-check"><input type="checkbox" name="message_show_name" value="1"> <span>{{ 'Show my name with this message.'|trans }}</span></label>
           </details>
           <label class="vb-check"><input type="checkbox" name="agree" value="1" required data-agree>
@@ -297,7 +330,7 @@
 {% set _bctx = {n: n, first: first, open: voting_open, phase: phase, paid_notice: paid_notice, can_redeem: can_redeem,
    member_points: member_points, points_per_vote: points_per_vote, member_logged_in: member_logged_in, points_enabled: points_enabled,
    paid: _paid, paid_sentence: paid_sentence, vote_price: vote_price, max_qty: max_qty, vote_tiers: vote_tiers, tiers: tier_prices,
-   retry: paid_retry, member: member, providers: pay_providers, wallet: wallet_sources|default([]), msg_max: msg_max, terms: terms, free: _free, confirmed: vote_confirmed, recruit: recruit,
+   retry: paid_retry, member: member, providers: pay_providers, wallet: wallet_sources|default([]), msg_max: msg_max, terms: terms, free: _free, confirmed: vote_confirmed, offer_url: offer_url, recruit: recruit, cheer: cheer, follow: follow_msg,
    ts: _ts, ts_key: turnstile_site_key, url: '/vote/' ~ n.programme_slug ~ '/' ~ n.id} %}
 
 {% block content %}
@@ -369,6 +402,38 @@
     </header>
     </div>
 
+    {# The nominee's own thank-you to everybody who backed them (Services\NomineeThanks),
+       once it is final: their words, for the people who stood with them. #}
+    {% if thanks|default(null) %}
+    <section class="vn-sec vn-thanks" aria-labelledby="vn-thanks-h">
+      <h2 class="vn-sec__t" id="vn-thanks-h">{{ 'A thank-you from %first%'|trans({'%first%': first}) }}</h2>
+      <blockquote class="vn-thanks__q">{{ thanks.message }}</blockquote>
+      <p class="vn-sec__p">{{ 'To everybody who backed them.'|trans }}</p>
+    </section>
+    {% endif %}
+
+    {# Their voice thank-you (Services\NomineeVoice): played only when somebody presses play —
+       `preload="none"`, so the page costs nothing extra on a slow connection. #}
+    {% if voice|default(null) %}
+    <section class="vn-sec vn-voice" aria-labelledby="vn-voice-h">
+      <h2 class="vn-sec__t" id="vn-voice-h">{{ 'Hear %first% say thank you'|trans({'%first%': first}) }}</h2>
+      <audio class="vn-voice__a" controls preload="none" src="{{ voice_url }}?v={{ voice.created_at|date('U') }}"></audio>
+      <p class="vn-sec__p">{{ voice.seconds ? '%n% seconds, in their own voice.'|trans({'%n%': voice.seconds}) : 'In their own voice.'|trans }}</p>
+    </section>
+    {% endif %}
+
+    {# Their own updates to the people backing them (Services\NomineeUpdates), newest first. #}
+    {% if updates|default([])|length %}
+    <section class="vn-sec vn-upd" aria-labelledby="vn-upd-h">
+      <h2 class="vn-sec__t" id="vn-upd-h">{{ 'From %first%'|trans({'%first%': first}) }}</h2>
+      <ol class="vn-upd__l">
+        {% for u in updates %}
+        <li class="vn-upd__i"><time class="vn-upd__d" datetime="{{ u.created_at|date('c') }}">{{ u.created_at|date('j M Y') }}</time><p class="vn-upd__b">{{ u.body }}</p></li>
+        {% endfor %}
+      </ol>
+    </section>
+    {% endif %}
+
     {% if _placed %}
       {% if _won %}
         {% include 'partials/celebration.twig' with {kind: 'win', size: 'full', first: first,
@@ -439,7 +504,9 @@
     {% if not _placed %}<div class="vn__ballot vn__ballot--phone">{{ m.ballot(_bctx|merge({pre: ''})) }}</div>{% endif %}
 
     <section class="vn-sec" aria-labelledby="vn-sup">
-      <h2 class="vn-sec__t" id="vn-sup">{{ 'Support for %first%'|trans({'%first%': first}) }}</h2>
+      {# "Why people back them" (owner, 16 Nov 2026): a reason in a voter's own name turns a
+         favour into a stance. The ballot asks the same question. #}
+      <h2 class="vn-sec__t" id="vn-sup">{{ 'Why people back %first%'|trans({'%first%': first}) }}</h2>
       {% if messages|length %}
         <p class="vn-sec__p">{{ message_count == 1 ? '1 message from verified voters'|trans : '%n% messages from verified voters'|trans({'%n%': message_count|number_format}) }}</p>
         <ul class="vmi-list">{% for msg in messages %}{% include 'partials/vote-message.twig' with {m: msg} only %}{% endfor %}</ul>
@@ -449,6 +516,13 @@
         <h3 class="vn-sub">{{ 'Named supporters'|trans }}</h3>
         <ul class="vn-roll">{% for s in supporters %}<li class="vn-roll__i"><span class="vn-roll__av" aria-hidden="true">{{ (s.name|split(' ')|map(w => w|first)|join|upper)|slice(0, 2) }}</span>{{ s.name }}</li>{% endfor %}</ul>
         {% if supporter_count > supporters|length %}<a class="vn-more" href="{{ supporters_url }}">{{ 'See all named supporters (%more% more)'|trans({'%more%': supporters_more}) }} <span class="ag-ico-dir" aria-hidden="true">→</span></a>{% endif %}
+      {% endif %}
+      {# The first supporters (SupporterSpotlight::firstBackers): in by WHEN they backed, never
+         by how much, named by the Spotlight's own rule. #}
+      {% if first_backers.named|default([])|length %}
+        <h3 class="vn-sub">{{ 'Among the first to back %first%'|trans({'%first%': first}) }}</h3>
+        <ul class="vn-first">{% for s in first_backers.named|slice(0, 12) %}<li class="vn-first__i">{% include 'partials/avatar.twig' with {name: s.name, id: s.uid ?: null, src: s.photo|default(''), size: 40, named: true} only %}<span>{{ s.name }}</span></li>{% endfor %}</ul>
+        <p class="vn-sec__p">{{ first_backers.count >= 50 ? 'Named from the first 50 people to back %first%.'|trans({'%first%': first}) : 'Named from the first %n% people to back %first%.'|trans({'%n%': first_backers.count, '%first%': first}) }}</p>
       {% endif %}
       {# One card for spreading the word, with the empty state in it rather than above it on its
          own line: "No messages yet" and two loose links read as a section with nothing in it.
@@ -461,6 +535,7 @@
         <div class="vn-share__acts">
           <a class="vn-share__a" href="{{ flier_url }}">{{ 'Share kit: flier, messages and QR code'|trans }}</a>
           <a class="vn-share__a" href="{{ video_url }}">{{ 'Share video'|trans }}</a>
+          <a class="vn-share__a" href="{{ poster_url }}">{{ 'Printable A4 poster'|trans }}</a>
         </div>
       </div>
     </section>

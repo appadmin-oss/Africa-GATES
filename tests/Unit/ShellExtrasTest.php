@@ -102,10 +102,14 @@ final class ShellExtrasTest extends TestCase
         $a = $this->event('Alimosho ceremony');
         $b = $this->event('Lagos Education Honours Night', '+30 days');
         foreach ([$a, $b] as $e) Grants::grant('member', (int) $v->user_id, 'vol.door', 'event', $e, date('Y-m-d', strtotime('+40 days')), 1);
-        $s = Workspace::siblings($v, 'event', $a, 'brief');
-        $hrefs = array_column($s, 'href', 'name');
-        $this->assertSame('/volunteer/event/' . $b . '/brief', $hrefs['Lagos Education Honours Night']);
-        $this->assertTrue($s[array_search('Alimosho ceremony', array_column($s, 'name'), true)]['current']);
+        // The other place is in the one menu now, and from a page the other place also has,
+        // its link opens that same page.
+        $nav = Workspace::rootNav($v, 'active', '', [], ['kind' => 'event', 'id' => $a, 'page' => 'brief']);
+        $where = array_values(array_filter($nav, static fn ($g) => $g['label'] === 'Where you help'))[0]['items'];
+        $byName = array_column($where, null, 'label');
+        $this->assertSame('/volunteer/event/' . $b . '/brief', $byName['Lagos Education Honours Night']['href']);
+        $this->assertTrue($byName['Alimosho ceremony']['open'], 'the place you are in opens in the menu');
+        $this->assertSame([true], array_values(array_map(static fn ($c) => $c['current'], array_filter($byName['Alimosho ceremony']['children'], static fn ($c) => $c['key'] === 'brief'))));
     }
 
     // ── the bell ─────────────────────────────────────────────────────────────────────────

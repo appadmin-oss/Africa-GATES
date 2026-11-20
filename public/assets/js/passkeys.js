@@ -114,7 +114,7 @@
       return post('/account/passkeys', csrf, { credential: credentialJson(cred), label: btn.getAttribute('data-label') || '' });
     }).then(function () {
       note('Passkey added. This device can now sign you in.');
-      window.location.reload();
+      if (window.agNav && window.agNav.reload) window.agNav.reload(); else window.location.reload();
     }).catch(function (e) {
       note(said(e));
     }).then(function () { btn.removeAttribute('aria-busy'); });

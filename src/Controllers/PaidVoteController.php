@@ -436,7 +436,38 @@ final class PaidVoteController
             if ($mine && isset($_SESSION) && is_array($_SESSION)) $_SESSION['vote_recruit'][(int)$nominee->id] = $mine['code'];
         }
 
+        // A reason to have voted, and to vote again: what THIS order did for the award's named
+        // beneficiary, and where this person now stands on the award's own benefits ladder
+        // (Support\AwardCampaign). Both only where the host has set them, and only once the
+        // votes have landed — a ladder read against an unminted order counts money that may
+        // be refunded.
+        $own = null;
+        if ($minted && $nominee && trim((string) ($don->donor_email ?? '')) !== '') {
+            try {
+                $campaign = \AfricaGates\Support\AwardCampaign::forProgramme($this->programmeIdFor($nominee));
+                $cycleId  = (int) DB::table('gates_award_categories')->where('id', (int) $nominee->category_id)->value('cycle_id');
+                $price    = PaidVoteService::pricePerVote();
+                $share    = $campaign['beneficiary'] !== '' && $campaign['share_pct'] > 0
+                    ? (int) $don->bonus_votes * intdiv($price * $campaign['share_pct'], 100) : 0;
+                // Where they now stand among everybody backing their own in this edition — the
+                // thing a supporter most wants to hear right after giving, and true: the same
+                // count of people, the same order, the board uses.
+                $me       = \AfricaGates\Services\SupporterSpotlight::standingOf($cycleId, (string) $don->donor_email);
+                $total    = $me['votes'];
+                $own = ['share' => $share, 'beneficiary' => $campaign['beneficiary'], 'total' => $total,
+                        'rank' => $me['rank'], 'people' => $me['people'], 'place' => $campaign['community'],
+                        'standing' => \AfricaGates\Support\AwardCampaign::standing($campaign, $total),
+                        'ladder' => $campaign['ladder'] !== [], 'note' => $campaign['ladder_note'],
+                        // Their own "what your votes unlock" link (OfferLink), on the address they paid from.
+                        'offer_url' => ($slug = (string) (DB::table('gates_award_programmes')->where('id', $this->programmeIdFor($nominee))->where('is_active', 1)->value('slug') ?? '')) !== ''
+                            ? \AfricaGates\Services\OfferLink::path($slug, \AfricaGates\Services\VoteService::voterHash((string) $don->donor_email)) : ''];
+            } catch (\Throwable) {
+                $own = null;
+            }
+        }
+
         return $this->view->render($res, 'pages/vote-paid-success.twig', [
+            'own'              => $own,
             'page_title'       => $minted ? 'Votes confirmed — Africa GATES' : 'Payment received — Africa GATES',
             'meta_description' => 'Your paid votes have been recorded — thank you for backing African excellence.',
             'gates_page'       => 'awards',
@@ -446,6 +477,10 @@ final class PaidVoteController
             'amount_naira'     => $don ? (int)$don->amount_naira : 0,
             'nominee_name'     => $nominee ? (string)$nominee->name : '',
             'ballot_url'       => $this->ballotUrl($nominee, $req),
+            // The supporter's "I backed" card (Services\BackedCard), as a PATH: the ballot URL is
+            // absolute on the configured site address, which an image on this page must not
+            // depend on (it drew broken wherever the two differ).
+            'card_url'         => $nominee && $minted ? \AfricaGates\Support\NomineeUrl::path((int) $nominee->id) . '/backed.png' : '',
             'reference'        => $reference,
             // The jury share, read from the engine rather than typed into the
             // template. This page is the first thing a supporter sees after paying,

@@ -332,7 +332,9 @@
   display:flex; align-items:center; padding:0 4px; border-radius:var(--ag-r-pill);
   background:color-mix(in srgb, var(--ag-ink) 38%, transparent);
 }
-.hm-dots__b{ width:28px; height:32px; padding:0; border:0; background:none; display:flex; align-items:center; justify-content:center; cursor:pointer }
+.hm-dots__b{ position:relative; width:28px; height:32px; padding:0; border:0; background:none; display:flex; align-items:center; justify-content:center; cursor:pointer }
+/* 44 tall to a finger without growing the pill; side by side they cannot widen. */
+.hm-dots__b::after{ content:""; position:absolute; inset:-6px 0 }
 .hm-dots__b span{ display:block; width:7px; height:7px; border-radius:var(--ag-r-pill); background:color-mix(in srgb, var(--ag-surface) 60%, transparent); transition:width .2s ease }
 .hm-dots__b.is-on span{ width:18px; background:var(--ag-surface) }
 .hm-dots__p{ position:relative; width:32px; height:32px; padding:0; border:0; background:none; color:var(--ag-surface); display:flex; align-items:center; justify-content:center; cursor:pointer }

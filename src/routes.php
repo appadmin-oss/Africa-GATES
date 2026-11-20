@@ -186,8 +186,7 @@ return function(App $app) {
             } elseif ($site === '') {
                 $lines[] = 'ABORTED: APP_URL is not set. Every link in this email is absolute.';
             } elseif (($plan['queue'] ?? []) === []) {
-                $lines[] = 'No nominee resolved in a live voting cycle, so there is no real';
-                $lines[] = 'personalisation to preview. Check the counts on this page first.';
+                $lines[] = (new \AfricaGates\Services\NomineeBroadcast())->whyEmpty();
             } else {
                 // The first resolved recipient, whether or not they are sendable — a
                 // suppressed or already-sent nominee is still a valid shape to preview.
@@ -2330,6 +2329,14 @@ return function(App $app) {
         // the slug route requires a leading digit, but the ordering is what the rest of
         // this block already relies on and it should not be the one exception.
         $g->get('/vote/{program}/tallies', VoteController::class.':tallies');
+        // Before /vote/{program}/{slug}, which would otherwise answer it as a nominee.
+        $g->get('/vote/{program}/spotlight', VoteController::class.':spotlight');
+        // What your support unlocks, and the Champion of the Day announced (DailyChampion).
+        $g->get('/vote/{program}/offer', VoteController::class.':offer');
+        // A day (2026-11-16), a week (2026-W47) or the whole award (DailyChampion::kindOf).
+        $g->get('/vote/{program}/champion/{day:(?:[0-9]{4}-(?:[0-9]{2}-[0-9]{2}|W[0-9]{2})|award)}.png', VoteController::class.':championCard');
+        $g->get('/vote/{program}/champion/{day:(?:[0-9]{4}-(?:[0-9]{2}-[0-9]{2}|W[0-9]{2})|award)}', VoteController::class.':champion');
+        $g->get('/champions/{code:CD[0-9]+-[A-Fa-f0-9]{10}}', VoteController::class.':championCheck');
         // The flier routes go BEFORE /vote/{program}/{slug}: FastRoute matches in
         // declaration order for same-length paths, and `{slug}` would otherwise
         // swallow nothing here — but `{slug}/flier` is longer, so order is not
@@ -2345,6 +2352,16 @@ return function(App $app) {
         // og:image to. The 4:5 flier lost its bottom third — the vote URL and the rally
         // copy — in every preview. See FlierService::ogCard().
         $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/card.png',   FlierController::class.':card');
+        // "I backed …": the SUPPORTER's card about their own vote (Services\BackedCard).
+        $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/backed.png', VoteController::class.':backed');
+        // A milestone the nominee reached, as the card they post (Services\MilestoneCard).
+        $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/milestone/{kind:[a-z0-9]+}-{value:[0-9]+}.png', VoteController::class.':milestoneCard');
+        // A printable A4 poster with the QR code to vote, for a church, a market, a school.
+        $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/poster', VoteController::class.':poster');
+        // The nominee's voice thank-you (NomineeVoice), with byte ranges so Safari plays it.
+        $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/voice', VoteController::class.':voice');
+        // "Tell me when they reach a milestone" — only for an address that backed them.
+        $g->post('/vote/follow', VoteController::class.':follow');
         // The 9:16 share video (ShareVideoController). Beside card.png, before /{slug}.
         $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/video', \AfricaGates\Controllers\ShareVideoController::class.':nominee');
         // Every message of support for one nominee, paginated. Before /{slug} for the
@@ -3572,6 +3589,13 @@ return function(App $app) {
         $g->get('/email/confirm',  \AfricaGates\Controllers\NewsletterController::class . ':confirmShow');
         $g->post('/email/confirm', \AfricaGates\Controllers\NewsletterController::class . ':confirm');
 
+        // The way off the Supporter Spotlight: GET shows, POST hides, for the same mail-scanner
+        // reason as the confirmation above. See SpotlightController.
+        $g->get('/spotlight/hide',  \AfricaGates\Controllers\SpotlightController::class . ':show');
+        // Anybody checking a supporter's certificate of community recognition (SupporterRecord).
+        $g->get('/certificates/{code:[0-9]+-[0-9]+-[a-f0-9]{12}}', \AfricaGates\Controllers\AccountController::class . ':certificateCheck');
+        $g->post('/spotlight/hide', \AfricaGates\Controllers\SpotlightController::class . ':hide');
+
         // SEO: robots.txt + sitemap.xml
         $g->get('/robots.txt', function($req, $res) {
             $scheme = $req->getUri()->getScheme();
@@ -3907,6 +3931,8 @@ return function(App $app) {
         $a->get('/interests',          AccountController::class.':interests');
         $a->post('/interests',         AccountController::class.':interestsSave');
         $a->get('/notifications',      AccountController::class.':notifications');
+        $a->get('/supporting',         AccountController::class.':supporting');
+        $a->get('/supporting/certificate/{cycle:[0-9]+}', AccountController::class.':certificate');
         $a->post('/notifications/read', AccountController::class.':notificationsRead');
         $a->get('/points',             AccountController::class.':points');
         // One account, one login, roles given (owner, 29 Oct 2026; plan §7.1). No roles page
@@ -4912,8 +4938,8 @@ return function(App $app) {
         // Derived on read from the platform's own records (Admin\Services\ConsoleAlerts):
         // an email outage, a stalled schedule, chargebacks on a clock, schema behind the
         // code. The top bar's alert pill and Home's "needs a person" read the same list.
-        // The staff side of the volunteer workspace (consoles v7 §6; review slice V1). Unmapped in
-        // Permissions, so the guard holds it to superadmin until the owner decides who else.
+        // The staff side of the volunteer workspace (consoles v7 §6; review slice V1). Its own
+        // `volunteers` section in Permissions: superadmin and admin (owner, 31 Oct 2026).
         $a->get('/volunteers',  \AfricaGates\Admin\Controllers\VolunteersController::class.':index');
         $a->post('/volunteers', \AfricaGates\Admin\Controllers\VolunteersController::class.':act');
         // Where staff decide what leads and volunteers asked for (§2.6). Mapped to `finance`.

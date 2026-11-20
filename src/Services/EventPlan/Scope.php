@@ -361,12 +361,18 @@ final class Scope
         }
     }
 
-    /** What the lead console wrote about this event, newest first (the Audit tab). @return list<object> */
+    /**
+     * Everything written about this event, newest first (the Audit tab): the lead console's
+     * writes AND staff's. It filtered on `lead.%`, so a staff member giving or ending a finance
+     * admin or an owner (`event.finance.*`, `event.owner.*`) never appeared on the event's own
+     * record, and the console's money writes were filed against the budget row instead
+     * (AUDIT-AND-PLAN EV-9; LeadController now files every write against the event).
+     */
     public static function audit(int $eventId, int $limit = 100): array
     {
         try {
             return DB::table('gates_audit_log as a')->leftJoin('gates_admins as ad', 'ad.id', '=', 'a.admin_id')
-                ->where('a.target_type', 'event')->where('a.target_id', $eventId)->where('a.action', 'like', 'lead.%')
+                ->where('a.target_type', 'event')->where('a.target_id', $eventId)
                 ->orderByDesc('a.id')->limit($limit)->get(['a.action', 'a.meta', 'a.created_at', 'ad.name'])->all();
         } catch (\Throwable) {
             return [];

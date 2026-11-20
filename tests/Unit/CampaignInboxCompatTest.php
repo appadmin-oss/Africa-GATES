@@ -25,4 +25,13 @@ final class CampaignInboxCompatTest extends EmailInboxCompatCase
     {
         return __DIR__ . '/../../templates/emails/campaign.twig';
     }
+
+    /**
+     * The owner's rebuild of the campaign email (17 Nov 2026) widened the card to the house
+     * shell's 600px. Still fluid — width 100% plus max-width, and an [if mso] fixed table.
+     */
+    protected static function cardMaxWidth(): string
+    {
+        return 'max-width:600px';
+    }
 }

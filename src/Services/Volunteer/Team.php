@@ -33,7 +33,11 @@ final class Team
         foreach (self::scopes($lead) as [$kind, $id]) {
             foreach (DB::table('gates_grants as g')->join('gates_volunteers as v', 'v.user_id', '=', 'g.actor_id')
                          ->where('g.actor_kind', 'member')->where('g.scope_kind', $kind)->where('g.scope_id', $id)
-                         ->whereNull('g.revoked_at')->where('g.expires_at', '>', date('Y-m-d H:i:s'))
+                         // Volunteer roles only: an event's lead, owner or finance admin with a
+                         // volunteer row is not the lead's team, and the lead was confirming
+                         // their hours (AUDIT-AND-PLAN VO-8).
+                         ->where('g.capability', 'like', 'vol.%')
+                         ->where(static fn ($w) => Grants::live($w, 'g.'))
                          ->pluck('v.id') as $vid) $ids[(int) $vid] = true;
         }
         unset($ids[(int) $lead->id]);

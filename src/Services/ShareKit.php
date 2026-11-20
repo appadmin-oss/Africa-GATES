@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\AwardCampaign;
 use AfricaGates\Support\Qr;
 use AfricaGates\Support\Translator;
 
@@ -30,10 +31,18 @@ final class ShareKit
     public static function for(array $f, string $link = ''): array
     {
         $link = $link !== '' ? $link : (string) $f['url'];
-        $text = Translator::t('Please vote for %n% in %c%, %a%. It takes a minute: %u%', [
-            '%n%' => (string) $f['name'], '%c%' => (string) $f['category'], '%a%' => (string) $f['programme'], '%u%' => $link,
-        ]);
-        $short = Translator::t('Vote for %n% in %c%', ['%n%' => (string) $f['name'], '%c%' => (string) $f['category']]);
+        // Where the award has named its community, the message LEADS with it: "Alimosho is
+        // celebrating its own: Chiamaka Eze" (owner, 16 Nov 2026) is a reason to open the
+        // link, where "please vote for" is only a request.
+        $own = AwardCampaign::celebrating(['community' => trim((string) ($f['community'] ?? ''))], (string) $f['name']);
+        $text = $own !== ''
+            ? Translator::t('%own%. Add your vote in %c%, %a%. It takes a minute: %u%', [
+                '%own%' => $own, '%c%' => (string) $f['category'], '%a%' => (string) $f['programme'], '%u%' => $link,
+              ])
+            : Translator::t('Please vote for %n% in %c%, %a%. It takes a minute: %u%', [
+                '%n%' => (string) $f['name'], '%c%' => (string) $f['category'], '%a%' => (string) $f['programme'], '%u%' => $link,
+              ]);
+        $short = $own !== '' ? $own : Translator::t('Vote for %n% in %c%', ['%n%' => (string) $f['name'], '%c%' => (string) $f['category']]);
         $enc = rawurlencode($text);
         return [
             'text'  => $text,
