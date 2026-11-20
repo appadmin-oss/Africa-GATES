@@ -331,7 +331,7 @@ button.vn-bar__go{ border:0; cursor:pointer; font-family:inherit }
 .vn-goal--art{ display:grid; grid-template-columns:minmax(0, 1fr) auto; column-gap:12px; row-gap:8px; align-items:center }
 .vn-goal--art > *{ grid-column:1 / -1 }
 .vn-goal--art > .vn-goal__h, .vn-goal--art > .vn-goal__left{ grid-column:1 }
-.vn-goal--art > .vn-goal__art{ grid-column:2; grid-row:1 / span 2; width:112px; height:auto; animation:ag-spark-float 3.2s ease-in-out infinite }
+.vn-goal--art > .vn-goal__art{ grid-column:2; grid-row:1 / span 2; width:112px; height:auto; border-radius:var(--ag-r-14); animation:ag-spark-float 3.2s ease-in-out infinite }
 .vn-goal--art .vn-goal__h{ font-size:var(--ag-fs-17) }
 .vn-goal--art .vn-goal__left{ font-size:var(--ag-fs-22) }
 .vn-goal--art .vn-goal__bar span{ background:linear-gradient(90deg, var(--ag-green), var(--ag-green-light)) }

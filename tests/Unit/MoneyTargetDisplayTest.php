@@ -262,7 +262,9 @@ final class MoneyTargetDisplayTest extends TestCase
         foreach (Target::ART_SUBJECTS as $sub) {
             foreach (Target::ART_STYLES as $style) {
                 $this->assertFileExists($dir . "$sub-$style.svg", 'a picture the site can ask for is missing');
-                $this->assertSame("/assets/img/spark/$sub-$style.svg", Target::art($sub, 0, $style));
+                // The drawing is always there; a generated image beside it (same name) wins.
+                $gen = array_values(array_filter(['webp', 'png', 'jpg'], static fn ($e) => is_file($dir . "$sub-$style.$e")));
+                $this->assertSame('/assets/img/spark/' . "$sub-$style." . ($gen[0] ?? 'svg'), Target::art($sub, 0, $style));
             }
         }
         $this->rule(['model' => 'milestone', 'full_pct' => 50, 'locked_pct' => 10, 'milestone_naira' => 10000]);

@@ -175,7 +175,7 @@
 .vp-row__goal{ font-size:var(--ag-fs-12-5); color:var(--ag-ink-2); font-variant-numeric:tabular-nums }
 .vp-row__goal.is-reached{ font-weight:700; color:var(--ag-ink) }
 .vp-goal-ed{ display:flow-root }
-.vp-goal-ed__art{ float:inline-end; width:84px; height:auto; margin-inline-start:12px }
+.vp-goal-ed__art{ float:inline-end; width:84px; height:auto; margin-inline-start:12px; border-radius:var(--ag-r-12) }
 .vp-goal-ed__bar{ display:block; height:6px; margin:6px 0; border-radius:999px; background:var(--ag-line); overflow:hidden }
 .vp-goal-ed__bar span{ display:block; height:100%; background:var(--ag-ink) }
 .vp-row__bar{ display:block; height:6px; border-radius:3px; background:var(--ag-ground); overflow:hidden }
