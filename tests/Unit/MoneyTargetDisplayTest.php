@@ -294,24 +294,27 @@ final class MoneyTargetDisplayTest extends TestCase
             'an unknown choice reached an img src');
         $this->assertNull(\AfricaGates\Services\SiteNotice::popup($base + ['announce_image' => '/assets/img/a.gif'])['art'], 'an uploaded image is replaced');
         $choices = \AfricaGates\Services\SiteNotice::artChoices();
-        $this->assertCount(19, $choices, 'sixteen sparks and the three drawn Christmas pictures');
+        $this->assertCount(20, $choices, 'sixteen sparks, three Christmas pictures and the supplied thumbs-up');
+        $this->assertArrayHasKey('thumbs-up', $choices, 'a supplied picture missing from the picker');
         $this->assertArrayNotHasKey('xmas-santa', $choices, 'Santa offered before his picture exists');
         // A supplied picture appears in the picker the moment its file does.
-        $png = dirname(__DIR__, 2) . '/public/assets/img/spark/thumbs-up.png';
+        $png = dirname(__DIR__, 2) . '/public/assets/img/spark/calendar.png';
         $this->assertFileDoesNotExist($png, 'a real supplied file would be removed by this test');
         file_put_contents($png, 'x');
         try {
-            $this->assertArrayHasKey('thumbs-up', \AfricaGates\Services\SiteNotice::artChoices());
-            $this->assertSame('/assets/img/spark/thumbs-up.png', \AfricaGates\Services\SiteNotice::popup($base + ['announce_art' => 'thumbs-up'])['art']);
+            $this->assertArrayHasKey('calendar', \AfricaGates\Services\SiteNotice::artChoices());
+            $this->assertSame('/assets/img/spark/calendar.png', \AfricaGates\Services\SiteNotice::popup($base + ['announce_art' => 'calendar'])['art']);
         } finally {
             unlink($png);
         }
-        $this->assertSame('/assets/img/spark/xmas-mic.svg', \AfricaGates\Services\SiteNotice::popup($base + ['announce_art' => 'xmas-mic'])['art']);
+        $this->assertArrayNotHasKey('calendar', \AfricaGates\Services\SiteNotice::artChoices(), 'listed after its file went');
+        // The owner's own picture is used over the drawing of the same name.
+        $this->assertSame('/assets/img/spark/xmas-mic.webp', \AfricaGates\Services\SiteNotice::popup($base + ['announce_art' => 'xmas-mic'])['art']);
 
         // The season: unchosen means the tree in December, the megaphone in November; a choice
         // is always honoured.
         Carbon::setTestNow('2026-12-10 12:00:00');
-        $this->assertSame('/assets/img/spark/xmas-tree.svg', \AfricaGates\Services\SiteNotice::popup($base)['art']);
+        $this->assertSame('/assets/img/spark/xmas-tree.webp', \AfricaGates\Services\SiteNotice::popup($base)['art']);
         $this->assertSame('/assets/img/spark/trophy-house.svg', \AfricaGates\Services\SiteNotice::popup($base + ['announce_art' => 'trophy-house'])['art']);
         Carbon::setTestNow('2027-01-07 12:00:00');
         $this->assertSame('/assets/img/spark/megaphone-bold.svg', \AfricaGates\Services\SiteNotice::popup($base)['art'], 'Christmas outstayed the season');
