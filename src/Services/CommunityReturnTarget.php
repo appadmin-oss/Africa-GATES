@@ -168,8 +168,12 @@ final class CommunityReturnTarget
             'target_kobo' => $targetKobo, 'raised_kobo' => $raisedKobo, 'to_go_kobo' => $toGo, 'confirmed' => $confirmed,
             'votes_to_go' => self::votes($toGo, $price), 'reached' => $reached,
             'pct' => (int) min(100, floor(100 * $raisedKobo / $targetKobo)),
-            'of' => Translator::t('%r% of %t% raised', ['%r%' => self::money($raisedKobo), '%t%' => self::money($targetKobo)]),
+            'of' => self::of($raisedKobo, $targetKobo, $price),
         ];
+        // The target is SAID IN VOTES (owner, 20 Nov 2026: "the target should be said in votes,
+        // not money"): the naira milestone at the edition's vote price, the money raised as the
+        // votes it bought. Naira only where there is no price to convert at.
+        [$toGoU, $targetU, $raisedU] = self::units($targetKobo, $raisedKobo, $price);
         if ($confirmed) {
             $row += ['head' => Translator::t('Rewards unlocked!'), 'left' => Translator::t('Every vote now earns the full reward'),
                      'note' => self::pick([Translator::t('You did this. Thank you!'), Translator::t('What a community. Thank you!'),
@@ -182,8 +186,8 @@ final class CommunityReturnTarget
                      'art' => self::art('unlock', $seed)];
         } else {
             $row += ['head' => Translator::t('Unlock rewards for every nominee!'),
-                     'left' => Translator::t('%n% to go', ['%n%' => self::money($toGo, true)]),
-                     'note' => self::cheer($row['pct'], $toGo, $targetKobo, $recentKobo, $seed),
+                     'left' => Translator::t('%n% to go', ['%n%' => self::say($toGoU, $price)]),
+                     'note' => self::cheer($row['pct'], $toGoU, $targetU, $raisedU, self::unit($recentKobo, $price, false), $price, $seed),
                      'art' => self::stageArt($row['pct'], $seed)];
         }
         return $row;
@@ -208,16 +212,17 @@ final class CommunityReturnTarget
         if ($next === null) {
             $row['head'] = Translator::t('Top reward unlocked!');
             $row['left'] = Translator::t('Earning the full %p%%', ['%p%' => $pctNow]);
-            $row['of'] = Translator::t('%r% raised', ['%r%' => self::money($raisedKobo)]);
+            $row['of'] = Translator::t('%r% so far', ['%r%' => self::say(self::unit($raisedKobo, $price, false), $price)]);
             $row['note'] = self::pick([Translator::t('You did this. Thank you!'), Translator::t('Top of the ladder. What a team!'),
                                        Translator::t('Maximum reward unlocked!')], $seed);
             $row['art'] = self::art('gift', $seed);
         } else {
             $row['head'] = $edition ? Translator::t('Power up every nominee’s reward!') : Translator::t('Power up this nominee’s reward!');
             // Short enough to stand alone on a list row, where it is the only words there are.
-            $row['left'] = Translator::t('%n% to %p%%', ['%n%' => self::money($toGo, true), '%p%' => $row['share_next']]);
-            $row['of'] = Translator::t('%r% of %t% raised', ['%r%' => self::money($raisedKobo), '%t%' => self::money($next[0])]);
-            $row['note'] = self::cheer($row['pct'], $toGo, $next[0], $recentKobo, $seed);
+            [$toGoU, $targetU, $raisedU] = self::units($next[0], $raisedKobo, $price);
+            $row['left'] = Translator::t('%n% to %p%%', ['%n%' => self::say($toGoU, $price), '%p%' => $row['share_next']]);
+            $row['of'] = self::of($raisedKobo, $next[0], $price);
+            $row['note'] = self::cheer($row['pct'], $toGoU, $targetU, $raisedU, self::unit($recentKobo, $price, false), $price, $seed);
             // A step on the ladder is a level-up: the coins at the start, the stage art after.
             $row['art'] = $row['pct'] < 25 ? self::art('coins', $seed) : self::stageArt($row['pct'], $seed);
         }
@@ -230,7 +235,7 @@ final class CommunityReturnTarget
      * hour, the gap to the next quarter mark — and a rotation every minute, so a supporter who
      * comes back, or keeps the page open while the poll ticks, does not read the same sentence.
      */
-    private static function cheer(int $pct, int $toGoKobo, int $targetKobo, int $recentKobo, int $seed): string
+    private static function cheer(int $pct, int $toGo, int $target, int $raised, int $recent, int $price, int $seed): string
     {
         $lines = match (true) {
             $pct >= 90 => [Translator::t('So close! One big push!'), Translator::t('The finish line is right there!'),
@@ -247,18 +252,20 @@ final class CommunityReturnTarget
                            Translator::t('Get it started. Your vote counts!')],
         };
         // Lines from the live figures, added only when they are true right now.
-        if ($recentKobo > 0) {
-            $lines[] = Translator::t('%n% raised in the last hour. Keep it rolling!', ['%n%' => self::money($recentKobo)]);
+        // Every figure here is in the box's own unit: votes, or naira only where there is no
+        // vote price (see units()).
+        if ($recent > 0) {
+            $lines[] = Translator::t('%n% in the last hour. Keep it rolling!', ['%n%' => self::say($recent, $price)]);
         }
         $mark = $pct < 25 ? 25 : ($pct < 50 ? 50 : ($pct < 75 ? 75 : 0));
-        if ($mark > 0 && $targetKobo > 0) {
-            $gap = (int) ceil($targetKobo * $mark / 100) - ($targetKobo - $toGoKobo);
+        if ($mark > 0 && $target > 0) {
+            $gap = (int) ceil($target * $mark / 100) - $raised;
             if ($gap > 0) {
                 $lines[] = Translator::t($mark === 50 ? 'Just %n% to the halfway mark!' : ($mark === 25 ? 'Just %n% to the first quarter!' : 'Just %n% to the three-quarter mark!'),
-                    ['%n%' => self::money($gap, true)]);
+                    ['%n%' => self::say($gap, $price)]);
             }
-        } elseif ($toGoKobo > 0) {
-            $lines[] = Translator::t('Only %n% left. Let’s finish this!', ['%n%' => self::money($toGoKobo, true)]);
+        } elseif ($toGo > 0) {
+            $lines[] = Translator::t('Only %n% left. Let’s finish this!', ['%n%' => self::say($toGo, $price)]);
         }
         return self::pick($lines, $seed);
     }
@@ -305,7 +312,54 @@ final class CommunityReturnTarget
     {
         if ($reached) return ['art' => self::art('unlock', $seed), 'note' => self::pick([Translator::t('Target reached! What a team!'), Translator::t('You did this. Thank you!')], $seed)];
         if ($settled) return ['art' => self::art('trophy', $seed), 'note' => Translator::t('Thank you to every supporter!')];
-        return ['art' => self::stageArt($pct, $seed), 'note' => self::cheer($pct, 0, 0, 0, $seed)];
+        return ['art' => self::stageArt($pct, $seed), 'note' => self::cheer($pct, 0, 0, 0, 0, 1, $seed)];
+    }
+
+    /**
+     * A target, the money raised and the gap, in the box's unit: VOTES at the edition's price,
+     * or kobo where there is no price. The target rounds UP and the raised figure DOWN, so the
+     * gap never reads as closed before it is, and the three always add up on the screen.
+     *
+     * @return array{0:int,1:int,2:int} to go, target, raised
+     */
+    private static function units(int $targetKobo, int $raisedKobo, int $price): array
+    {
+        $t = self::unit($targetKobo, $price, true);
+        $r = min($t, self::unit($raisedKobo, $price, false));
+        return [max(0, $t - $r), $t, $r];
+    }
+
+    private static function unit(int $kobo, int $price, bool $up): int
+    {
+        if ($price < 1) return $kobo;
+        $per = $price * 100;
+        return $up ? intdiv($kobo + $per - 1, $per) : intdiv($kobo, $per);
+    }
+
+    /** "51,041 votes", "1 vote", "120K votes" — or naira where there is no vote price. */
+    private static function say(int $units, int $price): string
+    {
+        if ($price < 1) return self::money($units, true);
+        if ($units === 1) return Translator::t('1 vote');
+        return Translator::t('%n% votes', ['%n%' => self::count($units)]);
+    }
+
+    /** "7,959 of 59,000 votes", or "₦795K of ₦5.9M raised" where there is no vote price. */
+    private static function of(int $raisedKobo, int $targetKobo, int $price): string
+    {
+        if ($price < 1) {
+            return Translator::t('%r% of %t% raised', ['%r%' => self::money($raisedKobo), '%t%' => self::money($targetKobo)]);
+        }
+        [, $t, $r] = self::units($targetKobo, $raisedKobo, $price);
+        return Translator::t('%r% of %t% votes', ['%r%' => self::count($r), '%t%' => self::count($t)]);
+    }
+
+    /** A count as people say it: exact up to 99,999, then 120K, then 1.2M. */
+    private static function count(int $n): string
+    {
+        if ($n < 100000) return number_format($n);
+        if ($n < 1000000) return intdiv($n, 1000) . 'K';
+        return rtrim(rtrim(number_format(floor($n / 100000) / 10, 1), '0'), '.') . 'M';
     }
 
     /**

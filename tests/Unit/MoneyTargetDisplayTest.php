@@ -101,14 +101,15 @@ final class MoneyTargetDisplayTest extends TestCase
         $e = Target::editionIn($t);
         $this->assertSame(405000, $e['raised_kobo'], 'refunded and fraud-flagged money counted towards the milestone');
         // ₦5,950 to go at ₦100 a vote is 59.5 → 60 paid votes: rounded UP, never "0 to go" early.
-        $this->assertSame('₦5,950 to go', $e['left']);
+        $this->assertSame('60 votes to go', $e['left']);
         $this->assertSame(60, $e['votes_to_go'], '₦5,950 at ₦100 a vote is 59.5: rounded UP');
         $this->assertSame(40, $e['pct']);
         $this->assertNull(Target::standingIn($t, 7101), 'the edition’s milestone was given to one nominee as their own');
 
         $page = $this->words($this->goal($this->get('/vote/' . self::SLUG . '/7101-x')));
         $this->assertStringContainsString('Unlock rewards for every nominee!', $page);
-        $this->assertStringContainsString('₦4,050 of ₦10K raised', $page);
+        $this->assertStringContainsString('40 of 100 votes', $page);
+        $this->assertStringNotContainsString('₦', $page, 'the target is said in votes, never naira, where there is a vote price');
         $this->assertStringContainsString($e['note'], $page, 'the page carries the cheer the resolver chose');
         $this->assertStringNotContainsString('Target reached', $page);
 
@@ -117,7 +118,7 @@ final class MoneyTargetDisplayTest extends TestCase
         $this->assertStringNotContainsString('vp-row__goal', $list, 'and puts no edition figure on a nominee’s row');
 
         $award = $this->words($this->get('/awards/' . self::SLUG));
-        $this->assertStringContainsString('Unlock rewards for every nominee! ₦5,950 to go', $award);
+        $this->assertStringContainsString('Unlock rewards for every nominee! 60 votes to go', $award);
     }
 
     public function test_a_reached_and_then_confirmed_milestone_says_so(): void
@@ -154,9 +155,9 @@ final class MoneyTargetDisplayTest extends TestCase
         $this->assertSame(['ladder', 'nominee'], [$t['kind'], $t['scope']]);
         $a = Target::standingIn($t, 7101);
         $this->assertSame('Power up this nominee’s reward!', $a['head']);
-        $this->assertSame('₦50 to 30%', $a['left']);
+        $this->assertSame('1 vote to 30%', $a['left']);
         $this->assertSame(1, $a['votes_to_go'], 'one ₦100 vote closes a ₦50 gap');
-        $this->assertContains($a['note'], $this->cheers(99, 'Only ₦50 left. Let’s finish this!', '₦49K raised in the last hour. Keep it rolling!'), '99% of the way');
+        $this->assertContains($a['note'], $this->cheers(99, 'Only 1 vote left. Let’s finish this!', '499 votes in the last hour. Keep it rolling!'), '99% of the way');
         $this->assertStringContainsString('/assets/img/spark/trophy-', $a['art'], 'the closing stretch is the trophy');
         $b = Target::standingIn($t, 7102);
         $this->assertTrue($b['reached']);
@@ -165,10 +166,10 @@ final class MoneyTargetDisplayTest extends TestCase
 
         $page = $this->words($this->goal($this->get('/vote/' . self::SLUG . '/7101-x')));
         $this->assertStringContainsString('Power up this nominee’s reward!', $page);
-        $this->assertStringContainsString('₦49K of ₦50K raised', $page);
+        $this->assertStringContainsString('499 of 500 votes', $page);
 
         $list = $this->words($this->get('/vote/' . self::SLUG));
-        $this->assertStringContainsString('₦50 to 30%', $list);
+        $this->assertStringContainsString('1 vote to 30%', $list);
         $this->assertStringContainsString('Earning the full 50%', $list);
 
         $poll = json_decode($this->get('/vote/' . self::SLUG . '/tallies'), true);
@@ -187,20 +188,20 @@ final class MoneyTargetDisplayTest extends TestCase
         $this->paid(7102, 4000);
         $t = Target::forPublic(71);
         $this->assertSame('edition', $t['scope']);
-        $this->assertSame('₦10K to 40%', Target::editionIn($t)['left']);
-        $this->assertContains(Target::editionIn($t)['note'], $this->cheers(50, 'Just ₦5,000 to the three-quarter mark!', '₦10K raised in the last hour. Keep it rolling!'));
+        $this->assertSame('100 votes to 40%', Target::editionIn($t)['left']);
+        $this->assertContains(Target::editionIn($t)['note'], $this->cheers(50, 'Just 50 votes to the three-quarter mark!', '100 votes in the last hour. Keep it rolling!'));
         $this->assertNull(Target::standingIn($t, 7101));
     }
 
-    /** The edition in the owner's screenshot: short figures, not a wall of digits. */
+    /** The edition in the owner's screenshot, said in votes (owner: "in votes, not money"). */
     public function test_big_figures_read_the_way_people_say_them(): void
     {
         $this->rule(['model' => 'milestone', 'full_pct' => 50, 'locked_pct' => 10, 'milestone_naira' => 5900000]);
         $this->paid(7101, 795980);
         $e = Target::editionIn(Target::forPublic(71));
-        $this->assertSame('₦5.1M to go', $e['left']);
-        $this->assertSame('₦795K of ₦5.9M raised', $e['of']);
-        $this->assertContains($e['note'], $this->cheers(13, 'Just ₦679K to the first quarter!', '₦795K raised in the last hour. Keep it rolling!'), '13% there');
+        $this->assertSame('51,041 votes to go', $e['left']);
+        $this->assertSame('7,959 of 59,000 votes', $e['of']);
+        $this->assertContains($e['note'], $this->cheers(13, 'Just 6,791 votes to the first quarter!', '7,959 votes in the last hour. Keep it rolling!'), '13% there');
         $this->assertSame(13, $e['pct']);
     }
 
@@ -236,10 +237,10 @@ final class MoneyTargetDisplayTest extends TestCase
         }
         Carbon::setTestNow();
         $seen = array_keys($seen);
-        $allowed = $this->cheers(30, 'Just ₦2,000 to the halfway mark!');
+        $allowed = $this->cheers(30, 'Just 20 votes to the halfway mark!');
         $this->assertSame([], array_values(array_diff($seen, $allowed)), 'a line from the wrong stage of the bar');
         $this->assertGreaterThanOrEqual(3, count($seen), 'the line does not move');
-        $this->assertContains('Just ₦2,000 to the halfway mark!', $seen, 'the gap to the next mark is never said');
+        $this->assertContains('Just 20 votes to the halfway mark!', $seen, 'the gap to the next mark is never said');
         foreach ($seen as $line) {
             $this->assertStringNotContainsString('last hour', $line, 'money from three hours ago called the last hour');
         }
@@ -252,7 +253,7 @@ final class MoneyTargetDisplayTest extends TestCase
             $seen[Target::editionIn(Target::forPublic(71))['note']] = true;
         }
         Carbon::setTestNow();
-        $this->assertArrayHasKey('₦500 raised in the last hour. Keep it rolling!', $seen);
+        $this->assertArrayHasKey('5 votes in the last hour. Keep it rolling!', $seen);
     }
 
     public function test_each_stage_has_its_picture_in_both_styles_and_a_generated_image_takes_over(): void
