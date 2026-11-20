@@ -109,7 +109,7 @@ final class MoneyTargetDisplayTest extends TestCase
         $page = $this->words($this->goal($this->get('/vote/' . self::SLUG . '/7101-x')));
         $this->assertStringContainsString('Unlock rewards for every nominee!', $page);
         $this->assertStringContainsString('₦4,050 of ₦10K raised', $page);
-        $this->assertStringContainsString('Momentum is building. Keep going!', $page, '40% there');
+        $this->assertStringContainsString($e['note'], $page, 'the page carries the cheer the resolver chose');
         $this->assertStringNotContainsString('Target reached', $page);
 
         $list = $this->get('/vote/' . self::SLUG);
@@ -156,7 +156,8 @@ final class MoneyTargetDisplayTest extends TestCase
         $this->assertSame('Power up this nominee’s reward!', $a['head']);
         $this->assertSame('₦50 to 30%', $a['left']);
         $this->assertSame(1, $a['votes_to_go'], 'one ₦100 vote closes a ₦50 gap');
-        $this->assertSame('So close! One big push!', $a['note'], '99% of the way');
+        $this->assertContains($a['note'], $this->cheers(99, 'Only ₦50 left. Let’s finish this!', '₦49K raised in the last hour. Keep it rolling!'), '99% of the way');
+        $this->assertStringContainsString('/assets/img/spark/trophy-', $a['art'], 'the closing stretch is the trophy');
         $b = Target::standingIn($t, 7102);
         $this->assertTrue($b['reached']);
         $this->assertSame('Top reward unlocked!', $b['head']);
@@ -187,7 +188,7 @@ final class MoneyTargetDisplayTest extends TestCase
         $t = Target::forPublic(71);
         $this->assertSame('edition', $t['scope']);
         $this->assertSame('₦10K to 40%', Target::editionIn($t)['left']);
-        $this->assertSame('Halfway there! Keep it coming!', Target::editionIn($t)['note']);
+        $this->assertContains(Target::editionIn($t)['note'], $this->cheers(50, 'Just ₦5,000 to the three-quarter mark!', '₦10K raised in the last hour. Keep it rolling!'));
         $this->assertNull(Target::standingIn($t, 7101));
     }
 
@@ -199,8 +200,97 @@ final class MoneyTargetDisplayTest extends TestCase
         $e = Target::editionIn(Target::forPublic(71));
         $this->assertSame('₦5.1M to go', $e['left']);
         $this->assertSame('₦795K of ₦5.9M raised', $e['of']);
-        $this->assertSame('We’re off! Every vote counts.', $e['note'], '13% there');
+        $this->assertContains($e['note'], $this->cheers(13, 'Just ₦679K to the first quarter!', '₦795K raised in the last hour. Keep it rolling!'), '13% there');
         $this->assertSame(13, $e['pct']);
+    }
+
+    /**
+     * Every line a bar at $pct may show: its stage's lines and the live-figure line given.
+     * Read from the resolver itself by turning the clock through a quarter of an hour, so the
+     * test asserts the RULE (right stage, rotating) rather than one sentence.
+     *
+     * @return list<string>
+     */
+    private function cheers(int $pct, string ...$live): array
+    {
+        $stage = match (true) {
+            $pct >= 90 => ['So close! One big push!', 'The finish line is right there!', 'Almost there. Don’t stop now!', 'This is it. Let’s finish strong!'],
+            $pct >= 75 => ['Three quarters done. Bring it home!', 'The end is in sight. Keep pushing!', 'Huge progress! One more push!'],
+            $pct >= 50 => ['Halfway there! Keep it coming!', 'Past halfway and climbing!', 'The second half starts now. Let’s go!'],
+            $pct >= 25 => ['Momentum is building. Keep going!', 'A quarter done. On to halfway!', 'It’s moving! Every vote counts.'],
+            default    => ['We’re off! Every vote counts.', 'Great start. Keep it rolling!', 'The climb has begun!'],
+        };
+        return [...$stage, ...$live];
+    }
+
+    public function test_the_cheer_rotates_through_its_stage_and_uses_live_figures_only_when_true(): void
+    {
+        $this->rule(['model' => 'milestone', 'full_pct' => 50, 'locked_pct' => 10, 'milestone_naira' => 10000]);
+        $this->paid(7101, 3000, ['created_at' => Carbon::now()->subHours(3)->toDateTimeString()]);   // 30%: momentum
+
+        $seen = [];
+        $base = Carbon::now();
+        for ($m = 0; $m < 12; $m++) {
+            Carbon::setTestNow($base->copy()->addMinutes($m));
+            $seen[Target::editionIn(Target::forPublic(71))['note']] = true;
+        }
+        Carbon::setTestNow();
+        $seen = array_keys($seen);
+        $allowed = $this->cheers(30, 'Just ₦2,000 to the halfway mark!');
+        $this->assertSame([], array_values(array_diff($seen, $allowed)), 'a line from the wrong stage of the bar');
+        $this->assertGreaterThanOrEqual(3, count($seen), 'the line does not move');
+        $this->assertContains('Just ₦2,000 to the halfway mark!', $seen, 'the gap to the next mark is never said');
+        foreach ($seen as $line) {
+            $this->assertStringNotContainsString('last hour', $line, 'money from three hours ago called the last hour');
+        }
+
+        // Money in the past hour: now, and only now, the live line can appear.
+        $this->paid(7102, 500);
+        $seen = [];
+        for ($m = 0; $m < 12; $m++) {
+            Carbon::setTestNow($base->copy()->addMinutes($m));
+            $seen[Target::editionIn(Target::forPublic(71))['note']] = true;
+        }
+        Carbon::setTestNow();
+        $this->assertArrayHasKey('₦500 raised in the last hour. Keep it rolling!', $seen);
+    }
+
+    public function test_each_stage_has_its_picture_in_both_styles_and_a_generated_image_takes_over(): void
+    {
+        $dir = dirname(__DIR__, 2) . '/public/assets/img/spark/';
+        foreach (Target::ART_SUBJECTS as $sub) {
+            foreach (Target::ART_STYLES as $style) {
+                $this->assertFileExists($dir . "$sub-$style.svg", 'a picture the site can ask for is missing');
+                $this->assertSame("/assets/img/spark/$sub-$style.svg", Target::art($sub, 0, $style));
+            }
+        }
+        $this->rule(['model' => 'milestone', 'full_pct' => 50, 'locked_pct' => 10, 'milestone_naira' => 10000]);
+        $this->assertStringContainsString('/spark/rocket-', Target::editionIn(Target::forPublic(71))['art'], 'under a quarter is the rocket');
+        $this->paid(7101, 6000);
+        $this->assertStringContainsString('/spark/target-', Target::editionIn(Target::forPublic(71))['art'], 'past halfway is the target');
+
+        // An AI-generated replacement, saved under the same name, is used in its place.
+        $png = $dir . 'gift-bold.png';
+        $this->assertFileDoesNotExist($png, 'a real generated file would be overwritten by this test');
+        file_put_contents($png, 'x');
+        try {
+            $this->assertSame('/assets/img/spark/gift-bold.png', Target::art('gift', 0, 'bold'));
+        } finally {
+            unlink($png);
+        }
+        $this->assertSame('/assets/img/spark/gift-bold.svg', Target::art('gift', 0, 'bold'));
+    }
+
+    public function test_the_pop_up_shows_a_built_in_picture_when_nobody_uploaded_one(): void
+    {
+        $base = ['announce_popup' => '1', 'announce_text' => 'Voting is open', 'announce_title' => 'Vote now'];
+        $p = \AfricaGates\Services\SiteNotice::popup($base);
+        $this->assertSame('/assets/img/spark/megaphone-bold.svg', $p['art'], 'the default is the app-style megaphone');
+        $this->assertSame('/assets/img/spark/trophy-house.svg', \AfricaGates\Services\SiteNotice::popup($base + ['announce_art' => 'trophy-house'])['art']);
+        $this->assertSame('/assets/img/spark/megaphone-bold.svg', \AfricaGates\Services\SiteNotice::popup($base + ['announce_art' => '../../etc'])['art'],
+            'an unknown choice reached an img src');
+        $this->assertNull(\AfricaGates\Services\SiteNotice::popup($base + ['announce_image' => '/assets/img/a.gif'])['art'], 'an uploaded image is replaced');
+        $this->assertCount(16, \AfricaGates\Services\SiteNotice::artChoices());
     }
 
     // ── nothing to draw ──────────────────────────────────────────────────────

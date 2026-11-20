@@ -343,6 +343,8 @@
     var head = $('[data-goal-head]', box), note = $('[data-goal-note]', box);
     if (head && x.head && head.textContent !== x.head) head.textContent = x.head;
     if (note && x.note && note.textContent !== x.note) note.textContent = x.note;
+    var art = $('[data-goal-art]', box);
+    if (art && x.art && art.getAttribute('src') !== x.art) art.setAttribute('src', x.art);
     if (of && of.textContent !== x.of) of.textContent = x.of;
     if (lab) lab.setAttribute('aria-label', x.of);
     if (bar) bar.style.width = x.pct + '%';

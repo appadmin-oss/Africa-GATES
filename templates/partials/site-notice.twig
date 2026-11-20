@@ -71,7 +71,12 @@
 #}
 {% if _pop %}
 <aside class="ag-annc" aria-labelledby="ag-annc-h">
-  {% if _pop.image %}<img class="ag-annc__img" src="{{ _pop.image }}" alt="{{ _pop.alt }}" decoding="async">{% endif %}
+  {#- The app-promo header (owner, 20 Nov 2026: "OPay style"): the operator's image, or a
+      built-in spark illustration on the gradient, so the card is never just text. -#}
+  <div class="ag-annc__hero{{ _pop.image ? '' : ' is-art' }}">
+    {%- if _pop.image %}<img class="ag-annc__img" src="{{ _pop.image }}" alt="{{ _pop.alt }}" decoding="async">
+    {%- elseif _pop.art %}<img class="ag-annc__art" src="{{ _pop.art }}" alt="" width="240" height="160" decoding="async">{% endif -%}
+  </div>
   <div class="ag-annc__b">
     <h2 class="ag-annc__h" id="ag-annc-h">{{ _pop.title }}</h2>
     {% for p in _pop.paras %}<p class="ag-annc__p">{{ p }}</p>{% endfor %}

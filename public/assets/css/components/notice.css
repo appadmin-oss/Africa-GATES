@@ -94,32 +94,37 @@ html.ag-rm .ag-notice__k::before{ animation:none }
   font-size:var(--ag-fs-14); font-weight:600; text-align:center;
 }
 
-/* The pop-up card (partials/site-notice.twig, SiteNotice::popup). Floats above the bottom
-   bars (--ag-bottom-ui) without a scrim — the page stays usable behind it — and arrives once,
-   rising into place. Phone: the full width less the gutter; wider: a 380px card at the right. */
-@keyframes ag-annc-in{ from{ opacity:0; transform:translateY(18px) scale(.98) } to{ opacity:1; transform:none } }
+/* The pop-up card (partials/site-notice.twig, SiteNotice::popup), as an app promo card (owner,
+   20 Nov 2026: "OPay style"): a big illustration header on a soft green-to-gold gradient, a bold
+   centred headline, one full-width button, a round close. Still floats above the bottom bars
+   (--ag-bottom-ui) without a scrim, so the page stays usable behind it, and arrives once with a
+   spring. Phone: the full width less the gutter; wider: a 360px card, centred. */
+@keyframes ag-annc-in{ 0%{ opacity:0; transform:translateY(28px) scale(.94) } 70%{ opacity:1; transform:translateY(-4px) scale(1.01) } 100%{ transform:none } }
+@keyframes ag-annc-float{ 0%, 100%{ transform:translateY(0) } 50%{ transform:translateY(-6px) } }
 .ag-annc{
   position:fixed; z-index:var(--ag-z-sheet); inset-inline:var(--ag-gutter); bottom:calc(var(--ag-bottom-ui, 0px) + 16px + env(safe-area-inset-bottom));
-  max-width:380px; margin-inline-start:auto; overflow:hidden;
-  background:var(--ag-surface); color:var(--ag-ink); border:1px solid var(--ag-line); border-radius:var(--ag-r-20);
+  max-width:360px; margin-inline:auto; overflow:hidden; text-align:center;
+  background:var(--ag-surface); color:var(--ag-ink); border-radius:var(--ag-r-24);
   box-shadow:var(--ag-sh-sheet);
-  animation:ag-annc-in 460ms cubic-bezier(.2,0,0,1) 600ms both;
+  animation:ag-annc-in 620ms cubic-bezier(.2,0,0,1) 600ms both;
 }
-.ag-annc__img{ display:block; width:100%; aspect-ratio:16 / 9; object-fit:cover; background:var(--ag-tint) }
-.ag-annc__b{ display:flex; flex-direction:column; gap:8px; padding:16px 18px 18px }
-.ag-annc__h{ margin:0; padding-inline-end:36px; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-20); line-height:1.25 }
-.ag-annc__img + .ag-annc__b .ag-annc__h{ padding-inline-end:0 }
-.ag-annc__p{ margin:0; font-size:var(--ag-fs-15); line-height:1.55; color:var(--ag-ink-2) }
-.ag-annc__go{ align-self:flex-start; margin-top:6px }
-.ag-annc__x{ position:absolute; top:8px; inset-inline-end:8px; margin:0 }
+.ag-annc__hero{ display:grid; place-items:center; aspect-ratio:16 / 9; overflow:hidden;
+  background:linear-gradient(160deg, var(--ag-green-wash) 0%, color-mix(in srgb, var(--ag-green-edge) 70%, var(--ag-gold-wash)) 100%) }
+.ag-annc__img{ display:block; width:100%; height:100%; object-fit:cover }
+.ag-annc__art{ display:block; width:78%; height:auto; animation:ag-annc-float 3.4s ease-in-out 1.2s infinite }
+.ag-annc__b{ display:flex; flex-direction:column; gap:8px; padding:18px 20px 20px }
+.ag-annc__h{ margin:0; font-family:var(--ag-font-ui); font-weight:800; font-size:var(--ag-fs-22); line-height:1.2; letter-spacing:-.01em }
+.ag-annc__p{ margin:0; font-size:var(--ag-fs-15); line-height:1.5; color:var(--ag-ink-2) }
+.ag-annc__go{ align-self:stretch; justify-content:center; min-height:48px; margin-top:8px; font-size:var(--ag-fs-16); font-weight:700 }
+.ag-annc__x{ position:absolute; top:10px; inset-inline-end:10px; margin:0 }
 .ag-annc__close{
   display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; padding:0;
   border:0; border-radius:var(--ag-r-pill); cursor:pointer;
-  background:color-mix(in srgb, var(--ag-surface) 92%, transparent); color:var(--ag-ink); box-shadow:var(--ag-sh-dot);
+  background:var(--ag-surface); color:var(--ag-ink); box-shadow:var(--ag-sh-dot);
 }
 .ag-annc__close:focus-visible, .ag-annc__go:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
-@media (prefers-reduced-motion:reduce){ .ag-annc{ animation:none } }
-html.ag-rm .ag-annc{ animation:none }
+@media (prefers-reduced-motion:reduce){ .ag-annc, .ag-annc__art{ animation:none } }
+html.ag-rm .ag-annc, html.ag-rm .ag-annc__art{ animation:none }
 
 /* ── A voting extension (partials/voting-extension.twig) ──────────────────────
    One compact card: mark, the new close in bold with the old one beside it, the reason,

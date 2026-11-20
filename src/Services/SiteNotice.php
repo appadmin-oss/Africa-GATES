@@ -157,7 +157,7 @@ final class SiteNotice
     /** The pop-up card's settings. */
     public const POPUP_KEYS = ['on' => 'announce_popup', 'title' => 'announce_title',
                                'body' => 'announce_body', 'image' => 'announce_image',
-                               'alt' => 'announce_image_alt'];
+                               'alt' => 'announce_image_alt', 'art' => 'announce_art'];
 
     /**
      * The announcement as a pop-up card (an image or GIF, a title, a few lines, the button), or
@@ -179,6 +179,8 @@ final class SiteNotice
         $body  = trim((string) ($s[self::POPUP_KEYS['body']] ?? ''));
         $body  = mb_substr(str_replace("\r\n", "\n", $body), 0, self::MAX_POPUP_BODY);
         $image = self::safeUrl((string) ($s[self::POPUP_KEYS['image']] ?? ''));
+        // No image: a built-in spark illustration, chosen in Settings (artChoices()).
+        $art = $image === null ? self::artUrl((string) ($s[self::POPUP_KEYS['art']] ?? '')) : null;
         $alt   = mb_substr(trim((string) ($s[self::POPUP_KEYS['alt']] ?? '')), 0, 200);
         $title = mb_substr($title, 0, 90);
         return [
@@ -187,9 +189,36 @@ final class SiteNotice
             'title' => $title,
             // Paragraphs split on blank lines; printed escaped, never as HTML.
             'paras' => array_values(array_filter(array_map('trim', preg_split('/\n\s*\n/', $body) ?: []), 'strlen')),
-            'image' => $image, 'alt' => $alt,
+            'image' => $image, 'alt' => $alt, 'art' => $art,
             'url'   => $a['url'], 'cta' => $a['url'] === null ? '' : $a['cta'],
         ];
+    }
+
+    /**
+     * The built-in illustrations the pop-up card can carry when nobody uploaded an image:
+     * every spark subject in both styles (CommunityReturnTarget::ART_SUBJECTS), as
+     * "subject-style" => what the picker says.
+     *
+     * @return array<string,string>
+     */
+    public static function artChoices(): array
+    {
+        $names = ['rocket' => 'Rocket', 'megaphone' => 'Megaphone', 'target' => 'Target', 'trophy' => 'Trophy',
+                  'unlock' => 'Unlocked padlock', 'gift' => 'Gift box', 'coins' => 'Rising coins', 'ballot' => 'Ballot box'];
+        $out = [];
+        foreach (CommunityReturnTarget::ART_SUBJECTS as $sub) {
+            $out[$sub . '-bold']  = ($names[$sub] ?? ucfirst($sub)) . ' (app style)';
+            $out[$sub . '-house'] = ($names[$sub] ?? ucfirst($sub)) . ' (Africa GATES style)';
+        }
+        return $out;
+    }
+
+    /** The chosen illustration's URL; an unknown or empty choice is the megaphone, never nothing. */
+    private static function artUrl(string $key): string
+    {
+        if (!isset(self::artChoices()[$key])) $key = 'megaphone-bold';
+        [$sub, $style] = explode('-', $key, 2);
+        return CommunityReturnTarget::art($sub, 0, $style);
     }
 
     /**

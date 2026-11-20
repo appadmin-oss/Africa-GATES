@@ -297,6 +297,11 @@
         <div><label for="f-announce_image">Pop-up image or GIF <small>optional: a path like /uploads/… or an https address</small></label><input type="text" name="announce_image" id="f-announce_image" value="{{ values.announce_image|default('') }}" placeholder="/assets/img/announce.gif"></div>
         <div><label for="f-announce_image_alt">What the image shows <small>for screen readers; blank if decorative</small></label><input type="text" name="announce_image_alt" id="f-announce_image_alt" maxlength="200" value="{{ values.announce_image_alt|default('') }}"></div>
       </div>
+      {#- With no image, the card shows one of the built-in spark illustrations (SiteNotice::ART). -#}
+      <div><label for="f-announce_art">Built-in illustration <small>used when there is no image above</small></label>
+        <select name="announce_art" id="f-announce_art">
+          {% for key, label in announce_art_choices|default({}) %}<option value="{{ key }}"{{ values.announce_art|default('megaphone-bold') == key ? ' selected' }}>{{ label }}</option>{% endfor %}
+        </select></div>
       <p style="margin:6px 0 0;font-size:12px;line-height:1.55;color:var(--cn-soft)">
         {%- if announce_state.bad_image %}<strong style="color:var(--cn-ink)">The image is not shown:</strong> use a path on this site or an address starting <code>https://</code>. {% endif -%}
         {%- if announce_state.popup %}The pop-up is on: each visitor sees it once, over the first page they open, with the banner's link as its button.

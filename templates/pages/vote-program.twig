@@ -267,6 +267,7 @@
       {% set _e = money_target.edition %}
       {% if _e %}
       <div class="vp-note vp-goal-note vp-goal-ed{{ _e.reached ? ' is-reached' }}" data-goal-edition>
+        <img class="vp-goal-ed__art" src="{{ _e.art }}" alt="" width="240" height="160" decoding="async" data-goal-art>
         <b data-goal-head>{{ _e.head }}</b> <span data-goal-left>{{ _e.left }}</span>
         <span class="vp-goal-ed__bar" role="img" aria-label="{{ _e.of }}" data-goal-label><span aria-hidden="true" style="width:{{ _e.pct }}%" data-goal-bar></span></span>
         <span data-goal-of>{{ _e.of }}</span> · <span data-goal-note>{{ _e.note }}</span>

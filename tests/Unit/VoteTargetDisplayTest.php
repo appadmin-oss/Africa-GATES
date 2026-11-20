@@ -150,7 +150,7 @@ final class VoteTargetDisplayTest extends TestCase
         $g = $this->goal($this->nomineePage());
         $this->assertStringContainsString('Target reached', $this->words($g));
         $this->assertStringNotContainsString('to go', $this->words($g));
-        $this->assertStringContainsString('vn-goal is-reached', $g);
+        $this->assertMatchesRegularExpression('~class="vn-goal[^"]*\\bis-reached\\b~', $g);
         $this->assertStringContainsString('style="width:100%"', $g);
 
         $this->votes(6101, 250);                 // past it: never a negative "to go", never past 100%

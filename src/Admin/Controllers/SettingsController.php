@@ -48,6 +48,8 @@ class SettingsController
             // where the caps and the drop-a-nameless-destination rule live and a second
             // reader of the same column is how the form comes to show something the page
             // will not print.
+            // The pop-up card's built-in illustrations, as the picker lists them.
+            'announce_art_choices' => \AfricaGates\Services\SiteNotice::artChoices(),
             'values'         => $this->settings->all() + [
                 'fund_allocation_rows' => \AfricaGates\Services\FundAllocation::rows(),
             ],
@@ -603,7 +605,7 @@ class SettingsController
         }
         foreach (['announce_text','announce_url','announce_cta','site_title','contact_email',
                   // The pop-up card (Services\SiteNotice::popup); clamped there, on the way out.
-                  'announce_title','announce_body','announce_image','announce_image_alt',
+                  'announce_title','announce_body','announce_image','announce_image_alt','announce_art',
                   'mail_from_name','mail_from_address','mail_reply_to','admin_alert_email',
                   // The postal address every bulk mail's footer prints. It was .env only,
                   // read by six senders, on a host with no shell. See MailConfig::postal().

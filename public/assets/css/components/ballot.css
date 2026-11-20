@@ -323,3 +323,18 @@ button.vn-bar__go{ border:0; cursor:pointer; font-family:inherit }
 .vn-first{ margin:0; padding:0; list-style:none; display:flex; flex-wrap:wrap; gap:10px 16px }
 .vn-first__i{ display:flex; align-items:center; gap:8px; min-height:44px; font-size:var(--ag-fs-14-5); color:var(--ag-ink) }
 .vn-first__i .ag-avatar{ flex:none; border-radius:50%; box-shadow:0 0 0 2px var(--ag-surface), 0 0 0 4px var(--ag-gold) }
+
+/* The target box as an app card (owner, 20 Nov 2026): the words on the start side, the spark
+   illustration on the end side, gently floating; the bar and the lines below run full width.
+   The art's placement is the more specific rule (two classes), never a priority flag. */
+@keyframes ag-spark-float{ 0%, 100%{ transform:translateY(0) } 50%{ transform:translateY(-5px) } }
+.vn-goal--art{ display:grid; grid-template-columns:minmax(0, 1fr) auto; column-gap:12px; row-gap:8px; align-items:center }
+.vn-goal--art > *{ grid-column:1 / -1 }
+.vn-goal--art > .vn-goal__h, .vn-goal--art > .vn-goal__left{ grid-column:1 }
+.vn-goal--art > .vn-goal__art{ grid-column:2; grid-row:1 / span 2; width:112px; height:auto; animation:ag-spark-float 3.2s ease-in-out infinite }
+.vn-goal--art .vn-goal__h{ font-size:var(--ag-fs-17) }
+.vn-goal--art .vn-goal__left{ font-size:var(--ag-fs-22) }
+.vn-goal--art .vn-goal__bar span{ background:linear-gradient(90deg, var(--ag-green), var(--ag-green-light)) }
+.vn-goal [data-goal-note], .vn-goal__cheer{ margin:0; font-weight:700; font-size:var(--ag-fs-14); color:var(--ag-green-deep) }
+@media (prefers-reduced-motion:reduce){ .vn-goal--art > .vn-goal__art{ animation:none } }
+html.ag-rm .vn-goal--art > .vn-goal__art{ animation:none }

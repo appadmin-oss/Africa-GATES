@@ -985,6 +985,9 @@ class VoteController {
             'money_target'     => ($tp === null && ($tm = \AfricaGates\Services\CommunityReturnTarget::forPublic((int) $nom->cycle_id)) !== null)
                                       ? (\AfricaGates\Services\CommunityReturnTarget::standingIn($tm, (int) $nom->id)
                                          ?? \AfricaGates\Services\CommunityReturnTarget::editionIn($tm)) : null,
+            // The pool box's picture and cheer, from where this nominee's bar stands.
+            'vote_spirit'      => ($tp !== null && ($ts = \AfricaGates\Services\CommunityReturnPool::standingIn($tp, (int) $nom->id)) !== null)
+                                      ? \AfricaGates\Services\CommunityReturnTarget::poolSpirit($ts['pct'], $ts['reached'], $ts['settled'], (int) $nom->id) : null,
             'tallies_url'      => '/vote/' . rawurlencode((string) $nom->programme_slug) . '/tallies',
             'standing_headline'=> \AfricaGates\Services\StandingsService::headline($standing),
             'standing_cta'     => \AfricaGates\Services\StandingsService::callToAction($standing),

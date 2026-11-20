@@ -80,7 +80,7 @@ final class CommunityReturnTarget
             $confirmed = $m['confirmed_at'] !== null;
             if ($m['target_kobo'] < 1 || (!$confirmed && !CommunityReturnService::active())) return null;
             return ['kind' => self::KIND_MILESTONE, 'cycle_id' => $cycleId, 'scope' => 'edition', 'model' => $model,
-                    'edition' => self::milestoneRow($m['target_kobo'], $m['measured_kobo'], $confirmed, $price)];
+                    'edition' => self::milestoneRow($m['target_kobo'], $m['measured_kobo'], $confirmed, $price, self::recentKobo($cycleId), $cycleId)];
         }
 
         if (!CommunityReturnLadder::isLadder($model) || !CommunityReturnService::active()) return null;
@@ -91,12 +91,13 @@ final class CommunityReturnTarget
 
         if (CommunityReturnLadder::basis($rules, $model) === CommunityReturnLadder::BASIS_EDITION) {
             return ['kind' => self::KIND_LADDER, 'cycle_id' => $cycleId, 'scope' => 'edition', 'model' => $model,
-                    'edition' => self::ladderRow($steps, CommunityReturnMilestone::measuredKobo($cycleId), $price, true)];
+                    'edition' => self::ladderRow($steps, CommunityReturnMilestone::measuredKobo($cycleId), $price, true, self::recentKobo($cycleId), $cycleId)];
         }
         $raised = self::raisedByNominee($cycleId, array_keys($nominees));
         $rows = [];
         foreach ($nominees as $id => $_) {
-            $rows[(int) $id] = self::ladderRow($steps, $raised[(int) $id] ?? 0, $price, false);
+            [$sum, $recent] = $raised[(int) $id] ?? [0, 0];
+            $rows[(int) $id] = self::ladderRow($steps, $sum, $price, false, $recent, $cycleId * 7919 + (int) $id);
         }
         return ['kind' => self::KIND_LADDER, 'cycle_id' => $cycleId, 'scope' => 'nominee', 'model' => $model, 'rows' => $rows];
     }
@@ -138,7 +139,7 @@ final class CommunityReturnTarget
         $t = self::forPublic($cycleId);
         if ($t === null) return null;
         if ($t['kind'] === self::KIND_POOL) return CommunityReturnPool::pollPayload($cycleId);
-        $pick = static fn (array $r): array => array_intersect_key($r, array_flip(['head', 'left', 'of', 'note', 'pct', 'reached']));
+        $pick = static fn (array $r): array => array_intersect_key($r, array_flip(['head', 'left', 'of', 'note', 'art', 'pct', 'reached']));
         $out = ['cycle_id' => $cycleId, 'kind' => $t['kind'], 'settled' => false, 'nominees' => [], 'edition' => null];
         if ($t['scope'] === 'edition') {
             $out['edition'] = $pick($t['edition']);
@@ -159,7 +160,7 @@ final class CommunityReturnTarget
      *
      * @return array<string,mixed>
      */
-    private static function milestoneRow(int $targetKobo, int $raisedKobo, bool $confirmed, int $price): array
+    private static function milestoneRow(int $targetKobo, int $raisedKobo, bool $confirmed, int $price, int $recentKobo, int $seed): array
     {
         $reached = $raisedKobo >= $targetKobo;
         $toGo = max(0, $targetKobo - $raisedKobo);
@@ -171,20 +172,25 @@ final class CommunityReturnTarget
         ];
         if ($confirmed) {
             $row += ['head' => Translator::t('Rewards unlocked!'), 'left' => Translator::t('Every vote now earns the full reward'),
-                     'note' => Translator::t('You did this. Thank you!')];
+                     'note' => self::pick([Translator::t('You did this. Thank you!'), Translator::t('What a community. Thank you!'),
+                                           Translator::t('Every supporter made this happen!')], $seed),
+                     'art' => self::art('gift', $seed)];
         } elseif ($reached) {
             $row += ['head' => Translator::t('Milestone smashed!'), 'left' => Translator::t('Rewards unlocking soon'),
-                     'note' => Translator::t('You did this. Thank you!')];
+                     'note' => self::pick([Translator::t('You did this. Thank you!'), Translator::t('Target crushed. What a team!'),
+                                           Translator::t('Every vote got us here!')], $seed),
+                     'art' => self::art('unlock', $seed)];
         } else {
             $row += ['head' => Translator::t('Unlock rewards for every nominee!'),
                      'left' => Translator::t('%n% to go', ['%n%' => self::money($toGo, true)]),
-                     'note' => self::cheer($row['pct'])];
+                     'note' => self::cheer($row['pct'], $toGo, $targetKobo, $recentKobo, $seed),
+                     'art' => self::stageArt($row['pct'], $seed)];
         }
         return $row;
     }
 
     /** @param list<array{0:int,1:int}> $steps @return array<string,mixed> */
-    private static function ladderRow(array $steps, int $raisedKobo, int $price, bool $edition): array
+    private static function ladderRow(array $steps, int $raisedKobo, int $price, bool $edition, int $recentKobo, int $seed): array
     {
         $now = CommunityReturnLadder::rateFor($steps, $raisedKobo);
         $next = null;
@@ -203,29 +209,103 @@ final class CommunityReturnTarget
             $row['head'] = Translator::t('Top reward unlocked!');
             $row['left'] = Translator::t('Earning the full %p%%', ['%p%' => $pctNow]);
             $row['of'] = Translator::t('%r% raised', ['%r%' => self::money($raisedKobo)]);
-            $row['note'] = Translator::t('You did this. Thank you!');
+            $row['note'] = self::pick([Translator::t('You did this. Thank you!'), Translator::t('Top of the ladder. What a team!'),
+                                       Translator::t('Maximum reward unlocked!')], $seed);
+            $row['art'] = self::art('gift', $seed);
         } else {
             $row['head'] = $edition ? Translator::t('Power up every nominee’s reward!') : Translator::t('Power up this nominee’s reward!');
             // Short enough to stand alone on a list row, where it is the only words there are.
             $row['left'] = Translator::t('%n% to %p%%', ['%n%' => self::money($toGo, true), '%p%' => $row['share_next']]);
             $row['of'] = Translator::t('%r% of %t% raised', ['%r%' => self::money($raisedKobo), '%t%' => self::money($next[0])]);
-            $row['note'] = self::cheer($row['pct']);
+            $row['note'] = self::cheer($row['pct'], $toGo, $next[0], $recentKobo, $seed);
+            // A step on the ladder is a level-up: the coins at the start, the stage art after.
+            $row['art'] = $row['pct'] < 25 ? self::art('coins', $seed) : self::stageArt($row['pct'], $seed);
         }
         return $row;
     }
 
     /**
-     * The closing line, which MOVES with the bar so the box is never the same sentence twice
-     * in a campaign: a start, momentum, halfway, the last push.
+     * The closing line, which MOVES (owner, 20 Nov 2026: "more dynamism"): several lines per
+     * stage of the bar, lines built from the live figures — the money that came in this past
+     * hour, the gap to the next quarter mark — and a rotation every minute, so a supporter who
+     * comes back, or keeps the page open while the poll ticks, does not read the same sentence.
      */
-    private static function cheer(int $pct): string
+    private static function cheer(int $pct, int $toGoKobo, int $targetKobo, int $recentKobo, int $seed): string
     {
-        return match (true) {
-            $pct >= 75 => Translator::t('So close! One big push!'),
-            $pct >= 50 => Translator::t('Halfway there! Keep it coming!'),
-            $pct >= 25 => Translator::t('Momentum is building. Keep going!'),
-            default    => Translator::t('We’re off! Every vote counts.'),
+        $lines = match (true) {
+            $pct >= 90 => [Translator::t('So close! One big push!'), Translator::t('The finish line is right there!'),
+                           Translator::t('Almost there. Don’t stop now!'), Translator::t('This is it. Let’s finish strong!')],
+            $pct >= 75 => [Translator::t('Three quarters done. Bring it home!'), Translator::t('The end is in sight. Keep pushing!'),
+                           Translator::t('Huge progress! One more push!')],
+            $pct >= 50 => [Translator::t('Halfway there! Keep it coming!'), Translator::t('Past halfway and climbing!'),
+                           Translator::t('The second half starts now. Let’s go!')],
+            $pct >= 25 => [Translator::t('Momentum is building. Keep going!'), Translator::t('A quarter done. On to halfway!'),
+                           Translator::t('It’s moving! Every vote counts.')],
+            $pct >= 5  => [Translator::t('We’re off! Every vote counts.'), Translator::t('Great start. Keep it rolling!'),
+                           Translator::t('The climb has begun!')],
+            default    => [Translator::t('Be one of the first to back it!'), Translator::t('Every big win starts with one vote!'),
+                           Translator::t('Get it started. Your vote counts!')],
         };
+        // Lines from the live figures, added only when they are true right now.
+        if ($recentKobo > 0) {
+            $lines[] = Translator::t('%n% raised in the last hour. Keep it rolling!', ['%n%' => self::money($recentKobo)]);
+        }
+        $mark = $pct < 25 ? 25 : ($pct < 50 ? 50 : ($pct < 75 ? 75 : 0));
+        if ($mark > 0 && $targetKobo > 0) {
+            $gap = (int) ceil($targetKobo * $mark / 100) - ($targetKobo - $toGoKobo);
+            if ($gap > 0) {
+                $lines[] = Translator::t($mark === 50 ? 'Just %n% to the halfway mark!' : ($mark === 25 ? 'Just %n% to the first quarter!' : 'Just %n% to the three-quarter mark!'),
+                    ['%n%' => self::money($gap, true)]);
+            }
+        } elseif ($toGoKobo > 0) {
+            $lines[] = Translator::t('Only %n% left. Let’s finish this!', ['%n%' => self::money($toGoKobo, true)]);
+        }
+        return self::pick($lines, $seed);
+    }
+
+    /** One of several, turning every minute and offset per edition/nominee so a list varies. */
+    private static function pick(array $lines, int $seed): string
+    {
+        return $lines[(self::minute() + abs($seed)) % count($lines)];
+    }
+
+    /** The picture for where the bar stands: a rocket, a megaphone, a target, a trophy. */
+    private static function stageArt(int $pct, int $seed): string
+    {
+        return self::art(match (true) { $pct >= 75 => 'trophy', $pct >= 50 => 'target', $pct >= 25 => 'megaphone', default => 'rocket' }, $seed);
+    }
+
+    /** The two illustration sets, alternating: the glossy app style and the house style. */
+    public const ART_STYLES = ['bold', 'house'];
+    public const ART_SUBJECTS = ['rocket', 'megaphone', 'target', 'trophy', 'unlock', 'gift', 'coins', 'ballot'];
+
+    /**
+     * A spark illustration's URL. A generated image dropped in beside the drawn one, with the
+     * same name (`spark/rocket-bold.webp`, or `.png`), is used in its place — the drawn SVGs
+     * are the defaults, and docs/SPARK-ART-PROMPTS.md has the prompts that make the others.
+     */
+    public static function art(string $subject, int $seed = 0, ?string $style = null): string
+    {
+        $style ??= self::ART_STYLES[(self::minute() + abs($seed)) % 2];
+        static $dir = null;
+        $dir ??= dirname(__DIR__, 2) . '/public/assets/img/spark/';
+        foreach (['webp', 'png', 'jpg'] as $ext) {
+            if (is_file($dir . "$subject-$style.$ext")) return "/assets/img/spark/$subject-$style.$ext";
+        }
+        return "/assets/img/spark/$subject-$style.svg";
+    }
+
+    /**
+     * Words and a picture for the POOL's box, which counts votes rather than naira — so its
+     * cheer has no money lines — but must not be the one box on the site that stands still.
+     *
+     * @return array{art:string, note:string}
+     */
+    public static function poolSpirit(int $pct, bool $reached, bool $settled, int $seed): array
+    {
+        if ($reached) return ['art' => self::art('unlock', $seed), 'note' => self::pick([Translator::t('Target reached! What a team!'), Translator::t('You did this. Thank you!')], $seed)];
+        if ($settled) return ['art' => self::art('trophy', $seed), 'note' => Translator::t('Thank you to every supporter!')];
+        return ['art' => self::stageArt($pct, $seed), 'note' => self::cheer($pct, 0, 0, 0, $seed)];
     }
 
     /**
@@ -266,8 +346,10 @@ final class CommunityReturnTarget
      * Eligible paid-vote money per nominee, in kobo — the ladder's own counting rule
      * (CommunityReturnLadder::raisedBefore), grouped, so a list is one query.
      *
+     * With the part of it that came in this past hour, in the same query, for the live cheer.
+     *
      * @param  list<int> $ids
-     * @return array<int,int>
+     * @return array<int,array{0:int,1:int}> raised, raised in the last hour
      */
     private static function raisedByNominee(int $cycleId, array $ids): array
     {
@@ -283,11 +365,45 @@ final class CommunityReturnTarget
                                ->whereColumn('v.donation_id', 'd.id')->where('v.fraud_flag', 1);
                          })
                          ->groupBy('d.intent_nominee_id')
-                         ->selectRaw('d.intent_nominee_id as nid, SUM(d.amount_naira) as n')->get() as $r) {
-                $out[(int) $r->nid] = (int) round(((float) $r->n) * 100);
+                         ->selectRaw('d.intent_nominee_id as nid, SUM(d.amount_naira) as n,'
+                             . ' SUM(CASE WHEN d.created_at >= ? THEN d.amount_naira ELSE 0 END) as h', [self::hourAgo()])->get() as $r) {
+                $out[(int) $r->nid] = [(int) round(((float) $r->n) * 100), (int) round(((float) $r->h) * 100)];
             }
         } catch (\Throwable) {}
         return $out;
+    }
+
+    /** The edition's eligible paid-vote money in the past hour, by the accrual's rule. */
+    private static function recentKobo(int $cycleId): int
+    {
+        try {
+            $naira = (float) DB::table('gates_donations as d')
+                ->join('gates_nominees as n', 'n.id', '=', 'd.intent_nominee_id')
+                ->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+                ->where('c.cycle_id', $cycleId)
+                ->where('d.tier', 'paid-vote')->where('d.status', 'confirmed')
+                ->whereNull('d.refunded_at')->whereNull('d.refund_requested_at')
+                ->where('d.created_at', '>=', self::hourAgo())
+                ->whereNotExists(static function ($q) {
+                    $q->select(DB::raw(1))->from('gates_votes as v')
+                      ->whereColumn('v.donation_id', 'd.id')->where('v.fraud_flag', 1);
+                })
+                ->sum('d.amount_naira');
+        } catch (\Throwable) {
+            return 0;
+        }
+        return (int) round($naira * 100);
+    }
+
+    /** The rotation's clock: Carbon's, so a test can hold it still. */
+    private static function minute(): int
+    {
+        return intdiv(\Illuminate\Support\Carbon::now()->getTimestamp(), 60);
+    }
+
+    private static function hourAgo(): string
+    {
+        return \Illuminate\Support\Carbon::now()->subHour()->toDateTimeString();
     }
 
     /** @param list<int> $ids */

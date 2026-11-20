@@ -277,6 +277,7 @@
         <span class="aw-pool__bar" role="img" aria-label="{{ '%r% of %n% nominees have unlocked the top reward'|trans({'%r%': a.money.reached, '%n%': a.money.nominees}) }}"><span style="width:{{ a.money.pct }}%"></span></span>
         <p class="aw-pool__s">{{ '%r% of %n% nominees have unlocked the top reward. Who’s next?'|trans({'%r%': a.money.reached, '%n%': a.money.nominees}) }}</p>
       {% else %}
+        {% if a.money.art|default('') %}<img class="aw-pool__art" src="{{ a.money.art }}" alt="" width="240" height="160" decoding="async">{% endif %}
         <p class="aw-pool__n">{{ a.money.head }} {{ a.money.left }}</p>
         <span class="aw-pool__bar" role="img" aria-label="{{ a.money.of }}"><span style="width:{{ a.money.pct }}%"></span></span>
         <p class="aw-pool__s">{{ a.money.of }} · {{ a.money.note }}</p>
