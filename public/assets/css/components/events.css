@@ -27,16 +27,13 @@
   font-size:var(--ag-fs-12-5); font-weight:700; line-height:1; letter-spacing:.1em;
   color:var(--ag-live-ink);
 }
-.ev-btn,
-.ev-btn:hover{
+.ev-btn{
   display:flex; align-items:center; justify-content:center; min-height:50px; padding:0 20px;
   border-radius:var(--ag-r-14); font-size:var(--ag-fs-15); font-weight:700; text-decoration:none;
   text-align:center;
 }
-.ev-btn--go,
-.ev-btn--go:hover{ background:var(--ag-green); color:var(--ag-surface); border:0; }
-.ev-btn--line,
-.ev-btn--line:hover{ border:1px solid var(--ag-ink); color:var(--ag-ink); font-weight:600; background:var(--ag-surface) }
+.ev-btn--go{ background:var(--ag-green); color:var(--ag-surface); border:0; }
+.ev-btn--line{ border:1px solid var(--ag-ink); color:var(--ag-ink); font-weight:600; background:var(--ag-surface) }
 button.ev-btn{ cursor:pointer; font-family:inherit }
 
 /* ══ ONE EVENT ═══════════════════════════════════════════════════════════════ */
@@ -50,8 +47,7 @@ button.ev-btn{ cursor:pointer; font-family:inherit }
   display:flex; justify-content:space-between; pointer-events:none;
 }
 .ed-hero__end{ display:flex; gap:8px }
-.ed-fab,
-.ed-fab:hover{
+.ed-fab{
   pointer-events:auto; width:44px; height:44px; border:0; border-radius:50%;
   display:flex; align-items:center; justify-content:center; gap:6px;
   background:color-mix(in srgb, var(--ag-surface) 94%, transparent); color:var(--ag-ink);
@@ -62,14 +58,26 @@ button.ev-btn{ cursor:pointer; font-family:inherit }
   position:relative; margin-top:-22px; border-radius:22px 22px 0 0; background:var(--ag-ground);
   padding:22px 16px 4px; display:flex; flex-direction:column; gap:10px;
 }
+/* The event's type, in the hero's own text rather than on the cover (detail.twig): a white
+   pill with the kind's dot, the cover pill's look, in the cover's own tone family. */
+.ed-kind{
+  align-self:flex-start; display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 11px;
+  border-radius:var(--ag-r-pill); background:var(--ag-surface); color:var(--ed-k-ink); border:1px solid var(--ed-k-edge);
+  font-weight:700; font-size:var(--ag-fs-12-5); white-space:nowrap;
+}
+.ed-kind i{ width:7px; height:7px; border-radius:50%; background:var(--ed-k-dot) }
+.ed-kind--green{ --ed-k-ink:var(--ag-cover-green-ink); --ed-k-dot:var(--ag-cover-green-line); --ed-k-edge:var(--ag-cover-green-edge) }
+.ed-kind--gold{  --ed-k-ink:var(--ag-cover-gold-ink);  --ed-k-dot:var(--ag-cover-gold-line);  --ed-k-edge:var(--ag-cover-gold-edge) }
+.ed-kind--live{  --ed-k-ink:var(--ag-cover-live-ink);  --ed-k-dot:var(--ag-cover-live-line);  --ed-k-edge:var(--ag-cover-live-edge) }
+.ed-kind--info{  --ed-k-ink:var(--ag-cover-info-ink);  --ed-k-dot:var(--ag-cover-info-line);  --ed-k-edge:var(--ag-cover-info-edge) }
+.ed-kind--stone{ --ed-k-ink:var(--ag-cover-stone-ink); --ed-k-dot:var(--ag-cover-stone-line); --ed-k-edge:var(--ag-cover-stone-edge) }
 .ed-hero__h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-26); line-height:1.15 }
 .ed-hero__by{ font-size:var(--ag-fs-14-5); color:var(--ag-ink-2) }
 .ed-hero__by:empty{ display:none }
 
 .ed-eb{ font-size:var(--ag-fs-14-5) }
 .ed-eb--wide{ display:none }
-.ed-eb--row,
-.ed-eb--row:hover{
+.ed-eb--row{
   display:flex; align-items:center; justify-content:space-between; gap:10px;
   min-height:48px; margin-top:4px; padding:0 14px; border-radius:var(--ag-r-14);
   background:var(--ag-gold-wash-2); color:var(--ag-ink); text-decoration:none;
@@ -94,6 +102,13 @@ button.ev-btn{ cursor:pointer; font-family:inherit }
 }
 .ed-sec__h{ margin:0; font-weight:700; font-size:var(--ag-fs-19) }
 .ed-about{ margin:0; font-size:var(--ag-fs-16); line-height:1.65; color:var(--ag-ink) }
+.ed-about > :where(p, ul, ol){ margin:0 0 .75em }
+.ed-about > :last-child{ margin-bottom:0 }
+.ed-about a{ color:var(--ag-green-deep) }
+/* The awards this event presents (EventsFront::awards()). Links in the house green, a list a thumb can hit. */
+.ed-awards{ list-style:none; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:8px }
+.ed-awards a{ display:inline-flex; align-items:center; min-height:44px; padding:0 14px; border:1px solid var(--ag-line); border-radius:var(--ag-r-pill); color:var(--ag-ink); font-size:var(--ag-fs-15); font-weight:600; text-decoration:none; background:var(--ag-surface) }
+.ed-awards a:hover{ border-color:var(--ag-green); color:var(--ag-green) }
 
 .ed-tracks{ display:flex; gap:6px; flex-wrap:wrap }
 .ed-track{
@@ -101,7 +116,7 @@ button.ev-btn{ cursor:pointer; font-family:inherit }
   border:1px solid var(--ag-line-2); background:var(--ag-surface); color:var(--ag-ink);
   font-family:inherit; font-weight:600; font-size:var(--ag-fs-13-5); cursor:pointer;
 }
-.ed-track[aria-pressed="true"]{ background:var(--ag-ink); color:var(--ag-ground); border-color:var(--ag-ink) }
+.ed-track[aria-pressed="true"]{ background:var(--ag-surface); border:2px solid var(--ag-ink); color:var(--ag-ink) }
 .ed-ag__day{ margin:4px 0 0; font-size:var(--ag-fs-14-5); font-weight:700 }
 .ed-ag{
   list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:1px;
@@ -129,23 +144,22 @@ button.ev-btn{ cursor:pointer; font-family:inherit }
 .ed-fine dt{ font-weight:700 }
 .ed-fine dd{ margin:2px 0 0; color:var(--ag-ink-2) }
 
-/* The vendor call: ink, the DC's one dark card. */
+/* The vendor call: the block's one accent, the green wash (colour pass, 21 Oct 2026 — it
+   was the page's one ink card, and the site has no dark fields now). */
 .ed-vend{
   display:flex; flex-direction:column; gap:10px; padding:20px;
-  background:var(--ag-ink); color:var(--ag-ground); border-radius:var(--ag-r-20);
+  background:var(--ag-green-wash); border:1px solid var(--ag-green-edge); color:var(--ag-ink); border-radius:var(--ag-r-20);
 }
-.ed-vend a{ color:var(--ag-ground) }
+.ed-vend a{ color:var(--ag-green-deep) }
 .ed-vend__facts{ margin:0; padding-inline-start:18px; display:flex; flex-direction:column; gap:4px; font-size:var(--ag-fs-14-5) }
 .ed-vend__note{ margin:0; font-size:var(--ag-fs-13-5); line-height:1.5 }
-.ed-vend__go,
-.ed-vend__go:hover{
+.ed-vend__go{
   align-self:flex-start; display:flex; align-items:center; min-height:44px; padding:0 18px; border-radius:var(--ag-r-pill);
-  background:var(--ag-ground); color:var(--ag-ink); font-weight:600; font-size:var(--ag-fs-14-5); text-decoration:none;
+  background:var(--ag-green); color:var(--ag-surface); font-weight:600; font-size:var(--ag-fs-14-5); text-decoration:none;
 }
 .ed-vend--shut p{ margin:0; font-size:var(--ag-fs-14-5) }
 
-.ed-vote,
-.ed-vote:hover{
+.ed-vote{
   display:flex; align-items:center; gap:14px; padding:16px 18px;
   background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-18);
   color:var(--ag-ink); text-decoration:none;
@@ -165,8 +179,7 @@ button.ev-btn{ cursor:pointer; font-family:inherit }
 .ed-box__p{ margin:0; font-size:var(--ag-fs-13-5); line-height:1.5; color:var(--ag-ink-2) }
 .ed-box__alt{ margin:0; font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
 .ed-box__row{ display:flex; gap:8px }
-.ed-mini,
-.ed-mini:hover{
+.ed-mini{
   flex:1; display:flex; align-items:center; justify-content:center; min-height:44px; padding:0 12px;
   border:1px solid var(--ag-line-2); border-radius:11px; background:var(--ag-surface); color:var(--ag-ink);
   font-family:inherit; font-weight:600; font-size:var(--ag-fs-13-5); text-decoration:none; cursor:pointer;
@@ -178,8 +191,7 @@ button.ev-btn{ cursor:pointer; font-family:inherit }
   flex:1; min-width:0; min-height:44px; padding:0 12px; border:1px solid var(--ag-line-2); border-radius:var(--ag-r-12);
   font-family:inherit; font-size:var(--ag-fs-13-5); color:var(--ag-ink); background:var(--ag-surface);
 }
-.ed-earn__btn,
-.ed-earn__btn:hover{
+.ed-earn__btn{
   align-self:flex-start; display:inline-flex; align-items:center; min-height:44px; padding:0 14px;
   border:1px solid var(--ag-green); border-radius:var(--ag-r-pill); background:var(--ag-surface); color:var(--ag-green-deep);
   font-family:inherit; font-weight:600; font-size:var(--ag-fs-13-5); text-decoration:none; cursor:pointer;
@@ -187,8 +199,7 @@ button.ev-btn{ cursor:pointer; font-family:inherit }
 .ed-fund__t{ font-size:var(--ag-fs-15) }
 .ed-fund__bar{ display:block; height:8px; border-radius:var(--ag-r-pill); background:var(--ag-line-3); overflow:hidden }
 .ed-fund__bar span{ display:block; height:100%; width:var(--ed-pct); background:var(--ag-green) }
-.ed-stream,
-.ed-stream:hover{
+.ed-stream{
   display:flex; align-items:center; justify-content:center; min-height:46px; border-radius:var(--ag-r-pill);
   border:1px solid var(--ag-ink); color:var(--ag-ink); font-weight:600; font-size:var(--ag-fs-14-5); text-decoration:none;
 }
@@ -219,54 +230,150 @@ button.ev-btn{ cursor:pointer; font-family:inherit }
 .ed-card__note{ margin:0; font-size:var(--ag-fs-13); font-weight:700; color:var(--ag-ink-2) }
 .ed-tint{ color:var(--ev-deep) }
 
-/* The glow (§8.10). `--ev-a` is registered so it INTERPOLATES; unregistered (a browser
-   without @property) it does not, and the ring is a static gradient border — the
-   specified fallback, with no second rule needed. */
-@property --ev-a{ syntax:'<angle>'; initial-value:0deg; inherits:false }
-@keyframes edAngle{ to{ --ev-a:360deg } }
-@keyframes edGlow{ 0%{ opacity:0 } 10%{ opacity:1 } 60%{ opacity:1 } 100%{ opacity:.35 } }
-@keyframes edBreath{ 0%, 100%{ transform:scale(1) } 50%{ transform:scale(1.03) } }
+/* THE GLOW — a light that runs once round the card's rim in the chosen tier's colour (owner,
+   2 Nov 2026: "cleaner, like Google's"; refined 11 Nov 2026: "fix the event registration div
+   lightening — check out design.google for specs").
+
+   THE SPEC IT FOLLOWS. Google's write-up of the Gemini visual system ("Illustrating the
+   Gemini App", design.google): its gradients have "sharp, almost opaque leading edges that
+   diffuse at the tail", and "each animation has a defined start and end point" — anticipation,
+   then release. Material 3's elevation guidance (m3.material.io) says the card itself sits on
+   level 0 with a hairline, and that a lift is a neutral shadow, never a coloured one.
+
+   WHAT WAS WRONG. The halo was a 10px blur on a box 3px outside the card, scaled to 102%:
+   a green smear spreading ~20px beyond the edge, so the effect read as a stain rather than a
+   light. And the head faded back down to the accent before it ended — a soft LEADING edge,
+   the opposite of the spec — while the whole thing ran two laps.
+
+   NOW:
+     ring  a 2px light on the card's own edge (-1px, over the hairline, so it IS the edge).
+           Behind the head it is the hairline (--ag-line); the tail rises from transparent
+           through `light` and `accent` to a `deep`, fully opaque head that STOPS HARD — the
+           sharp leading edge — then the hairline again.
+     halo  the head alone, blurred 4px and tight to the card (inset 0, no scale), at 40%:
+           a soft bloom under the light and nowhere else.
+     time  ONE lap, 1.8s on an anticipate-then-release curve; the light fades in over the
+           first tenth and out over the last, and the card is left exactly as drawn — the
+           outlined card of Material's level 0.
+
+   Unchanged: it plays on a pick and the first time the card is in view with a tier chosen
+   (event-detail.js), pauses off screen (`data-ev-idle`), is aria-hidden, and is dropped
+   entirely under reduced motion — the OS's or the site's own (`html.ag-rm`). */
+@property --ev-a{ syntax:'<angle>'; initial-value:0deg; inherits:true }
+@keyframes edAngle{ from{ --ev-a:-40deg } to{ --ev-a:320deg } }
+@keyframes edSweep{ 0%{ opacity:0 } 10%{ opacity:1 } 82%{ opacity:1 } 100%{ opacity:0 } }
+@keyframes edHalo{ 0%{ opacity:0 } 14%{ opacity:.7 } 70%{ opacity:.55 } 100%{ opacity:0 } }
+@keyframes edBloom{ 0%{ opacity:0 } 28%{ opacity:1 } 100%{ opacity:0 } }
 .ed-glow{
-  --ev-cg:conic-gradient(from var(--ev-a), var(--tier-accent), var(--tier-light), var(--tier-glow),
-          var(--ag-surface) 55%, var(--tier-glow), var(--tier-light), var(--tier-accent));
-  position:absolute; inset:0; z-index:-1; pointer-events:none;
-  animation:edGlow 3s ease-out forwards;
+  /* The tail diffuses up to the head; the head ends hard at 356deg. */
+  --ev-head:transparent 210deg, var(--tier-light) 270deg, var(--tier-accent) 330deg, var(--tier-deep) 352deg, var(--tier-deep) 356deg;
+  --ev-cg:conic-gradient(from var(--ev-a), var(--ag-line) 0deg 210deg, var(--ev-head), var(--ag-line) 356deg 360deg);
+  --ev-halo:conic-gradient(from var(--ev-a), transparent 0deg 318deg, var(--tier-accent) 344deg, var(--tier-deep) 356deg, transparent 356deg 360deg);
+  position:absolute; inset:-1px; z-index:-1; pointer-events:none;
+  animation:edAngle 2.4s cubic-bezier(.3,0,.15,1) 1 both;
 }
 .ed-glow__halo{
-  position:absolute; inset:-10px; border-radius:30px; background:var(--ev-cg);
-  filter:blur(22px); opacity:.55;
-  animation:edAngle 3.2s linear infinite, edBreath 3s ease-in-out infinite;
+  position:absolute; inset:0; border-radius:var(--ag-r-20); background:var(--ev-halo);
+  filter:blur(8px); opacity:0;
+  animation:edHalo 2.4s var(--ag-ease) both;
+}
+/* The light the card throws on the page while the comet runs: the tier's own glow, under the
+   card, one breath, gone. */
+.ed-glow__bloom{
+  position:absolute; inset:0; border-radius:var(--ag-r-20); opacity:0;
+  box-shadow:0 22px 60px -22px var(--tier-glow), 0 0 0 1px color-mix(in srgb, var(--tier-accent) 18%, transparent);
+  animation:edBloom 2.4s var(--ag-ease) both;
 }
 .ed-glow__ring{
   position:absolute; inset:0; border-radius:var(--ag-r-20); border:2px solid transparent;
   background:linear-gradient(var(--ag-surface), var(--ag-surface)) padding-box, var(--ev-cg) border-box;
-  animation:edAngle 3.2s linear infinite;
+  opacity:0;
+  animation:edSweep 2.4s var(--ag-ease) both;
 }
+.ed-card[data-ev-idle] .ed-glow,
+.ed-card[data-ev-idle] .ed-glow > *{ animation-play-state:paused }
 @media (prefers-reduced-motion:reduce){ [data-ev-glow]{ display:none } }
+html.ag-rm [data-ev-glow]{ display:none }
 
 /* Tier rows: a radio group. The radio stays NEUTRAL (ink); the tier's colour is the
    selected border and wash. */
-.ed-tiers{ display:flex; flex-direction:column; gap:8px }
+/* Tickets as plan tiles: a 2-up grid of name + price (one tier fills the row; an odd last
+   tile spans it). The radio is a small neutral mark in the corner — the tier's colour is the
+   chosen tile's edge and wash. What the chosen ticket includes is ONE panel under the grid. */
+.ed-tiers{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px }
+.ed-tiers--1{ grid-template-columns:1fr }
+.ed-tier:last-child:nth-child(odd){ grid-column:1 / -1 }
 .ed-tier{
-  display:flex; align-items:flex-start; gap:11px; min-height:48px; padding:12px 14px; box-sizing:border-box;
-  border-radius:13px; border:1.5px solid color-mix(in srgb, var(--ag-ink) 12%, transparent);
+  position:relative; display:flex; flex-direction:column; align-items:flex-start; gap:2px;
+  min-height:92px; padding:14px 40px 14px 14px; box-sizing:border-box;
+  border-radius:var(--ag-r-16); border:1px solid var(--ag-line-2);
   background:var(--ag-surface); color:var(--ag-ink); font-family:inherit; text-align:start; cursor:pointer;
-  transition:border-color var(--ag-dur-1) var(--ag-ease), background-color var(--ag-dur-1) var(--ag-ease);
+  transition:border-color var(--ag-dur-1) var(--ag-ease), background-color var(--ag-dur-1) var(--ag-ease), box-shadow var(--ag-dur-1) var(--ag-ease);
 }
-.ed-tier:hover{ border-color:color-mix(in srgb, var(--ag-ink) 28%, transparent) }
-.ed-tier[aria-checked="true"]{ border-color:var(--tier-edge); background:var(--tier-wash) }
+.ed-tier:hover{ border-color:color-mix(in srgb, var(--ag-ink) 30%, transparent) }
+/* Chosen: the tier's own edge, 2px by an inset ring so the tile does not move. */
+.ed-tier[aria-checked="true"]{ border-color:var(--tier-edge); box-shadow:inset 0 0 0 1px var(--tier-edge); background:var(--tier-wash) }
 .ed-tier:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
 .ed-tier:disabled{ cursor:not-allowed; opacity:.62 }
 .ed-tier__radio{
-  flex:none; width:18px; height:18px; margin-top:2px; border-radius:50%; box-sizing:border-box;
-  border:2px solid var(--ag-chevron);
+  position:absolute; top:14px; inset-inline-end:14px; width:18px; height:18px; border-radius:50%; box-sizing:border-box;
+  border:1.5px solid var(--ag-chevron); transition:border-width var(--ag-dur-1) var(--ag-ease);
 }
-.ed-tier[aria-checked="true"] .ed-tier__radio{ border:6px solid var(--ag-ink) }
-.ed-tier__t{ flex:1; display:flex; flex-direction:column; gap:2px; min-width:0 }
-.ed-tier__n{ font-weight:700; font-size:var(--ag-fs-14-5) }
-.ed-tier__s{ font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
+.ed-tier[aria-checked="true"] .ed-tier__radio{ border:5px solid var(--ag-ink) }
+.ed-tier__n{ font-size:var(--ag-fs-14); font-weight:600; line-height:1.3; color:var(--ag-ink-2) }
+.ed-tier__p{ margin-top:auto; padding-top:6px; font-size:var(--ag-fs-20); font-weight:700; line-height:1.15; letter-spacing:-.01em; font-variant-numeric:tabular-nums }
+.ed-tier__s{ font-size:var(--ag-fs-12-5); line-height:1.35; color:var(--ag-soft) }
 .ed-tier__s--tint{ color:var(--tier-deep); font-weight:700 }
-.ed-tier__p{ flex:none; font-size:var(--ag-fs-14); font-weight:700; line-height:1.4; font-variant-numeric:tabular-nums }
+
+.ed-inc{ padding:14px 16px 16px; border-radius:var(--ag-r-16); background:var(--tier-wash, var(--ag-ground)) }
+.ed-inc[hidden]{ display:none }
+.ed-inc__h{ margin:0 0 10px; font-size:var(--ag-fs-13); font-weight:600; color:var(--ag-ink-2) }
+.ed-inc__note{ margin:0 0 10px; font-size:var(--ag-fs-14); line-height:1.5; color:var(--ag-ink) }
+.ed-inc__l{ margin:0; padding:0; list-style:none; display:grid; gap:9px }
+.ed-inc__i{ display:flex; align-items:flex-start; gap:10px; font-size:var(--ag-fs-14-5); line-height:1.4; color:var(--ag-ink) }
+.ed-inc__tick{ flex:none; margin-top:1px; color:var(--tier-deep, var(--ag-ink)) }
+
+/* THE PICK, CHOREOGRAPHED (owner, 17 Nov 2026: "make that ticket div effect more cinematic").
+   One sequence, in this order, each beat starting as the last lands — the rim's comet above
+   runs alongside:
+     1  the tile lifts (1px, a soft shadow in the tier's own glow) and a light sweeps across it
+     2  the radio's dot springs in; the price settles into place
+     3  what the ticket includes opens downward, and its lines arrive one after another
+   All of it is CSS keyed on the state (`aria-checked`, the panel losing `hidden`), so it plays
+   whatever chose the tier — a tap, the keyboard, the page's own default — and all of it is
+   dropped under reduced motion, the OS's or the site's. */
+@keyframes edTileSheen{ from{ transform:translateX(-140%) skewX(-20deg) } to{ transform:translateX(360%) skewX(-20deg) } }
+@keyframes edDot{ 0%{ transform:scale(.55) } 55%{ transform:scale(1.14) } 100%{ transform:scale(1) } }
+@keyframes edPrice{ from{ opacity:.35; transform:translateY(6px) } to{ opacity:1; transform:none } }
+@keyframes edIncOpen{ from{ opacity:0; clip-path:inset(0 0 100% 0 round var(--ag-r-16)) } to{ opacity:1; clip-path:inset(0 0 0 0 round var(--ag-r-16)) } }
+@keyframes edIncLine{ from{ opacity:0; transform:translateY(6px) } to{ opacity:1; transform:none } }
+.ed-tier{ overflow:hidden; isolation:isolate }
+.ed-tier::after{
+  content:''; position:absolute; top:-30%; bottom:-30%; left:0; width:38%; z-index:-1; pointer-events:none; opacity:0;
+  background:linear-gradient(90deg, transparent, color-mix(in srgb, var(--tier-light) 75%, transparent), transparent);
+}
+.ed-tier[aria-checked="true"]{
+  transform:translateY(-1px);
+  box-shadow:inset 0 0 0 1px var(--tier-edge), 0 14px 28px -18px var(--tier-glow);
+  transition:transform var(--ag-dur-2) cubic-bezier(.2,0,0,1), box-shadow var(--ag-dur-2) cubic-bezier(.2,0,0,1), background-color var(--ag-dur-1) var(--ag-ease), border-color var(--ag-dur-1) var(--ag-ease);
+}
+.ed-tier[aria-checked="true"]::after{ opacity:1; animation:edTileSheen 950ms cubic-bezier(.3,0,.15,1) both }
+.ed-tier[aria-checked="true"] .ed-tier__radio{ animation:edDot 420ms cubic-bezier(.3,1.4,.5,1) 120ms both }
+.ed-tier[aria-checked="true"] .ed-tier__p{ animation:edPrice 520ms cubic-bezier(.2,0,0,1) 160ms both }
+.ed-inc:not([hidden]){ animation:edIncOpen 520ms cubic-bezier(.2,0,0,1) 220ms both }
+.ed-inc:not([hidden]) .ed-inc__i{ animation:edIncLine 420ms cubic-bezier(.2,0,0,1) both }
+.ed-inc__i:nth-child(1){ animation-delay:340ms } .ed-inc__i:nth-child(2){ animation-delay:400ms }
+.ed-inc__i:nth-child(3){ animation-delay:460ms } .ed-inc__i:nth-child(4){ animation-delay:520ms }
+.ed-inc__i:nth-child(5){ animation-delay:580ms } .ed-inc__i:nth-child(6){ animation-delay:640ms }
+.ed-inc__i:nth-child(n+7){ animation-delay:700ms }
+@media (prefers-reduced-motion:reduce){
+  .ed-tier[aria-checked="true"], .ed-tier[aria-checked="true"]::after, .ed-tier[aria-checked="true"] .ed-tier__radio,
+  .ed-tier[aria-checked="true"] .ed-tier__p, .ed-inc:not([hidden]), .ed-inc:not([hidden]) .ed-inc__i{ animation:none; transform:none }
+  .ed-tier::after{ display:none }
+}
+html.ag-rm .ed-tier[aria-checked="true"], html.ag-rm .ed-tier[aria-checked="true"]::after, html.ag-rm .ed-tier[aria-checked="true"] .ed-tier__radio,
+html.ag-rm .ed-tier[aria-checked="true"] .ed-tier__p, html.ag-rm .ed-inc:not([hidden]), html.ag-rm .ed-inc:not([hidden]) .ed-inc__i{ animation:none; transform:none }
+html.ag-rm .ed-tier::after{ display:none }
 
 .ed-field{ display:flex; flex-direction:column; gap:5px }
 .ed-label{ font-weight:600; font-size:var(--ag-fs-13) }
@@ -278,6 +385,8 @@ button.ev-btn{ cursor:pointer; font-family:inherit }
 }
 textarea.ed-input{ padding:10px 12px; min-height:96px; line-height:1.5 }
 .ed-input:focus-visible{ outline:3px solid var(--ag-green); outline-offset:1px }
+/* The field a refusal is about — its border, beside the sentence, so colour is never the only sign. */
+.ed-input[aria-invalid="true"]{ border-color:var(--ag-error) }
 .ed-hint{ margin:0; font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
 .ed-disc{ display:flex; gap:6px }
 .ed-disc .ed-input{ flex:1; min-width:0 }
@@ -296,16 +405,13 @@ textarea.ed-input{ padding:10px 12px; min-height:96px; line-height:1.5 }
 .ed-warn{ margin:0; font-size:var(--ag-fs-13); color:var(--ag-error) }
 .ed-err{ margin:0; font-size:var(--ag-fs-13-5); font-weight:600; color:var(--ag-error) }
 .ed-err:empty{ display:none }
-.ed-cta,
-.ed-cta:hover{
+.ed-cta{
   display:flex; align-items:center; justify-content:center; min-height:52px; padding:0 20px; border:0;
   border-radius:var(--ag-r-pill); background:var(--ag-green); color:var(--ag-surface);
   font-family:inherit; font-weight:700; font-size:var(--ag-fs-16); text-decoration:none; text-align:center; cursor:pointer;
 }
-.ed-cta--tier,
-.ed-cta--tier:hover{ background:var(--ev-deep); transition:background-color .4s }
-.ed-cta--line,
-.ed-cta--line:hover{ background:var(--ag-surface); border:1px solid var(--ag-ink); color:var(--ag-ink) }
+.ed-cta--tier{ background:var(--ev-deep); transition:background-color .4s }
+.ed-cta--line{ background:var(--ag-surface); border:1px solid var(--ag-ink); color:var(--ag-ink) }
 .ed-cta[aria-busy="true"]{ opacity:.7; cursor:progress }
 .ed-private{
   margin:0; display:flex; align-items:center; justify-content:center; gap:6px;
@@ -328,8 +434,7 @@ textarea.ed-input{ padding:10px 12px; min-height:96px; line-height:1.5 }
 }
 .ed-bar__t{ flex:1; display:flex; flex-direction:column; gap:1px; font-size:var(--ag-fs-16); min-width:0 }
 .ed-bar__k{ font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
-.ed-bar__go,
-.ed-bar__go:hover{
+.ed-bar__go{
   display:flex; align-items:center; min-height:50px; padding:0 24px; border-radius:var(--ag-r-pill);
   background:var(--ag-green); color:var(--ag-surface); font-weight:700; font-size:var(--ag-fs-15-5); text-decoration:none;
 }
@@ -394,18 +499,21 @@ body:has(.ed-bar) .ag-main{ padding-bottom:var(--ag-bottom-ui) }
   .ed-hero__media{ position:absolute; inset:0; aspect-ratio:auto }
   .ed-hero__media::after{
     content:''; position:absolute; inset:0;
-    background:linear-gradient(180deg, color-mix(in srgb, var(--ag-ink) 15%, transparent) 30%, color-mix(in srgb, var(--ag-ink) 90%, transparent) 100%);
+    /* Dark enough by the words' band (the lower half) that white reads on ANY cover: the
+       old ramp was ~50% ink where the date sits, and a pale cover left the date unreadable. */
+    background:linear-gradient(180deg, color-mix(in srgb, var(--ag-ink) 10%, transparent) 0%, color-mix(in srgb, var(--ag-ink) 55%, transparent) 45%, color-mix(in srgb, var(--ag-ink) 92%, transparent) 100%);
   }
   .ed-hero__btns{ inset-block-start:14px; inset-inline:14px }
   .ed-hero__end{ display:none }
-  .ed-fab,
-  .ed-fab:hover{ width:auto; height:40px; padding:0 14px; border-radius:var(--ag-r-pill); font-weight:600; font-size:var(--ag-fs-14) }
+  .ed-fab{ width:auto; height:40px; padding:0 14px; border-radius:var(--ag-r-pill); font-weight:600; font-size:var(--ag-fs-14) }
   .ed-fab__l{ display:inline }
   .ed-hero__text{
     width:100%; max-width:1120px; margin:0 auto; padding:40px 32px; box-sizing:border-box;
     background:none; border-radius:0;
   }
-  .ed-hero__date{ color:var(--ag-green-light) }
+  /* White over the photo, as the title is: pale green on a pale cover was the one line on
+     the hero nobody could read, and it is the line people come for. */
+  .ed-hero__date{ color:var(--ag-surface) }
   .ed-hero__h1{ font-size:var(--ag-fs-34); line-height:1.1; text-wrap:balance }
   .ed-hero__by{ font-size:var(--ag-fs-15); color:var(--ag-surface) }
   .ed-grid{ padding:28px 28px 48px; gap:20px }

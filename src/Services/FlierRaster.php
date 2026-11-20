@@ -198,11 +198,36 @@ trait FlierRaster
             return;
         }
         // Per-character, because the kicker's letter-spacing is a real part of the design
-        // and GD cannot express it. Only used on two short strings.
+        // and GD cannot express it. Only used on two short strings. Each glyph goes where the
+        // pen would be after the untracked prefix, plus the tracking so far — see pen().
+        $prefix = '';
+        $i = 0;
         foreach (preg_split('//u', $s, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $ch) {
-            imagettftext($im, $size, 0, (int) round($x), (int) round($y), $colour, $font, $ch);
-            $x += $this->width($ch, $size, $font) + $tracking;
+            $at = $x + $this->pen($prefix, $size, $font) + $i * $tracking;
+            imagettftext($im, $size, 0, (int) round($at), (int) round($y), $colour, $font, $ch);
+            $prefix .= $ch;
+            $i++;
         }
+    }
+
+    /**
+     * Where the pen stands after drawing $prefix from an origin of 0: the glyphs' ADVANCES,
+     * kerning included, which GD will not report directly.
+     *
+     * The tracked path used to step by each glyph's own bounding box. A box is INK — it has no
+     * side bearings — so stepping by it set every glyph flush against the next, and the
+     * tracking then only bought back what that had taken: `afg.afrovanguard.org.ng` at 0.8
+     * tracking measured 268.6 against 274 untracked, so letter-spaced text came out narrower
+     * than plain text and crowded. The trick: draw a fixed probe glyph after the prefix; its
+     * right ink edge sits at pen + the probe's own right edge, which is measured alone.
+     */
+    private function pen(string $prefix, float $size, string $font): float
+    {
+        if ($prefix === '') return 0.0;
+        $with  = imagettfbbox($size, 0, $font, $prefix . 'H');
+        $probe = imagettfbbox($size, 0, $font, 'H');
+        if ($with === false || $probe === false) return $this->width($prefix, $size, $font);
+        return (float) ($with[2] - $probe[2]);
     }
 
     /** Is every character in this string one the face can actually draw? */
@@ -243,11 +268,10 @@ trait FlierRaster
         $chars = preg_split('//u', $s, -1, PREG_SPLIT_NO_EMPTY) ?: [];
         if ($chars === []) return 0.0;
 
-        $w = 0.0;
-        foreach ($chars as $ch) $w += $this->width($ch, $size, $font) + $tracking;
-
-        // One tracking too many: the gap after the last glyph is not part of the line.
-        return $w - $tracking;
+        // Exactly what text() draws: the untracked line, with the tracking added in each of
+        // the n-1 gaps (the gap after the last glyph is not part of the line). text() places
+        // every glyph at pen(prefix) + i·tracking, so the span is the untracked span plus that.
+        return $this->width($s, $size, $font) + (count($chars) - 1) * $tracking;
     }
 
     /**

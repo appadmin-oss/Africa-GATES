@@ -17,14 +17,16 @@ use Tests\TestCase;
  * ══════════════════════════════════════════════════════════════════════════════
  *
  * `HANDOFF.md` §6 warns that "a WYSIWYG editor is the fastest way to break every one of
- * them" — them being the twelve inbox properties in {@see EmailInboxCompatTest}. So the
+ * them" — them being the twelve inbox properties in {@see EmailInboxCompatCase}. So the
  * first thing held here is that the editor CANNOT emit markup: every text field is
  * strip_tags'd on the way in and the template supplies the HTML.
  *
- * The second is that a campaign built from the starter blocks renders the SAME VISIBLE COPY
- * as `templates/emails/final-hours.twig`, the file it replaces. That was the acceptance
+ * The second is that a campaign built from the starter blocks SAYS EVERYTHING the fixed
+ * final-hours message says (`templates/emails/final.html.twig`). That was the acceptance
  * test for the whole change: a migration to editable copy that quietly altered the campaign
- * would be a regression dressed as a feature.
+ * would be a regression dressed as a feature. The two no longer share a chassis — the fixed
+ * message moved to the house shell with the handoff (19 Oct 2026), the editor keeps
+ * campaign.twig — so it is held on the WORDS of the message's body, sentence by sentence.
  */
 final class EmailCampaignTest extends TestCase
 {
@@ -76,18 +78,12 @@ final class EmailCampaignTest extends TestCase
     // ══ the acceptance test ══════════════════════════════════════════════════
 
     /**
-     * The starter campaign must read exactly like the file it replaces. Compared as visible
-     * text with entities decoded, because the markup differs (a loop instead of fixed rows)
-     * while the words must not.
+     * The starter campaign must say every sentence of the fixed message's body. Compared as
+     * visible text with entities decoded, because the markup differs while the words must not.
      */
-    public function test_the_starter_campaign_reads_exactly_like_the_template_it_replaces(): void
+    public function test_the_starter_campaign_says_everything_the_fixed_message_says(): void
     {
         $vars = EmailCampaign::sampleVars();
-
-        $twig = new \Twig\Environment(
-            new \Twig\Loader\FilesystemLoader(dirname(__DIR__, 2) . '/templates'),
-            ['autoescape' => 'html']
-        );
 
         $visible = static function (string $html): string {
             $html = (string) preg_replace('/<!--.*?-->/s', '', $html);
@@ -98,14 +94,20 @@ final class EmailCampaignTest extends TestCase
                 html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8')));
         };
 
-        $this->assertSame(
-            $visible($twig->render('emails/final-hours.twig', $vars)),
-            $visible(EmailCampaign::render('s', 'p', EmailCampaign::starter(), $vars)),
-            'the editable campaign does not say the same thing as the template it replaces'
-        );
+        $fixed   = \AfricaGates\Services\Mail\Emails::compose('final', $vars);
+        $starter = $visible(EmailCampaign::render('s', 'p', EmailCampaign::starter(), $vars));
+        $body    = $visible('<table>' . $fixed['html'] . '</table>');
+        // The h1 is "Finish strong, <name>" in one and a headline+accent pair in the other;
+        // every other line is a sentence, and each must be there.
+        foreach (['Two things make the difference.', 'Send your link to five people', 'Personally. A message beats a post.',
+                  'Fill the room', 'the people who believed in you should be there to celebrate with you.',
+                  'Vote and share your link', 'Get event tickets'] as $sentence) {
+            $this->assertStringContainsString($sentence, $body, "the fixed message lost '$sentence'");
+            $this->assertStringContainsString($sentence, $starter, "the editable starter does not say '$sentence'");
+        }
     }
 
-    /** The structural properties EmailInboxCompatTest holds must survive the new skeleton. */
+    /** The structural properties EmailInboxCompatCase holds must survive the new skeleton. */
     public function test_the_rendered_campaign_keeps_the_structure_outlook_needs(): void
     {
         $html = EmailCampaign::render('s', 'p', EmailCampaign::starter(), EmailCampaign::sampleVars());
@@ -117,11 +119,101 @@ final class EmailCampaignTest extends TestCase
             'mso-hide:all'               => 'the hidden preheader',
             'prefers-color-scheme: dark' => 'a declared dark mode',
             'x-apple-data-detectors'     => 'the iOS autolink suppression',
-            'max-width:560px'            => 'the fluid-hybrid width',
+            'max-width:600px'            => 'the fluid-hybrid width',
         ] as $needle => $why) {
             $this->assertStringContainsString($needle, $html, "lost {$why}");
         }
         $this->assertStringNotContainsString('nonce=', $html, 'a mail template must carry no CSP nonce');
+    }
+
+    // ══ the general-purpose layout (17 Nov 2026) ═════════════════════════════
+
+    /** Visible text of a render, for asserting on words rather than markup. */
+    private static function visible(string $html): string
+    {
+        $html = (string) preg_replace('/<!--.*?-->/s', '', $html);
+        $html = (string) preg_replace('~<head\b.*?</head>~si', '', $html);
+        $html = (string) preg_replace('~<div style="display:none.*?</div>~si', '', $html);
+        return trim((string) preg_replace('/\s+/u', ' ',
+            html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8')));
+    }
+
+    /**
+     * With no `chrome`, a campaign keeps the shape every campaign before the redesign had:
+     * "Final hours" in the masthead and the nominee's countdown, deadline repeated as text.
+     */
+    public function test_without_chrome_an_existing_campaign_keeps_its_countdown(): void
+    {
+        $vars = EmailCampaign::sampleVars();
+        $html = EmailCampaign::render('s', 'p', EmailCampaign::starter(), $vars);
+
+        $this->assertStringContainsString((string) $vars['countdown_url'], $html);
+        $this->assertStringContainsString('Voting closes ' . $vars['closes_human'], self::visible($html));
+        $this->assertStringContainsString('Final hours', self::visible($html));
+    }
+
+    /** A general announcement draws no countdown, no deadline and no award label. */
+    public function test_chrome_can_turn_the_countdown_off_and_set_the_masthead_label(): void
+    {
+        $vars = EmailCampaign::sampleVars() + ['chrome' => ['tag' => 'Announcement', 'countdown' => false]];
+        $html = EmailCampaign::render('s', '', [['type' => 'paragraph', 'text' => 'News.']], $vars);
+        $text = self::visible($html);
+
+        $this->assertStringNotContainsString('countdown.gif', $html);
+        $this->assertStringNotContainsString('Voting closes', $html, 'no deadline in the body or the preheader fallback');
+        $this->assertStringNotContainsString('Final hours', $text);
+        $this->assertStringContainsString('Announcement', $text);
+        $this->assertSame([], EmailInboxGuard::problems($html));
+    }
+
+    /** The footer keeps every way out and every compliance line. */
+    public function test_the_footer_keeps_unsubscribe_postal_and_why(): void
+    {
+        $vars = EmailCampaign::sampleVars();
+        $html = EmailCampaign::render('s', 'p', [['type' => 'paragraph', 'text' => 'News.']], $vars);
+
+        $this->assertStringContainsString('href="' . htmlspecialchars((string) $vars['unsubscribe_url'], ENT_QUOTES) . '"', $html);
+        $this->assertStringContainsString('>Unsubscribe</a>', $html);
+        $this->assertStringContainsString($vars['site_url'] . '/privacy', $html);
+        $this->assertStringContainsString('because you’re a nominee', $html);
+        $this->assertStringContainsString('Afrovanguard initiative', $html);
+    }
+
+    /** A paragraph line starting "- " is a bullet; **words** are bold; both stay escaped. */
+    public function test_a_paragraph_draws_bullets_and_bold_without_letting_markup_in(): void
+    {
+        $html = EmailCampaign::render('s', 'p', [['type' => 'paragraph',
+            'text' => "Intro with **bold words** here.\n- **Date:** 12 December\n- Venue & hall"]],
+            EmailCampaign::sampleVars());
+
+        $this->assertMatchesRegularExpression('~<strong[^>]*>bold words</strong>~', $html);
+        $this->assertMatchesRegularExpression('~<strong[^>]*>Date:</strong> 12 December~', $html);
+        $this->assertSame(2, substr_count($html, '&bull;'), 'one bullet per "- " line');
+        $this->assertStringContainsString('Venue &amp; hall', $html, 'bullet text is escaped once');
+        $this->assertStringNotContainsString('**', self::visible($html));
+        $this->assertStringNotContainsString('- Venue', self::visible($html), 'the marker is drawn, not printed');
+    }
+
+    /** An unmatched ** is shown as typed rather than bolding the rest of the line. */
+    public function test_an_unmatched_bold_marker_is_left_as_typed(): void
+    {
+        $html = EmailCampaign::render('s', 'p', [['type' => 'paragraph', 'text' => 'Price 5 ** 2 today']],
+            EmailCampaign::sampleVars());
+
+        $this->assertStringNotContainsString('<strong', $html);
+        $this->assertStringContainsString('Price 5 ** 2 today', $html);
+    }
+
+    /** A button with no text draws nothing, rather than an empty green pill. */
+    public function test_a_button_with_no_label_is_omitted_but_its_secondary_link_stays(): void
+    {
+        $html = EmailCampaign::render('s', 'p', [
+            ['type' => 'paragraph', 'text' => 'Hi.'],
+            ['type' => 'button', 'label' => '', 'link' => 'vote_url', 'secondary_label' => 'See events', 'secondary_link' => 'events_url'],
+        ], EmailCampaign::sampleVars());
+
+        $this->assertStringNotContainsString('v:roundrect', $html);
+        $this->assertStringContainsString('See events', $html);
     }
 
     // ══ placeholders ═════════════════════════════════════════════════════════
@@ -148,6 +240,40 @@ final class EmailCampaignTest extends TestCase
     public function test_an_unknown_placeholder_is_left_alone(): void
     {
         $this->assertSame('{bank_details}', EmailCampaign::fill('{bank_details}', ['bank_details' => 'secret']));
+    }
+
+    /**
+     * The general placeholders (17 Nov 2026): the nominee's full name, the award (their
+     * cycle's programme) and the edition — resolved per recipient by NomineeBroadcast::vars(),
+     * listed on the compose screen from PLACEHOLDERS, and filled in the preview sample.
+     */
+    public function test_full_name_award_and_edition_resolve_per_recipient_with_fallbacks(): void
+    {
+        foreach (['full_name', 'award_name', 'edition_name'] as $k) {
+            $this->assertArrayHasKey($k, EmailCampaign::PLACEHOLDERS, "the compose screen lists {{$k}}");
+            $this->assertNotSame('', (string) (EmailCampaign::sampleVars()[$k] ?? ''), "the preview fills {{$k}}");
+        }
+
+        $r = [
+            'nominee' => (object) ['id' => 7, 'name' => 'Ngozi Adaeze Okafor', 'category_title' => 'Health',
+                                   'programme_slug' => 'health-awards'],
+            'cycle'   => (object) ['id' => 3, 'voting_close' => '2026-12-01 23:59:00', 'year' => 2026,
+                                   'edition_label' => '11th Edition', 'programme_title' => 'Africa GATES Health Awards'],
+            'email'   => 'ngozi@example.test',
+        ];
+        $vars = (new NomineeBroadcast())->vars($r, 'https://x.test');
+        $text = 'Dear {full_name}, {award_name|Africa GATES} ({edition_name}).';
+        $this->assertSame('Dear Ngozi Adaeze Okafor, Africa GATES Health Awards (11th Edition).',
+            EmailCampaign::fill($text, $vars));
+
+        // No programme row, no edition label: the award falls back as written, the edition to the year.
+        $r['cycle'] = (object) ['id' => 3, 'voting_close' => '2026-12-01 23:59:00', 'year' => 2026];
+        $vars = (new NomineeBroadcast())->vars($r, 'https://x.test');
+        $this->assertSame('Dear Ngozi Adaeze Okafor, Africa GATES (2026).', EmailCampaign::fill($text, $vars));
+
+        // Existing drafts are untouched: the old placeholders resolve exactly as before.
+        $this->assertSame('Ngozi', $vars['first_name']);
+        $this->assertSame('Health', EmailCampaign::fill('{category_name}', $vars));
     }
 
     public function test_a_name_with_an_ampersand_is_escaped_once(): void
@@ -373,7 +499,10 @@ final class EmailCampaignTest extends TestCase
     public function test_the_plain_text_follows_the_blocks_and_spells_out_links(): void
     {
         $vars = EmailCampaign::sampleVars();
-        $txt  = EmailCampaign::plainOf(EmailCampaign::starter(), $vars);
+        // A heading block is added to the starter: the starter no longer carries one, and the
+        // rule being held is how a heading reaches a text client, not the starter's wording.
+        $txt  = EmailCampaign::plainOf(array_merge(EmailCampaign::starter(),
+            [['type' => 'heading', 'text' => "Two things we're asking of you"]]), $vars);
 
         $this->assertStringContainsString('Finish strong', $txt);
         $this->assertStringContainsString("TWO THINGS WE'RE ASKING OF YOU", $txt);
@@ -389,5 +518,40 @@ final class EmailCampaignTest extends TestCase
 
         $this->assertStringContainsString('A brand new sentence.', $txt);
         $this->assertStringNotContainsString('final stretch', $txt, 'the old fixed prose leaked through');
+    }
+
+    /** Not every campaign is a voting push (owner, 17 Nov 2026). */
+    public function test_a_general_campaign_has_no_countdown_and_takes_a_kicker_and_a_typed_link(): void
+    {
+        $vars   = EmailCampaign::sampleVars();
+        $in     = EmailCampaign::general();
+        $in[1]['eyebrow'] = 'Summit · {award_name|Awards}';
+        $in[3]['url'] = 'https://forms.example.org/rsvp?x=1';
+        $blocks = EmailCampaign::clean($in);
+
+        $this->assertSame(['tag' => 'Update', 'countdown' => false], EmailCampaign::chrome($blocks));
+        $html = EmailCampaign::render('s', 'p', $blocks, $vars);
+        $this->assertStringNotContainsString((string) $vars['countdown_url'], $html, 'a general message drew the voting countdown');
+        $this->assertStringNotContainsString('Final hours', $html);
+        $this->assertStringContainsString('forms.example.org/rsvp', $html, 'the typed address was not used');
+        $this->assertStringContainsString('Summit · ', $html, 'the kicker was not drawn');
+        $this->assertStringNotContainsString('Voting closes', EmailCampaign::plainOf($blocks, $vars));
+        $this->assertSame([], \AfricaGates\Services\EmailInboxGuard::problems($html));
+
+        // Switching the countdown on brings it back, and the legacy starter keeps it.
+        $blocks[0]['countdown'] = 'show';
+        $this->assertStringContainsString((string) $vars['countdown_url'], EmailCampaign::render('s', 'p', $blocks, $vars));
+        $this->assertStringContainsString((string) $vars['countdown_url'], EmailCampaign::render('s', 'p', EmailCampaign::starter(), $vars));
+    }
+
+    public function test_a_typed_link_must_be_https_or_a_path_on_this_site(): void
+    {
+        foreach (['javascript:alert(1)', '//evil.example/x', 'http://plain.example', 'data:text/html,x'] as $bad) {
+            $b = EmailCampaign::clean([['type' => 'button', 'label' => 'Go', 'link' => 'site_url', 'url' => $bad]]);
+            $this->assertSame('', $b[0]['url'], "$bad was kept");
+        }
+        $b = EmailCampaign::clean([['type' => 'button', 'label' => 'Go', 'link' => 'site_url', 'url' => '/events']]);
+        $html = EmailCampaign::render('s', 'p', $b, EmailCampaign::sampleVars());
+        $this->assertStringContainsString(rtrim((string) EmailCampaign::sampleVars()['site_url'], '/') . '/events', $html, 'a path was not made absolute');
     }
 }

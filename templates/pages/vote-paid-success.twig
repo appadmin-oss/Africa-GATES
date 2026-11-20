@@ -41,9 +41,20 @@
     {% set _title = (votes == 1 ? '%n% vote counted' : '%n% votes counted')|trans({'%n%': votes|number_format})
                     ~ (_who ? ' ' ~ 'for %who%'|trans({'%who%': _who}) : '') %}
     {% if _cel %}
+      {# The supporter, celebrated: where they stand among everybody backing their own, what
+         they have given this edition, and what it did — in the celebration's own stat tiles. #}
+      {% set _o = own|default(null) %}
+      {% set _stats = [] %}
+      {% if _o and _o.rank > 0 %}
+        {% set _stats = _stats|merge([{n: '#' ~ _o.rank, l: 'of %n% supporters'|trans({'%n%': _o.people|number_format})}, {n: _o.total, l: _o.total == 1 ? 'vote from you'|trans : 'votes from you'|trans}]) %}
+      {% endif %}
+      {% if _o and _o.share > 0 %}{% set _stats = _stats|merge([{n: '₦' ~ _o.share|number_format, l: 'for %who%'|trans({'%who%': _o.beneficiary})}]) %}{% endif %}
       {% include 'partials/celebration.twig' with {
-        kind: 'vote', heading: 'h1', context: _ctx, title: _title,
-        sub: 'They are already in the public tally.'|trans,
+        kind: 'vote', heading: 'h1', context: _ctx, title: _title, stats: _stats,
+        sub: (_o and _o.people > 1
+               ? (_o.place ? 'You are one of %n% people celebrating %place%’s own, and your votes are already in the public tally.'|trans({'%n%': _o.people|number_format, '%place%': _o.place})
+                           : 'You are one of %n% people backing their own, and your votes are already in the public tally.'|trans({'%n%': _o.people|number_format}))
+               : 'They are already in the public tally.'|trans),
         primary: {label: 'Back to the ballot'|trans, href: _ballot},
         secondary: {label: 'See the leaderboard'|trans, href: '/leaderboard'}
       } only %}
@@ -53,8 +64,23 @@
         <p class="rc__kicker">{{ 'Votes confirmed'|trans }}</p>
         <h1 class="rc__h1" id="rcH">{{ _title }}</h1>
       {% endif %}
-      <p class="rc__p">{{ 'Your payment of ₦%amt% was verified and the votes are in the public tally. Paid votes raise the tally — the independent jury score, %pct%% of the index, is never affected by them.'|trans({'%amt%': amount_naira|number_format, '%pct%': judge_pct|default(55)}) }}</p>
+      <p class="rc__p">{{ 'Your ₦%amt% was verified and the votes are tallied. Paid votes never affect the jury score (%pct%%).'|trans({'%amt%': amount_naira|number_format, '%pct%': judge_pct|default(55)}) }}</p>
       <dl class="rc__ref"><dt>{{ 'Reference'|trans }}</dt><dd>{{ reference }}</dd></dl>
+      {# What this did, and what it unlocked — the award's own campaign, never a default. #}
+      {% if own %}
+        {% if own.share > 0 %}
+          <p class="rc__p"><b>{{ 'Your votes put ₦%n% towards %who%.'|trans({'%n%': own.share|number_format, '%who%': own.beneficiary}) }}</b></p>
+        {% endif %}
+        {% if own.total > 0 and own.ladder %}
+          <h2 class="rc__h2">{{ 'You have given %n% votes in this edition'|trans({'%n%': own.total|number_format}) }}</h2>
+          <ul class="rc__rows">
+            {% for s in own.standing.have %}<li class="rc__row"><span class="rc__row-k">{{ 'Unlocked: %b%'|trans({'%b%': s.benefit}) }}</span></li>{% endfor %}
+            {% if own.standing.next %}<li class="rc__row"><span class="rc__row-k">{{ own.standing.next.more == 1 ? '1 more vote unlocks: %b%'|trans({'%b%': own.standing.next.benefit}) : '%n% more votes unlock: %b%'|trans({'%n%': own.standing.next.more|number_format, '%b%': own.standing.next.benefit}) }}</span></li>{% endif %}
+          </ul>
+          {% if own.note %}<p class="rc__p">{{ own.note }}</p>{% endif %}
+        {% endif %}
+        {% if own.offer_url %}<p class="rc__p"><a href="{{ own.offer_url }}">{{ 'See everything your votes unlock, and how to become Champion of the Day'|trans }}</a></p>{% endif %}
+      {% endif %}
       <h2 class="rc__h2" id="rcNext">{{ 'What happens next'|trans }}</h2>
       <ul class="rc__rows">
         <li class="rc__row"><span class="rc__row-k">{{ 'The public tally updates immediately; leaderboards refresh every few minutes.'|trans }}</span></li>
@@ -79,16 +105,16 @@
       it without script would land somebody on raw JSON.
     #}
     <section class="rc__card" aria-labelledby="rcMsg" data-rc-msg data-ref="{{ reference }}" data-max="{{ msg_max|default(400) }}" data-open="{{ 'Open your message'|trans }}"{% if msg_posted|default(false) %} data-sent{% endif %} hidden>
-      <h2 class="rc__h2" id="rcMsg">{{ 'Say something about %who%'|trans({'%who%': _who ?: 'them'|trans}) }}</h2>
+      <h2 class="rc__h2" id="rcMsg">{{ 'Why do you back %who%?'|trans({'%who%': _who ?: 'them'|trans}) }}</h2>
       <div data-rc-msg-form{% if msg_posted|default(false) %} hidden{% endif %}>
-        <p class="rc__p">{{ 'Optional, and it appears on their page once checked. Other supporters read these. No links or phone numbers, please.'|trans }}</p>
+        <p class="rc__p">{{ 'Optional. Shown on their page once checked. No links or phone numbers.'|trans }}</p>
         <label class="ag-label" for="rcMsgBody">{{ 'Your message'|trans }}</label>
         <textarea class="ag-field" id="rcMsgBody" rows="4" maxlength="{{ msg_max|default(400) }}" data-rc-msg-body></textarea>
         <p class="ag-hint"><span data-rc-msg-n>0</span>/{{ msg_max|default(400) }}</p>
         <p class="ag-err" role="alert" data-rc-msg-err hidden></p>
         <button type="button" class="ag-btn ag-btn--ink" data-rc-msg-go data-busy="{{ 'Posting…'|trans }}" data-short="{{ 'Write a few words first.'|trans }}">{{ 'Post my message'|trans }}</button>
       </div>
-      <p class="rc__p" role="status" data-rc-msg-done{% if not msg_posted|default(false) %} hidden{% endif %}>{{ msg_posted|default(false) ? 'Thank you — the message you wrote on the ballot was saved with this order.'|trans : '' }}</p>
+      <p class="rc__p" role="status" data-rc-msg-done{% if not msg_posted|default(false) %} hidden{% endif %}>{{ msg_posted|default(false) ? 'Thank you — your ballot message was saved with this order.'|trans : '' }}</p>
     </section>
 
     <section class="rc__card" aria-labelledby="rcRally">
@@ -99,6 +125,17 @@
                 aria-label="{{ 'Share the ballot'|trans }}" data-ag-copied="{{ 'Link copied'|trans }}">{{ 'Share the ballot'|trans }}</button>
       </div>
     </section>
+
+    {# "I backed …" (Services\BackedCard): the supporter's own card about this vote. It names
+       nobody but the nominee, so there is nothing to consent to. #}
+    {% if _who and card_url|default('') %}
+    <section class="rc__card" aria-labelledby="rcCard">
+      <h2 class="rc__h2" id="rcCard">{{ 'Your “I backed” card'|trans }}</h2>
+      <img class="rc__card-img" src="{{ card_url }}" width="600" height="315" loading="lazy" decoding="async" alt="{{ 'I backed %who%.'|trans({'%who%': _who}) }}">
+      <p class="rc__p">{{ 'Post it where your people will see it. It says who you stand with, not who you are.'|trans }}</p>
+      <div class="rc__do"><a class="ag-btn ag-btn--secondary" href="{{ card_url }}" download="i-backed.png">{{ 'Download the card'|trans }}</a></div>
+    </section>
+    {% endif %}
   {% elseif confirmed %}
     <section class="rc__card" aria-labelledby="rcH">
       <div class="rc__verdict rc__verdict--wait" role="status">
@@ -107,11 +144,11 @@
           <p class="rc__verdict-s">{{ 'Nothing was added to the public tally — the standings are unchanged.'|trans }}</p></div>
       </div>
       <h1 class="rc__h1" id="rcH">{{ 'Voting closed before this payment confirmed'|trans }}</h1>
-      <p class="rc__p">{{ 'Your payment of ₦%amt% went through, but voting for %who% had already closed by the time it reached us — so no votes were added. We will not count votes in a closed category, which means this order is refundable.'|trans({'%amt%': amount_naira|number_format, '%who%': _who ?: 'this nominee'|trans}) }}</p>
+      <p class="rc__p">{{ 'Your ₦%amt% went through after voting for %who% closed, so no votes were added. This order is refundable.'|trans({'%amt%': amount_naira|number_format, '%who%': _who ?: 'this nominee'|trans}) }}</p>
       {% if reference %}<dl class="rc__ref"><dt>{{ 'Reference'|trans }}</dt><dd>{{ reference }}</dd></dl>{% endif %}
       <ul class="rc__rows">
-        <li class="rc__row"><span class="rc__row-k">{{ 'Quote the reference above and we will refund the full amount. A person decides every refund; the assistant opens the ticket with the reference attached.'|trans }}</span></li>
-        <li class="rc__row"><span class="rc__row-k">{{ 'If the category reopens before then, we can deliver the votes instead — your choice.'|trans }}</span></li>
+        <li class="rc__row"><span class="rc__row-k">{{ 'Quote the reference above for a full refund. A person decides every refund.'|trans }}</span></li>
+        <li class="rc__row"><span class="rc__row-k">{{ 'If the category reopens first, we can deliver the votes instead.'|trans }}</span></li>
       </ul>
       <div class="rc__do">
         <a class="ag-btn ag-btn--primary" href="/support/assistant?topic=payment{{ reference ? '&ref=' ~ reference|url_encode ~ '&ask=1' : '' }}">{{ 'Arrange the refund'|trans }}</a>
@@ -126,7 +163,7 @@
           <p class="rc__verdict-s">{{ 'Payments are verified with the gateway before any vote counts.'|trans }}</p></div>
       </div>
       <h1 class="rc__h1" id="rcH">{{ 'We could not confirm that payment yet'|trans }}</h1>
-      <p class="rc__p">{{ 'If you completed the payment, the confirmation can take a moment to land. If you were charged and see no votes within a few minutes, the re-check asks the gateway directly and adds them if the money arrived.'|trans }}</p>
+      <p class="rc__p">{{ 'Confirmation can lag. Charged but no votes after a few minutes? Re-check below.'|trans }}</p>
       {% if reference %}<dl class="rc__ref"><dt>{{ 'Reference'|trans }}</dt><dd>{{ reference }}</dd></dl>{% endif %}
       <div class="rc__do">
         <a class="ag-btn ag-btn--primary" href="/support/assistant?topic=payment{{ reference ? '&ref=' ~ reference|url_encode ~ '&ask=1' : '' }}">{{ 'Re-check this payment'|trans }}</a>
@@ -138,5 +175,5 @@
 {% endblock %}
 
 {% block foot_scripts %}
-  {% if minted and reference %}<script defer src="{{ asset('/assets/js/receipt.js') }}"></script>{% endif %}
+  {% if minted and reference %}<script defer src="{{ asset('/assets/js/receipt.js') }}" data-nav="rerun"></script>{% endif %}
 {% endblock %}

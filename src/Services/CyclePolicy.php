@@ -47,9 +47,49 @@ final class CyclePolicy
      */
     public static function phaseFor(object|array $cycle, ?Carbon $now = null): CyclePhase
     {
-        $c   = (object) $cycle;
-        $now = $now ?? Carbon::now();
+        $c     = (object) $cycle;
+        $phase = self::fromWindows($c, $now ?? Carbon::now());
 
+        // ── A RELEASE IS AN ACT, NOT A DATE ──────────────────────────────────
+        //
+        // `results` is written by CycleMaterialiser alone, in the transaction that crowns
+        // and seals — the hand-set transition is refused — and its release() deliberately
+        // allows publishing before the results date, while plenty of cycles never set
+        // one. The windows cannot know that happened, so a released award read as "With
+        // the jury" on every page that draws its phase, beside its own published result.
+        //
+        // Trusted ONLY where the windows already say Judging. release() refuses anything
+        // earlier, so this can never close voting or reach back into any other phase: the
+        // cache stays a cache everywhere it could gate an action.
+        if ($phase === CyclePhase::Judging
+            && CyclePhase::fromStored($c->status ?? null) === CyclePhase::Results) {
+            return CyclePhase::Results;
+        }
+        return $phase;
+    }
+
+    /**
+     * The phase the SCHEDULE promises, whatever the release mode: Results once the results
+     * date has passed even where release is manual and nobody has pressed it yet.
+     *
+     * Not an authorization input — nothing may open or close on it. It exists for the
+     * readers whose question is about the promise rather than the state: the phase audit's
+     * "results date has passed and nobody is crowned" backlog, which in manual mode is
+     * precisely the list of editions waiting on an operator, and which its SQL twin
+     * (database/audits/phase-audit.sql) computes from the dates alone. Reading phaseFor()
+     * there emptied the backlog the moment release became manual by default — the one
+     * report meant to say "these are overdue" going silent exactly when they are.
+     *
+     * @param object|array<string,mixed> $cycle a gates_award_cycles row
+     */
+    public static function scheduledPhase(object|array $cycle, ?Carbon $now = null): CyclePhase
+    {
+        return self::fromWindows((object) $cycle, $now ?? Carbon::now(), true);
+    }
+
+    /** The phase the date windows alone give (see the note on the class). */
+    private static function fromWindows(object $c, Carbon $now, ?bool $auto = null): CyclePhase
+    {
         $stored = CyclePhase::fromStored($c->status ?? null);
         if ($stored === CyclePhase::Archived) return CyclePhase::Archived;
 
@@ -65,7 +105,16 @@ final class CyclePolicy
         }
 
         // Latest window first; the first satisfied boundary wins.
-        if ($results   && $now->gte($results))   return CyclePhase::Results;
+        //
+        // The results date publishes on its own ONLY in automatic release mode. By default
+        // a release is an act ({@see ResultReleaseMode}): past the date the windows still
+        // say Judging, the public sees a "result is late" notice, and phaseFor() reports
+        // Results once an operator has released (stored status = results). This is the
+        // one setting this otherwise pure function reads, cached per process.
+        if ($results   && $now->gte($results)) {
+            return ($auto ?? \AfricaGates\Support\ResultReleaseMode::isAuto())
+                ? CyclePhase::Results : CyclePhase::Judging;
+        }
         if ($voteClose && $now->gte($voteClose)) return CyclePhase::Judging;
         if ($voteOpen  && $now->gte($voteOpen))  return CyclePhase::Voting;
 
@@ -208,6 +257,9 @@ final class CyclePolicy
             return $closesAt ? 'Voting opens ' . $day($closesAt) : 'Voting dates to be announced.';
         }
         if ($phase === CyclePhase::Judging) {
+            // Past the results date and not yet released (manual release mode): say so,
+            // rather than "Results 1 Dec" about a day that has gone.
+            if ($closesAt && $secondsLeft === 0) return 'Results are being finalised.';
             return $closesAt ? 'Results ' . $day($closesAt) : 'Results date to be announced.';
         }
 

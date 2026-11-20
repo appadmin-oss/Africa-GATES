@@ -30,3 +30,10 @@ Rebuilt to `handoff-2026-10-05/design/AccountPage.dc.html`, checked at 390, 800 
 | AC-5 | Quick actions: **Giving → Events**. | `/donate`'s giving page is destroyed and awaiting its phase; a tile to a dead page is worse than none. |
 
 Holiday banner (HOLIDAY-THEMES) sits at the top of this frame and lands in its own commit.
+
+
+### 31 October 2026 — coherent account settings
+
+Profile, Security and Settings now share a responsive settings navigation strip, including on phones. Password entry moved from Profile to Security. POST `/account/password` changes only the password and returns to Security, so a stale settings tab cannot overwrite newer profile details. Existing POST `/account/profile` remains compatible with older clients. Password changes retain the current-password check when a password is set and the eight-character minimum.
+
+Profile, Security and Settings bodies are now separate section templates. UserAccountService::changePassword supplies the shared password rules. The password form exposes its required inputs directly and uses the shared error-summary validator, so validation never targets a control hidden in a collapsed disclosure.

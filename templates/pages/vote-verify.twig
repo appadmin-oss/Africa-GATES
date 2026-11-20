@@ -31,7 +31,7 @@
   <section class="rc__card" aria-labelledby="rcH">
     <p class="rc__kicker">{{ 'Verify a payment'|trans }}</p>
     <h1 class="rc__h1" id="rcH">{{ 'What happened to your votes'|trans }}</h1>
-    <p class="rc__p">{{ 'Paste your reference and see exactly what was paid, what was delivered, and when. This page reads the live record — it is not a copy of an email.'|trans }}</p>
+    <p class="rc__p">{{ 'Paste your reference to see what was paid, delivered and when.'|trans }}</p>
     <form class="rc__find" method="get" action="/vote/verify">
       <label class="ag-label" for="rcRef">{{ 'Payment reference'|trans }}</label>
       <div class="rc__find-row">
@@ -55,32 +55,32 @@
         <div class="rc__verdict rc__verdict--ok">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
           <div class="rc__verdict-b"><h2 class="rc__verdict-t" id="rcV">{{ (proof.delivered == 1 ? 'Delivered — %n% vote is on the tally' : 'Delivered — %n% votes are on the tally')|trans({'%n%': proof.delivered|number_format}) }}</h2>
-            <p class="rc__verdict-s">{{ 'Your payment was confirmed and the votes were added. The entries below are the actual records, each with the time it was written.'|trans }}</p></div>
+            <p class="rc__verdict-s">{{ 'Payment confirmed and votes added. Below are the actual records, with times.'|trans }}</p></div>
         </div>
       {% elseif st == 'refunded' %}
         <div class="rc__verdict rc__verdict--wait">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 4v5h5"/></svg>
           <div class="rc__verdict-b"><h2 class="rc__verdict-t" id="rcV">{{ 'Refunded'|trans }}</h2>
-            <p class="rc__verdict-s">{{ 'The votes could not be counted, so the money went back on %when%. Banks usually take 5–10 working days to show it.'|trans({'%when%': proof.refunded_at|default('')}) }}</p></div>
+            <p class="rc__verdict-s">{{ 'Votes not counted, so refunded on %when%. Banks take 5–10 working days.'|trans({'%when%': proof.refunded_at|default('')}) }}</p></div>
         </div>
       {% elseif st == 'pending' %}
         <div class="rc__verdict rc__verdict--wait">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
           <div class="rc__verdict-b"><h2 class="rc__verdict-t" id="rcV">{{ 'Not confirmed yet'|trans }}</h2>
-            <p class="rc__verdict-s">{{ 'We have the order but no confirmation from the bank. If you have been debited, use the button below — it re-asks the bank directly and credits the votes if the money arrived.'|trans }}</p></div>
+            <p class="rc__verdict-s">{{ 'No bank confirmation yet. Debited? The button below re-checks and credits the votes.'|trans }}</p></div>
         </div>
       {% elseif st == 'not_paid' %}
         <div class="rc__verdict rc__verdict--wait">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
           <div class="rc__verdict-b"><h2 class="rc__verdict-t" id="rcV">{{ 'This payment did not complete'|trans }}</h2>
-            <p class="rc__verdict-s">{{ 'No money reached us on this reference, so nothing was charged and no votes were added. If your bank shows a debit it is usually a pending authorisation that reverses itself — check anyway with the button below.'|trans }}</p></div>
+            <p class="rc__verdict-s">{{ 'Nothing was charged and no votes added. A bank debit is usually a hold that reverses.'|trans }}</p></div>
         </div>
       {% else %}
         {# awaiting_delivery, claimed_but_missing, partial — all genuinely wrong. #}
         <div class="rc__verdict rc__verdict--bad">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
           <div class="rc__verdict-b"><h2 class="rc__verdict-t" id="rcV">{{ 'Paid, and the votes are not there'|trans }}</h2>
-            <p class="rc__verdict-s">{{ 'This is our fault, not yours, and it is fixable. Use the button below — it re-checks the payment with the bank and adds the votes on the spot. If they cannot be added, the money goes back; we do not keep payment for votes we did not count.'|trans }}</p></div>
+            <p class="rc__verdict-s">{{ 'Our fault, and fixable. The button below re-checks and adds the votes, or refunds you.'|trans }}</p></div>
         </div>
       {% endif %}
 
@@ -96,7 +96,7 @@
 
       {% if proof.votes %}
         <h3 class="rc__h2">{{ 'The vote records'|trans }}</h3>
-        <p class="rc__fine">{{ 'These are the actual entries on the tally, read live. Not a summary of an email.'|trans }}</p>
+        <p class="rc__fine">{{ 'The actual tally entries, read live.'|trans }}</p>
         <ul class="rc__votes">
           {% for v in proof.votes %}
             <li class="rc__vote">
@@ -115,7 +115,7 @@
       {% if proof.mismatch %}
         <div class="rc__verdict rc__verdict--bad">
           <div class="rc__verdict-b"><p class="rc__verdict-t">{{ 'Our counter and the tally disagree on this order.'|trans }}</p>
-            <p class="rc__verdict-s">{{ 'The counter says %c%; the tally holds %d%. We would rather show you that than quietly report the larger number. Use the repair button, and if it does not resolve it, open a support ticket and quote this reference.'|trans({'%c%': proof.claimed, '%d%': proof.delivered}) }}</p></div>
+            <p class="rc__verdict-s">{{ 'The counter says %c%; the tally holds %d%. Re-check below, or contact support with this reference.'|trans({'%c%': proof.claimed, '%d%': proof.delivered}) }}</p></div>
         </div>
       {% endif %}
 
@@ -129,7 +129,7 @@
     </section>
   {% endif %}
 
-  <p class="rc__fine">{{ 'This page shows no payer details — anyone with the reference can open it, so it contains only the order.'|trans }}
+  <p class="rc__fine">{{ 'No payer details shown: anyone with the reference can open this page.'|trans }}
     <a href="/support">{{ 'Support and appeals'|trans }}</a></p>
 </div>
 {% endblock %}

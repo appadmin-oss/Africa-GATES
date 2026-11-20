@@ -186,6 +186,10 @@ final class PointsService
                 $nom = MergeService::notMerged(DB::table('gates_nominees')->where('id', $nomineeId)->where('status', 'approved'))
                     ->lockForUpdate()->first();
                 if (!$nom) return ['ok' => false, 'message' => 'That nominee is not open for voting.'];
+                // A volunteer does not vote with points in an award they help run (Volunteer\Rewards).
+                if (\AfricaGates\Services\Volunteer\Rewards::helpsRun($userId, $nomineeId)) {
+                    return ['ok' => false, 'message' => 'You help run this award as a volunteer, so your points can’t vote in it.'];
+                }
 
                 $cycle = DB::table('gates_award_cycles AS cy')
                     ->join('gates_award_categories AS c', 'c.cycle_id', '=', 'cy.id')

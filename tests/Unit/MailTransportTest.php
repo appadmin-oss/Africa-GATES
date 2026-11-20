@@ -44,7 +44,10 @@ final class MailTransportTest extends TestCase
             DB::table($t)->delete();
         }
         DB::table('gates_settings')->whereIn('key_name', array_merge(MailSetup::SMTP_KEYS,
-            [MailSetup::TRANSPORT_KEY, MailSetup::API_KEY, OtpService::SMTP_REST_KEY, 'mail_daily_limit', SendPolicy::CAP_KEY]))->delete();
+            [MailSetup::TRANSPORT_KEY, MailSetup::API_KEY, OtpService::SMTP_REST_KEY, 'mail_daily_limit', SendPolicy::CAP_KEY,
+             \AfricaGates\Services\Mail\RoadCapacity::GAS_SEEN_KEY, \AfricaGates\Services\Mail\RoadCapacity::REST_KEY,
+             \AfricaGates\Services\Mail\RoadCapacity::GAS_KEY, \AfricaGates\Services\Mail\RoadCapacity::API_KEY]))->delete();
+        \AfricaGates\Services\Mail\RoadCapacity::forget();
     }
 
     protected function tearDown(): void
@@ -483,19 +486,29 @@ final class MailTransportTest extends TestCase
         $this->assertStringContainsString('via gas after: smtp', (string) DB::table('gates_mail_log')->value('error'));
     }
 
-    public function test_an_announcement_never_spends_the_apps_script_allowance(): void
+    /**
+     * Announcements may use Apps Script, but never its reserve (owner, 5 Nov 2026: Apps Script
+     * is the road that works and SMTP fails). This used to bar every announcement from the road
+     * outright, so on that deployment no campaign, newsletter or reminder ever left. The
+     * original promise — sign-in codes always have room — is now the reserve
+     * (RoadCapacity::gasReserve), read from the script's own count of what it has left.
+     */
+    public function test_an_announcement_uses_apps_script_but_never_its_reserve(): void
     {
+        \AfricaGates\Services\Mail\RoadCapacity::noteGasRemaining(80);       // plenty left
         $m = $this->mailer(['smtp' => self::throws('SMTP connect() failed.')], MailConfig::TRANSPORT_AUTO, '', true);
-        $m->sendRawHtml('reader@africagates.org', 'This week', '<p>news</p>', 'news', 'newsletter',
-                        'https://africagates.org/u/1');
-        $this->assertNotContains('gas', $m->roads, 'a newsletter took the road sign-in codes depend on');
+        $r = $m->sendRawHtml('reader@africagates.org', 'This week', '<p>news</p>', 'news', 'newsletter',
+                             'https://africagates.org/u/1');
+        $this->assertTrue($r['success'], json_encode($r));
+        $this->assertSame(['smtp', 'gas'], $m->roads, 'with room left, the announcement goes by the road that works');
 
+        \AfricaGates\Services\Mail\RoadCapacity::noteGasRemaining(\AfricaGates\Services\Mail\RoadCapacity::gasReserve());
         $only = $this->mailer([], MailConfig::TRANSPORT_GAS, '', true);
         $r = $only->sendRawHtml('reader@africagates.org', 'This week', '<p>news</p>', 'news', 'newsletter',
                                 'https://africagates.org/u/1');
-        $this->assertSame('deferred', $r['held'] ?? null, 'an announcement with only Apps Script open is held, not failed');
+        $this->assertSame('deferred', $r['held'] ?? null, 'down to the reserve, an announcement is held, not failed');
         $this->assertSame([], $only->roads);
-        $this->assertTrue($only->canSend(), 'one-to-one mail can go');
+        $this->assertTrue($only->canSend(), 'and a sign-in code can still go');
         $this->assertFalse($only->canSend(true), 'the newsletter run would start with nowhere to send it');
     }
 

@@ -1,0 +1,30 @@
+{#- An event's written report: submitted to its owners, or the owner's decision back to the
+    lead who wrote it · Events.
+    Sender: EventPlan\EventReport (tellOwners: each owner but the author; tellAuthor: the lead).
+    Variables: first_name, place (the event's title), state —
+      'submitted' a lead submitted the report and an owner signs it off
+      'approved'  an owner signed it off; it is final
+      'returned'  an owner sent it back with a note
+    by (who submitted or decided), note (the owner's, '' when submitting), action_url, action_label.
+    Only what the code does: nobody signs off a report they wrote (EventReport::decide). -#}
+{% extends 'emails/_layout.html.twig' %}
+{% block category %}Events{% endblock %}
+{% block hero %}illo-sealed{% endblock %}
+{% block why %}{{ state == 'submitted' ? 'You own an Africa GATES event, and its lead submitted the written report.' : 'You submitted the written report for an Africa GATES event.' }}{% endblock %}
+{% block subject %}{{ state == 'submitted' ? 'To sign off: the report for ' ~ place : (state == 'approved' ? 'Signed off: the report for ' ~ place : 'Sent back: the report for ' ~ place) }}{% endblock %}
+{% block preheader %}{{ state == 'submitted' ? by ~ ' submitted it. It is final only once an owner signs it off.' : (state == 'approved' ? by ~ ' signed it off. The report is final.' : by ~ ' sent it back. Their note is inside.') }}{% endblock %}
+{% block body %}
+{%- import 'emails/_blocks.html.twig' as b -%}
+{{ b.eyebrow(place) }}
+{{ b.h1(state == 'submitted' ? 'A report to sign off, ' ~ first_name : (state == 'approved' ? 'Signed off, ' ~ first_name : 'Sent back, ' ~ first_name)) }}
+{% if state == 'submitted' %}
+{{ b.p(by ~ ' submitted the written report for ' ~ place ~ ', with the figures as they stood. Sign it off to make it final, or send it back with a note saying what to change.') }}
+{% elseif state == 'approved' %}
+{{ b.p(by ~ ' signed off your report for ' ~ place ~ '. It is final, and stays on the event’s Reports page.') }}
+{% else %}
+{{ b.p(by ~ ' sent your report for ' ~ place ~ ' back. Change it and submit it again.') }}
+{% endif %}
+{{ b.facts([['Event', place]]|merge(note ? [['Note', note]] : [])) }}
+{{ b.button(action_label, action_url) }}
+{{ b.note('Every step is recorded with who took it and when.') }}
+{% endblock %}

@@ -33,7 +33,7 @@ use Tests\TestCase;
 final class AdminPagesRenderTest extends TestCase
 {
     /** Pages keyed on something the sandbox does not mint. May only fall. */
-    private const UNREACHED_CEILING = 50;
+    private const UNREACHED_CEILING = 38;
 
     public function test_every_admin_page_renders_for_a_superadmin(): void
     {
@@ -54,6 +54,28 @@ final class AdminPagesRenderTest extends TestCase
         $app->addErrorMiddleware(false, false, false);
 
         DemoSeeder::seed($id);
+        // The member support route has a real record to render, rather than raising the unreachable ceiling.
+        DB::table('gates_users')->insert(['name' => 'Render Member', 'email' => 'render-member@example.test',
+            'points' => 0, 'status' => 'active', 'email_verified' => 1, 'created_at' => date('Y-m-d H:i:s')]);
+        // A site event, so the event pages under /admin/events/{id} have one to draw. (The lead
+        // console is not here any more: a lead is a member account at /lead.)
+        DB::table('gates_site_events')->insertGetId(['slug' => 'render-night', 'title' => 'Render night', 'status' => 'published',
+                                                     'event_date' => date('Y-m-d 18:00:00', strtotime('+10 days')), 'created_at' => date('Y-m-d H:i:s')]);
+        // An ad campaign posted by staff, so /admin/ads/{id} renders one rather than raising the ceiling.
+        if (\AfricaGates\Services\Ads\AdStaff::ready()) {
+            \AfricaGates\Services\Ads\AdStaff::post($id, ['source' => 'house', 'placements' => ['discover'], 'days' => '7',
+                'headline' => 'Nominations are open', 'body' => 'Put forward somebody who deserves it.', 'cta' => 'learn_more',
+                'url' => '/nominate'], '/uploads/ads/render.jpg');
+        }
+        // A paid shop order, so /admin/shop/orders/{id} (the order page, its refunds and history)
+        // renders one rather than raising the ceiling.
+        DB::table('gates_orders')->insert(['reference' => 'AFG-SHP-render1', 'email' => 'render-buyer@example.test',
+            'name' => 'Render Buyer', 'address' => 'Lagos', 'subtotal_naira' => 9000, 'status' => 'paid',
+            'provider' => 'paystack', 'created_at' => date('Y-m-d H:i:s'),
+            'items_json' => json_encode([['slug' => 'render-tee', 'name' => 'Tee', 'qty' => 1, 'drawn' => 1, 'variant_id' => 0, 'line_total' => 9000]])]);
+        // And a product, so its stock ledger (/admin/shop/products/{id}/stock) renders too.
+        DB::table('gates_products')->insert(['slug' => 'render-tee', 'name' => 'Tee', 'price_naira' => 9000,
+            'stock' => 4, 'is_active' => 1]);
         // A same-named second nominee, so the duplicate tooling has something to show.
         $n = DB::table('gates_nominees')->orderBy('id')->first();
         if ($n) DB::table('gates_nominees')->insert(['category_id' => $n->category_id, 'name' => $n->name, 'status' => 'approved']);
@@ -98,6 +120,12 @@ final class AdminPagesRenderTest extends TestCase
     private function rowsFor(string $segment, string $column): array
     {
         if ($segment === 'profiles') return DB::table('gates_nominees')->orderBy('id')->limit(3)->pluck('id')->all();
+        // An award programme's table carries its prefix; its edition pages hang off the id.
+        if ($segment === 'programmes') return DB::table('gates_award_programmes')->orderBy('id')->limit(3)->pluck('id')->all();
+        // A site event's pages (the public calendar's table): /admin/events/{id}/… hangs off it.
+        if ($segment === 'event' || $segment === 'events') return DB::table('gates_site_events')->orderBy('id')->limit(3)->pluck('id')->all();
+        // /admin/ads/{id} is a CAMPAIGN; gates_ads holds the ads inside one.
+        if ($segment === 'ads') return DB::table('gates_ad_campaigns')->orderBy('id')->limit(3)->pluck('id')->all();
         $base = str_replace('-', '_', $segment);
         foreach (['gates_' . $base, 'gates_' . rtrim($base, 's'), 'gates_' . $base . 's'] as $t) {
             try {

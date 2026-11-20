@@ -10,7 +10,7 @@ namespace AfricaGates\Services;
  * WHY THIS IS A SERVICE AND NOT ONLY A TEST
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * {@see \Tests\Unit\EmailInboxCompatTest} holds twelve properties that decide whether a
+ * {@see \Tests\Unit\EmailInboxCompatCase} holds twelve properties that decide whether a
  * campaign renders in a real inbox, and it holds them against the TEMPLATE FILE. That was
  * exactly right while the campaign WAS a file: a developer broke it, CI said so, nobody
  * was mailed.
@@ -22,7 +22,7 @@ namespace AfricaGates\Services;
  * fails in eight hundred inboxes.
  *
  * So the mechanical half of those checks lives here, runs on the RENDERED output, and the
- * save path refuses. `HANDOFF.md` §6 asks for exactly this: "run EmailInboxCompatTest
+ * save path refuses. `HANDOFF.md` §6 asks for exactly this: "run EmailInboxCompatCase
  * against the rendered output in CI so a bad edit fails before it is sent, not after."
  * Failing the save is better than failing CI, because the person who can fix it is the
  * person who is standing there.

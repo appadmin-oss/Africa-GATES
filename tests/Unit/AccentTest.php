@@ -32,8 +32,10 @@ final class AccentTest extends TestCase
     /** REFERENCE §6.1 + snippets/css/tokens.css, verbatim. */
     private const HANDOFF = [
         'ink' => '#10292c', 'ink-2' => '#3a4a4c', 'soft' => '#626a6e', 'mute' => '#8b9295',
-        'ground' => '#f1efe9', 'surface' => '#ffffff', 'bar' => '#fbfbfa', 'line' => '#e8e5dd',
-        'line-2' => '#d6d4cc', 'line-3' => '#eeece6', 'tint' => '#e8e5dd',
+        // The colour pass (design_handoff_account_wallet_home, owner 21 Oct 2026): ground
+        // #f1efe9 → #fafbf8, and the light footer band.
+        'ground' => '#fafbf8', 'surface' => '#ffffff', 'bar' => '#fbfbfa', 'line' => '#e8e5dd',
+        'line-2' => '#d6d4cc', 'line-3' => '#eeece6', 'footer' => '#f4f6f2', 'tint' => '#e8e5dd',
         'green' => '#237b22', 'green-deep' => '#1a6118', 'green-light' => '#7fc87c',
         'green-wash' => '#effaf0', 'green-edge' => '#cfe6ce',
         'gold' => '#f3b416', 'gold-ink' => '#7a5600', 'gold-wash' => '#fcf4de',
@@ -87,13 +89,20 @@ final class AccentTest extends TestCase
 
         // Nothing but custom properties, and no character that could close the <style>
         // it is printed into or open a rule.
-        $this->assertMatchesRegularExpression('/^:root\{(--ag-[a-z0-9-]+:[#a-z0-9 ,.()-]+;)+\}$/', $css);
+        // The day block, then the night block twice (behind the device's setting, and the
+        // reader's own Dark), each nothing but custom properties and its `color-scheme`.
+        $decls = '(?:--ag-[a-z0-9-]+:[#a-z0-9 ,.()-]+;)+color-scheme:(?:light|dark);';
+        $this->assertMatchesRegularExpression('/^:root\{' . $decls
+            . '\}@media \(prefers-color-scheme:dark\)\{:root:where\(:not\(\.ag-light\):not\(\.ag-sepia\)\)\{' . $decls
+            . '\}\}:root:where\(\.ag-dark\)\{' . $decls
+            . '\}:root:where\(\.ag-sepia\)\{' . $decls
+            . '\}(?::where\(\.ag-pv-(?:light|dark|sepia)\)\{(?:--ag-[a-z0-9-]+:#[0-9a-f]{6};)+\})+$/', $css);
         // And the default-graphics tones (DEFAULT-GRAPHICS §4, handoff 5 Oct 2026): five tones
         // × wash, line, ink and the avatar's edge, each at the spec's value — by reference to
         // a palette token where one is identical, the spec's own hex where none is.
         $tones = ['green' => ['#effaf0', '#237b22', '#1a6118', '#cfe6ce'], 'gold' => ['#fcf4de', '#c99a06', '#7a5600', '#f0dfae'],
                   'live' => ['#fdecef', '#e0245e', '#b0224f', '#f6c7d3'], 'info' => ['#e6f0f4', '#1f6fa3', '#1f5f8b', '#c9dde8'],
-                  'stone' => ['#f1efe9', '#3a4a4c', '#10292c', '#d6d4cc']];
+                  'stone' => ['#fafbf8', '#3a4a4c', '#10292c', '#d6d4cc']];
         foreach ($tones as $tone => $hex) {
             foreach (['bg', 'line', 'ink', 'edge'] as $i => $slot) {
                 $this->assertSame($hex[$i], Accent::coverHex($tone, $slot), "$tone.$slot");
@@ -110,8 +119,14 @@ final class AccentTest extends TestCase
                 $this->assertStringContainsString('--ag-hol-' . $tone . '-' . $slot . ':', $css);
             }
         }
+        // Counted by NAME: the night blocks re-declare names, never add one. A night value
+        // under a name the day does not have would be a token only dark mode can read.
+        preg_match_all('/[{;](--ag-[a-z0-9-]+):/', $css, $m);
+        $day = substr($css, 0, (int) strpos($css, '@media'));
+        preg_match_all('/[{;](--ag-[a-z0-9-]+):/', $day, $d);
         $this->assertSame(count(self::HANDOFF) + count(self::HANDOFF_SHADOWS) + 20 + 20,
-            preg_match_all('/[{;]--ag-/', $css), 'Accent emits a name that is not the handoff\'s');
+            count($d[1]), 'Accent emits a name that is not the handoff\'s');
+        $this->assertSame([], array_values(array_diff(array_unique($m[1]), $d[1])), 'a night name the day does not declare');
     }
 
     public function test_a_colour_asked_for_by_a_name_that_does_not_exist_throws(): void
@@ -141,8 +156,8 @@ final class AccentTest extends TestCase
         // a second time.
         $root = dirname(__DIR__, 2) . '/templates/';
         // layout/gates.twig left this list when it was destroyed (docs/handoff/DESTROYED.md).
-        foreach (['layout/shell.twig', 'admin/login.twig',
-                  'admin/magic.twig', 'judge/login.twig'] as $file) {
+        // The console and panel sign-in screens were retired on 29 Oct 2026 (one login).
+        foreach (['layout/shell.twig'] as $file) {
             $body = (string) preg_replace('/\{#.*?#\}/s', '', (string) file_get_contents($root . $file));
             $at   = strpos($body, '{{ ag_accents()|raw }}');
             $this->assertNotFalse($at, "$file never emits the palette");

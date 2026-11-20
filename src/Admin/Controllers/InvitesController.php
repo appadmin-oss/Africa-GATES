@@ -347,8 +347,24 @@ final class InvitesController
 
         $res->getBody()->write(InviteMailer::preview($invite, $event));
 
+        return self::asEmail($res);
+    }
+
+    /**
+     * A preview is an email, served as its own document with its own policy.
+     *
+     * The console's CSP has no 'unsafe-inline', so under it the browser dropped the message's
+     * own <style> block and the operator previewed a different-looking letter from the one the
+     * inbox gets. Narrower, not wider, as the newsletter preview does it: inline styles and
+     * images only — no script, no frames, sandboxed. The middleware leaves a response's own
+     * policy alone.
+     */
+    private static function asEmail(Response $res): Response
+    {
         return $res->withHeader('Content-Type', 'text/html; charset=utf-8')
-                   ->withHeader('X-Robots-Tag', 'noindex, nofollow');
+                   ->withHeader('X-Robots-Tag', 'noindex, nofollow')
+                   ->withHeader('Cache-Control', 'private, no-store')
+                   ->withHeader('Content-Security-Policy', "default-src 'none'; img-src 'self' https: data:; style-src 'unsafe-inline'; sandbox");
     }
 
     /**
@@ -491,8 +507,7 @@ final class InvitesController
 
         $res->getBody()->write(InviteReminders::preview($invite, $event, $days));
 
-        return $res->withHeader('Content-Type', 'text/html; charset=utf-8')
-                   ->withHeader('X-Robots-Tag', 'noindex, nofollow');
+        return self::asEmail($res);
     }
 
     /**

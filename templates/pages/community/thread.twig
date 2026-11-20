@@ -29,8 +29,7 @@
 {% set app_bar = {variant: 'child', title: 'Thread'|trans, back: '/community'} %}
 {% set _next = ('/community/' ~ t.slug ~ '#reply')|url_encode %}
 
-{% block head_styles %}
-  {% include 'partials/seo-head.twig' %}
+{% block head_styles %}{% if views %}<link rel="stylesheet" href="{{ asset('/assets/css/components/views.css') }}">{% endif %}
   <link rel="stylesheet" href="{{ asset('/assets/css/components/community.css') }}">
   {% if poll %}<link rel="stylesheet" href="{{ asset('/assets/css/components/poll.css') }}">{% endif %}
 {% endblock %}
@@ -41,6 +40,7 @@
     <article class="cm-op" aria-labelledby="cm-t">
       <p class="cm-crumb"><a href="/community">{{ 'Community'|trans }}</a></p>
       <h1 class="cm-h1" id="cm-t">{{ t.title }}</h1>
+      {% if views %}<div class="cm-views">{% include 'partials/views-badge.twig' with {v: views, csrf_token: csrf_token} only %}</div>{% endif %}
       {% if t.is_pinned or _locked %}
         <p class="cm-tags">
           {% if t.is_pinned %}<span class="cm-tag">{{ 'Pinned'|trans }}</span>{% endif %}
@@ -104,7 +104,7 @@
     <section class="cm-reply" id="reply" aria-labelledby="cm-reply-h">
       <h2 class="cm-bar__h" id="cm-reply-h">{{ 'Reply'|trans }}</h2>
       {% if _locked %}
-        <p class="cm-quiet">{{ 'The moderators locked this thread. It stays here to read; it takes no new replies.'|trans }}</p>
+        <p class="cm-quiet">{{ 'Moderators locked this thread. It takes no new replies.'|trans }}</p>
       {% elseif member_logged_in %}
         <form class="cm-form" method="post" action="/community/{{ t.slug }}/reply">
           <input type="hidden" name="_token" value="{{ csrf_token }}">
@@ -114,7 +114,7 @@
         </form>
       {% else %}
         <div class="cm-join">
-          <p>{{ 'Anybody can read. To reply, sign in or join — it takes a code to your email or phone.'|trans }}</p>
+          <p>{{ 'To reply, sign in or join with a code to your email or phone.'|trans }}</p>
           <a class="ag-btn ag-btn--secondary ag-btn--pill" href="/account/login?next={{ _next }}">{{ 'Sign in or join'|trans }}</a>
         </div>
       {% endif %}
@@ -134,7 +134,7 @@
     {% endif %}
     <section class="cm-box" aria-labelledby="cm-mod-h">
       <h2 class="cm-box__h" id="cm-mod-h">{{ 'A moderated space'|trans }}</h2>
-      <p class="cm-box__p">{{ 'Posts that look like spam wait for a person before anybody sees them. Report anything that breaks the rules and a moderator reads it.'|trans }}</p>
+      <p class="cm-box__p">{{ 'Likely spam is held for review. Report anything that breaks the rules.'|trans }}</p>
       <a class="cm-link" href="/integrity">{{ 'The full moderation rules'|trans }}</a>
     </section>
   </aside>
@@ -162,7 +162,7 @@
 {% endif %}
 {% endblock %}
 
-{% block foot_scripts %}
-  {% if poll %}<script defer src="{{ asset('/assets/js/poll.js') }}"></script>{% endif %}
-  {% if member_logged_in %}<script defer src="{{ asset('/assets/js/community.js') }}"></script>{% endif %}
+{% block foot_scripts %}{% if views %}<script defer src="{{ asset('/assets/js/views.js') }}" data-nav="rerun"></script>{% endif %}
+  {% if poll %}<script defer src="{{ asset('/assets/js/poll.js') }}" data-nav="rerun"></script>{% endif %}
+  {% if member_logged_in %}<script defer src="{{ asset('/assets/js/community.js') }}" data-nav="rerun"></script>{% endif %}
 {% endblock %}

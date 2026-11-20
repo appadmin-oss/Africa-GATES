@@ -1,0 +1,45 @@
+{#
+  What the automatic payout made of one withdrawal (Services\WalletAutoPay), for the two
+  queues that pay members: community return and referral payouts.
+
+    row      the withdrawal row (either table)
+    found    WalletAutoPay::findings(row), from the queue reader
+    send     the POST address that releases a held request to be paid by transfer
+    amount   what the transfer is for, already formatted
+
+  A held request shows every finding with its detail — a reviewer decides on what the
+  engine saw, not on a score. While a transfer is in flight the manual controls are not
+  drawn (and the services refuse them anyway, WalletAutoPay::busy()).
+#}
+{% set _st = row.auto_state|default(null) %}
+{% set _found = found|default([]) %}
+<div class="wa">
+  <p class="ad-stat__lbl">Automatic payout</p>
+  {% if _st == 'sending' %}
+    <p><span class="ad-chip ad-chip--gold">Being paid automatically</span>
+      Reference <span class="cn-code">{{ row.transfer_ref|default('') }}</span>{% if row.transfer_status|default('') %} · Paystack says {{ row.transfer_status }}{% endif %}.</p>
+    {% if row.transfer_status|default('') == 'otp' %}<p class="ad-callout">Paystack is asking for an OTP on this transfer. Turn off transfer OTPs in the Paystack dashboard, or approve it there.</p>{% endif %}
+  {% elseif _st == 'done' %}
+    <p><span class="ad-chip ad-chip--green">Paid automatically</span> Reference <span class="cn-code">{{ row.transfer_ref|default('') }}</span>.</p>
+  {% elseif _st == 'failed' %}
+    <p><span class="ad-chip ad-chip--red">Transfer did not go through</span>{% if row.transfer_message|default('') %} {{ row.transfer_message }}{% endif %}</p>
+  {% elseif _st == 'checking' %}
+    <p><span class="ad-chip ad-chip--gold">Being checked now</span></p>
+  {% elseif _st == 'held' %}
+    <p><span class="ad-chip ad-chip--gold">Held for a person</span></p>
+    <ul class="ad-callout">
+      {% for f in _found %}<li><strong>{{ f.title }}</strong> — {{ f.detail }}</li>{% endfor %}
+    </ul>
+  {% else %}
+    <p>Not checked automatically{{ row.bank_code|default('') ? '' : ' — the bank was typed, so it has no bank code and is paid by hand' }}.</p>
+  {% endif %}
+  {% if row.resolved_name|default('') %}<p>Name at the bank: <strong>{{ row.resolved_name }}</strong></p>{% endif %}
+
+  {% if (_st == 'held' or (_st is null and row.bank_code|default(''))) and row.status in ['requested', 'approved'] %}
+    <form method="post" action="{{ send }}" class="ad-form__actions">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <button class="ad-btn ad-btn--primary" type="submit"
+        data-confirm="Send {{ amount }} by transfer now? The bank is asked who holds the account first; nothing else is checked again.">Send by transfer</button>
+    </form>
+  {% endif %}
+</div>

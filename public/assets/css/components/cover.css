@@ -35,19 +35,25 @@
 .ag-cover--stone { --cv-bg: var(--ag-cover-stone-bg); --cv-line: var(--ag-cover-stone-line); --cv-ink: var(--ag-cover-stone-ink); --cv-games: url('/img/patterns/games-stone.svg'); }
 
 /* ── the pattern, faded where the content sits (§6) ─────────────────────────── */
-.ag-cover__pat {
+.ag-cover__pattern-mask {
   position: absolute; inset: 0;
   -webkit-mask-image: linear-gradient(100deg, transparent 0 22%, black 70%);
           mask-image: linear-gradient(100deg, transparent 0 22%, black 70%);
 }
-.ag-cover--none .ag-cover__pat {
+.ag-cover--none .ag-cover__pattern-mask {
   -webkit-mask-image: radial-gradient(circle at 50% 50%, transparent 0 18cqmin, black 46cqmin);
           mask-image: radial-gradient(circle at 50% 50%, transparent 0 18cqmin, black 46cqmin);
 }
-[dir="rtl"] .ag-cover:not(.ag-cover--none) .ag-cover__pat {
+[dir="rtl"] .ag-cover:not(.ag-cover--none) .ag-cover__pattern-mask {
   -webkit-mask-image: linear-gradient(260deg, transparent 0 22%, black 70%);
           mask-image: linear-gradient(260deg, transparent 0 22%, black 70%);
 }
+
+/* Mirror decoration inside the unchanged readability mask; content and glyphs stay upright. */
+.ag-cover__pat { position:absolute; inset:0; }
+.ag-cover--variant-1 .ag-cover__pat { transform:scaleX(-1); }
+.ag-cover--variant-2 .ag-cover__pat { transform:scaleY(-1); }
+.ag-cover--variant-3 .ag-cover__pat { transform:scale(-1); }
 
 .ag-cover--arches .ag-cover__pat { background:
   radial-gradient(circle at 80% 122%, var(--cv-b) 0 46cqmin, transparent 46.3cqmin),
@@ -110,6 +116,18 @@
 }
 .ag-cover__tile img { width: 64%; height: 64%; object-fit: contain; }
 .ag-cover__glyph { width: 44%; height: 44%; overflow: visible; }
+
+/* ── a product (owner, 22 Oct 2026) ────────────────────────────────────────────
+   A shop card is a product, not an app: no white tile. The item's own line drawing
+   (CoverKind::PRODUCT_KINDS, from its category) sits large in the tone's ink, on a lit
+   centre, with the pattern kept to the edges and quieter than an event's. */
+.ag-cover--of-product { --cv-a: color-mix(in srgb, var(--cv-line) 11%, transparent); --cv-b: color-mix(in srgb, var(--cv-line) 5%, transparent); }
+.ag-cover--of-product::before {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(circle at 50% 46%, color-mix(in srgb, var(--ag-surface) 70%, transparent) 0 24cqmin, transparent 52cqmin);
+}
+.ag-cover--of-product .ag-cover__tile { width: 46cqmin; background: none; box-shadow: none; }
+.ag-cover--of-product .ag-cover__glyph { width: 100%; height: 100%; stroke-width: .9; }
 
 /* ── the date tile ──────────────────────────────────────────────────────────── */
 .ag-cover__date {
@@ -250,3 +268,6 @@
 .ag-avatar--s160 .ag-avatar__badge { box-shadow: 0 0 0 4px var(--ag-surface); }   /* max(2, size/40) */
 .ag-avatar__badge--verified { background: var(--ag-info); color: var(--ag-surface); }
 .ag-avatar__badge svg { width: 60%; height: 60%; }
+
+/* Shared member portraits, including the compact navigation avatar. */
+.ag-member-photo{display:block;width:100%;height:100%;object-fit:cover;border-radius:inherit;min-width:0}

@@ -14,7 +14,7 @@
 {% set colour_tier = '1' %}
 {% set app_bar = {variant: 'child', title: 'Results'|trans, sub: e.edition ?: e.year, back: '/results'} %}
 
-{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/results.css') }}">{% include 'partials/seo-head.twig' %}{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/results.css') }}">{% endblock %}
 
 {% block content %}
 <div class="rs">
@@ -27,6 +27,8 @@
       <span>{{ 'The highest combined score across every category, after voting and judging close.'|trans }}</span>
     </span>
   </section>
+
+  {% include 'partials/voting-extension.twig' with {x: extension|default(null), cls: 'rs-pend'} only %}
 
   <dl class="rs-sum">
     <div><dt>{{ 'categories'|trans }}</dt><dd>{{ e.categories|length }}</dd></div>

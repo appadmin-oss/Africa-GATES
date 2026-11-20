@@ -480,21 +480,28 @@ final class Pdf
      */
     private function runs(string $s, string $alias): array
     {
-        $primary  = $this->fonts[$alias]['font'];
-        $fallback = $this->fonts[$alias]['fallback'] ?? null;
-        $fbFont   = ($fallback !== null && isset($this->fonts[$fallback]))
-            ? $this->fonts[$fallback]['font'] : null;
+        // The whole CHAIN, not one link. A face may name a fallback that itself names one
+        // (a serif → its sans → a symbol face), and only the first link used to be asked:
+        // a character the middle face lacked but the last one had was dropped, while the
+        // registration read as covering it. Walked in order, first face with a glyph wins;
+        // the depth bound and the seen-set stop a loop somebody registers by mistake.
+        $chain = [$alias => $this->fonts[$alias]['font']];
+        $next  = $this->fonts[$alias]['fallback'] ?? null;
+        while ($next !== null && isset($this->fonts[$next]) && !isset($chain[$next]) && count($chain) < 6) {
+            $chain[$next] = $this->fonts[$next]['font'];
+            $next = $this->fonts[$next]['fallback'] ?? null;
+        }
 
         $out  = [];
         $cur  = null;
         $gids = [];
 
         foreach (self::codepoints($s) as $cp) {
-            $g    = $primary->gid($cp);
-            $use  = $alias;
-            if ($g === 0 && $fbFont !== null) {
-                $fg = $fbFont->gid($cp);
-                if ($fg !== 0) { $g = $fg; $use = (string) $fallback; }
+            $g   = 0;
+            $use = $alias;
+            foreach ($chain as $a => $face) {
+                $g = $face->gid($cp);
+                if ($g !== 0) { $use = (string) $a; break; }
             }
             // Still nothing anywhere: drop the character rather than draw .notdef. An empty
             // box in a name reads as data corruption; a missing accent reads as a font that

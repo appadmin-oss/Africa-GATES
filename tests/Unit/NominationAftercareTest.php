@@ -76,9 +76,12 @@ final class NominationAftercareTest extends TestCase
             'nominator_name'  => (string) $data['nominator_name'],
             'nominator_email' => (string) $data['nominator_email'],
             'reason'          => (string) $data['reason'],
+            // As the form stores it: aftercare runs the moment the row is written, with the
+            // nominee's address on it — the confirmation link is minted off this row.
+            'nominee_email'   => strtolower((string) ($data['nominee_email'] ?? '')),
             'country_code'    => 'NG',
             'status'          => 'pending',
-            'created_at'      => '2026-08-01 10:00:00',
+            'created_at'      => date('Y-m-d H:i:s'),
         ]);
 
         return [$id, $data];
@@ -94,6 +97,50 @@ final class NominationAftercareTest extends TestCase
      * which is exactly the case the old code got wrong and the current calendar
      * year hides.
      */
+    /**
+     * The nominee's email goes out the moment a stranger submits the public form, to the
+     * address they typed, under our masthead. Nothing they wrote may ride along before a
+     * reviewer has read it: not the reason, not their name. Otherwise "pay the fee at … to
+     * receive your award" arrives looking like ours.
+     */
+    public function test_the_nominee_is_sent_nothing_the_nominator_typed_before_review(): void
+    {
+        [$id, $data] = $this->nomination([
+            'reason'         => 'Pay the 20000 naira processing fee at http://scam.example/pay to receive your award.',
+            'nominator_name' => 'Awards Accounts Desk',
+        ]);
+        $m = new class(['host' => 'localhost', 'port' => 25, 'username' => 'u', 'password' => 'p',
+                        'from_address' => 'no@example.com', 'from_name' => 'X']) extends \AfricaGates\Services\OtpService {
+            /** @var list<array<string,string>> */
+            public array $sent = [];
+            public function smtpConfigured(): bool { return true; }
+            public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '',
+                                        string $category = '', string $hero = '', string $unsubscribeUrl = '',
+                                        array $attachments = [], string $preheader = '', int $heroHeight = 0,
+                                        string $why = ''): array
+            {
+                $this->sent[] = compact('to', 'subject', 'htmlBody', 'plainBody', 'preheader');
+                return ['success' => true];
+            }
+        };
+
+        NominationAftercare::run($data, $id, 'https://example.test', $m);
+
+        $toNominee = array_values(array_filter($m->sent, static fn ($s) => $s['to'] === 'ada@example.com'));
+        $this->assertCount(1, $toNominee, 'the nominee is still told they were nominated');
+        $all = implode(' ', $toNominee[0]);
+        $this->assertStringNotContainsString('scam.example', $all);
+        $this->assertStringNotContainsString('processing fee', $all);
+        $this->assertStringNotContainsString('Awards Accounts Desk', $all);
+
+        // And the one message carries the nominee's confirmation link — the step nothing
+        // called, so no nomination could reach `verified` and no challenge could pay.
+        $token = (string) DB::table('gates_nominations')->where('id', $id)->value('nominee_confirm_token');
+        $this->assertNotSame('', $token, 'no confirmation link was minted');
+        $this->assertStringContainsString(\AfricaGates\Services\NomineeConfirmation::url($token), $toNominee[0]['plainBody']);
+        $this->assertSame(1, (int) DB::table('gates_nominations')->where('id', $id)->value('confirm_sends'));
+    }
+
     public function test_it_reports_the_reference_that_is_actually_on_the_record(): void
     {
         [$id, $data] = $this->nomination();

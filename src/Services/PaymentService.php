@@ -251,9 +251,6 @@ class PaymentService
                                                string $why, ?\Throwable $e): void
     {
         try {
-            $dir = dirname(__DIR__, 2) . '/var/logs';
-            if (!is_dir($dir)) @mkdir($dir, 0775, true);
-
             $entry = '[' . date('c') . '] CheckoutCouldNotStart: ' . $provider
                    . ' refused ' . $reference . ' — ' . mb_substr(trim($why), 0, 400);
             if ($e !== null) {
@@ -265,7 +262,7 @@ class PaymentService
                 $entry .= "\n(the gateway answered and refused — this is its own message, "
                         . 'not a crash on our side)';
             }
-            @file_put_contents($dir . '/error-detail.log', $entry . "\n\n", FILE_APPEND);
+            \AfricaGates\Support\PublicFault::append($entry . "\n\n");
         } catch (\Throwable) { /* a diagnostic must never be the thing that breaks */ }
     }
 
@@ -580,6 +577,9 @@ class PaymentService
 
     private function initializePaystack(int $amountNaira, string $email, string $reference, string $callbackUrl, array $meta, string $planCode = ''): array
     {
+        // Finance reads the kind and the sharing labels out of this metadata (CfisTags).
+        $meta += CfisTags::for($reference, $meta);
+
         // Paystack transacts in KOBO.
         $payload = [
             'amount'       => $amountNaira * 100,
@@ -633,7 +633,9 @@ class PaymentService
                 // org id trustworthy here. A tip a client could pass to this method is a
                 // number a browser chose for somebody else's settlement.
                 $route = PaymentDestination::initFieldsForPartner(
-                    $orgId, PaymentDestination::platformTipForReference($reference));
+                    $orgId, PaymentDestination::platformTipForReference($reference),
+                    PaymentDestination::platformShareForReference($reference),
+                    PaymentDestination::coverForReference($reference));
                 // Only claim the partner stream if the routing actually resolved. A suspended
                 // partner falls through to an empty route and the payment settles to the main
                 // account, where it is visible and refundable.
@@ -1006,12 +1008,24 @@ class PaymentService
      */
     public function initiateTransfer(int $amountNaira, string $recipientCode, string $reference, string $reason = ''): array
     {
+        return $this->initiateTransferKobo($amountNaira * 100, $recipientCode, $reference, $reason);
+    }
+
+    /**
+     * The same, in kobo. A member's withdrawal is the amount less a fee and need not be a
+     * whole naira; rounding it to send would pay somebody a figure their receipt does not
+     * show. Everything said above initiateTransfer() holds here.
+     *
+     * @return array{ok:bool,status:string,transfer_code:string,transfer_id:?string,message:string}
+     */
+    public function initiateTransferKobo(int $amountKobo, string $recipientCode, string $reference, string $reason = ''): array
+    {
         $blank = ['ok' => false, 'status' => '', 'transfer_code' => '', 'transfer_id' => null];
 
         if (!$this->isEnabled('paystack')) {
             return $blank + ['message' => 'Paystack is not configured in this environment.'];
         }
-        if ($amountNaira < 1) {
+        if ($amountKobo < 100) {
             return $blank + ['message' => 'Invalid amount.'];
         }
         if (!preg_match('/^[a-z0-9._-]+$/', $reference)) {
@@ -1021,7 +1035,7 @@ class PaymentService
         try {
             $res = $this->request('POST', 'https://api.paystack.co/transfer', [
                 'source'    => 'balance',
-                'amount'    => $amountNaira * 100,      // kobo
+                'amount'    => $amountKobo,
                 'recipient' => $recipientCode,
                 'reference' => $reference,
                 'reason'    => $reason !== '' ? $reason : 'Partner payout',
@@ -1071,10 +1085,15 @@ class PaymentService
         $body = $res['json'];
         $st   = strtolower(trim((string) ($body['data']['status'] ?? '')));
         if (!$res['ok'] || ($body['status'] ?? false) !== true || $st === '') {
-            return ['ok' => false, 'status' => '', 'reachable' => true,
-                    'message' => (string) ($body['message'] ?? 'Paystack did not recognise that transfer.')];
+            $msg = (string) ($body['message'] ?? 'Paystack did not recognise that transfer.');
+            // `absent`: Paystack ANSWERED that it holds no such transfer — a 4xx saying so,
+            // not a 5xx or a body we could not read. Only this licenses a person to pay the
+            // same withdrawal by hand (WalletAutoPay::busy()); anything vaguer might be a
+            // transfer that went through.
+            $absent = in_array((int) $res['code'], [400, 404], true) && stripos($msg, 'not found') !== false;
+            return ['ok' => false, 'status' => '', 'reachable' => true, 'absent' => $absent, 'message' => $msg];
         }
-        return ['ok' => true, 'status' => $st, 'reachable' => true, 'message' => ''];
+        return ['ok' => true, 'status' => $st, 'reachable' => true, 'absent' => false, 'message' => ''];
     }
 
     /**
@@ -1190,6 +1209,11 @@ class PaymentService
             // indexed hit rather than a live call. See PaymentLookup.
             'gateway_id'  => (string) ($data['id'] ?? ''),
             'gateway_ref' => (string) ($data['reference'] ?? ''),
+            // The fee Paystack ACTUALLY took on this charge, in kobo → naira; null when it did
+            // not say. Stored on a shop order at confirmation so the shop's net figures use the
+            // real fee rather than one recomputed from a schedule that changes (ShopReports).
+            'fees'        => isset($data['fees']) && is_numeric($data['fees'])
+                ? (int) round(((float) $data['fees']) / 100) : null,
         ];
     }
 

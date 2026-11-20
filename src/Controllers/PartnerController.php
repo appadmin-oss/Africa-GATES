@@ -28,7 +28,7 @@ class PartnerController {
 
     public function form(Request $req,Response $res):Response {
         return $this->view->render($res,'pages/partner.twig',$this->vars([
-            'page_title'       => 'Partner With Us — Africa GATES',
+            'page_title'       => 'Partner with us — Africa GATES',
             'meta_description' => 'Partner with Africa GATES to power continental cultural recognition. Sponsor award programmes, reach the verified registry community and champion African excellence.',
         ]));
     }

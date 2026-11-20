@@ -118,8 +118,18 @@ final class PaidVoteController
         // honour is the whole problem. Refusing here is a sentence the buyer can
         // act on; a mint refused four minutes later is money gone and nothing to
         // show for it. Free OTP voting is untouched and runs to the bell.
-        if (!PaidVoteService::checkoutOpenFor((int) $nominee->category_id))   return $bail('cutoff');
-        if (!$this->payments->isEnabled($provider))                          return $bail('unavailable');
+        if (!PaidVoteService::checkoutOpenFor((int) $nominee->category_id)) {
+            // Stopped by a voting extension's paid cutoff: say THAT, with both dates
+            // (VotingExtension::paidClosedSentence), not the closing-bell sentence.
+            return $bail(\AfricaGates\Services\VotingExtension::paidClosedFor((int) $nominee->category_id) ? 'extended' : 'cutoff');
+        }
+        // Paying from the member's wallet (WalletVotes) rather than a gateway: the same
+        // checks above and below, with the account's own address for the terms record.
+        $fromWallet = str_starts_with($provider, 'wallet:');
+        if ($fromWallet) {
+            $acct = \AfricaGates\Services\UserAccountService::memberForForms();
+            $email = strtolower(trim((string) ($acct['email'] ?? '')));
+        } elseif (!$this->payments->isEnabled($provider))                    return $bail('unavailable');
         if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL))     return $bail('email');
         // The award's terms, where it has published any (Phase 5, §8.3, AwardTerms): asked
         // before the gateway is, and recorded at the moment of the act — the buyer ticked it
@@ -133,6 +143,15 @@ final class PaidVoteController
         }
         if ($qty > $maxQty) {
             return $bail('toomany', number_format($maxQty) . ' votes');
+        }
+
+        if ($fromWallet) {
+            $r = \AfricaGates\Services\WalletVotes::buy((int) ($_SESSION['user_id'] ?? 0), substr($provider, 7), $nomineeId, $qty, $showName);
+            // The whole sentence, not a reason code: it carries the figures (what is left,
+            // what it cost, the reference), which a fixed chip cannot.
+            $_SESSION['wallet_vote_notice'] = (string) $r['message'];
+            if (!$r['ok']) $this->rememberOrder($qty, $email, $name, '');
+            return $this->redirect($res, $backUrl . (str_contains($backUrl, '?') ? '&' : '?') . 'paid=wallet');
         }
 
         $gate = (new CheckoutThrottle($this->rateLimit))->allow($req, 'paid_vote');
@@ -195,6 +214,10 @@ final class PaidVoteController
             $this->log?->error('[paid-vote] could not persist pending order', ['err' => $e->getMessage()]);
             return $bail('error');
         }
+
+        // Started from somebody's "bring your people" link: held by reference and credited
+        // when the votes are minted, never now — an abandoned checkout brought nobody.
+        \AfricaGates\Services\VoteRecruit::pend($reference, \AfricaGates\Services\VoteRecruit::fromSession());
 
         // ── THE BUYER'S MESSAGE, HELD IN THE SESSION ─────────────────────────
         //
@@ -409,8 +432,46 @@ final class PaidVoteController
         // votes_used is the mint claim flag: 0 on a confirmed order means the
         // votes were never added. Same signal ops queries for a refund.
         $minted = $don !== null && (int)$don->votes_used > 0;
+        // Their votes landed: this browser now holds their own "bring your people" link for the
+        // nominee (VoteRecruit), shown at the top of the ballot when they go back to it. The
+        // same link reaches them in the thank-you email, for when this is another device.
+        if ($minted && $nominee && trim((string)($don->donor_email ?? '')) !== '') {
+            $mine = \AfricaGates\Services\VoteRecruit::forVoter(\AfricaGates\Services\VoteService::voterHash((string)$don->donor_email), (int)$nominee->id);
+            if ($mine && isset($_SESSION) && is_array($_SESSION)) $_SESSION['vote_recruit'][(int)$nominee->id] = $mine['code'];
+        }
+
+        // A reason to have voted, and to vote again: what THIS order did for the award's named
+        // beneficiary, and where this person now stands on the award's own benefits ladder
+        // (Support\AwardCampaign). Both only where the host has set them, and only once the
+        // votes have landed — a ladder read against an unminted order counts money that may
+        // be refunded.
+        $own = null;
+        if ($minted && $nominee && trim((string) ($don->donor_email ?? '')) !== '') {
+            try {
+                $campaign = \AfricaGates\Support\AwardCampaign::forProgramme($this->programmeIdFor($nominee));
+                $cycleId  = (int) DB::table('gates_award_categories')->where('id', (int) $nominee->category_id)->value('cycle_id');
+                $price    = PaidVoteService::pricePerVote();
+                $share    = $campaign['beneficiary'] !== '' && $campaign['share_pct'] > 0
+                    ? (int) $don->bonus_votes * intdiv($price * $campaign['share_pct'], 100) : 0;
+                // Where they now stand among everybody backing their own in this edition — the
+                // thing a supporter most wants to hear right after giving, and true: the same
+                // count of people, the same order, the board uses.
+                $me       = \AfricaGates\Services\SupporterSpotlight::standingOf($cycleId, (string) $don->donor_email);
+                $total    = $me['votes'];
+                $own = ['share' => $share, 'beneficiary' => $campaign['beneficiary'], 'total' => $total,
+                        'rank' => $me['rank'], 'people' => $me['people'], 'place' => $campaign['community'],
+                        'standing' => \AfricaGates\Support\AwardCampaign::standing($campaign, $total),
+                        'ladder' => $campaign['ladder'] !== [], 'note' => $campaign['ladder_note'],
+                        // Their own "what your votes unlock" link (OfferLink), on the address they paid from.
+                        'offer_url' => ($slug = (string) (DB::table('gates_award_programmes')->where('id', $this->programmeIdFor($nominee))->where('is_active', 1)->value('slug') ?? '')) !== ''
+                            ? \AfricaGates\Services\OfferLink::path($slug, \AfricaGates\Services\VoteService::voterHash((string) $don->donor_email)) : ''];
+            } catch (\Throwable) {
+                $own = null;
+            }
+        }
 
         return $this->view->render($res, 'pages/vote-paid-success.twig', [
+            'own'              => $own,
             'page_title'       => $minted ? 'Votes confirmed — Africa GATES' : 'Payment received — Africa GATES',
             'meta_description' => 'Your paid votes have been recorded — thank you for backing African excellence.',
             'gates_page'       => 'awards',
@@ -420,6 +481,10 @@ final class PaidVoteController
             'amount_naira'     => $don ? (int)$don->amount_naira : 0,
             'nominee_name'     => $nominee ? (string)$nominee->name : '',
             'ballot_url'       => $this->ballotUrl($nominee, $req),
+            // The supporter's "I backed" card (Services\BackedCard), as a PATH: the ballot URL is
+            // absolute on the configured site address, which an image on this page must not
+            // depend on (it drew broken wherever the two differ).
+            'card_url'         => $nominee && $minted ? \AfricaGates\Support\NomineeUrl::path((int) $nominee->id) . '/backed.png' : '',
             'reference'        => $reference,
             // The jury share, read from the engine rather than typed into the
             // template. This page is the first thing a supporter sees after paying,

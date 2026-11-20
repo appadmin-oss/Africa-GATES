@@ -33,7 +33,7 @@
   {% else %}
     <div class="si__head">
       <h1 class="si__h1">{{ 'That link has expired'|trans }}</h1>
-      <p class="si__lede">{{ 'A reset link works once, for an hour. Ask for a fresh one — it takes a moment.'|trans }}</p>
+      <p class="si__lede">{{ 'A reset link works once, for an hour. Ask for a fresh one.'|trans }}</p>
     </div>
     {{ auth.say(_error, null) }}
     <a class="si__go" href="/account/forgot">{{ 'Send me a new link'|trans }}</a>

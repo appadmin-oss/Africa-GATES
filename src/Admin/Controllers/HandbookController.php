@@ -76,6 +76,21 @@ final class HandbookController
         ];
     }
 
+    /** @return array<string,mixed> the shop's rules as the code enforces them, for §7 of the handbook */
+    public static function shopFacts(): array
+    {
+        return [
+                'bulk_max'     => \AfricaGates\Admin\Controllers\ShopController::BULK_MAX,
+                'low_default'  => \AfricaGates\Services\ShopStock::lowLevel(),
+                'reasons'      => \AfricaGates\Services\ShopStock::REASONS,
+                'digest_hour'  => \AfricaGates\Services\ShopStock::DIGEST_HOUR,
+                'code_len'     => \AfricaGates\Services\ShopPickup::CODE_LEN,
+                'override_min' => \AfricaGates\Services\ShopPickup::OVERRIDE_MIN,
+                'methods'      => \AfricaGates\Services\ShopPos::METHODS,
+                'report_days'  => \AfricaGates\Services\ShopReports::MAX_DAYS,
+        ];
+    }
+
     /**
      * The send rules' figures, from the class that applies them. Static for HandbookTest.
      *
@@ -145,6 +160,8 @@ final class HandbookController
             // The newsletter's schedule and its limits, from the classes that act on them.
             'newsletter'  => self::newsletter(),
             'send_rules'  => self::sendRules(),
+            // The shop's operating rules, read from the code that enforces them (shop upgrade).
+            'shop'        => self::shopFacts(),
 
             // ── THE VERIFICATION STATES, FROM THE SERVICE'S OWN LIST ─────────
             //

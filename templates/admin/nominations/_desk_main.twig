@@ -1,0 +1,289 @@
+{#
+  The review desk's two working panes: the nomination, and the decision beside it
+  (README §10b "Review desk"). Rendered inside desk.twig, and alone for review-desk.js,
+  which swaps it in place when the reviewer moves (J, K, S, or a queue row).
+
+  Expects `n` (ReviewDesk::view), `pos`, `total`, `back`, `csrf_token`, `shell`.
+
+  Every decision is one form posting to /admin/nominations/{id}/decide with `choice`, so
+  it runs the same checks, sends the same emails and writes the same audit rows as the
+  list. Without script the form posts and the desk comes back on the next nomination;
+  the choice-dependent parts (the ask message, the four reasons, the button's words)
+  are shown by CSS from the checked radio, so they need no script either.
+#}
+{% set can_decide = n.status == 'pending' and shell.can_write|default(false) and not n.conflict %}
+{% set dup = 'dup' in n.keys %}
+{% set can_approve = n.short == 0 %}
+{% set pick = n.suggestion.pick %}
+{% if (pick == 'ask' and not n.can_ask) or (pick == 'approve' and not can_approve) %}{% set pick = '' %}{% endif %}
+{% if not pick %}{% set pick = can_approve ? 'approve' : (n.can_ask ? 'ask' : 'reject') %}{% endif %}
+<div class="dk-main" data-dk-main data-dk-id="{{ n.id }}" data-dk-pos="{{ pos }}" data-dk-total="{{ total }}" data-dk-name="{{ n.name }}">
+
+  {# ── the nomination ───────────────────────────────────────────────────── #}
+  <section class="dk-nom" aria-label="Nomination">
+    <div class="dk-nom__head">
+      <span class="rq-av rq-av--lg rq-av--{{ n.tone }} dk-av" aria-hidden="true">{{ n.initials }}</span>
+      <span class="dk-nom__who">
+        <h2 class="dk-nom__name" tabindex="-1" data-dk-focus>{{ n.name }}</h2>
+        <span class="dk-nom__sub">{{ [n.org, n.nominee_state, n.country_code]|filter(x => x)|join(' · ') }}</span>
+        <span class="dk-nom__meta">Received {{ n.recv }}{% if pos %} · {{ pos }} of {{ total }}{% endif %}</span>
+      </span>
+      <span class="dk-nom__step">
+        <a class="dk-iconbtn" href="{{ prev_href|default('#') }}" data-dk-step="-1" aria-label="Previous (K)"><svg aria-hidden="true" focusable="false"><use href="#ic-up"/></svg></a>
+        <a class="dk-iconbtn" href="{{ next_href|default('#') }}" data-dk-step="1" aria-label="Next (J)"><svg aria-hidden="true" focusable="false"><use href="#ic-down"/></svg></a>
+      </span>
+    </div>
+
+    <div class="dk-row">
+      <span class="dk-row__k">Category</span>
+      <span class="dk-row__v">
+        {% if can_decide and n.categories %}
+          <label class="sr-only" for="dkCat{{ n.id }}">Category to approve into</label>
+          <select id="dkCat{{ n.id }}" class="ls-select dk-cat" name="category_id" form="dkDecide{{ n.id }}" data-dk-cat>
+            {% if not n.category_id %}<option value="">Choose a category</option>{% endif %}
+            {% for c in n.categories %}<option value="{{ c.id }}"{% if c.id == n.category_id %} selected{% endif %}>{{ c.title }}</option>{% endfor %}
+          </select>
+        {% else %}
+          <strong>{{ n.category ?: 'No category' }}</strong>
+        {% endif %}
+      </span>
+    </div>
+    {% if n.suggest and can_decide %}
+      <div class="dk-flag" role="note">
+        <span>Reads closer to <strong>{{ n.suggest.title }}</strong>.</span>
+        <button type="button" class="dk-btn dk-btn--sm" data-dk-keep>Keep</button>
+        <button type="button" class="dk-btn dk-btn--sm dk-btn--ink" data-dk-move="{{ n.suggest.category_id }}">Move</button>
+      </div>
+    {% endif %}
+
+    <div class="dk-sec">
+      <h3 class="dk-h">Why they were nominated</h3>
+      {% if n.reasons %}
+        {% for x in n.reasons %}
+          {% if n.reasons|length > 1 %}<span class="dk-why__cat">{{ x.title }}</span>{% endif %}
+          <p class="dk-why">{{ x.reason }}</p>
+        {% endfor %}
+      {% elseif n.reason %}
+        <p class="dk-why">{{ n.reason }}</p>
+      {% else %}
+        <p class="dk-why dk-why--none">The nominator did not write a reason.</p>
+      {% endif %}
+    </div>
+
+    <div class="dk-sec">
+      <h3 class="dk-h">Supporting files{% if n.evidence_list %} <span class="dk-h__num">{{ n.evidence_list|length }}</span>{% endif %}</h3>
+      {% if n.evidence_list %}
+        <ul class="dk-files">
+          {% for e in n.evidence_list %}
+            <li><a class="dk-file" href="{{ e.href }}" target="_blank" rel="noopener noreferrer nofollow">
+              <span class="dk-file__ic" aria-hidden="true"><svg focusable="false"><use href="#ic-{{ e.kind == 'file' ? 'doc' : 'external' }}"/></svg></span>
+              <span class="dk-file__l">{{ e.label }}</span></a></li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <div class="dk-nofiles">
+          <span>No files yet. One photo, letter or link is enough to approve.</span>
+        </div>
+      {% endif %}
+    </div>
+
+    {% if (dup or n.similar) and n.earlier %}
+      <div class="dk-sec">
+        <h3 class="dk-h {{ dup ? 'dk-h--red' : 'dk-h--gold' }}">{{ dup ? 'Possible duplicate' : 'Similar name' }}</h3>
+        {# Side by side, field by field: the contact details decide it, the name does not. #}
+        <div class="dk-cmp" role="table" aria-label="This nomination beside the {{ n.earlier.older ? 'earlier' : 'other' }} one">
+          <div class="dk-cmp__r dk-cmp__r--head" role="row">
+            <span role="columnheader"></span>
+            <span role="columnheader">This nomination</span>
+            <span role="columnheader">{{ n.earlier.older ? 'Earlier' : 'Also entered' }} · {{ n.earlier.status_label|lower }} · {{ n.earlier.when }}</span>
+          </div>
+          {% for c in n.compare.rows %}
+            <div class="dk-cmp__r dk-cmp__r--{{ c.v }}" role="row">
+              <span class="dk-cmp__k" role="rowheader">{{ c.k }}</span>
+              <span role="cell">{{ c.a ?: '—' }}</span>
+              <span role="cell">{{ c.b ?: '—' }}{% if c.v == 'same' %} <span class="dk-cmp__v">same</span>{% elseif c.v == 'differ' %} <span class="dk-cmp__v dk-cmp__v--differ">differs</span>{% endif %}</span>
+            </div>
+          {% endfor %}
+        </div>
+        <p class="dk-cmp__say dk-cmp__say--{{ n.compare.tone }}">{{ n.compare.say }}</p>
+        {% if can_decide %}
+          <div class="dk-pair__do">
+            {% if n.earlier.mergeable %}
+              <form method="post" action="/admin/nominations/{{ n.id }}/merge" data-dk-form="merge">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                <input type="hidden" name="desk" value="1">
+                <input type="hidden" name="back" value="{{ back }}">
+                <input type="hidden" name="merge_into" value="{{ n.earlier.id }}">
+                <button type="submit" class="dk-btn dk-btn--ink">Merge into earlier</button>
+              </form>
+            {% endif %}
+            <form method="post" action="/admin/nominations/{{ n.id }}/apart" data-dk-form="apart">
+              <input type="hidden" name="_token" value="{{ csrf_token }}">
+              <input type="hidden" name="desk" value="1">
+              <input type="hidden" name="back" value="{{ back }}">
+              <button type="submit" class="dk-btn">{{ dup ? 'Not a duplicate' : 'Different people' }}</button>
+            </form>
+            {% if n.earlier.combinable %}
+              <form method="post" action="/admin/nominations/{{ n.id }}/combine" data-dk-form="combine">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                <input type="hidden" name="desk" value="1">
+                <input type="hidden" name="back" value="{{ back }}">
+                <input type="hidden" name="merge_into" value="{{ n.earlier.id }}">
+                <button type="submit" class="dk-btn dk-btn--ink">Same person: combine</button>
+              </form>
+            {% endif %}
+          </div>
+          <p class="dk-hint">{{ n.earlier.mergeable ? 'Merging approves this one into the ' ~ (n.earlier.older ? 'earlier' : 'other') ~ ' entry under its name: one nominee, and both nominators keep credit.' : (n.earlier.combinable ? 'Combining folds this one into the ' ~ (n.earlier.older ? 'earlier' : 'other') ~ ' entry: you decide them once, with both nominators’ reasons and places, and this one follows. It can be separated again.' : 'The ' ~ (n.earlier.older ? 'earlier' : 'other') ~ ' one was not taken forward. Decide this one on its own, or mark it a different person.') }}</p>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    {% if n.supporters|default([])|length %}
+      <div class="dk-sec">
+        <h3 class="dk-h">Also nominated by {{ n.supporters|length }} more {{ n.supporters|length == 1 ? 'person' : 'people' }}</h3>
+        <p class="dk-hint">Combined into this nomination: same person, so you decide once and they follow. Their reasons and places count here.</p>
+        {% for s in n.supporters %}
+          <div class="dk-pair">
+            <p class="dk-pair__t"><b>{{ s.by }}</b>{% if s.place %} · {{ s.place }}{% endif %} · <span class="dk-ref">{{ s.ref }}</span></p>
+            {% if s.reason %}<p class="dk-pair__s">{{ s.reason|length > 280 ? s.reason|slice(0, 280) ~ '…' : s.reason }}</p>{% endif %}
+            {% if can_decide %}
+              <div class="dk-pair__do">
+                <form method="post" action="/admin/nominations/{{ s.id }}/separate" data-dk-form="separate">
+                  <input type="hidden" name="_token" value="{{ csrf_token }}">
+                  <input type="hidden" name="desk" value="1">
+                  <input type="hidden" name="back" value="{{ back }}">
+                  <button type="submit" class="dk-btn">Separate: a different person</button>
+                </form>
+              </div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <div class="dk-by">
+      <span class="dk-by__k">Nominated by</span>
+      <strong>{{ n.by ?: 'Unknown' }}</strong>{% if n.rel %} <span class="dk-by__rel">{{ n.rel|lower }}</span>{% endif %}
+      {% if n.reference %}<span class="dk-by__ref">{{ n.reference }}</span>{% endif %}
+      <a class="dk-by__more" href="/admin/nominations/{{ n.id }}">Full record</a>
+    </div>
+  </section>
+
+  {# ── the decision ─────────────────────────────────────────────────────── #}
+  <aside class="dk-dec" aria-label="Decision">
+    <div class="dk-dec__scroll">
+      <div class="dk-sugg dk-sugg--{{ n.suggestion.tone }}">
+        <span class="dk-sugg__k"><span class="rq-dot rq-dot--{{ n.suggestion.tone }}" aria-hidden="true"></span>Suggested</span>
+        <strong class="dk-sugg__t">{{ n.suggestion.title }}</strong>
+        <span class="dk-sugg__m">{{ n.suggestion.why }}</span>
+      </div>
+
+      {% if n.ai %}
+        {# The AI triage: advisory, in words first. Outside the decision form on purpose. #}
+        <div class="dk-ai">
+          <span class="dk-ai__k">AI reading · advisory</span>
+          {% if n.ai.state == 'ok' %}
+            <span class="dk-ai__row"><strong class="dk-ai__band dk-ai__band--{{ n.ai.tone }}">{{ n.ai.band }}</strong><span class="dk-ai__num">{{ n.ai.score }}/100</span></span>
+            {% if n.ai.summary %}<p class="dk-ai__sum">{{ n.ai.summary }}</p>{% endif %}
+            <span class="dk-ai__when">Read {{ n.ai.when }} ago{% if n.ai.stale %} — before the latest evidence arrived{% endif %}. It scores how the case reads, not whether they deserve it.</span>
+          {% elseif n.ai.state == 'waiting' %}
+            <span class="dk-ai__when">Not read yet. It runs in the background, usually within minutes of a nomination arriving.</span>
+          {% else %}
+            <span class="dk-ai__when">{{ n.ai.why }}</span>
+          {% endif %}
+          {% if n.ai.can_run and shell.can_write|default(false) %}
+            <form method="post" action="/admin/nominations/{{ n.id }}/ai-insight">
+              <input type="hidden" name="_token" value="{{ csrf_token }}">
+              <button type="submit" class="dk-btn dk-btn--sm">{{ n.ai.state == 'ok' ? (n.ai.stale ? 'Read it again with the new evidence' : 'Read it again') : 'Read it now' }}</button>
+            </form>
+          {% endif %}
+        </div>
+      {% endif %}
+
+      <h3 class="dk-h">Checks</h3>
+      <ul class="dk-checks">
+        {% for c in n.desk_checks %}
+          <li class="dk-check">
+            <details>
+              <summary>
+                <span class="rq-check__m rq-check__m--{{ c.ok ? 'ok' : (c.bad|default(false) ? 'bad' : 'warn') }}" aria-hidden="true">{{ c.ok ? '✓' : '!' }}</span>
+                <span class="dk-check__t">{{ c.t }}</span>
+                <span class="dk-check__rule">Rule</span>
+              </summary>
+              <p class="dk-check__why">{{ c.rule }}</p>
+            </details>
+          </li>
+        {% endfor %}
+      </ul>
+
+      {# Volunteers' checks (Volunteer\NominationChecks): recommendations with a name, never a
+         decision. Read beside the desk's own checks; the decision below is still yours. #}
+      {% if n.vol_checks|default([]) is not empty %}
+        <h3 class="dk-h">Volunteer checks · recommendations</h3>
+        <ul class="dk-checks">
+          {% for c in n.vol_checks %}
+            <li class="dk-check">
+              <details>
+                <summary>
+                  <span class="rq-check__m rq-check__m--{{ c.flag ? 'warn' : 'ok' }}" aria-hidden="true">{{ c.flag ? '!' : '✓' }}</span>
+                  <span class="dk-check__t">{{ c.said }} · {{ c.by }}</span>
+                  <span class="dk-check__rule">{{ c.when }}</span>
+                </summary>
+                <p class="dk-check__why">{{ c.note ?: 'No note.' }}</p>
+              </details>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+
+      {% if can_decide %}
+        <form id="dkDecide{{ n.id }}" class="dk-form" method="post" action="/admin/nominations/{{ n.id }}/decide" data-dk-form="decide">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <input type="hidden" name="desk" value="1">
+          <input type="hidden" name="back" value="{{ back }}">
+
+          <fieldset class="dk-choice">
+            <legend class="dk-h">Decision</legend>
+            <label class="dk-choice__o dk-choice__o--approve"><input type="radio" name="choice" value="approve"{% if pick == 'approve' %} checked{% endif %}{% if not can_approve %} disabled{% endif %}><span>Approve</span><kbd>A</kbd></label>
+            <label class="dk-choice__o dk-choice__o--ask"><input type="radio" name="choice" value="ask"{% if pick == 'ask' %} checked{% endif %}{% if not n.can_ask %} disabled{% endif %}><span>Ask for more</span><kbd>M</kbd></label>
+            <label class="dk-choice__o dk-choice__o--reject"><input type="radio" name="choice" value="reject"{% if pick == 'reject' %} checked{% endif %}><span>Reject</span><kbd>R</kbd></label>
+          </fieldset>
+          {% if not n.can_ask %}<p class="dk-hint">{{ n.nominator_email ? 'Ask for more needs the latest database update.' : 'Ask for more needs the nominator’s email address, and there is none.' }}</p>{% endif %}
+
+          <div class="dk-ask">
+            <label class="dk-h" for="dkAsk{{ n.id }}">Message to {{ n.nominator_first ?: 'the nominator' }}</label>
+            <textarea id="dkAsk{{ n.id }}" name="asked_message" rows="5" maxlength="1200">{{ n.ask_prefill }}</textarea>
+            <p class="dk-hint">Sent by email with a link to add what is missing. It moves to Asked until they reply.</p>
+          </div>
+
+          <fieldset class="dk-reasons">
+            <legend class="dk-h">Reason · the nominator sees this</legend>
+            {% for k, l in n.reject_reasons %}
+              <label class="dk-reason"><input type="radio" name="reject_reason" value="{{ k }}"><span>{{ l }}</span></label>
+            {% endfor %}
+          </fieldset>
+
+          <label class="sr-only" for="dkNote{{ n.id }}">Note for your team (optional)</label>
+          <textarea id="dkNote{{ n.id }}" class="dk-note" name="team_note" rows="2" maxlength="2000" placeholder="Note for your team (optional)"></textarea>
+        </form>
+      {% else %}
+        <p class="dk-hint">{{ n.status != 'pending' ? 'Already decided: ' ~ n.status_label|lower ~ '.' : (n.conflict ?: 'You can read this, but your role cannot decide it.') }}</p>
+      {% endif %}
+    </div>
+
+    {% if can_decide %}
+      <div class="dk-dec__foot">
+        <a class="dk-btn dk-skip" href="{{ next_href|default('#') }}" data-dk-skip>Skip <kbd>S</kbd></a>
+        {% if dup %}
+          <button type="submit" form="dkDecide{{ n.id }}" class="dk-go" disabled>Resolve the duplicate first</button>
+        {% else %}
+          <button type="submit" form="dkDecide{{ n.id }}" class="dk-go" data-dk-go>
+            <span class="dk-go__l dk-go__l--approve">Approve and next <kbd>A</kbd></span>
+            <span class="dk-go__l dk-go__l--ask">Send request and next <kbd>↵</kbd></span>
+            <span class="dk-go__l dk-go__l--reject">Reject and next <kbd>↵</kbd></span>
+          </button>
+        {% endif %}
+      </div>
+    {% endif %}
+  </aside>
+</div>

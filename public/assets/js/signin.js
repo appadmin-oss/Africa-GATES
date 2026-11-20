@@ -25,6 +25,9 @@
    ══════════════════════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
+  // Page-wide listeners and timers go through agPage (layout/shell.twig), which site-nav.js
+  // undoes when this page is swapped away; elsewhere they are plain (SiteNavTest).
+  var pg = window.agPage || { on: function (t, y, f, o) { t.addEventListener(y, f, o); }, every: function (f, ms) { return setInterval(f, ms); }, leave: function () {} };
 
   /* 1 ── the switch ─────────────────────────────────────────────────────────── */
   function initVia() {
@@ -96,7 +99,7 @@
     var tpl = wait.textContent;
     var shown = tpl.match(/\d+:\d{2}/);
     function fmt(s) { return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2); }
-    var t = setInterval(function () {
+    var t = pg.every(function () {
       left -= 1;
       if (left <= 0) {
         clearInterval(t);
@@ -126,4 +129,45 @@
   function init() { initVia(); initCode(); initWait(); initInterests(); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
+})();
+
+/* 5 ── THE WINNERS ON THE ART PANEL (desktop) ───────────────────────────────
+   SignIn.dc.html's rotating voices: a 0.8s crossfade every 5.5s, paused while the
+   pointer is over the panel or the tab is hidden, and not at all under reduced motion
+   (the arrows still step). The credit line is aria-live, so a screen reader hears the
+   name change; the slides themselves are decorative. */
+(function () {
+  'use strict';
+  var pg = window.agPage || { on: function (t, y, f, o) { t.addEventListener(y, f, o); }, every: function (f, ms) { return setInterval(f, ms); }, leave: function () {} };
+  var art = document.querySelector('[data-si-rotate]');
+  if (!art) return;
+  var slides = art.querySelectorAll('[data-si-slide]');
+  var lines = art.querySelectorAll('[data-si-line]');
+  var cur = art.querySelector('[data-si-cur]');
+  var prog = art.querySelector('[data-si-prog]');
+  var n = slides.length, i = 0, timer = null, hover = false;
+  // The site's own reduce-motion switch (html.ag-rm, a11y.js) as well as the system's.
+  var still = document.documentElement.classList.contains('ag-rm') ||
+    !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  function show(k) {
+    i = (k + n) % n;
+    for (var j = 0; j < n; j++) {
+      slides[j].classList.toggle('is-on', j === i);
+      if (j === i) slides[j].removeAttribute('aria-hidden'); else slides[j].setAttribute('aria-hidden', 'true');
+      if (lines[j]) lines[j].hidden = j !== i;
+    }
+    if (cur) cur.textContent = (i + 1 < 10 ? '0' : '') + (i + 1);
+    if (prog) prog.style.width = ((i + 1) * 100 / n) + '%';
+  }
+  function tick() { if (!hover && !document.hidden) show(i + 1); }
+  function start() { if (!still && !timer) timer = pg.every(tick, 5500); }
+  function stop() { clearInterval(timer); timer = null; }
+  art.addEventListener('mouseenter', function () { hover = true; });
+  art.addEventListener('mouseleave', function () { hover = false; });
+  art.addEventListener('focusin', function () { hover = true; });
+  art.addEventListener('focusout', function () { hover = false; });
+  var prev = art.querySelector('[data-si-prev]'), next = art.querySelector('[data-si-next]');
+  if (prev) prev.addEventListener('click', function () { stop(); show(i - 1); start(); });
+  if (next) next.addEventListener('click', function () { stop(); show(i + 1); start(); });
+  show(0); start();
 })();

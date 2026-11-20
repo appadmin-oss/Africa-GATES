@@ -111,7 +111,7 @@ CREATE TABLE IF NOT EXISTS gates_merge_log (
   tbl VARCHAR(64) NOT NULL,
   row_pk BIGINT UNSIGNED DEFAULT NULL,
   col VARCHAR(64) DEFAULT NULL,
-  old_val VARCHAR(64) DEFAULT NULL,
+  old_val TEXT DEFAULT NULL,
   snapshot TEXT DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY(id), KEY idx_merge_log_merged(merged_id), KEY idx_merge_log_batch(batch)
@@ -127,7 +127,7 @@ CREATE TABLE IF NOT EXISTS gates_profile_merge_log (
   tbl VARCHAR(64) NOT NULL,
   row_pk BIGINT UNSIGNED DEFAULT NULL,
   col VARCHAR(64) DEFAULT NULL,
-  old_val VARCHAR(64) DEFAULT NULL,
+  old_val TEXT DEFAULT NULL,
   snapshot TEXT DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY(id), KEY idx_pmerge_log_merged(merged_id), KEY idx_pmerge_log_batch(batch)
@@ -599,17 +599,17 @@ CREATE TABLE IF NOT EXISTS gates_site_events (
   venue VARCHAR(200) NULL,
   event_date DATETIME NOT NULL,
   end_date DATETIME NULL,
-  cover_image VARCHAR(500) NULL,
-  rsvp_url VARCHAR(500) NULL,
+  cover_image TEXT NULL,
+  rsvp_url TEXT NULL,
   status VARCHAR(20) NOT NULL DEFAULT 'published',
   capacity INT UNSIGNED DEFAULT NULL,
   price_naira INT UNSIGNED DEFAULT NULL,
   schedule TEXT NULL,
-  map_embed VARCHAR(500) NULL,
+  map_embed TEXT NULL,
   ticket_tiers TEXT NULL,
   early_bird_text VARCHAR(255) NULL,
   early_bird_deadline DATETIME NULL,
-  early_bird_url VARCHAR(500) NULL,
+  early_bird_url TEXT NULL,
   -- Phase 7: a link out to the broadcast and the recording, and the access provisions
   -- (one per line). See migrations/2027_03_04_event_page_links.php.
   livestream_url VARCHAR(500) NULL DEFAULT NULL,
@@ -751,6 +751,7 @@ CREATE TABLE IF NOT EXISTS gates_users (
   name VARCHAR(160) NOT NULL,
   email VARCHAR(191) NOT NULL,
   phone VARCHAR(40) DEFAULT NULL,
+  avatar_path VARCHAR(400) DEFAULT NULL,
   password_hash VARCHAR(255) DEFAULT NULL,
   points INT NOT NULL DEFAULT 0,
   status VARCHAR(20) NOT NULL DEFAULT 'active',
@@ -1239,4 +1240,19 @@ CREATE TABLE IF NOT EXISTS gates_status_alerts (
   UNIQUE KEY uq_sta_who (email_hash),
   UNIQUE KEY uq_sta_token (token),
   KEY idx_sta_live (confirmed_at, cancelled_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─── Voting extensions, on the record (migrations/2027_06_03_voting_extensions.php) ───
+CREATE TABLE IF NOT EXISTS gates_voting_extensions (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  cycle_id BIGINT UNSIGNED NOT NULL,
+  previous_close DATETIME NOT NULL,
+  new_close DATETIME NOT NULL,
+  reason TEXT NOT NULL,
+  paid_cutoff_at DATETIME NULL,
+  snapshot_ref VARCHAR(80) NULL,
+  mode VARCHAR(10) NOT NULL DEFAULT 'moved',
+  admin_id BIGINT UNSIGNED NULL,
+  created_at DATETIME NOT NULL,
+  KEY idx_voting_ext_cycle (cycle_id, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

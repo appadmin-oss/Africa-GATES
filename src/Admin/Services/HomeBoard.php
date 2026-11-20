@@ -107,6 +107,7 @@ final class HomeBoard
             // 1 · the review queue
             static function (): ?array {
                 $q = DB::table('gates_nominations')->where('status', 'pending');
+                \AfricaGates\Services\NominationCombine::excludeCombined($q);
                 $n = (int) (clone $q)->count();
                 if ($n === 0) return null;
                 $oldest = (string) (clone $q)->min('created_at');
@@ -267,11 +268,15 @@ final class HomeBoard
 
         $c = [
             'review'      => Permissions::canOpen($role, '/admin/nominations/review')
-                ? $safe(static fn () => DB::table('gates_nominations')->where('status', 'pending')->count()) : null,
+                ? $safe(static function () { $q = DB::table('gates_nominations')->where('status', 'pending'); \AfricaGates\Services\NominationCombine::excludeCombined($q); return $q->count(); }) : null,
             'payments'    => Permissions::canOpen($role, '/admin/payments')
                 ? $safe(static function () { $t = self::triage(); return $t['refund_owed'] + $t['recoverable']; }) : null,
             'alerts'      => Permissions::canOpen($role, '/admin/alerts') ? count(ConsoleAlerts::open()) : null,
             'alerts_high' => Permissions::canOpen($role, '/admin/alerts') ? count(ConsoleAlerts::high()) : null,
+            // The moderation page's own two queues: held comments and held threads.
+            'moderation'  => Permissions::canOpen($role, '/admin/moderation')
+                ? $safe(static fn () => DB::table('gates_comments')->where('status', \AfricaGates\Services\CommunityService::HELD)->count()
+                    + DB::table('gates_threads')->where('status', \AfricaGates\Services\CommunityService::HELD)->count()) : null,
         ];
         self::$counts = $c + ['_role' => $role];
         return $c;
@@ -371,7 +376,7 @@ final class HomeBoard
 
         return [
             'ok'    => $pill['total'] === 0 && $cronOk,
-            'items' => array_slice($pill['items'], 0, 3),
+            'items' => array_slice(array_merge($pill['production'], $pill['items']), 0, 3),
             'total' => $pill['total'],
             'cron'  => ['ok' => $cronOk, 'say' => (string) ($cron['say'] ?? ''), 'last' => $cron['last'] ?? null],
         ];

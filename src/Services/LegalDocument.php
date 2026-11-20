@@ -57,11 +57,101 @@ final class LegalDocument
         if (($doc['slug'] ?? '') === 'privacy') {
             $html .= self::disclosureHtml();
             $html .= self::voiceHtml();
+            $html .= self::thirdPartiesHtml();
         }
         if (($doc['slug'] ?? '') === 'cookies') {
             $html .= self::cookiesHtml();
         }
+        if (($doc['slug'] ?? '') === 'advertising') {
+            $html .= self::advertisingHtml();
+        }
         return $html;
+    }
+
+    /**
+     * Every outside service that can receive somebody's data, generated from
+     * {@see ThirdParties} — the payment gateways, SMS and email, the image host, the
+     * calendar, the bot check, the speech service at an event door. Here rather than in
+     * the template for the reason the AI section is: /privacy.txt and /privacy.md carry it.
+     *
+     * @param list<array<string,mixed>>|null $services injectable so the escaping can be
+     *        tested with a hostile value
+     */
+    public static function thirdPartiesHtml(?array $services = null): string
+    {
+        $services ??= ThirdParties::services();
+        if ($services === []) return '';
+        $e = static fn (string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
+
+        $h = [];
+        $h[] = '<h2 id="services">Other services that handle your data</h2>';
+        $h[] = '<p>Some things this platform does need another company&rsquo;s service: taking a '
+             . 'payment, sending a text message, storing a photo. Each one below receives only what '
+             . 'it needs for that job, and only at the moment described. This list is generated from '
+             . 'the platform&rsquo;s own code, so a service cannot be added without appearing here.</p>';
+        $h[] = '<ul>';
+        foreach ($services as $s) {
+            $see = (string) ($s['see'] ?? '');
+            $more = $see === '' ? ''
+                : ' <a href="' . ($see === 'cookies' ? '/cookies' : '#' . $e($see)) . '">More detail</a>.';
+            $h[] = '<li><strong>' . $e((string) $s['name']) . '</strong> &mdash; ' . $e((string) $s['for'])
+                 . '<br>What it receives: ' . $e((string) $s['gets'])
+                 . '<br>When: ' . $e((string) $s['when']) . $more . '</li>';
+        }
+        $h[] = '</ul>';
+        $h[] = '<p>Where each service keeps what it receives, and for how long, is set by its own '
+             . 'terms rather than ours. If that matters to you, email '
+             . '<a href="mailto:privacy@afrovanguard.org.ng">privacy@afrovanguard.org.ng</a> and we '
+             . 'will tell you what we know.</p>';
+
+        return implode("\n", $h);
+    }
+
+    /**
+     * What an ad may not be, and the figures, generated from Services\Ads\AdRules: the same
+     * list the builder makes an advertiser confirm and a reviewer refuses against, so the
+     * published policy cannot drift from the rule that is running.
+     */
+    public static function advertisingHtml(): string
+    {
+        $R = \AfricaGates\Services\Ads\AdRules::class;
+        $e = static fn (string $s): string => htmlspecialchars($s, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $h = ['<h2>What an ad may not be</h2>', '<table><thead><tr><th>Not allowed</th><th>What that means</th></tr></thead><tbody>'];
+        foreach ($R::STANDARDS as [$name, $what]) {
+            $h[] = '<tr><td><strong>' . $e($name) . '</strong></td><td>' . $e($what) . '</td></tr>';
+        }
+        $h[] = '</tbody></table>';
+        $beta = $R::inBeta();
+        $names = static fn (array $keys): string => implode(' and ', array_map(static fn ($k) => $R::APPROVALS[$k][0], $keys));
+        $h[] = '<h2>Approvals by kind of ad</h2>';
+        $h[] = '<p>' . ($beta
+            ? 'Ads are in beta. Until the beta ends these approvals are asked for and checked by the reviewer, but an ad without them is not refused for that reason alone. Once the beta ends, they are required.'
+            : 'These approvals are required. An ad of these kinds without them is refused.') . '</p>';
+        $h[] = '<table><thead><tr><th>Kind of ad</th><th>Covers</th><th>What it must carry</th></tr></thead><tbody>';
+        foreach ($R::CATEGORIES as [$label, $covers, $needs]) {
+            $h[] = '<tr><td><strong>' . $e($label) . '</strong></td><td>' . $e($covers) . '</td><td>'
+                 . ($needs === [] ? 'ARCON approval where the law requires it' : $e($names($needs))) . '</td></tr>';
+        }
+        $h[] = '</tbody></table>';
+        $places = implode(', ', array_map($e, array_values($R::PLACEMENTS)));
+        $h[] = '<h2>The figures</h2><ul>'
+             . '<li>Places ads may appear: ' . $places . '.</li>'
+             . '<li>The free trial: one per account, up to ' . number_format($R::TRIAL_VIEWS) . ' views over '
+             . $R::TRIAL_DAYS . ' days, from when it is approved.</li>'
+             . '<li>One person sees the same ad at most ' . $R::FREQUENCY_CAP . ' times a day.</li>'
+             . '<li>A campaign can be booked for up to ' . $R::MAX_DAYS . ' days.</li>'
+             // How a price is set, from the constants the market runs on (AdMarket), so the
+             // policy cannot describe a different rule from the one charging people.
+             . (\AfricaGates\Services\Ads\AdMarket::dynamic()
+                 ? '<li>Prices are set each day for each place: its starting price, moved by how often people act on ads there against the site average and by how much of the next ' . \AfricaGates\Services\Ads\AdMarket::HORIZON . ' days paid campaigns have booked, never below ' . (int) round(100 * \AfricaGates\Services\Ads\AdMarket::FLOOR) . '% or above ' . (int) round(100 * \AfricaGates\Services\Ads\AdMarket::CEIL) . '% of the starting price. Until a place has ' . number_format(\AfricaGates\Services\Ads\AdMarket::MIN_VIEWS) . ' views to measure, its price is its starting price. Everyone booking on the same day pays the same price, and a campaign keeps the price it was booked at.</li>'
+                 : '<li>Prices are fixed per place, the same every day, and a campaign keeps the price it was booked at.</li>')
+             . '<li>Paid campaigns are shown before free trials.</li>'
+             . (\AfricaGates\Services\Ads\AdCheckout::vatBps() > 0
+                 ? '<li>Prices do not include VAT. VAT at ' . rtrim(rtrim(number_format(\AfricaGates\Services\Ads\AdCheckout::vatBps() / 100, 2), '0'), '.') . '% is added at checkout, shown as its own line, and printed on the receipt.</li>'
+                 : '')
+             . '<li>The smallest budget is ₦' . number_format(\AfricaGates\Services\Ads\AdCheckout::MIN_BUDGET_NAIRA) . '. A paid campaign starts when it is both paid for and approved, and runs the days bought from then. What it does not spend goes back, with its VAT, when it ends or is cancelled.</li>'
+             . '</ul><p>This section is generated from the rules the site runs, so it is always current.</p>';
+        return implode("\n", $h);
     }
 
     /**
@@ -315,21 +405,54 @@ final class LegalDocument
         }
 
         $h[] = '<p>We keep <strong>one row for each visit</strong> &mdash; not one per page you '
-             . 'open &mdash; so that whoever shared a link can find out whether it worked. It '
+             . 'open &mdash; so that whoever shared a link can find out whether it worked. A visit '
+             . 'ends after ' . intdiv(VisitTracker::IDLE_SECONDS, 60) . ' minutes without a new page. It '
              . 'records where you came from (a campaign tag, or the site that linked here), the '
-             . 'page you landed on, roughly what kind of device it was, and whether the visit '
-             . 'led to a vote, a nomination or a ticket.</p>';
-        $h[] = '<p><strong>It is ours alone.</strong> There is no Google Analytics here, no '
-             . 'advertising pixel, no third-party tag of any kind: nothing on this site reports '
-             . 'your visit to another company. And it stores nothing new on your device &mdash; '
-             . 'it uses the session cookie in the table above, which is already there.</p>';
-        $h[] = '<p><strong>What is never kept:</strong> your IP address (only a hash of it, '
-             . 're-scrambled with a new secret every day, so the same visitor cannot be followed '
-             . 'from one day to the next), the full address of the page that linked here (the '
-             . 'site name only, because a full address carries search terms), the query string of '
-             . 'the page you landed on (links here carry passes and sign-in tokens), and your '
-             . 'browser&rsquo;s identification string. Your country is recorded only when the '
-             . 'network in front of us has already worked it out; we never look it up.</p>';
+             . 'page you landed on, how many pages you opened, roughly what kind of device it was, '
+             . 'whether you had visited before, and whether the visit led to a vote, a nomination or '
+             . 'a ticket.</p>';
+        $h[] = '<p><strong>It is ours alone.</strong> It stores nothing new on your device &mdash; '
+             . 'it uses the session cookie in the table above, which is already there &mdash; and '
+             . 'it reports your visit to nobody.</p>';
+        // Generated from the setting, both ways: this sentence once said "There is no Google
+        // Analytics here" in bold, and the day an operator turned it on that would have been
+        // the /cookies fault again (CLAUDE.md, "A legal page that states a fact").
+        if (GoogleAnalytics::enabled()) {
+            $h[] = '<p><strong>Google Analytics.</strong> We also use Google Analytics to measure '
+                 . 'visits, but <strong>only if you say yes to Analytics</strong>: never by default, '
+                 . 'never when your browser sends Global Privacy Control or Do Not Track. With your '
+                 . 'yes, Google sets the two cookies in the table above and receives your IP address, '
+                 . 'your browser&rsquo;s description and the pages you open. We send it the page '
+                 . 'address with passes and sign-in links removed, and the linking site&rsquo;s name '
+                 . 'only. Google signals and ad personalisation are switched off, so it is not used '
+                 . 'for advertising. Google processes this under its own '
+                 . '<a href="https://policies.google.com/privacy" rel="noopener noreferrer">privacy '
+                 . 'policy</a>. Saying no later deletes the cookies and stops it.</p>';
+        } else {
+            $h[] = '<p><strong>No third parties.</strong> There is no Google Analytics here, no '
+                 . 'advertising pixel and no third-party tag of any kind: nothing on this site '
+                 . 'reports your visit to another company.</p>';
+        }
+        // Ads arrived on 27 Oct 2026, and this page and the notice both said "no ads". The
+        // promise that stays true is narrower and is the one stated: not based on you.
+        $h[] = '<p><strong>Ads.</strong> Some pages carry one ad, labelled Sponsored. It is '
+             . 'chosen by the page alone, never by anything you did here, and it is the same '
+             . 'whether or not you allow Analytics. '
+             . 'So one ad is not shown to you more than '
+             . \AfricaGates\Services\Ads\AdRules::FREQUENCY_CAP . ' times a day, your session counts '
+             . 'how often you have seen it; nothing new is stored on your device. Views and clicks '
+             . 'are counted as totals for the advertiser and say nothing about who you are. If you '
+             . 'hide or report an ad, your session remembers it so you are not shown it again.</p>';
+        // The secret really is one now (VisitTracker::salt()): random, replaced daily. It was
+        // the date until 28 Oct 2026, which this sentence promised it was not.
+        $h[] = '<p><strong>What is never kept:</strong> your IP address and your '
+             . 'browser&rsquo;s identification string (only a scrambled code made from them with '
+             . 'a random secret that is replaced every day and then thrown away, so the same '
+             . 'visitor cannot be followed from one day to the next, not even by us), the full '
+             . 'address of the page that linked here (the site name only, because a full address '
+             . 'carries search terms), and the query string of the page you landed on (links here '
+             . 'carry passes and sign-in tokens). Your country is recorded only when the network in '
+             . 'front of us has already worked it out; we never look it up.</p>';
         $h[] = '<p>Arrivals are deleted after ' . (int) VisitTracker::keepDays() . ' days.</p>';
 
         if (CookiePrefs::mode() === CookiePrefs::MODE_CONSENT) {

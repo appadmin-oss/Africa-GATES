@@ -30,15 +30,14 @@
 {% set app_bar = {variant: 'child', title: 'Reach a person'|trans, sub: 'Help Centre'|trans, back: '/help'} %}
 {% set _appeals = 'appeals@afrovanguard.org.ng' %}
 {% set _reasons = {
-  'result':  ['Dispute a result'|trans, 'Name the nominee and category, and say what you expected to see. We replay the count from source.'|trans],
-  'profile': ['Report a profile'|trans, 'The profile link and what you saw is enough. You do not need to prove anything — that is our job.'|trans],
-  'access':  ['Recover access'|trans, 'Tell us the email address you expect the account to be on, even if you are not certain.'|trans],
-  'payment': ['Payment or ticket issue'|trans, 'Include your AFG- reference if you have it. Gee can often find it faster than we can.'|trans],
+  'result':  ['Dispute a result'|trans, 'Name the nominee and category, and what you expected to see.'|trans],
+  'profile': ['Report a profile'|trans, 'The profile link and what you saw is enough.'|trans],
+  'access':  ['Recover access'|trans, 'Tell us the email you think the account is on.'|trans],
+  'payment': ['Payment or ticket issue'|trans, 'Include your AFG- reference if you have it.'|trans],
   'other':   ['Something else'|trans, 'Say what happened and what outcome would resolve it for you.'|trans]
 } %}
 
 {% block head_styles %}
-{% include 'partials/seo-head.twig' %}
 <link rel="stylesheet" href="{{ asset('/assets/css/components/help.css') }}">
 <link rel="stylesheet" href="{{ asset('/assets/css/components/support.css') }}">
 {% endblock %}
@@ -48,27 +47,27 @@
   <nav class="ha__crumb" aria-label="{{ 'Breadcrumb'|trans }}"><a href="/help">{{ 'Help Centre'|trans }}</a></nav>
   <div class="hc__head hc__head--start">
     <h1 class="hc__h1">{{ 'Reach a person'|trans }}</h1>
-    <p class="hc__lede">{{ 'For anything that needs judgement rather than a lookup. If it is a payment that has not landed, a missing code or a receipt, Gee’s help desk can usually fix it on the spot without waiting for anyone.'|trans }}</p>
+    <p class="hc__lede">{{ 'Payments, codes and receipts are faster with Gee’s help desk.'|trans }}</p>
   </div>
 
   <section class="hc-gee sp__desk" aria-labelledby="sp-desk">
     <b class="hc-gee__h" id="sp-desk">{{ 'Fastest: the Gee help desk'|trans }}</b>
-    <span class="hc-gee__p">{{ 'It re-checks a payment with the provider, resends receipts and codes, and passes you to a person with the whole conversation when that is better.'|trans }}</span>
+    <span class="hc-gee__p">{{ 'Re-checks payments, resends receipts and codes, and finds a person.'|trans }}</span>
     <div class="hc-gee__act"><a class="hc-btn hc-btn--gee" href="/help?gee=support">{{ 'Open the help desk'|trans }}</a></div>
   </section>
 
   <section class="hc__sec" aria-labelledby="sp-routes">
     <h2 class="hc__h2" id="sp-routes">{{ 'Two ways to reach the team'|trans }}</h2>
     <ul class="hc-list hc-list--sum">
-      <li><a class="hc-list__a" href="/support/tickets"><span class="hc-list__w"><span class="hc-list__t">{{ 'Open a support ticket'|trans }}</span><span class="hc-list__c">{{ 'A thread you can follow, with every reply in one place. Members only — a support ticket is a promise to reply, and we need somewhere to reply to.'|trans }}</span></span><svg class="hc-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a></li>
-      <li><a class="hc-list__a" href="#appeal"><span class="hc-list__w"><span class="hc-list__t">{{ 'Appeal a decision'|trans }}</span><span class="hc-list__c">{{ 'Dispute a result, report a profile, or challenge a moderation call. Open to anyone, account or not, and read by somebody independent of the original decision.'|trans }}</span></span><svg class="hc-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a></li>
+      <li><a class="hc-list__a" href="/support/tickets"><span class="hc-list__w"><span class="hc-list__t">{{ 'Open a support ticket'|trans }}</span><span class="hc-list__c">{{ 'Every reply in one thread. Members only.'|trans }}</span></span><svg class="hc-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a></li>
+      <li><a class="hc-list__a" href="#appeal"><span class="hc-list__w"><span class="hc-list__t">{{ 'Appeal a decision'|trans }}</span><span class="hc-list__c">{{ 'Open to anyone. Reviewed independently of the original decision.'|trans }}</span></span><svg class="hc-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a></li>
     </ul>
   </section>
 
   <div class="sp__grid">
     <section class="sp__form" id="appeal" aria-labelledby="sp-appeal">
       <h2 class="hc__h2" id="sp-appeal">{{ 'Submit an appeal'|trans }}</h2>
-      <p class="sp__sub">{{ 'This fills in an email for you to send from your own address — nothing is submitted from this page. A nominee name, a reference or a link is worth three paragraphs of description.'|trans }}</p>
+      <p class="sp__sub">{{ 'Opens an email from your own address.'|trans }}</p>
       <form class="sp__compose" action="mailto:{{ _appeals }}" method="get" enctype="text/plain" data-sp-compose data-to="{{ _appeals }}"
             data-subject="{{ 'GATES appeal — %r%'|trans }}" data-l-reason="{{ 'Reason'|trans }}" data-l-name="{{ 'Name'|trans }}" data-l-ref="{{ 'Profile / reference'|trans }}">
         <fieldset class="sp__reasons">
@@ -85,7 +84,7 @@
         <div><label class="ag-label" for="sp-ref">{{ 'Profile, nominee or reference (optional)'|trans }}</label><span class="ag-field"><input id="sp-ref" name="ref" autocomplete="off"></span></div>
         <div><label class="ag-label" for="sp-detail">{{ 'What happened?'|trans }}</label><span class="ag-field sp__area"><textarea id="sp-detail" name="body" rows="5" required></textarea></span></div>
         <button class="ag-btn ag-btn--secondary sp__go" type="submit">{{ 'Open this in my email app'|trans }}</button>
-        <p class="ag-hint">{{ 'Goes to'|trans }} <a href="mailto:{{ _appeals }}">{{ _appeals }}</a> — {{ 'write to it directly if you would rather, or if the button does nothing. Appeals are confidential and handled under our'|trans }} <a href="/integrity">{{ 'integrity policy'|trans }}</a>.</p>
+        <p class="ag-hint">{{ 'Goes to'|trans }} <a href="mailto:{{ _appeals }}">{{ _appeals }}</a> — {{ 'confidential, under our'|trans }} <a href="/integrity">{{ 'integrity policy'|trans }}</a>.</p>
       </form>
     </section>
 
@@ -107,4 +106,4 @@
 </div>
 {% endblock %}
 
-{% block foot_scripts %}<script defer src="{{ asset('/assets/js/support.js') }}"></script>{% endblock %}
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/support.js') }}" data-nav="rerun"></script>{% endblock %}

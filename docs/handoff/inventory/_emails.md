@@ -22,7 +22,7 @@ carries a CSP nonce (`CspTest`). None reads a Twig global.
 |---|---|---|---|
 | `invitation.twig` | `InviteMailer::html()` / `preview()` → `OtpService::sendBranded()` → `brandWrap()` | FRAGMENT inside the house shell | `InviteMailerTest`, `InviteInboxCompatTest` |
 | `invite-reminder.twig` | `InviteReminders::html()` / `preview()` → `sendBranded()` | FRAGMENT inside the house shell | `InviteRemindersTest` |
-| `final-hours.twig` | `NomineeBroadcast::html()` → `sendRawHtml()` | whole document (agw skeleton) | `EmailInboxCompatTest`, `EmailCampaignTest` (visible-text identity with the starter campaign) |
+| `final-hours.twig` | `NomineeBroadcast::html()` → `sendRawHtml()` | whole document (agw skeleton) | `EmailInboxCompatCase`, `EmailCampaignTest` (visible-text identity with the starter campaign) |
 | `campaign.twig` | `EmailCampaign::render()` (+ `sampleVars()` for previews) → `sendRawHtml()` | whole document (agw skeleton) | `CampaignInboxCompatTest`, `EmailCampaignTest` |
 | `questionnaire.twig` | `QuestionnaireInvites::html()` → `sendRawHtml()` | whole document (agw skeleton) | `QuestionnaireInvitesTest` |
 | `stand-decision.twig` | `StandNotice::html()` → `sendRawHtml()` | whole document (agw skeleton) | `StandNoticeTest` |

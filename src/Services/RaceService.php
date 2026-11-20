@@ -84,36 +84,4 @@ final class RaceService
 
         return $nominees;
     }
-
-    /**
-     * The one line that makes a category worth watching: how close the top of it is.
-     *
-     * Returns null when there is no contest to describe — fewer than two nominees, or
-     * a leader on zero votes, where "0 ahead" is noise rather than drama.
-     *
-     * @param list<array<string,mixed>> $annotated output of {@see annotate()}
-     * @return array{lead:int, leader:string, chaser:string}|null
-     */
-    public static function headline(array $annotated): ?array
-    {
-        if (count($annotated) < 2) return null;
-
-        $top = (int) ($annotated[0]['vote_count'] ?? 0);
-        if ($top <= 0) return null;
-
-        // The nearest total BELOW the leader — not simply row two, which may be tied
-        // for first and would report a lead of zero over itself.
-        foreach ($annotated as $n) {
-            $v = (int) $n['vote_count'];
-            if ($v < $top) {
-                return [
-                    'lead'   => $top - $v,
-                    'leader' => (string) ($annotated[0]['name'] ?? ''),
-                    'chaser' => (string) ($n['name'] ?? ''),
-                ];
-            }
-        }
-        // Everyone is tied at the top.
-        return ['lead' => 0, 'leader' => (string) ($annotated[0]['name'] ?? ''), 'chaser' => ''];
-    }
 }

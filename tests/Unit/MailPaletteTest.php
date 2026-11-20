@@ -35,14 +35,16 @@ use Tests\Support\PublicSurface;
  */
 final class MailPaletteTest extends TestCase
 {
+    /** [sender file, template]: a list, because one sender may render more than one. */
     private const SENDERS = [
-        'src/Services/InviteMailer.php'          => 'emails/invitation.twig',
-        'src/Services/InviteReminders.php'       => 'emails/invite-reminder.twig',
-        'src/Services/QuestionnaireInvites.php'  => 'emails/questionnaire.twig',
-        'src/Services/StandNotice.php'           => 'emails/stand-decision.twig',
-        'src/Services/NomineeBroadcast.php'      => 'emails/final-hours.twig',
-        'src/Services/EmailCampaign.php'         => 'emails/campaign.twig',
-        'src/Services/Newsletter/Newsletter.php' => 'emails/newsletter.twig',
+        ['src/Services/InviteReminders.php',       'emails/invite-reminder.twig'],
+        ['src/Services/QuestionnaireInvites.php',  'emails/questionnaire.twig'],
+        ['src/Services/NomineeVotingNotice.php',   'emails/nominee-voting.twig'],
+        ['src/Services/NomineeVotingNotice.php',   'emails/nominee-voting-correction.twig'],
+        ['src/Services/StandNotice.php',           'emails/stand-decision.twig'],
+        ['src/Services/EmailCampaign.php',         'emails/campaign.twig'],
+        ['src/Services/Newsletter/Newsletter.php', 'emails/newsletter.twig'],
+        ['src/Services/OtpService.php',            'emails/_shell.twig'],
     ];
 
     public function test_every_colour_a_mail_template_names_is_a_palette_token(): void
@@ -72,11 +74,23 @@ final class MailPaletteTest extends TestCase
         $templates = array_map(static fn(string $f): string => 'emails/' . basename($f),
             glob($root . '/templates/emails/*.twig') ?: []);
         sort($templates);
-        $named = array_values(self::SENDERS);
+        // The handoff's bodies render through Services\Mail\Emails, one per key, each with
+        // its plain-text twin; the frame and the block macros are what they extend and
+        // import. They take the palette as a GLOBAL of EmailView (a macro cannot see its
+        // caller), so that is what is asserted for them below.
+        $viaEmails = ['emails/_layout.html.twig', 'emails/_blocks.html.twig'];
+        foreach (array_keys(\AfricaGates\Services\Mail\Emails::KEYS) as $k) {
+            $viaEmails[] = "emails/$k.html.twig";
+            $viaEmails[] = "emails/$k.txt.twig";
+        }
+        $named = array_merge(array_column(self::SENDERS, 1), $viaEmails);
         sort($named);
+        $view = (string) file_get_contents($root . '/src/Services/Mail/EmailView.php');
+        $this->assertMatchesRegularExpression("~addGlobal\\(\\s*'c'\\s*,\\s*Accent::mail\\(\\)\\s*\\)~", $view,
+            'EmailView no longer hands the email bodies the palette — every block would render blank');
         $this->assertSame($templates, $named, 'a mail template has no sender listed here, or a listed one is gone');
 
-        foreach (self::SENDERS as $file => $tpl) {
+        foreach (self::SENDERS as [$file, $tpl]) {
             $src = (string) file_get_contents($root . '/' . $file);
             $this->assertMatchesRegularExpression(
                 '~->render\(\s*\'' . preg_quote($tpl, '~') . '\'[^;]*~s', $src, "$file no longer renders $tpl");

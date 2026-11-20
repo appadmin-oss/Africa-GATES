@@ -1,5 +1,5 @@
 {% extends "admin/layout.twig" %}
-{% block topbar_title %}Campaigns{% endblock %}
+{% block topbar_title %}Broadcasts{% endblock %}
 
 {#
   The list. Deliberately small: a campaign is opened, edited and sent from its own
@@ -37,11 +37,18 @@
   <input type="hidden" name="_token" value="{{ csrf_token }}">
   <label style="flex:1 1 220px">
     <span style="display:block;font-size:12px;font-weight:700;color:#5a6d6f;margin-bottom:4px">Name</span>
-    <input type="text" name="name" required maxlength="160" placeholder="Final hours — August 2026" style="width:100%">
+    <input type="text" name="name" required maxlength="160" placeholder="Voting extension — November 2026" style="width:100%">
   </label>
   <label style="flex:2 1 320px">
     <span style="display:block;font-size:12px;font-weight:700;color:#5a6d6f;margin-bottom:4px">Subject line</span>
     <input type="text" name="subject" required maxlength="200" placeholder="Finish strong — voting closes soon" style="width:100%">
+  </label>
+  <label style="flex:1 1 200px">
+    <span style="display:block;font-size:12px;font-weight:700;color:#5a6d6f;margin-bottom:4px">Start from</span>
+    <select name="starter" style="width:100%">
+      <option value="general" selected>A general message (no countdown)</option>
+      <option value="voting">Final hours voting push</option>
+    </select>
   </label>
   <button class="ad-btn ad-btn--primary" type="submit">Start a campaign</button>
   <p class="cp-note" style="flex:1 1 100%;margin:2px 0 0">
@@ -77,8 +84,8 @@
     </tbody>
   </table>
 {% else %}
-  <p style="color:#5a6d6f">No campaigns yet. The one currently in the codebase is
-  <code>templates/emails/final-hours.twig</code>; starting a campaign here copies its
-  copy in as a draft you can edit.</p>
+  <p style="color:#5a6d6f">No campaigns yet. Without one, the broadcast sends the fixed
+  final-hours message; starting a campaign here copies the same words in as a draft you
+  can edit.</p>
 {% endif %}
 {% endblock %}

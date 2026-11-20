@@ -264,6 +264,9 @@ final class JudgingIntegrityAuditTest extends TestCase
             'results_date'      => '2020-05-01 00:00:00',
         ]);
 
+        // The scheduled sweep crowns only under automatic release; manual (the default)
+        // waits for an operator, and would leave this run proving nothing.
+        \AfricaGates\Support\ResultReleaseMode::save(\AfricaGates\Support\ResultReleaseMode::AUTO);
         (new \AfricaGates\Services\CycleMaterialiser())->run();
 
         $status = static fn (int $id): string =>

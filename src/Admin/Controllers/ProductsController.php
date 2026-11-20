@@ -30,15 +30,129 @@ class ProductsController
         private readonly ?\AfricaGates\Services\OtpService $mailer = null,
     ) {}
 
+    /** What the list can be filtered to. An unknown value falls back to `all`. */
+    public const SHOW = ['all' => 'Everything not archived', 'active' => 'On sale', 'hidden' => 'Hidden',
+                         'low' => 'Low or out of stock', 'archived' => 'Archived'];
+
+    /**
+     * The catalogue, searchable and filtered (shop upgrade phase 7). It was one unfiltered list,
+     * so a shop with sixty products and their retired versions was a scroll. Filters run in SQL,
+     * above any cap; `low` reads the stock module's one definition of low (ShopStock).
+     */
     public function index(Request $req, Response $res): Response
     {
-        $rows = DB::table('gates_products')->orderBy('sort_order')->orderByDesc('id')
-            ->get()->map(fn($r) => (array)$r)->all();
+        $q    = $req->getQueryParams();
+        $find = mb_substr(trim((string) ($q['q'] ?? '')), 0, 80);
+        $show = isset(self::SHOW[$q['show'] ?? '']) ? (string) $q['show'] : 'all';
+        $cat  = in_array($q['category'] ?? '', self::CATEGORIES, true) ? (string) $q['category'] : '';
+        $hasArchive = \AfricaGates\Support\SchemaHas::column('gates_products', 'archived_at');
+
+        $rows = DB::table('gates_products');
+        if ($find !== '') {
+            $like = \AfricaGates\Support\Like::contains($find);
+            $rows->where(static function ($w) use ($like): void {
+                $w->whereRaw(\AfricaGates\Support\Like::clause('name'), [$like])
+                  ->orWhereRaw(\AfricaGates\Support\Like::clause('slug'), [$like]);
+            });
+        }
+        if ($cat !== '') $rows->where('category', $cat);
+        if ($hasArchive) {
+            $show === 'archived' ? $rows->whereNotNull('archived_at') : $rows->whereNull('archived_at');
+        }
+        if ($show === 'active') $rows->where('is_active', 1);
+        if ($show === 'hidden') $rows->where('is_active', 0);
+        if ($show === 'low') {
+            $low = array_unique(array_column(\AfricaGates\Services\ShopStock::low(), 'product_id'));
+            $rows->whereIn('id', $low !== [] ? $low : [0]);
+        }
+        $list = $rows->orderBy('sort_order')->orderByDesc('id')->get()->map(fn($r) => (array)$r)->all();
+
         return $this->view->render($res, 'admin/products/index.twig', [
             'page_title' => 'Products — Admin',
             'admin_page' => 'products',
-            'rows'       => $rows,
+            'rows'       => $list,
+            'q'          => $find,
+            'show'       => $show,
+            'shows'      => self::SHOW,
+            'category'   => $cat,
+            'categories' => self::CATEGORIES,
+            'has_archive'=> $hasArchive,
         ]);
+    }
+
+    /** Has anybody ordered this product? (Its slug inside any order's lines.) */
+    private static function ordered(string $slug): bool
+    {
+        if ($slug === '') return false;
+        $like = \AfricaGates\Support\Like::contains('"slug":"' . $slug . '"');
+        return DB::table('gates_orders')->whereRaw(\AfricaGates\Support\Like::clause('items_json'), [$like])->exists();
+    }
+
+    /** Retire a product: off the shop, out of the stock lists, every order still pointing at it. */
+    public function archive(Request $req, Response $res, array $args): Response
+    {
+        $id = (int) ($args['id'] ?? 0);
+        $restore = (string) (((array) $req->getParsedBody())['restore'] ?? '') === '1';
+        $p = DB::table('gates_products')->where('id', $id)->first();
+        if (!$p || !\AfricaGates\Support\SchemaHas::column('gates_products', 'archived_at')) {
+            $_SESSION['flash_error'] = $p ? 'Archiving needs the latest database update — run /__setup/migrate.' : 'That product could not be found.';
+            return $res->withHeader('Location', '/admin/products')->withStatus(302);
+        }
+        DB::table('gates_products')->where('id', $id)->update($restore
+            ? ['archived_at' => null]
+            : ['archived_at' => Carbon::now()->toDateTimeString(), 'is_active' => 0]);
+        $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), $restore ? 'product.unarchive' : 'product.archive', 'product', $id);
+        $_SESSION['flash_ok'] = $restore
+            ? (string) $p->name . ' is back in the catalogue, hidden — switch it on when it is ready to sell.'
+            : (string) $p->name . ' archived. It is off the shop and out of the stock lists; its orders still point at it.';
+        return $res->withHeader('Location', '/admin/products' . ($restore ? '' : '?show=archived'))->withStatus(302);
+    }
+
+    /**
+     * A copy to start the next one from — next season's shirt. Hidden, uncounted (stock is a
+     * fact about the shelf, not something a copy inherits), with its options and gallery.
+     */
+    public function duplicate(Request $req, Response $res, array $args): Response
+    {
+        $id = (int) ($args['id'] ?? 0);
+        $p = DB::table('gates_products')->where('id', $id)->first();
+        if (!$p) {
+            $_SESSION['flash_error'] = 'That product could not be found.';
+            return $res->withHeader('Location', '/admin/products')->withStatus(302);
+        }
+        $row = (array) $p;
+        unset($row['id']);
+        $row['name'] = mb_substr('Copy of ' . (string) $p->name, 0, 200);
+        $row['slug'] = $this->uniqueSlug((string) $p->slug . '-copy', 0);
+        $row['is_active'] = 0;
+        $row['stock'] = null;
+        $row['created_at'] = Carbon::now()->toDateTimeString();
+        foreach (['sold_count', 'archived_at', 'low_stock'] as $k) if (array_key_exists($k, $row)) $row[$k] = null;
+        $new = 0;
+        DB::connection()->transaction(function () use ($row, $id, &$new): void {
+            $new = (int) DB::table('gates_products')->insertGetId($row);
+            if (DB::schema()->hasTable('gates_product_variants')) {
+                foreach (DB::table('gates_product_variants')->where('product_id', $id)->where('is_active', 1)->get() as $v) {
+                    $vr = (array) $v;
+                    unset($vr['id']);
+                    $vr['product_id'] = $new;
+                    $vr['stock'] = null;
+                    if (array_key_exists('low_stock', $vr)) $vr['low_stock'] = null;
+                    DB::table('gates_product_variants')->insert($vr);
+                }
+            }
+            if (DB::schema()->hasTable('gates_product_images')) {
+                foreach (DB::table('gates_product_images')->where('product_id', $id)->get() as $im) {
+                    $ir = (array) $im;
+                    unset($ir['id']);
+                    $ir['product_id'] = $new;
+                    DB::table('gates_product_images')->insert($ir);
+                }
+            }
+        });
+        $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'product.duplicate', 'product', $new, ['from' => $id]);
+        $_SESSION['flash_ok'] = 'Copied. The copy is hidden and not counted — set its stock and switch it on when ready.';
+        return $res->withHeader('Location', '/admin/products/' . $new)->withStatus(302);
     }
 
     /** What a variant answers. Free text on the row; these are the ones offered in the editor. */
@@ -144,7 +258,6 @@ class ProductsController
             'description' => trim((string)($b['description'] ?? '')),
             'price_naira' => max(0, (int)($b['price_naira'] ?? 0)),
             'tag'         => in_array($b['tag'] ?? '', self::TAGS, true) ? $b['tag'] : null,
-            'stock'       => $stockRaw === '' ? null : max(0, (int)$stockRaw),
             'is_active'   => isset($b['is_active']) ? 1 : 0,
             'sort_order'  => (int)($b['sort_order'] ?? 0),
             // Restrict where this product can be delivered. NULL = nationwide.
@@ -184,11 +297,18 @@ class ProductsController
             $this->audit->record($adminId, 'product.update', 'product', $id);
         } else {
             $data['created_at'] = Carbon::now()->toDateTimeString();
-            $id = (int)DB::table('gates_products')->insertGetId($data);
+            $id = (int)DB::table('gates_products')->insertGetId($data + ['stock' => null]);
             $this->audit->record($adminId, 'product.create', 'product', $id);
         }
+        // ── THE COUNT GOES THROUGH THE LEDGER ───────────────────────────────
+        //
+        // It used to be one more column in the update above, so a typed-over number was a
+        // silent rewrite with a generic `product.update` audit row. ShopStock::set() writes the
+        // number AND the difference as a `correction` entry with this admin's name on it.
+        \AfricaGates\Services\ShopStock::set($id, 0, $stockRaw === '' ? null : max(0, (int) $stockRaw),
+            'correction', 'Product form', $adminId);
 
-        $this->saveVariants($id, $b);
+        $this->saveVariants($id, $b, $adminId);
         // Existing rows first, so the renumbering is settled before new uploads are appended.
         $this->saveImages($id, $b);
         $this->saveGalleryFiles($req, $id, $adminId);
@@ -286,7 +406,7 @@ class ProductsController
      *
      * @param array<string,mixed> $b
      */
-    private function saveVariants(int $productId, array $b): void
+    private function saveVariants(int $productId, array $b, int $adminId = 0): void
     {
         // Absent, not empty. A form posted from a deployment whose migration has not run has
         // no variant inputs at all, and treating that as "delete every variant" would wipe the
@@ -322,9 +442,6 @@ class ProductsController
                 'axis'       => $axis,
                 'sku'        => mb_substr(trim((string) ($skus[$i] ?? '')), 0, 60) ?: null,
                 'price_delta_naira' => (int) ($deltas[$i] ?? 0),
-                // '' is UNTRACKED and 0 is SOLD OUT. Two different statements, and an intval()
-                // would flatten every uncounted size into one nobody can buy.
-                'stock'      => $rawStock === '' ? null : max(0, (int) $rawStock),
                 'is_active'  => 1,
                 'sort_order' => $order++,
                 'updated_at' => $now,
@@ -353,9 +470,14 @@ class ProductsController
                     DB::table('gates_product_variants')->where('id', $vid)->update($row);
                 } else {
                     $vid = (int) DB::table('gates_product_variants')
-                        ->insertGetId($row + ['created_at' => $now]);
+                        ->insertGetId($row + ['created_at' => $now, 'stock' => null]);
                 }
                 $kept[] = $vid;
+                // '' is UNTRACKED and 0 is SOLD OUT. Two different statements, and an intval()
+                // would flatten every uncounted size into one nobody can buy. Written through
+                // the ledger, as the product's own count is (see save()).
+                \AfricaGates\Services\ShopStock::set($productId, $vid, $rawStock === '' ? null : max(0, (int) $rawStock),
+                    'correction', 'Product form', $adminId);
             } catch (\Throwable $e) {
                 error_log('[shop] could not save variant "' . $label . '": ' . $e->getMessage());
             }
@@ -487,6 +609,14 @@ class ProductsController
     {
         $id  = (int)($args['id'] ?? 0);
         $row = $id ? DB::table('gates_products')->where('id', $id)->first() : null;
+        // ── A PRODUCT THAT HAS BEEN ORDERED IS ARCHIVED, NEVER DELETED ──────
+        //
+        // Orders, refunds, the stock ledger and the reports all point at it; deleting it was a
+        // receipt naming a product that exists nowhere. Refused here with the way out named.
+        if ($row && self::ordered((string) $row->slug)) {
+            $_SESSION['flash_error'] = (string) $row->name . ' has been ordered, so it cannot be deleted — archive it instead.';
+            return $res->withHeader('Location', '/admin/products')->withStatus(302);
+        }
         if ($row) {
             DB::table('gates_products')->where('id', $id)->delete();
             $this->audit->record((int)($_SESSION['admin_id'] ?? 0), 'product.delete', 'product', $id);

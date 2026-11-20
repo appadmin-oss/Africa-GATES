@@ -174,6 +174,40 @@ final class Recognitions
     }
 
     /**
+     * How many PEOPLE the public can see honoured — the homepage counter's figure.
+     *
+     * Recognitions, not people, is what count() answers, and a person with three honours
+     * is one person. A recipient is their registry profile where there is one, else the
+     * nominee row they stood as, else their name: the same person reached through two
+     * nominee rows before they registered is the one over-count this cannot see, and it
+     * errs high only for people with no profile at all. Same containment as every reader.
+     */
+    public static function peopleCount(): int
+    {
+        $q = self::base();
+        if ($q === null) return 0;
+        try {
+            $seen = [];
+            // The person is keyed the way shape() resolves them: the nominee's CURRENT
+            // profile first, then the one stamped on the night. Keyed on the stamped id
+            // alone, a nominee who registered after their award and was recognised again
+            // since counted as two people — one by nominee id, one by profile — and the
+            // homepage's "people recognised" figure grew with every second recognition.
+            $q->leftJoin('gates_nominees as pn', 'pn.id', '=', 'r.recipient_nominee_id');
+            foreach ($q->whereNull('r.withdrawn_at')
+                         ->select(DB::raw('COALESCE(pn.profile_id, r.recipient_profile_id) as person_profile_id'), 'r.recipient_nominee_id', 'r.recipient_name')
+                         ->cursor() as $r) {
+                $k = $r->person_profile_id !== null ? 'p' . $r->person_profile_id
+                    : ($r->recipient_nominee_id !== null ? 'n' . $r->recipient_nominee_id : 'x' . mb_strtolower(trim((string) $r->recipient_name)));
+                $seen[$k] = true;
+            }
+            return count($seen);
+        } catch (\Throwable) {
+            return 0;
+        }
+    }
+
+    /**
      * Search by recipient, title, issuer or reference. Wildcards escaped with `!` — the one
      * escape both drivers read the same way (CLAUDE.md, `Support\Like`).
      *
@@ -467,7 +501,7 @@ final class Recognitions
                     'nominee_id' => $nid,
                     'profile_id' => $d->profile_live_id !== null ? (int) $d->profile_live_id : null,
                     'url'        => $url,
-                    'photo'      => (string) ($d->avatar_path ?: ($d->photo_path ?? '')),
+                    'photo'      => (string) (($d->photo_path ?? '') ?: $d->avatar_path),
                     'country'    => (string) ($d->country_code ?? ''),
                 ],
                 'issuer' => self::issuerShape((object) [

@@ -11,15 +11,7 @@ class AwardService {
     public function getActiveProgrammesWithStatus(): array {
         $progs = DB::table('gates_award_programmes')->where('is_active', 1)->orderBy('sort_order')->get();
         return $progs->map(function ($p) {
-            // Pick the programme's CURRENT cycle by status + recency, NOT a hard
-            // match on the calendar year. An in-flight cycle (nominations…results)
-            // wins over an idle one; otherwise the most recent. This stops an active
-            // cycle from going dark at the New Year boundary or when seeded ahead.
-            $c = DB::table('gates_award_cycles')
-                ->where('programme_id', $p->id)
-                ->orderByRaw("CASE WHEN status IN ('nominations','shortlisting','voting','judging','results') THEN 0 ELSE 1 END")
-                ->orderByDesc('year')->orderByDesc('id')
-                ->first();
+            $c = CurrentCycle::forProgramme((int) $p->id);
             // `phase` is the COMPUTED lifecycle state — the single thing every
             // template should read. `cycle_status` is the materialised column,
             // kept for back-compat; where the two disagree, phase is right.
@@ -52,11 +44,7 @@ class AwardService {
     public function getProgrammeBySlug(string $slug): ?array {
         $p=DB::table('gates_award_programmes')->where('slug',$slug)->where('is_active',1)->first();
         if(!$p) return null;
-        // Same status-aware "current cycle" pick as getActiveProgrammesWithStatus,
-        // so a programme's voting state is consistent between the /vote hub and page.
-        $cycle=DB::table('gates_award_cycles')->where('programme_id',$p->id)
-            ->orderByRaw("CASE WHEN status IN ('nominations','shortlisting','voting','judging','results') THEN 0 ELSE 1 END")
-            ->orderByDesc('year')->orderByDesc('id')->first();
+        $cycle = CurrentCycle::forProgramme((int) $p->id);
         $cats = $cycle ? $this->categoriesByHeat((int) $cycle->id) : [];
         // `cycle_status` and `phase` were MISSING here, while the programme page
         // read `a.cycle_status` — so `status` was always 'upcoming' and the
@@ -348,10 +336,11 @@ class AwardService {
         string $path,
         ?string $label = null,
         ?string $mime = null,
-        ?int $bytes = null
+        ?int $bytes = null,
+        ?string $sha256 = null
     ): bool {
         try {
-            DB::table('gates_nomination_evidence')->insert([
+            $row = [
                 'nomination_id' => $nominationId,
                 'kind'          => NominationRules::EVIDENCE_FILE,
                 'path'          => mb_substr($path, 0, 400),
@@ -359,7 +348,14 @@ class AwardService {
                 'mime'          => $mime !== null ? mb_substr($mime, 0, 100) : null,
                 'bytes'         => $bytes,
                 'created_at'    => Carbon::now()->toDateTimeString(),
-            ]);
+            ];
+            // The upload's fingerprint, so one file backing two people's nominations can
+            // be seen (NominationSignals). Optional: the column arrives with a migration.
+            if ($sha256 !== null && preg_match('/^[0-9a-f]{64}$/', $sha256) === 1
+                && \AfricaGates\Support\SchemaHas::column('gates_nomination_evidence', 'sha256')) {
+                $row['sha256'] = $sha256;
+            }
+            DB::table('gates_nomination_evidence')->insert($row);
             return true;
         } catch (\Throwable) {
             return false;
@@ -421,7 +417,7 @@ class AwardService {
         // and every verdict is logged.
         $spamVerdict = null;
         if ($this->spam) {
-            $check = trim(($data['nominee_name'] ?? '') . "\n" . ($data['reason'] ?? ''));
+            $check = trim(($data['nominee_name'] ?? '') . "\n" . NominationRules::reasonText($data));
             if ($check !== '') {
                 try { $spamVerdict = $this->spam->evaluate($check, ['target' => 'nomination']); }
                 catch (\Throwable) { $spamVerdict = null; }
@@ -551,6 +547,12 @@ class AwardService {
         \AfricaGates\Services\ChallengeService::attachNomination(
             (int) $id, (int) ($_SESSION['user_id'] ?? 0), (int) $cycle->id);
 
+        // A repeat for somebody already waiting in review is folded into the earlier entry
+        // the moment it arrives, when the record plainly says they are one person — so the
+        // reviewer meets one nomination with its support, not a red "Duplicate?" on each
+        // copy. Never throws; a conflict is left for a person. NominationCombine.
+        \AfricaGates\Services\NominationCombine::autoCombine((int) $id);
+
         // What this visitor's arrival led to. Stamped once per session, first-wins, and
         // silent outside a web request — see VisitTracker::convert().
         \AfricaGates\Services\VisitTracker::convert('nomination');
@@ -598,44 +600,97 @@ class AwardService {
      * name) within a cycle. "Different locations" = distinct (country, state) of the
      * nominators. When the rule is disabled, everyone is eligible.
      *
-     * @return array{total:int, distinct_locations:int, min:int, enabled:bool, eligible:bool}
+     * ── ONE NOMINATOR IS ONE PLACE, HOWEVER MANY THEY TYPED (26 Oct 2026) ─────────
+     * The place is what the nominator TYPED, so the rule used to count places per
+     * nomination: one person submitting three nominations and choosing three states made
+     * a nominee "nominated from three places", which is the exact support the rule exists
+     * to require. Each nominator now counts once — the place on their FIRST nomination
+     * for this person — and a nominator is their inbox (Support\EmailCanon), so
+     * "ada.obi@gmail.com" and "adaobi+2@gmail.com" are one. `nominators` reports how many
+     * people that was, and `total` is still every nomination, so a screen can say both.
+     *
+     * @return array{total:int, nominators:int, distinct_locations:int, min:int, enabled:bool, eligible:bool}
      */
     public function nomineeEligibility(string $nomineeName, int $cycleId): array
     {
+        return $this->eligibilityMany([[$nomineeName, $cycleId]], true)[self::eligibilityKey($nomineeName, $cycleId)];
+    }
+
+    /**
+     * The same answer for many nominees at once — the review queue asks it of every row.
+     *
+     * One rule read and one schema probe for the whole batch, and the SAME per-nominee query
+     * the approve gate runs, so the list can never call somebody eligible whom Approve then
+     * refuses. With the rule switched off nothing is queried — everybody is eligible —
+     * unless `$measureWhenOff` asks for the counts anyway (the review screen prints them).
+     *
+     * @param list<array{0:string,1:int}> $pairs [nominee name, cycle id]
+     * @return array<string, array{total:int, distinct_locations:int, min:int, enabled:bool, eligible:bool}>
+     *         keyed by {@see eligibilityKey()}
+     */
+    public function eligibilityMany(array $pairs, bool $measureWhenOff = false): array
+    {
         $rule = $this->eligibilityRule();
-        $name = mb_strtolower(trim($nomineeName));
-        $total = 0;
-        $locs = [];
         // Can we actually evaluate "different locations"? Only if the nominator
         // location columns exist. If not, the rule can't be enforced — fail OPEN
         // (never block approvals on a schema gap).
-        $schema = DB::getSchemaBuilder();
-        $evaluable = $schema->hasColumn('gates_nominations', 'nominator_country') || $schema->hasColumn('gates_nominations', 'nominator_state');
-        try {
-            if ($evaluable) {
-                $rows = DB::table('gates_nominations')
-                    ->where('cycle_id', $cycleId)
-                    ->whereRaw('LOWER(TRIM(nominee_name)) = ?', [$name])
-                    ->get(['nominator_country', 'nominator_state']);
-                $total = count($rows);
-                foreach ($rows as $r) {
-                    $key = strtoupper(trim((string) ($r->nominator_country ?? ''))) . '|' . mb_strtolower(trim((string) ($r->nominator_state ?? '')));
-                    if (trim($key, '|') !== '') $locs[$key] = true;
-                }
-            } else {
-                $total = (int) DB::table('gates_nominations')->where('cycle_id', $cycleId)->whereRaw('LOWER(TRIM(nominee_name)) = ?', [$name])->count();
-            }
-        } catch (\Throwable $e) {
-            $evaluable = false;
-            $total = (int) DB::table('gates_nominations')->where('cycle_id', $cycleId)->whereRaw('LOWER(TRIM(nominee_name)) = ?', [$name])->count();
+        $evaluable = false;
+        if ($rule['enabled'] || $measureWhenOff) {
+            $schema = DB::getSchemaBuilder();
+            $evaluable = $schema->hasColumn('gates_nominations', 'nominator_country') || $schema->hasColumn('gates_nominations', 'nominator_state');
         }
-        $distinct = count($locs);
-        return [
-            'total'              => $total,
-            'distinct_locations' => $distinct,
-            'min'                => $rule['min'],
-            'enabled'            => $rule['enabled'] && $evaluable,                       // can't enforce without location data
-            'eligible'           => !$rule['enabled'] || !$evaluable || $distinct >= $rule['min'],
-        ];
+        $out = [];
+        foreach ($pairs as [$nomineeName, $cycleId]) {
+            $key = self::eligibilityKey((string) $nomineeName, (int) $cycleId);
+            if (isset($out[$key])) continue;
+            if (!$rule['enabled'] && !$measureWhenOff) {
+                $out[$key] = ['total' => 0, 'nominators' => 0, 'distinct_locations' => 0, 'min' => $rule['min'], 'enabled' => false, 'eligible' => true];
+                continue;
+            }
+            $name = mb_strtolower(trim((string) $nomineeName));
+            $total = 0;
+            $locs = [];
+            $people = [];
+            $ok = $evaluable;
+            try {
+                if ($ok) {
+                    $rows = DB::table('gates_nominations')
+                        ->where('cycle_id', (int) $cycleId)
+                        ->whereRaw('LOWER(TRIM(nominee_name)) = ?', [$name])
+                        ->orderBy('id')
+                        ->get(['id', 'nominator_email', 'nominator_country', 'nominator_state']);
+                    $total = count($rows);
+                    foreach ($rows as $r) {
+                        // An address that reduces to no inbox is its own nominator.
+                        $who = \AfricaGates\Support\EmailCanon::hash((string) ($r->nominator_email ?? '')) ?? 'row:' . (int) $r->id;
+                        if (isset($people[$who])) continue;
+                        $people[$who] = true;
+                        $k = strtoupper(trim((string) ($r->nominator_country ?? ''))) . '|' . mb_strtolower(trim((string) ($r->nominator_state ?? '')));
+                        if (trim($k, '|') !== '') $locs[$k] = true;
+                    }
+                } else {
+                    $total = (int) DB::table('gates_nominations')->where('cycle_id', (int) $cycleId)->whereRaw('LOWER(TRIM(nominee_name)) = ?', [$name])->count();
+                }
+            } catch (\Throwable $e) {
+                $ok = false;
+                $total = (int) DB::table('gates_nominations')->where('cycle_id', (int) $cycleId)->whereRaw('LOWER(TRIM(nominee_name)) = ?', [$name])->count();
+            }
+            $distinct = count($locs);
+            $out[$key] = [
+                'total'              => $total,
+                'nominators'         => $ok ? count($people) : $total,
+                'distinct_locations' => $distinct,
+                'min'                => $rule['min'],
+                'enabled'            => $rule['enabled'] && $ok,               // can't enforce without location data
+                'eligible'           => !$rule['enabled'] || !$ok || $distinct >= $rule['min'],
+            ];
+        }
+        return $out;
+    }
+
+    /** How {@see eligibilityMany()} keys its answers. */
+    public static function eligibilityKey(string $nomineeName, int $cycleId): string
+    {
+        return $cycleId . '|' . mb_strtolower(trim($nomineeName));
     }
 }

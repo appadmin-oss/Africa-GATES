@@ -20,10 +20,12 @@
   · The platform's credit sits BELOW the organisation's ask, never beside it.
 
   The accent is the organisation's, so it is DATA, not a palette token: it reaches the page
-  only as the three custom properties OrgBrand::css() derived and contrast-checked.
+  only as the custom properties OrgBrand::css() derived and measured — their exact colour for
+  fills, and shades of it for words and edges, by day and by night (giving.css picks which).
+  Any colour they choose is accepted; none of these can come out unreadable.
 #}
 {% if org and brand %}
-<div class="ob" style="--ob-accent:{{ brand_css.accent }};--ob-accent-dark:{{ brand_css.accent_dark }};--ob-accent-wash:{{ brand_css.accent_wash }}">
+<div class="ob" style="--ob-accent:{{ brand_css.accent }};--ob-accent-on:{{ brand_css.accent_on }};--ob-accent-wash:{{ brand_css.accent_wash }};--ob-accent-ink-day:{{ brand_css.accent_ink }};--ob-accent-ink-night:{{ brand_css.accent_ink_night }};--ob-accent-edge-day:{{ brand_css.accent_edge }};--ob-accent-edge-night:{{ brand_css.accent_edge_night }}">
   {% if brand.sections.story and story_paragraphs is not empty %}
     <section class="gv-sec" aria-labelledby="ob-story">
       <h2 class="gv-h2" id="ob-story">{{ 'About %o%'|trans({'%o%': org.name}) }}</h2>
@@ -163,9 +165,9 @@
        partner page, including the ones paying a platform share the checkout disclosed in
        naira a screen earlier — the page contradicting its own receipt. #}
     {% if org_fee_bps|default(0) > 0 %}
-    <p class="ob-gates__b">{{ 'Your gift settles straight into %o%’s own account, less the %f%% Africa GATES share shown at the checkout. Africa GATES is a project of Afrovanguard, a registered non-profit.'|trans({'%o%': org.name, '%f%': (org_fee_bps / 100)|number_format(2)}) }}</p>
+    <p class="ob-gates__b">{{ 'Your gift goes straight to %o%, less the %f%% Africa GATES share shown at checkout. Africa GATES is a project of Afrovanguard, a registered non-profit.'|trans({'%o%': org.name, '%f%': (org_fee_bps / 100)|number_format(2)}) }}</p>
     {% else %}
-    <p class="ob-gates__b">{{ '%o% keeps every naira of your gift — this platform takes no cut, charges them nothing, and settles straight into their own account. Africa GATES is a project of Afrovanguard, a registered non-profit, and it runs on optional support rather than on a fee.'|trans({'%o%': org.name}) }}</p>
+    <p class="ob-gates__b">{{ 'Your gift goes straight to %o%, and we take no cut. Africa GATES is a project of Afrovanguard, a registered non-profit funded by optional support.'|trans({'%o%': org.name}) }}</p>
     {% endif %}
     <p class="ob-gates__l"><a href="/philosophy">{{ 'What Africa GATES is'|trans }}</a><span aria-hidden="true"> · </span><a href="/giving">{{ 'Support the awards programme'|trans }}</a></p>
   </section>

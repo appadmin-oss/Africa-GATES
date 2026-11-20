@@ -54,6 +54,17 @@ class ProgrammesController
             'admin_page' => 'programmes',
             'row'        => $row,
             'is_new'     => !$id,
+            // The award's own sections of its public "Award details" tab (Support\AwardDetails).
+            'details'       => \AfricaGates\Support\AwardDetails::of($row ? (object) $row : null),
+            'detail_fields' => \AfricaGates\Support\AwardDetails::FIELDS,
+            'faq_max'       => \AfricaGates\Support\AwardDetails::FAQ_MAX,
+            // Why somebody should vote: the award's campaign and its Supporter Spotlight.
+            'campaign'        => \AfricaGates\Support\AwardCampaign::of($row ? (object) $row : null),
+            'campaign_fields' => \AfricaGates\Support\AwardCampaign::FIELDS,
+            'ladder_max'      => \AfricaGates\Support\AwardCampaign::LADDER_MAX,
+            'campaign_lists'  => \AfricaGates\Support\AwardCampaign::LISTS,
+            'campaign_suggested' => \AfricaGates\Support\AwardCampaign::SUGGESTED,
+            'list_max'        => \AfricaGates\Support\AwardCampaign::LIST_MAX,
         ]);
     }
 
@@ -74,6 +85,11 @@ class ProgrammesController
             'is_active'   => isset($b['is_active']) ? 1 : 0,
             'terms'       => trim((string)($b['terms'] ?? '')) ?: null,
         ];
+        // The platform is Africa GATES in everything an award says about itself, however
+        // the text arrived (owner, 16 Oct 2026; Support\Brand).
+        foreach (['title', 'subtitle', 'description', 'terms'] as $k) {
+            if (is_string($data[$k] ?? null)) $data[$k] = \AfricaGates\Support\Brand::normalise($data[$k]);
+        }
         try {
             if ($id) {
                 DB::table('gates_award_programmes')->where('id', $id)->update($data);
@@ -100,7 +116,32 @@ class ProgrammesController
         } catch (\Throwable $e) {
             error_log('[programmes] terms version not recorded: ' . $e->getMessage());
         }
+        // The award's own sections of its Award details tab. Their own refusal, after the
+        // rest has saved: a too-long FAQ must not cost the operator the title they changed.
+        $detailsError = null;
+        if (isset($b['details']) && is_array($b['details'])) {
+            try {
+                $detailsError = \AfricaGates\Support\AwardDetails::save($id, $b['details']);
+            } catch (\Throwable $e) {
+                error_log('[programmes] award details not saved: ' . $e->getMessage());
+                $detailsError = 'The award details could not be saved. Everything else was.';
+            }
+        }
+        // The campaign, likewise saved on its own after everything else.
+        if ($detailsError === null && isset($b['campaign']) && is_array($b['campaign'])) {
+            try {
+                $campaignError = \AfricaGates\Support\AwardCampaign::save($id, $b['campaign']);
+            } catch (\Throwable $e) {
+                error_log('[programmes] campaign not saved: ' . $e->getMessage());
+                $campaignError = 'The campaign could not be saved. Everything else was.';
+            }
+            if ($campaignError !== null) $detailsError = $campaignError;
+        }
         $this->bustAwardsCache();
+        if ($detailsError !== null) {
+            $_SESSION['flash_error'] = 'Programme saved, but not its award details or campaign: ' . $detailsError;
+            return $res->withHeader('Location', '/admin/programmes/' . $id)->withStatus(302);
+        }
         $_SESSION['flash_ok'] = 'Programme saved.';
         return $res->withHeader('Location', '/admin/programmes')->withStatus(302);
     }
@@ -229,6 +270,176 @@ class ProgrammesController
         return $res->withHeader('Location', '/admin/programmes/' . $id . '/wording')->withStatus(302);
     }
 
+    /**
+     * The voting letter as this edition's nominees will receive it: its first nominee, or a
+     * specimen when it has none. Inline, so it opens in the browser rather than downloading.
+     */
+    public function votingLetterPreview(Request $req, Response $res, array $args): Response
+    {
+        $programme = DB::table('gates_award_programmes')->where('id', (int) $args['id'])->first();
+        $cycle = $programme ? DB::table('gates_award_cycles')
+            ->where('id', (int) ($req->getQueryParams()['cycle'] ?? 0))
+            ->where('programme_id', (int) $programme->id)->first() : null;
+        if (!$cycle) throw new \Slim\Exception\HttpNotFoundException($req);
+
+        $cycle->programme_title = $programme->title;
+        $cycle->programme_slug  = $programme->slug;
+        // ?paper=letter shows the US Letter copy; the page must hold at both sizes. ?draft=1
+        // previews the words open in the editor rather than the published ones.
+        $words = null;
+        if (!empty($req->getQueryParams()['draft'])) {
+            $e = \AfricaGates\Services\CycleLetter::editing((int) $cycle->id);
+            $words = ['headline' => $e['headline'], 'body' => $e['body']];
+        }
+        $res->getBody()->write(\AfricaGates\Services\NomineeVotingNotice::previewPdf($cycle,
+            (string) ($req->getQueryParams()['paper'] ?? ''), $words));
+
+        return $res->withHeader('Content-Type', 'application/pdf')
+                   ->withHeader('Content-Disposition', 'inline; filename="voting-letter-preview.pdf"')
+                   ->withHeader('Cache-Control', 'no-store');
+    }
+
+    /** The programme and one of its cycles, from the route and ?cycle=, or null. */
+    private function letterCycle(Request $req, array $args): ?object
+    {
+        $programme = DB::table('gates_award_programmes')->where('id', (int) $args['id'])->first();
+        $cid = (int) ($req->getQueryParams()['cycle'] ?? ((array) $req->getParsedBody())['cycle'] ?? 0);
+        $cycle = $programme ? DB::table('gates_award_cycles')->where('id', $cid)
+            ->where('programme_id', (int) $programme->id)->first() : null;
+        if (!$cycle) return null;
+        $cycle->programme_title = $programme->title;
+        $cycle->programme_slug  = $programme->slug;
+        return $cycle;
+    }
+
+    /**
+     * GET /admin/programmes/{id}/cycle/letter?cycle= — the voting letter's editor (owner, 28
+     * Oct 2026: "editable and viewable per cycle with an ultramodern editor"). The page is
+     * the letter: the words are typed onto the sheet, with the facts the code owns drawn
+     * around them, a live PDF beside it, whether it still fits one page, and every version.
+     */
+    public function letterEditor(Request $req, Response $res, array $args): Response
+    {
+        $cycle = $this->letterCycle($req, $args);
+        if (!$cycle) throw new \Slim\Exception\HttpNotFoundException($req);
+        $L = \AfricaGates\Services\CycleLetter::class;
+        $e = $L::editing((int) $cycle->id);
+        $v = \AfricaGates\Services\NomineeVotingNotice::previewView($cycle, ['headline' => $e['headline'], 'body' => $e['body']]);
+        return $this->view->render($res, 'admin/programmes/letter.twig', [
+            'page_title' => 'Voting letter · ' . (string) $cycle->programme_title . ' — Admin',
+            'admin_page' => 'programmes',
+            'cycle'      => $cycle,
+            'words'      => $e,
+            'current'    => $L::current((int) $cycle->id),
+            'history'    => $L::history((int) $cycle->id),
+            'fields'     => $L::FIELDS,
+            'locked'     => $L::LOCKED,
+            'limits'     => ['headline' => $L::MAX_HEADLINE, 'body' => $L::MAX_BODY],
+            'sample'     => $v,
+            'fit'        => \AfricaGates\Services\NomineeVotingNotice::fit($cycle, ['headline' => $e['headline'], 'body' => $e['body']]),
+            'ready'      => $L::ready(),
+            'default'    => ['headline' => $L::DEFAULT_HEADLINE, 'body' => $L::DEFAULT_BODY],
+        ]);
+    }
+
+    /**
+     * POST /admin/programmes/{id}/cycle/letter — autosave (action=draft), publish, restore a
+     * version, or reset to the shipped words. JSON for the editor's script; a plain form post
+     * (no script) is sent back to the editor with a flash.
+     */
+    public function letterSave(Request $req, Response $res, array $args): Response
+    {
+        $cycle = $this->letterCycle($req, $args);
+        if (!$cycle) throw new \Slim\Exception\HttpNotFoundException($req);
+        $L = \AfricaGates\Services\CycleLetter::class;
+        $b = (array) $req->getParsedBody();
+        $adminId = (int) ($_SESSION['admin_id'] ?? 0);
+        $action = (string) ($b['action'] ?? 'draft');
+        $head = (string) ($b['headline'] ?? '');
+        $body = (string) ($b['body'] ?? '');
+        $r = match ($action) {
+            'publish' => $L::publish((int) $cycle->id, $head, $body, $adminId),
+            'restore' => ['ok' => $L::restore((int) $cycle->id, (int) ($b['version'] ?? 0), $adminId), 'errors' => []],
+            'reset'   => (function () use ($L, $cycle, $adminId) { $L::resetDraft((int) $cycle->id, $adminId); return ['ok' => true, 'errors' => []]; })(),
+            default   => $L::saveDraft((int) $cycle->id, $head, $body, $adminId),
+        };
+        if ($action !== 'draft') {
+            $this->audit->record($adminId, 'voting_letter.' . $action, 'cycle', (int) $cycle->id, ['ok' => $r['ok']]);
+        }
+        $e = $L::editing((int) $cycle->id);
+        $out = $r + [
+            'state' => $e['draft'] ? 'draft' : 'published',
+            'words' => ['headline' => $e['headline'], 'body' => $e['body']],
+            'fit'   => \AfricaGates\Services\NomineeVotingNotice::fit($cycle, ['headline' => $e['headline'], 'body' => $e['body']]),
+            'checks'=> $L::clean($e['headline'], $e['body'])['errors'],
+        ];
+        $back = '/admin/programmes/' . (int) $args['id'] . '/cycle/letter?cycle=' . (int) $cycle->id;
+        if ($req->getHeaderLine('X-Requested-With') !== 'fetch') {
+            $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = $r['ok']
+                ? match ($action) { 'publish' => 'Published. Every letter from now on carries these words.', 'restore' => 'That version is back in the draft.', 'reset' => 'The shipped words are back in the draft.', default => 'Draft saved.' }
+                : implode(' ', $r['errors'] ?? ['Not saved.']);
+            return $res->withHeader('Location', $back)->withStatus(303);
+        }
+        $res->getBody()->write((string) json_encode($out));
+        return $res->withHeader('Content-Type', 'application/json')->withHeader('Cache-Control', 'no-store');
+    }
+
+    /**
+     * POST …/cycle/voting-letter/send — send the letters due on this edition now (owner, 2 Nov
+     * 2026: "the voting letter was not sent"). The sweep runs on the maintenance tick, and a
+     * host whose tick has stopped would wait for ever with nothing on screen to say so.
+     */
+    public function votingLetterSend(Request $req, Response $res, array $args): Response
+    {
+        $cycle = $this->letterCycle($req, $args);
+        if (!$cycle) throw new \Slim\Exception\HttpNotFoundException($req);
+        $r = \AfricaGates\Services\NomineeVotingNotice::sendNow($cycle, \AfricaGates\Services\OtpService::boot());
+        $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'voting_letter.send_now', 'cycle', (int) $cycle->id,
+            ['sent' => $r['sent'], 'failed' => $r['failed']]);
+        if (isset($r['error'])) {
+            $_SESSION['flash_error'] = $r['error'];
+        } else {
+            $_SESSION['flash_ok'] = $r['sent'] === 0 && $r['failed'] === 0
+                ? 'Nothing was due: every nominee who can receive the letter already has it.'
+                : $r['sent'] . ($r['sent'] === 1 ? ' letter' : ' letters') . ' sent' . ($r['failed'] ? ', ' . $r['failed'] . ' failed (see Settings → Mail)' : '') . '.';
+        }
+        return $res->withHeader('Location', '/admin/programmes/' . (int) $args['id'] . '/cycle?cycle=' . (int) $cycle->id)->withStatus(303);
+    }
+
+    /**
+     * POST …/cycle/voting-letter/correct — send the correction to every nominee whose letter
+     * stated a community-return rule this edition no longer runs (4 Nov 2026: letters promised
+     * Threshold terms on an edition set up as a target pool). Pressed by a person, with a
+     * reason, because a correction is an admission and goes out under the award's name.
+     */
+    public function votingLetterCorrect(Request $req, Response $res, array $args): Response
+    {
+        $cycle = $this->letterCycle($req, $args);
+        if (!$cycle) throw new \Slim\Exception\HttpNotFoundException($req);
+        $r = \AfricaGates\Services\NomineeVotingNotice::sendCorrections($cycle, \AfricaGates\Services\OtpService::boot());
+        $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'voting_letter.correction_sent', 'cycle', (int) $cycle->id,
+            ['sent' => $r['sent'], 'failed' => $r['failed'], 'held' => $r['held']]);
+        if (isset($r['error'])) {
+            $_SESSION['flash_error'] = $r['error'];
+        } else {
+            $_SESSION['flash_ok'] = $r['sent'] . ($r['sent'] === 1 ? ' correction' : ' corrections') . ' sent'
+                . ($r['failed'] ? ', ' . $r['failed'] . ' failed (see Settings → Mail)' : '')
+                . ($r['held'] ? ', ' . $r['held'] . ' held by the send rules' : '') . '.';
+        }
+        return $res->withHeader('Location', '/admin/programmes/' . (int) $args['id'] . '/cycle?cycle=' . (int) $cycle->id)->withStatus(303);
+    }
+
+    /** @return array<string,mixed>|null null when the counts cannot be read, never a 500 */
+    private static function votingLetterStatus(object $cycle): ?array
+    {
+        try {
+            return \AfricaGates\Services\NomineeVotingNotice::status($cycle);
+        } catch (\Throwable $e) {
+            error_log('[voting-letter] status for cycle ' . (int) $cycle->id . ': ' . $e->getMessage());
+            return null;
+        }
+    }
+
     public function cycleEdit(Request $req, Response $res, array $args): Response
     {
         $programmeId = (int)$args['id'];
@@ -258,6 +469,18 @@ class ProgrammesController
             ?? DB::table('gates_award_cycles')->where('programme_id', $programmeId)->orderByDesc('year')->first();
         $cycle = $picked ?? $cycle;
         $categories = $cycle ? DB::table('gates_award_categories')->where('cycle_id', $cycle->id)->orderBy('sort_order')->get()->map(fn($r)=>(array)$r)->all() : [];
+        // What each category holds, in ONE query: the count tells an operator which
+        // category a change will reach, and links into the nominee list filtered to it.
+        if ($categories) {
+            $held = DB::table('gates_nominees')->whereIn('category_id', array_column($categories, 'id'))
+                ->whereNull('merged_into')->groupBy('category_id')
+                ->selectRaw('category_id, COUNT(*) as n')->pluck('n', 'category_id')->all();
+            foreach ($categories as &$c) {
+                $c['nominees'] = (int)($held[$c['id']] ?? 0);
+                $c['in_use'] = self::categoryInUse((int)$c['id']);
+            }
+            unset($c);
+        }
 
         $phase = $cycle ? \AfricaGates\Services\CyclePolicy::stateFor($cycle) : null;
         $history = [];
@@ -274,10 +497,33 @@ class ProgrammesController
             'programme'  => (array)$programme,
             'cycle'      => $cycle ? (array)$cycle : null,
             'categories' => $categories,
+            'prizes'     => $cycle ? \AfricaGates\Support\EditionPrizes::for((int) $cycle->id) : [],
+            'prizes_max' => \AfricaGates\Support\EditionPrizes::MAX,
+            'prize_max'  => \AfricaGates\Support\EditionPrizes::AWARD_MAX,
+            'prizes_on_milestone' => $cycle ? \AfricaGates\Support\EditionPrizes::onMilestone((int) $cycle->id) : true,
+            'prize_condition' => $cycle ? \AfricaGates\Support\EditionPrizes::condition((int) $cycle->id) : null,
             // What the platform ACTUALLY thinks, so the admin can trust the
             // automation instead of inferring it from five date fields.
             'phase'      => $phase,
+            // Dates ALREADY SAVED out of order. The save refuses an inverted window, but a
+            // row saved before that rule, imported, or seeded can still hold one — a results
+            // date before voting closes reads as "results" while voting is meant to be open,
+            // and closes the ballot early. Asked of the stored row with the same rule the
+            // save uses, so the screen and the save cannot disagree about what is wrong.
+            'window_error' => $cycle ? \AfricaGates\Services\CycleService::windowError((array) $cycle) : null,
+            // The nominee voting letter for this edition: on, sending, and how far it has got.
+            'voting_letter' => $cycle ? self::votingLetterStatus($cycle) : null,
             'history'    => $history,
+            // Voting extensions on record for this edition (VotingExtension), oldest first,
+            // and whether the table exists yet — the form says so rather than failing.
+            'extensions' => $cycle ? array_map(static fn (object $x): array => (array) $x,
+                                \AfricaGates\Services\VotingExtension::forCycle((int) $cycle->id)) : [],
+            'extensions_ready' => \AfricaGates\Services\VotingExtension::available(),
+            'extension_reason_min' => \AfricaGates\Services\VotingExtension::REASON_MIN,
+            'extension_reason_max' => \AfricaGates\Services\VotingExtension::REASON_MAX,
+            // Is this edition ready for its next phase? Computed from its own rows; not shown
+            // once the edition is finished, where every item is history rather than a task.
+            'readiness'  => $cycle && !($phase['is_finished'] ?? false) ? \AfricaGates\Services\EditionReadiness::for($cycle) : [],
             // The DISPLAY zone, not Clock::timezone(). This said UTC, and the form
             // stored what was typed verbatim — so an operator in Lagos had to convert
             // every deadline in their head, on the five fields that decide whether a
@@ -308,6 +554,78 @@ class ProgrammesController
             // `CycleEdition::listFor()`, and IT is what the Editions panel draws, so
             // the raw copy was a second query answering a question already answered.
         ]);
+    }
+
+    /** Save what each place wins in one edition (EditionPrizes). */
+    public function prizesSave(Request $req, Response $res, array $args): Response
+    {
+        $programmeId = (int) $args['id'];
+        $b = (array) $req->getParsedBody();
+        $cycle = DB::table('gates_award_cycles')->where('id', (int) ($b['cycle_id'] ?? 0))->where('programme_id', $programmeId)->first();
+        if (!$cycle) throw new \Slim\Exception\HttpNotFoundException($req);
+        $rows = is_array($b['prizes'] ?? null) ? array_values($b['prizes']) : [];
+        $error = \AfricaGates\Support\EditionPrizes::save((int) $cycle->id, $rows);
+        if ($error === null) \AfricaGates\Support\EditionPrizes::setOnMilestone((int) $cycle->id, !empty($b['on_milestone']));
+        if ($error === null) {
+            $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'edition.prizes', 'cycle', (int) $cycle->id,
+                ['places' => count(\AfricaGates\Support\EditionPrizes::for((int) $cycle->id))]);
+        }
+        $_SESSION[$error === null ? 'flash_ok' : 'flash_error'] = $error ?? 'Prizes saved.';
+        return $res->withHeader('Location', '/admin/programmes/' . $programmeId . '/cycle?cycle=' . (int) $cycle->id . '#prizes')->withStatus(303);
+    }
+
+    /**
+     * POST …/cycle/extend — EXTEND VOTING, ON THE RECORD (Services\VotingExtension; policy:
+     * docs/VOTING-EXTENSION-POLICY.md).
+     *
+     * Its own action, not a field of the cycle form: editing `voting_close` there moves the
+     * date and records nothing, and an extension owes the public a reason, a snapshot of the
+     * standings at that moment and (by default) a stop to paid checkout at the previous close.
+     * It also RECORDS an extension already made by editing the date directly (new close ==
+     * the current close). The whole edition moves: `voting_close` is the cycle's.
+     */
+    public function cycleExtend(Request $req, Response $res, array $args): Response
+    {
+        $programmeId = (int) $args['id'];
+        $b = (array) $req->getParsedBody();
+        $cycle = DB::table('gates_award_cycles')->where('id', (int) ($b['cycle_id'] ?? 0))
+            ->where('programme_id', $programmeId)->first();
+        if (!$cycle) throw new \Slim\Exception\HttpNotFoundException($req);
+        $back = '/admin/programmes/' . $programmeId . '/cycle?cycle=' . (int) $cycle->id . '#extend';
+
+        $adminId = (int) ($_SESSION['admin_id'] ?? 0);
+        $r = \AfricaGates\Services\VotingExtension::extend($cycle, [
+            'previous_close' => (string) ($b['previous_close'] ?? ''),
+            'new_close'      => (string) ($b['new_close'] ?? ''),
+            'reason'         => (string) ($b['reason'] ?? ''),
+            'stop_paid'      => !empty($b['stop_paid']),
+            'further'        => !empty($b['further']),
+        ], $adminId > 0 ? $adminId : null);
+
+        if (!$r['ok']) {
+            $_SESSION['flash_error'] = $r['error'];
+            return $res->withHeader('Location', $back)->withStatus(303);
+        }
+
+        $this->audit->record($adminId > 0 ? $adminId : null, 'cycle.voting_extended', 'cycle', (int) $cycle->id, [
+            'extension_id' => $r['id'],
+            'mode'         => $r['mode'],
+            'before'       => $r['before'],
+            'after'        => $r['after'],
+            'previous_close' => $r['row']['previous_close'],
+            'new_close'    => $r['row']['new_close'],
+            'paid_cutoff_at' => $r['row']['paid_cutoff_at'],
+            'snapshot_ref' => $r['snapshot_ref'],
+            'reason'       => $r['row']['reason'],
+        ]);
+        $this->bustAwardsCache();
+
+        $_SESSION['flash_ok'] = ($r['mode'] === \AfricaGates\Services\VotingExtension::MODE_RECORDED
+                ? 'Extension recorded. The voting close was already ' . \AfricaGates\Support\DisplayTime::showZoned($r['after']['voting_close']) . ' and has not changed.'
+                : 'Voting extended to ' . \AfricaGates\Support\DisplayTime::showZoned($r['after']['voting_close']) . ' for every category in this edition.')
+            . ' The notice is on the public voting pages.'
+            . ($r['warnings'] ? ' ' . implode(' ', $r['warnings']) : '');
+        return $res->withHeader('Location', $back)->withStatus(303);
     }
 
     public function cycleSave(Request $req, Response $res, array $args): Response
@@ -444,56 +762,123 @@ class ProgrammesController
         return $res->withHeader('Location', "/admin/programmes/$programmeId/cycle")->withStatus(302);
     }
 
+    /**
+     * Add or update a category — IN THE EDITION ON SCREEN.
+     *
+     * This always wrote `cycle_id` = the programme's LIVE cycle, on an update as well as
+     * an insert. The cycle screen has opened past and next editions (`?cycle=`) since the
+     * editions panel shipped, so pressing Update on a category of next year's edition
+     * MOVED it — with every nominee and vote under it — into the edition the public was
+     * voting in, and "Add" put a new category into a cycle the operator was not looking
+     * at. Nothing said so: the flash read "Category saved." and the redirect went to the
+     * live cycle, where the moved category now sat looking as if it had always been there.
+     *
+     * So an update never touches `cycle_id`, and an insert goes to the cycle the form
+     * names — checked against THIS programme, because an id in a form is a claim.
+     */
     public function categorySave(Request $req, Response $res, array $args): Response
     {
         $programmeId = (int)$args['id'];
         $b = (array)$req->getParsedBody();
-        $cycle = \AfricaGates\Services\BallotGuard::currentCycleForProgramme($programmeId)
+        $catId = (int)($b['id'] ?? 0);
+        $wanted = (int)($b['cycle_id'] ?? 0);
+
+        $cycle = null;
+        if ($catId) {
+            // An existing category stays in ITS edition; find it through the programme.
+            $cycle = DB::table('gates_award_categories as c')->join('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
+                ->where('c.id', $catId)->where('cy.programme_id', $programmeId)->first(['cy.*']);
+            if (!$cycle) {
+                $_SESSION['flash_error'] = 'That category does not belong to this programme.';
+                return $res->withHeader('Location', "/admin/programmes/$programmeId/cycle")->withStatus(302);
+            }
+        } elseif ($wanted > 0) {
+            $cycle = DB::table('gates_award_cycles')->where('id', $wanted)->where('programme_id', $programmeId)->first();
+        }
+        $cycle ??= \AfricaGates\Services\BallotGuard::currentCycleForProgramme($programmeId)
             ?? DB::table('gates_award_cycles')->where('programme_id', $programmeId)->orderByDesc('year')->first();
         if (!$cycle) {
             $_SESSION['flash_error'] = 'Create the cycle first.';
             return $res->withHeader('Location', "/admin/programmes/$programmeId/cycle")->withStatus(302);
         }
-        $catId = (int)($b['id'] ?? 0);
+        $back = "/admin/programmes/$programmeId/cycle?cycle=" . (int)$cycle->id;
         $data = [
-            'cycle_id'    => (int)$cycle->id,
-            'slug'        => preg_replace('/[^a-z0-9-]+/i','-', strtolower((string)($b['slug'] ?? ''))),
+            'slug'        => \AfricaGates\Support\Slug::make((string)($b['slug'] ?? '')),
             'title'       => trim((string)($b['title'] ?? '')),
             'description' => trim((string)($b['description'] ?? '')),
             // TINYINT UNSIGNED on production — see save() and CycleEdition::copy().
             'sort_order'  => max(0, min(255, (int)($b['sort_order'] ?? 0))),
         ];
+        // A blank slug is derived from the title, the way every other slug here is.
+        if ($data['slug'] === '' && $data['title'] !== '') {
+            $data['slug'] = \AfricaGates\Support\Slug::make($data['title']);
+        }
         // ── A REFUSED WRITE IS A SENTENCE, NOT A 500 ─────────────────────────
         //
         // This had no catch at all, so anything the database refused — a slug another
         // category in the cycle already holds, an empty title on a NOT NULL column —
         // reached the operator as an error page with the form's contents gone.
         try {
+            if ($data['title'] === '' || $data['slug'] === '') throw new \InvalidArgumentException('blank');
             if ($catId) {
                 DB::table('gates_award_categories')->where('id', $catId)->update($data);
             } else {
-                $catId = (int)DB::table('gates_award_categories')->insertGetId($data);
+                $catId = (int)DB::table('gates_award_categories')->insertGetId($data + ['cycle_id' => (int)$cycle->id]);
             }
         } catch (\Throwable $e) {
             error_log('[programmes] category save: ' . $e->getMessage());
             $_SESSION['flash_error'] = 'That category could not be saved — check its slug is not '
-                . 'already used by another category in this cycle, and that it has a title.';
-            return $res->withHeader('Location', "/admin/programmes/$programmeId/cycle")->withStatus(302);
+                . 'already used by another category in this edition, and that it has a title.';
+            return $res->withHeader('Location', $back)->withStatus(302);
         }
         $this->audit->record((int)$_SESSION['admin_id'], 'category.save', 'category', $catId);
         $this->bustAwardsCache();
         $_SESSION['flash_ok'] = 'Category saved.';
-        return $res->withHeader('Location', "/admin/programmes/$programmeId/cycle")->withStatus(302);
+        return $res->withHeader('Location', $back)->withStatus(302);
+    }
+
+    /**
+     * Why a category may not be deleted, or null when nothing has used it.
+     *
+     * Votes, nominees and judge criteria all reference a category ON DELETE CASCADE, so a
+     * delete here was never "remove a heading": it erased the ballot ledger, the entries
+     * and their scores in one statement, under a confirm that said only "cannot be undone".
+     * A record that has been used is retired, never deleted (CLAUDE.md). Only a category
+     * nothing points at yet — a typo caught before anybody was entered — may go.
+     */
+    public static function categoryInUse(int $catId): ?string
+    {
+        $n = (int) DB::table('gates_nominees')->where('category_id', $catId)->count();
+        if ($n > 0) return $n . ' nominee' . ($n === 1 ? '' : 's') . ' stand' . ($n === 1 ? 's' : '') . ' in it';
+        $v = (int) DB::table('gates_votes')->where('category_id', $catId)->count();
+        if ($v > 0) return $v . ' vote' . ($v === 1 ? ' was' : 's were') . ' cast in it';
+        foreach (['gates_nominations', 'gates_nomination_categories'] as $t) {
+            if (\AfricaGates\Support\SchemaHas::column($t, 'category_id')
+                && DB::table($t)->where('category_id', $catId)->exists()) return 'nominations were made in it';
+        }
+        return null;
     }
 
     public function categoryDelete(Request $req, Response $res, array $args): Response
     {
         $catId = (int)$args['catId'];
+        $cat = DB::table('gates_award_categories as c')->join('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
+            ->where('c.id', $catId)->first(['c.id', 'c.title', 'c.cycle_id', 'cy.programme_id']);
+        if (!$cat) {
+            $_SESSION['flash_error'] = 'That category no longer exists.';
+            return $res->withHeader('Location', '/admin/programmes')->withStatus(302);
+        }
+        $back = '/admin/programmes/' . (int)$cat->programme_id . '/cycle?cycle=' . (int)$cat->cycle_id;
+        if (($why = self::categoryInUse($catId)) !== null) {
+            $_SESSION['flash_error'] = '“' . $cat->title . '” cannot be deleted: ' . $why
+                . '. Deleting it would erase those records too. Rename it instead, or leave it out of the next edition.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
         DB::table('gates_award_categories')->where('id', $catId)->delete();
         $this->audit->record((int)$_SESSION['admin_id'], 'category.delete', 'category', $catId);
         $this->bustAwardsCache();
         $_SESSION['flash_ok'] = 'Category deleted.';
-        return $res->withHeader('Location', '/admin/programmes')->withStatus(302);
+        return $res->withHeader('Location', $back)->withStatus(302);
     }
 
     // ══ SPONSORSHIP ══════════════════════════════════════════════════════════

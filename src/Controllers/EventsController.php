@@ -75,6 +75,7 @@ class EventsController
             // Which spotlight events are taking stand applications. Outside any cache, and
             // one query for the page — see StandCall::openFor().
             'stand_calls'      => StandCall::openFor(array_column($front['spotlight'], 'id')),
+            'ad'               => \AfricaGates\Services\Ads\AdDelivery::forRequest('events', $req),
         ] + ($front['filtering'] ? ['meta_robots' => 'noindex, follow'] : []));
     }
 
@@ -150,8 +151,9 @@ class EventsController
                 'pct'       => ReferralService::ratePct(),
                 'threshold' => ReferralService::threshold(),
                 'link'      => null,
+                'signed_in' => $me !== null,
             ];
-            $rc = $me !== null ? ReferralService::codeFor($me) : null;
+            $rc = $me !== null ? ReferralService::existingCode($me) : null;
             if ($rc !== null) {
                 $referral['link'] = ReferralService::link(\AfricaGates\Support\SiteUrl::base($req), (string) $rc, (string) $event['slug']);
             }
@@ -170,11 +172,12 @@ class EventsController
             $st   = (string) ($t['state'] ?? 'open');
             $gone = $st === 'sold_out';
             $c    = \AfricaGates\Services\EventTierTone::card($t, $event);
+            [$note, $perks] = self::tierLines((string) ($t['description'] ?? ''), (array) ($t['perks'] ?? []));
             $rows[] = [
                 'id'      => (int) $t['id'],
                 'name'    => (string) $t['name'],
-                'note'    => (string) ($t['description'] ?? ''),
-                'perks'   => (array) ($t['perks'] ?? []),
+                'note'    => $note,
+                'perks'   => $perks,
                 'price'   => (int) ($t['price_naira'] ?? 0),
                 'price_text' => \AfricaGates\Services\EventSales::money((int) ($t['price_naira'] ?? 0)),
                 'state'   => $st,
@@ -206,7 +209,20 @@ class EventsController
               . '&location=' . rawurlencode($this->calendarWhere((object) $event))
               . '&details=' . rawurlencode((string) ($event['tagline'] ?? ''));
 
+        $awardsHere = \AfricaGates\Services\EventsFront::awards($id);
+
+        // How many people have seen it, and "promote this event" beside the number
+        // (Services\PageViews; owner, 11 Nov 2026).
+        $views = \AfricaGates\Services\PageViews::forPage('event', $id,
+            ['event' => ['title' => (string) $event['title'], 'slug' => (string) $event['slug']]]);
         return $this->view->render($res, 'pages/events/detail.twig', [
+            'views' => $views,
+            // The organiser's map link, checked again on the way OUT (CLAUDE.md: a stored value
+            // survives the code that wrote it), else a map search for the address. The template
+            // used to print the stored column straight into an href.
+            'map_link'         => \AfricaGates\Services\EventsFront::link((string) ($event['map_embed'] ?? ''))
+                                  ?: 'https://www.google.com/maps/search/?api=1&query='
+                                     . rawurlencode(implode(', ', array_filter([(string) ($event['venue'] ?? ''), (string) ($event['location'] ?? '')]))),
             'page_title'       => $event['title'] . ' — Africa GATES',
             'meta_description' => ($event['tagline'] ?? null)
                 ?: mb_substr(strip_tags((string) ($event['description'] ?? '')), 0, 150),
@@ -252,7 +268,12 @@ class EventsController
             'access_code'      => $code,
             'gateway_ready'    => $this->payments()->enabledProviderIds() !== [],
             'stand_call'       => StandCall::nudge($id, (string) $event['slug'], $isPast),
-            'awards'           => \AfricaGates\Services\EventsFront::awards($id),
+            'awards'           => $awardsHere,
+            // One ad, last in the main column (Services\Ads) — and none while an award this
+            // event belongs to is taking votes: the page then links to a ballot, and no ad
+            // sits beside a choice somebody is making (owner, 27 Oct 2026).
+            'ad'               => empty($awardsHere['voting'])
+                ? \AfricaGates\Services\Ads\AdDelivery::forRequest('event_page', $req) : null,
             'gcal'             => $gcal,
             'alert_waiting'    => $ev['state'] === 'soon' ? \AfricaGates\Services\EventSaleAlert::waiting($id) : 0,
             'alert_said'       => self::takeAlertSaid(),
@@ -788,6 +809,61 @@ class EventsController
         // them it failed and then issuing a ticket an hour later is better than releasing
         // the seat they may have paid for.
         return $this->goTo($res, '/events/' . urlencode($slug) . '?payment=pending&ref=' . urlencode($ref));
+    }
+
+    /**
+     * GET /events/ticket/{ref}/qr.png — the ticket's code as a PNG, for the ticket email.
+     *
+     * Mail cannot carry an inline SVG and must not carry a data: URI (docs/handoff/inventory/
+     * _emails.md: a hosted image, or Gmail and Outlook strip it), so the email needs a URL.
+     * Reached by the REFERENCE alone, the same credential the ticket page is reached by, and
+     * drawn from the CURRENT code — after a transfer or a reissue the old email's image shows
+     * the new code's absence rather than a code that no longer opens the door.
+     *
+     * Support\Qr::encode() is the ticket-code encoder (version 1, alphanumeric). The quiet
+     * zone is the specification's four modules and is not trimmed (CLAUDE.md, Support\Qr).
+     */
+    public function ticketQr(Request $req, Response $res, array $args): Response
+    {
+        $reg  = EventTicketService::byReference(trim((string) ($args['ref'] ?? '')));
+        // Only a confirmed booking draws a code — the PDF's rule. A cancelled or refunded
+        // ticket's old email must not go on showing something that looks like entry.
+        $code = $reg && (string) ($reg->status ?? '') === 'confirmed' ? (string) ($reg->ticket_code ?? '') : '';
+        $m    = $code !== '' ? \AfricaGates\Support\Qr::encode($code) : null;
+        if (!$m || !function_exists('imagecreatetruecolor')) {
+            return $res->withStatus(404)->withHeader('X-Robots-Tag', 'noindex, nofollow');
+        }
+
+        $scale = 8;
+        $quiet = 4;
+        $n     = count($m);
+        $px    = ($n + 2 * $quiet) * $scale;
+        $img   = imagecreatetruecolor($px, $px);
+        [$ir, $ig, $ib] = sscanf(\AfricaGates\Support\Accent::hex('ink'), '#%02x%02x%02x');
+        [$sr, $sg, $sb] = sscanf(\AfricaGates\Support\Accent::hex('surface'), '#%02x%02x%02x');
+        $ink  = imagecolorallocate($img, (int) $ir, (int) $ig, (int) $ib);
+        $bg   = imagecolorallocate($img, (int) $sr, (int) $sg, (int) $sb);
+        imagefilledrectangle($img, 0, 0, $px - 1, $px - 1, $bg);
+        foreach ($m as $y => $row) {
+            foreach ($row as $x => $on) {
+                if (!$on) continue;
+                $x0 = ($x + $quiet) * $scale;
+                $y0 = ($y + $quiet) * $scale;
+                // imagefilledrectangle() is INCLUSIVE of both corners: one pixel less.
+                imagefilledrectangle($img, $x0, $y0, $x0 + $scale - 1, $y0 + $scale - 1, $ink);
+            }
+        }
+        ob_start();
+        imagepng($img);
+        $png = (string) ob_get_clean();
+        imagedestroy($img);
+
+        $res->getBody()->write($png);
+        return $res->withHeader('Content-Type', 'image/png')
+            ->withHeader('Content-Length', (string) strlen($png))
+            // Private: the URL carries the reference, which is the ticket's credential.
+            ->withHeader('Cache-Control', 'private, max-age=300')
+            ->withHeader('X-Robots-Tag', 'noindex, nofollow');
     }
 
     /**
@@ -1467,7 +1543,9 @@ class EventsController
         $res->getBody()->write((string) json_encode([
             'success' => true, 'scope' => $scope, 'count' => count($events),
             'calendar' => $this->base($req) . '/events.ics', 'events' => $events,
-        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        // SUBSTITUTE, not the default: one stray byte in an organiser’s title or venue would
+        // otherwise make json_encode() return false and the whole feed an empty 200.
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE));
         return $res->withHeader('Content-Type', 'application/json; charset=utf-8')
             ->withHeader('Cache-Control', 'public, max-age=300')
             ->withHeader('Access-Control-Allow-Origin', '*');
@@ -1487,4 +1565,26 @@ class EventsController
         return $res->withHeader('Location', $path)->withStatus(302);
     }
 
+
+    /**
+     * A tier's description as a list when the organiser wrote it as one. Organisers type what a
+     * ticket includes as a run-on line — "Support CACENTRE + Souvenir + Refreshments + Free
+     * Delivery" — and drawn as a sentence that is four lines of grey nobody scans (owner,
+     * 17 Nov 2026: "not sleek"). Split on " + " (or line breaks) when there are no separate
+     * perks; a description without them stays a sentence.
+     *
+     * @return array{0:string,1:list<string>}
+     */
+    public static function tierLines(string $description, array $perks): array
+    {
+        $perks = array_values(array_filter(array_map(static fn ($p) => trim((string) $p), $perks), static fn ($p) => $p !== ''));
+        $d = trim($description);
+        if ($perks !== [] || $d === '' || !preg_match('/\s\+\s|\R/u', $d)) return [$d, $perks];
+        $items = array_values(array_filter(array_map(
+            static fn ($p) => rtrim(trim($p), '.;,'),
+            preg_split('/\s\+\s|\R/u', $d) ?: []
+        ), static fn ($p) => $p !== ''));
+        $items = array_map(static fn ($p) => mb_strtoupper(mb_substr($p, 0, 1)) . mb_substr($p, 1), $items);
+        return count($items) > 1 ? ['', $items] : [$d, []];
+    }
 }

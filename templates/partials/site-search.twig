@@ -34,14 +34,16 @@
   to open still goes somewhere a search happens.
 #}
 {% set _scope_labels = {people: 'People', awards: 'Awards', events: 'Events', pages: 'Pages'} %}
-<div class="ag-ss-scrim" data-ag-search-scrim hidden></div>
-<div class="ag-ss" id="ag-search" role="dialog" aria-modal="true" aria-label="{{ 'Search'|trans }}" data-ag-search hidden
+<div class="ag-ss-scrim" data-ag-search-scrim data-nav-keep="search-scrim" hidden></div>
+<div class="ag-ss" id="ag-search" data-nav-keep="search" role="dialog" aria-modal="true" aria-label="{{ 'Search'|trans }}" data-ag-search hidden
      data-msg-searching="{{ 'Searching…'|trans }}"
      data-msg-none="{{ 'Nothing matches “%q%”. Try a name, an award or a country.'|trans }}"
      data-msg-count="{{ '%n% results'|trans }}"
      data-msg-one="{{ '1 result'|trans }}"
      data-msg-start="{{ 'Start typing to search people, awards, events and pages.'|trans }}"
-     data-msg-error="{{ 'We couldn’t reach Africa GATES. Try again.'|trans }}">
+     data-msg-error="{{ 'We couldn’t reach Africa GATES. Try again.'|trans }}"
+     data-msg-recent="{{ 'Recent searches'|trans }}" data-msg-viewed="{{ 'Recently viewed'|trans }}" data-msg-clear="{{ 'Clear history'|trans }}"
+     data-msg-fixed="{{ 'Showing results for “%q%”.'|trans }}" data-msg-instead="{{ 'Search instead for “%q%”'|trans }}">
 
   <form class="ag-ss__bar" role="search" action="/discover" method="get" data-ag-search-form>
     <svg class="ag-ss__glass" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.6-3.6" stroke-linecap="round"></path></svg>

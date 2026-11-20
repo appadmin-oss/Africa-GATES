@@ -1,0 +1,254 @@
+{
+"version": "2026-10-28",
+"chapters": [
+ {"key":"start","title":"Start here","desc":"How the console is laid out, what your role reaches, and your first week.","icon":"home"},
+ {"key":"awards","title":"Awards","desc":"Setting up an edition, reviewing nominations, judging, voting and releasing results.","icon":"trophy"},
+ {"key":"events","title":"Events","desc":"Planning, budgets, the door, the night and what happens after.","icon":"ticket"},
+ {"key":"money","title":"Money","desc":"Reconciling payments, refunds, disputes and payouts.","icon":"card"},
+ {"key":"people","title":"People and access","desc":"Team roles, event leads, volunteers, judges and how access ends.","icon":"users"},
+ {"key":"reach","title":"Messages and content","desc":"Broadcasts, letters, moderation and what we never say in public.","icon":"mega"},
+ {"key":"incidents","title":"Alerts and incidents","desc":"What each alert level means and the playbooks for the ones that matter.","icon":"bell"},
+ {"key":"policy","title":"Policies","desc":"Privacy, evidence, the audit log and the rules every page follows.","icon":"shield"}
+],
+"articles": [
+ {"slug":"console-layout","ch":"start","title":"How the console is laid out","sum":"Every award edition, event and giving partner is a place with its own menu. You go in, work, and come back out.","roles":["admin","moderator","lead"],"owner":"Sade Bello","reviewed":"28 Oct 2026","mins":4,"pages":["root.home"],
+  "blocks":[
+   ["p","The console has one menu at the top level and a separate menu for each thing you can open. Opening Teachers Prize, 4th Edition swaps the menu for that edition’s own pages: Overview, Nominations, Judging and so on. The name at the top of the menu is the switcher; Back brings you out."],
+   ["h","The five patterns"],
+   ["table",["You want to…","Use","Example"],[["Go into a thing and stay a while","The menu (drill-in)","An edition, an event, a partner, Settings"],["See another one of the same kind","The switcher under Back","4th Edition → 3rd Edition"],["See another view of the same thing","Tabs under the title","Review · Desk · Duplicates"],["Act on one record","A drawer from the right","A nomination, a payment, a request"],["Jump anywhere","Find, ⌘K","Type “refunds” or an old page name"]]],
+   ["h","Keys worth learning"],
+   ["list",["⌘K opens Find. Enter opens the first match.","⌘J opens Ask, which answers from the place you’re in and this handbook.","Alt [ and Alt ] switch to the previous or next edition or event without opening the switcher.","Alt ↑ goes back. Esc closes any drawer."]],
+   ["tip","Switching keeps your page. If you’re on Judging in the 4th Edition and switch to the 3rd, you land on the 3rd Edition’s Judging. If that page doesn’t exist there yet, you land on Overview and a line tells you why."],
+   ["h","Counts and colours"],
+   ["p","A number beside a menu item is work waiting on a person. Red means it affects production right now; amber means it may. A menu item with nothing waiting shows no number at all, never a 0."]
+  ],"related":["your-role","first-week","alert-levels"]},
+ {"slug":"your-role","ch":"start","title":"Your role and what it reaches","sum":"Access is given per page and, for event and award staff, per event or award. Every scoped access has an end date.","roles":["admin","moderator","lead"],"owner":"Sade Bello","reviewed":"21 Oct 2026","mins":3,"pages":["settings.roles","root.people"],
+  "open":{"l":"Open Team and roles","scope":"settings","inst":"all","page":"roles"},
+  "blocks":[
+   ["who",[["Superadmin","Everything, including configuration, keys and roles."],["Admin","Everything except configuration."],["Editor","Content and programmes. Can draft a shortlist, can’t publish it."],["Moderator","Moderation and nomination review, limited to the awards they’re given."],["Event lead","One or more events, until the day after each one. Spends up to their limit; above it they ask."],["Event team","The pages of one event their lead gives them, until the day after it."]]],
+   ["rule","The menu never offers a page your role can’t open. If you can see it, you can use it."],
+   ["rule","Volunteers and judges never sign in to this console. They have their own areas."],
+   ["p","If you need a page you can’t see, ask the person who gave you access. Event leads use Requests › Access for my team, which goes to an admin with a reason and an end date."],
+   ["warn","Never share a sign-in. Everything you do is logged under your name, including notes you add when you act."]
+  ],"related":["access-ends","lead-limits"]},
+ {"slug":"first-week","ch":"start","title":"Your first week","sum":"What to do on days one to five so you know where things are before something goes wrong.","roles":["admin","moderator","lead"],"owner":"Sade Bello","reviewed":"14 Oct 2026","mins":3,"pages":[],
+  "blocks":[
+   ["steps",[["Set up a passkey","Settings › Security and sign-in. Console roles sign in with a passkey."],["Read How the console is laid out","Four minutes. Then press ⌘K and find three pages by typing."],["Open one edition and one event","Walk their menus. Look at Overview and Today: they tell you what needs a person."],["Read the playbook for your area","Moderators: Reviewing nominations. Event leads: Planning an event. Finance: Reconciling payments."],["Shadow one decision","Sit with someone while they approve a refund or a nomination, and read the audit entry it leaves."]]],
+   ["tip","Home is sorted by consequence, not by date. Start every day at the top of it."]
+  ],"related":["console-layout","review-nominations","plan-event"]},
+
+ {"slug":"award-structure","ch":"awards","title":"Awards, editions and categories","sum":"An award runs in editions. Each edition has its own categories, dates, rules and terms. The overall winner of an edition is shown first on results.","roles":["admin","moderator","lead"],"owner":"Femi Ade","reviewed":"20 Oct 2026","mins":3,"pages":["root.awards","award.overview"],
+  "blocks":[
+   ["p","Teachers Prize is the award. The 4th Edition is one run of it, with dates from nominations to the ceremony. Categories belong to the edition, so the 4th can add Rural teacher without changing the 3rd."],
+   ["h","The stages"],
+   ["steps",[["Nominations","The public nominates. A person approves each nomination."],["Shortlist","Finalists are chosen per category from approved nominations."],["Voting","Free votes and optional contributions. Some editions are judging only."],["Judging","Panels score finalists on the rubric. Judging happens after voting."],["Ceremony and results","Results stay sealed until released, usually at the ceremony cue."]]],
+   ["rule","Judging happens after voting closes, never during it."],
+   ["rule","On results, the overall edition winner is shown first, then each category."],
+   ["p","An edition can end in one event, or several editions can share one night. The event reads the edition’s dates as locked milestones."]
+  ],"related":["setup-edition","voting-rules","release-results"]},
+ {"slug":"setup-edition","ch":"awards","title":"Setting up an edition","sum":"Nine steps from a blank edition to nominations open. Changes after opening publish as a new version.","roles":["admin"],"owner":"Femi Ade","reviewed":"20 Oct 2026","mins":5,"pages":["award.setup"],
+  "open":{"l":"Open Award setup","scope":"award","inst":"kano1","page":"setup"},
+  "blocks":[
+   ["steps",[["Basics","Name, edition number, scope (state or LGA), and who runs it."],["Dates","Six milestones: nominations open and close, shortlist, voting window, judging close, ceremony."],["Look","Pick an identity family and a cover. Looks are presets; there are no custom colours."],["Categories","Name, who it’s for, and the minimum nominations before it can be shortlisted."],["Nomination form","System fields are locked. Add evidence and region fields as needed."],["Rules","Categories per nomination (1 to 3), reason length, self-nomination, daily limit per person."],["Voting mode","Free only, or free plus contribution tiers with a cap per person per category."],["Judging","Panels, rubric criteria and weights. Weights lock when nominations open."],["Terms","Eligibility, prize and terms. Nominators accept the version that was live when they submitted."]]],
+   ["warn","Rubric weights and voting mode lock at open. Decide them before you press Open nominations."],
+   ["rule","Publishing a form or terms change creates a new version. Every nomination keeps the version it was submitted on."],
+   ["tip","An edition with steps left shows them as its Overview, so anyone can see what’s missing."]
+  ],"related":["award-structure","voting-rules","judging"]},
+ {"slug":"review-nominations","ch":"awards","title":"Reviewing nominations","sum":"A person approves every nomination. Volunteer checks and platform checks are recommendations; you decide.","roles":["admin","moderator"],"owner":"Femi Ade","reviewed":"27 Oct 2026","mins":6,"pages":["award.nominations"],
+  "open":{"l":"Open the review queue","scope":"award","inst":"tp4","page":"nominations","tab":"review"},
+  "blocks":[
+   ["p","Review works oldest first. The desk shows one nomination at a time with the reason, the evidence, the platform’s checks, any volunteer recommendation with their name, and possible duplicates."],
+   ["h","For each nomination"],
+   ["steps",[["Read the reason against the category","Does the reason describe what the category rewards? If it fits another category better, say so."],["Look at the evidence","Links open in a new tab. Files are scanned before you see them."],["Check the flags","A volunteer flag is a recommendation, not a decision. Agree or disagree and say why."],["Check duplicates","Same name and school, or same phone, shows as a possible match. Compare before merging."],["Decide","Approve, Return to the nominator with what to fix, or Reject with a reason from the list."]]],
+   ["table",["Decision","What the nominator sees","When to use it"],[["Approve","“Your nomination is in.”","It fits the category and the rules."],["Return","Your note and a link to fix it","Missing evidence, wrong category, fixable."],["Reject","The reason from the list","Ineligible, abusive, or a duplicate you merged."]]],
+   ["rule","Every nomination is approved by a person. Nothing is approved automatically."],
+   ["rule","The category-fit assistant is shown to admins and judges only. It is never mentioned in public."],
+   ["warn","Never contact a nominee or nominator from your own phone or email. Use the platform so it’s logged."],
+   ["tip","Volunteer agreement is sampled: 1 in 5 of their checks is compared with your decision. A note explaining a disagreement helps them improve."]
+  ],"related":["duplicates","volunteers","public-language"]},
+ {"slug":"duplicates","ch":"awards","title":"Duplicates and merging","sum":"When two nominations are the same person, merge them so votes and evidence land in one place.","roles":["admin","moderator"],"owner":"Femi Ade","reviewed":"20 Oct 2026","mins":2,"pages":["award.nominations"],
+  "open":{"l":"Open Duplicates","scope":"award","inst":"tp4","page":"nominations","tab":"duplicates"},
+  "blocks":[
+   ["steps",[["Compare side by side","Name, school, LGA, phone and photo."],["Choose the one to keep","Usually the older one, or the one with consent confirmed."],["Merge","Reasons and evidence from both are kept. Nominators of both are told."]]],
+   ["warn","A merge can be undone for 24 hours from the audit entry. After that, ask an admin."],
+   ["rule","Volunteers can flag a possible duplicate. They can never merge."]
+  ],"related":["review-nominations"]},
+ {"slug":"shortlist","ch":"awards","title":"Shortlisting","sum":"Drafts are built from approved nominations and the scoring rule. Publishing needs an admin.","roles":["admin","moderator"],"owner":"Femi Ade","reviewed":"20 Oct 2026","mins":2,"pages":["award.shortlist"],
+  "open":{"l":"Open Shortlist","scope":"award","inst":"tp4","page":"shortlist"},
+  "blocks":[
+   ["p","Draft shortlist builds a proposal per category. A category below its minimum nominations shows Too few and can’t be published until it reaches it or the minimum is changed in setup."],
+   ["rule","Publishing a shortlist needs an admin. Editors and moderators can prepare drafts."],
+   ["tip","Publishing sends the finalist letter, which includes how voting works. Check the letter before you publish."]
+  ],"related":["voting-rules","letters"]},
+ {"slug":"judging","ch":"awards","title":"Judging: panels, conflicts and quorum","sum":"Panels score finalists on the edition’s rubric after voting closes. Conflicts exclude a judge from that category.","roles":["admin"],"owner":"Femi Ade","reviewed":"22 Oct 2026","mins":4,"pages":["award.judging"],
+  "open":{"l":"Open Judging","scope":"award","inst":"tp4","page":"judging"},
+  "blocks":[
+   ["steps",[["Invite judges","They sign in to the judges’ area, never the console."],["Collect conflict declarations","A declared conflict excludes the judge from that category automatically."],["Open scorecards","After voting closes. Each judge scores every finalist in their panel."],["Check quorum","Each category needs at least 3 complete scorecards."],["Close judging","Scores combine with votes using the edition’s weights."]]],
+   ["rule","A rubric criterion that has been used is retired, never deleted."],
+   ["rule","Volunteers never see scores or judges’ notes."]
+  ],"related":["voting-rules","release-results"]},
+ {"slug":"voting-rules","ch":"awards","title":"How voting works","sum":"One free vote per verified person per category, plus optional contributions. Never shopping language.","roles":["admin","moderator","lead"],"owner":"Femi Ade","reviewed":"27 Oct 2026","mins":5,"pages":["award.voting","settings.voting"],
+  "blocks":[
+   ["h","Free vote"],
+   ["p","Each person verifies with an email code and gets one free vote per category. Name, phone, email and a message are required; the name shown publicly is optional."],
+   ["h","Contributions"],
+   ["p","Editions in contribution mode offer tiers (from ₦100). A contribution adds votes and is capped per person per category. The person gets a receipt by email."],
+   ["table",["Say","Never say"],[["Vote, contribute, support","Buy, purchase, cart, checkout, price"],["Contribution receipt","Order, invoice"],["Votes counted","Votes sold"]]],
+   ["h","Integrity"],
+   ["list",["The collusion scan runs every hour during voting. Clusters it finds are held from the tally until a person looks.","Live totals and the race are public.","A paid vote that didn’t land is recovered once, from Money › Payments › Vote recovery, and logged."]],
+   ["rule","Voting is never described in shopping language, anywhere."],
+   ["rule","Judging happens after voting closes."]
+  ],"related":["reconcile-payments","public-language","judging"]},
+ {"slug":"release-results","ch":"awards","title":"Releasing results","sum":"Results are sealed until one act releases them. Tie it to the ceremony cue so the page, emails and the hall screen change together.","roles":["admin"],"owner":"Sade Bello","reviewed":"20 Oct 2026","mins":3,"pages":["award.results"],
+  "open":{"l":"Open Results release","scope":"award","inst":"tp4","page":"results"},
+  "blocks":[
+   ["steps",[["Check judging is closed","Release is unavailable until every category has quorum."],["Preview","See the results page as the public will. The overall winner comes first."],["Choose the moment","Now, a time, or the ceremony cue in the event’s run of show."],["Release","One act. The seal’s hash is recorded and verified on Data and audit › Integrity."]]],
+   ["warn","A release can’t be undone. A correction is a new, logged release with a reason shown publicly."],
+   ["tip","Badges, certificates and the legacy vault entry are issued automatically at release."]
+  ],"related":["run-of-show","audit-evidence"]},
+
+ {"slug":"plan-event","ch":"events","title":"Planning an event","sum":"An event is a place with its own team, work, money and night. Today tells you what blocks it.","roles":["admin","lead"],"owner":"Ada Obi","reviewed":"26 Oct 2026","mins":5,"pages":["event.today","event.plan","leadroot.overview"],
+  "open":{"l":"Open the Alimosho ceremony","scope":"event","inst":"acag","page":"today"},
+  "blocks":[
+   ["p","Readiness is the share of work items done, weighted by how much each blocks the night. Today shows the items blocking it, the budget forecast and tickets."],
+   ["h","Work items"],
+   ["p","Type an item as a sentence: “Book 3 marshals by Fri, Kemi, ₦45,000”. The owner, due date and budget are read from it. Every item has one owner."],
+   ["steps",[["Set the date and venue","Event settings › General."],["Link the awards","Their dates become locked milestones in your timeline."],["Add your team","Event settings › Members. Access ends the day after the event."],["Build the plan","Work, timeline, risks and decisions. Start from a template if one fits."],["Set the budget","Finance sets the budget; you forecast against it."]]],
+   ["rule","Dates that come from an award are locked in the event. They change only in that award’s setup."],
+   ["tip","Write decisions down in Plan › Decisions with who and why. Next year’s lead will thank you."]
+  ],"related":["lead-limits","run-door","run-of-show"]},
+ {"slug":"lead-limits","ch":"events","title":"Budgets, limits and requests","sum":"A lead approves spending up to their limit. Anything above it is a request to finance, with what it does to the budget.","roles":["admin","lead"],"owner":"Sade Bello","reviewed":"28 Oct 2026","mins":4,"pages":["event.money","leadroot.approvals","leadroot.requests","root.requests","settings.limits"],
+  "open":{"l":"Open Requests","scope":"root","page":"requests"},
+  "blocks":[
+   ["table",["Amount","Who decides","How"],[["Up to ₦200,000","The event lead","Approvals › You can approve"],["Over ₦200,000","Finance","A spend request"],["Over the event’s budget","Finance and an admin","A spend request; the forecast turns red"]]],
+   ["h","Making a request"],
+   ["steps",[["Say what and why","What you need, the amount, when it’s needed, and what happens if it waits."],["Check the route line","It names who decides and how long it usually takes."],["Send","It appears in your Requests and in the decider’s Waiting on you."]]],
+   ["h","Deciding a request"],
+   ["list",["Read If approved: it shows the budget effect before you decide.","Approve, Ask for info, or Decline. Asking or declining needs a note; the person sees it.","Undo is available for 5 seconds."]],
+   ["rule","Over-limit spending is never a dead end. The lead can always ask."],
+   ["rule","Finance is told at 80% of an event’s budget and again when the forecast passes 100%."]
+  ],"related":["plan-event","requests"]},
+ {"slug":"requests","ch":"events","title":"Requests: asking and deciding","sum":"Anyone who can’t do something themselves asks. Each request has one decider, a usual time, and a trail.","roles":["admin","moderator","lead"],"owner":"Sade Bello","reviewed":"28 Oct 2026","mins":3,"pages":["root.requests","leadroot.requests","event.requests"],
+  "open":{"l":"Open Requests","scope":"root","page":"requests"},
+  "blocks":[
+   ["table",["Status","Means","Next"],[["Waiting","With the decider","Approve, ask for info or decline"],["Needs info","The decider asked a question","The requester adds info, or withdraws"],["Approved","Done; the change is made","Read only"],["Declined","Not this time, with a reason","Ask again with the fix"],["Withdrawn","The requester stopped it","Read only"]]],
+   ["rule","Asking for info and declining always need a note."],
+   ["tip","A request waiting more than a day turns amber on the decider’s Home."]
+  ],"related":["lead-limits","access-ends"]},
+ {"slug":"run-door","ch":"events","title":"Running the door","sum":"Scanners hold an offline list, so the door works without signal. Red passes go to the gate lead, never back to the queue.","roles":["admin","lead"],"owner":"Tunde Akin","reviewed":"25 Oct 2026","mins":4,"pages":["event.night","event.settings"],
+  "open":{"l":"Open Devices","scope":"event","inst":"acag","page":"settings","tab":"devices"},
+  "blocks":[
+   ["steps",[["Pair scanners the day before","Event settings › Devices. Open /door on the phone and scan the code."],["Load the offline list","Each scanner downloads every valid pass. Check ‘Offline list loaded’."],["Brief the stewards","Scan every pass; never let someone in by eye. Count the queue every 30 minutes."],["Watch lost scans","The target is 0. A lost scan means someone got in without a record."],["Unpair after","Unpairing wipes the list from the phone."]]],
+   ["warn","A steward never decides a red pass. It goes to the gate lead, who can check the name and the payment."],
+   ["tip","Volunteer hours at the door come from check-in and check-out scans. Nobody has to log them."]
+  ],"related":["run-of-show","volunteers"]},
+ {"slug":"run-of-show","ch":"events","title":"The night: run of show","sum":"Cues in order, each with an owner. The results release can be tied to a cue.","roles":["admin","lead"],"owner":"Ada Obi","reviewed":"25 Oct 2026","mins":3,"pages":["event.night"],
+  "blocks":[
+   ["p","Every cue has a time, what happens, who calls it and what’s on the hall screen. Sponsors’ logos run between cues as agreed in their benefits."],
+   ["steps",[["Lock the cue sheet 48 hours before","Changes after that go through the lead."],["Rehearse the release cue","The page, the emails and the screen change together at that cue."],["Keep the radio channels on the sheet","Lead channel 2, safety channel 1."]]],
+   ["rule","Results are released at the cue, not before dinner."]
+  ],"related":["release-results","after-event"]},
+ {"slug":"after-event","ch":"events","title":"After the night","sum":"The survey, locked hours and the report, on fixed days.","roles":["admin","lead"],"owner":"Ada Obi","reviewed":"20 Oct 2026","mins":2,"pages":["event.reports"],
+  "blocks":[
+   ["table",["When","What"],[["The day after","Guest survey goes out. Event access for the team ends."],["Two days after","Volunteer hours lock from door scans."],["Within a week","The final report: against budget, against last edition, decisions to keep."]]],
+   ["tip","Growth compares this edition with the last on the same day before the night, so you can see the trend while there’s still time to act."]
+  ],"related":["plan-event"]},
+
+ {"slug":"reconcile-payments","ch":"money","title":"Reconciling payments","sum":"When the gateway took money and we recorded nothing, fix it before the person pays again.","roles":["admin"],"owner":"Sade Bello","reviewed":"28 Oct 2026","mins":5,"pages":["root.payments","root.alerts"],
+  "open":{"l":"Open the gateway check","scope":"root","page":"payments","tab":"check"},
+  "blocks":[
+   ["p","Gateway check lists every payment where the gateway and our records disagree. The usual cause is a webhook that answered but didn’t write."],
+   ["steps",[["Open the oldest first","Each row shows the gateway reference, the amount, and what’s missing: a vote, a ticket or a receipt."],["Reconcile","This creates what was paid for, exactly once, and sends the receipt."],["Check the webhook","Settings › Webhooks. If calls answer 200 but nothing is written, raise an incident."],["Answer the person","Support tickets linked to the payment show on the same row."]]],
+   ["warn","Never refund and reconcile the same payment. Reconcile first; refund only if the person asks."],
+   ["rule","A payment that affects production shows red on the bell and on Home until it’s reconciled."]
+  ],"related":["refunds","alert-levels","payments-not-recorded"]},
+ {"slug":"refunds","ch":"money","title":"Refunds and disputes","sum":"Decide refunds within two working days. Answer card disputes before the bank’s deadline.","roles":["admin"],"owner":"Sade Bello","reviewed":"20 Oct 2026","mins":3,"pages":["root.refunds"],
+  "open":{"l":"Open Refunds","scope":"root","page":"refunds"},
+  "blocks":[
+   ["table",["Case","Default"],[["Ticket, can’t attend, more than 48 h before","Refund"],["Ticket, within 48 h","Offer a transfer to someone else"],["Duplicate payment within minutes","Refund the duplicate"],["Vote contribution","No refund once votes are counted, except duplicates"]]],
+   ["rule","Refunds up to ₦20,000 need one person; above that, a second person confirms."],
+   ["tip","For a dispute, attach the receipt, the scan or vote record, and the terms version accepted."]
+  ],"related":["reconcile-payments","payouts"]},
+ {"slug":"payouts","ch":"money","title":"Payouts and holds","sum":"Partners and referrers are paid on Fridays. A changed bank account holds the payout for a check.","roles":["admin"],"owner":"Sade Bello","reviewed":"20 Oct 2026","mins":2,"pages":["root.payouts"],
+  "blocks":[
+   ["rule","A payout is held when bank details changed in the last 7 days, until someone confirms the change with the account owner by phone."],
+   ["list",["Payout runs Friday. Anything ready by Thursday 18:00 goes in it.","Each partner sees what’s coming in their own area."]]
+  ],"related":["refunds"]},
+
+ {"slug":"access-ends","ch":"people","title":"Access that ends on its own","sum":"Every access given for one event or award has an end date. Nobody has to remember to remove it.","roles":["admin","lead"],"owner":"Sade Bello","reviewed":"28 Oct 2026","mins":2,"pages":["settings.roles","event.settings"],
+  "blocks":[
+   ["list",["Event leads and teams: the day after the event.","Moderators on an award: when you set it, often after results.","Volunteers: each role ends with its award or event.","Invitations expire after 7 days."]],
+   ["rule","Expired access removes the place from the person’s menu on their next request."]
+  ],"related":["your-role","volunteers"]},
+ {"slug":"volunteers","ch":"people","title":"Volunteers","sum":"Volunteers work from their own area, never this console. What they check shows here as a recommendation with their name.","roles":["admin","moderator","lead"],"owner":"Kemi Bello","reviewed":"27 Oct 2026","mins":4,"pages":["root.people","event.people","award.volunteers"],
+  "blocks":[
+   ["h","What volunteers can do"],
+   ["table",["Role","Sees","Never sees"],[["Nomination check","Reason, category, evidence","Phone numbers, emails, scores"],["Voter drive","Their link’s sign-ups, as counts","Who anyone voted for"],["Door steward","Green or red at their gate","Names on tickets, payments"],["Interview scheduling","Finalists’ slots","Scores, judges’ notes"]]],
+   ["h","Hours"],
+   ["p","Most hours log themselves: door scans, accepted checks and verified sign-ups. Volunteers log by hand only for work nobody saw; their lead confirms it."],
+   ["rule","Volunteers never see an /admin page or link."],
+   ["rule","Data is masked on the server. Hiding it on screen isn’t masking."],
+   ["tip","Retention is a second shift. Thank people by name within a day of their first one."]
+  ],"related":["review-nominations","run-door","privacy"]},
+ {"slug":"judges","ch":"people","title":"Judges","sum":"Judges have their own area. They declare conflicts before they see finalists.","roles":["admin"],"owner":"Femi Ade","reviewed":"20 Oct 2026","mins":2,"pages":["root.people"],
+  "blocks":[
+   ["list",["Invite from the edition’s Judging › Panels.","A judge with no reply after 3 days gets one reminder; after that, call them.","A declared conflict removes them from that category’s scorecards."]]
+  ],"related":["judging"]},
+
+ {"slug":"broadcasts","ch":"reach","title":"Broadcasts and quiet hours","sum":"Only opted-in people, never between 21:00 and 08:00, and the SMS cost is shown before you send.","roles":["admin","lead"],"owner":"Ifeoma Obi","reviewed":"22 Oct 2026","mins":3,"pages":["root.audience","event.crm"],
+  "blocks":[
+   ["steps",[["Pick the audience","A segment of opted-in people. The count updates as you go."],["Write it","Short, one action, one link."],["Check the cost","Email is free. SMS shows its cost; a big SMS send is a request to comms."],["Schedule","Quiet hours (21:00 to 08:00) are skipped automatically."]]],
+   ["rule","Nobody is messaged without opting in to that channel."],
+   ["rule","SMS spend over ₦50,000 a day pauses sends and tells finance."]
+  ],"related":["letters","public-language"]},
+ {"slug":"letters","ch":"reach","title":"Letters","sum":"Finalist, sponsor and reference letters merge from records and are signed by the named person.","roles":["admin","lead"],"owner":"Ifeoma Obi","reviewed":"22 Oct 2026","mins":2,"pages":["event.crm"],
+  "blocks":[
+   ["list",["The finalist letter includes how voting works, from the edition’s own rules.","Sponsor letters merge the tier and the benefits owed.","Volunteer reference letters list only verified hours and roles."]],
+   ["tip","Preview with one real record before sending to all."]
+  ],"related":["broadcasts","shortlist"]},
+ {"slug":"public-language","ch":"reach","title":"What we never say in public","sum":"A short list of words and claims that never appear on a public page, email or letter.","roles":["admin","moderator","lead"],"owner":"Ifeoma Obi","reviewed":"28 Oct 2026","mins":2,"pages":["root.posts","root.moderation"],
+  "blocks":[
+   ["rule","Never mention AI in public. Gee is just the name of our helper."],
+   ["rule","Never describe voting in shopping language: no buy, cart, checkout or price."],
+   ["rule","Never show the same fact twice on one screen."],
+   ["list",["Say “nominee”, not “candidate”.","Say “contribution”, not “payment”, for votes.","Say what happens next, not “success”."]]
+  ],"related":["voting-rules","moderation"]},
+ {"slug":"moderation","ch":"reach","title":"Moderation","sum":"Comments, messages and quotes stay hidden until a person looks. Reports from several people go first.","roles":["admin","moderator"],"owner":"Femi Ade","reviewed":"20 Oct 2026","mins":2,"pages":["root.moderation"],
+  "open":{"l":"Open Moderation","scope":"root","page":"moderation"},
+  "blocks":[
+   ["table",["Contains","Do"],[["A phone number or address","Hide the detail, publish the rest"],["Abuse or a threat","Remove, and report the account"],["Campaigning for votes with money","Remove and flag the nominee’s page"]]]
+  ],"related":["public-language"]},
+
+ {"slug":"alert-levels","ch":"incidents","title":"Alert levels","sum":"Affects production means people are being failed now. May affect production means they will be if nobody acts.","roles":["admin","lead"],"owner":"Sade Bello","reviewed":"28 Oct 2026","mins":2,"pages":["root.alerts"],
+  "open":{"l":"Open Alerts","scope":"root","page":"alerts"},
+  "blocks":[
+   ["table",["Level","Shown as","Act within"],[["Affects production","Red count on the bell, red pill in the header","Now"],["May affect production","Amber","Today"],["Everything else","Grey","This week"]]],
+   ["rule","Every alert says what to do next and links to the page that fixes it."]
+  ],"related":["payments-not-recorded","restore-drill"]},
+ {"slug":"payments-not-recorded","ch":"incidents","title":"Playbook: payments not recorded","sum":"The gateway takes money, the webhook answers, and nothing is written. Stop new losses, then fix each payment.","roles":["admin"],"owner":"Sade Bello","reviewed":"28 Oct 2026","mins":3,"pages":["root.alerts","root.payments"],
+  "open":{"l":"Open the gateway check","scope":"root","page":"payments","tab":"check"},
+  "blocks":[
+   ["steps",[["Confirm","Gateway check shows payments with no vote, ticket or receipt."],["Switch provider","Settings › Payments: make the fallback provider primary while you investigate."],["Tell support","Pin a reply to tickets that mention a missing vote."],["Reconcile each payment","Oldest first. Each one creates what was paid for, once."],["Write it up","Add a decision to the audit log with cause and fix."]]],
+   ["warn","Don’t ask people to pay again. Reconciling makes their payment count."]
+  ],"related":["reconcile-payments","alert-levels"]},
+ {"slug":"restore-drill","ch":"incidents","title":"Playbook: backups and the restore drill","sum":"A backup you’ve never restored isn’t a backup. Run the drill every quarter.","roles":["admin"],"owner":"Sade Bello","reviewed":"28 Oct 2026","mins":2,"pages":["root.alerts","settings.security"],
+  "blocks":[
+   ["warn","Today nothing backs up the database. One copy on one machine. This is the top risk on Alerts."],
+   ["steps",[["Set up a nightly backup off the machine","Settings › Security and sign-in › Database backup."],["Restore into Test data","Every quarter, restore last night’s backup into the sandbox."],["Check three things","A recent vote, a recent payment and a recent nomination exist."]]]
+  ],"related":["alert-levels"]},
+
+ {"slug":"privacy","ch":"policy","title":"Privacy and data","sum":"Collect what a task needs, mask it on the server, and keep it only as long as the retention window.","roles":["admin","moderator","lead"],"owner":"Sade Bello","reviewed":"20 Oct 2026","mins":3,"pages":["settings.legal"],
+  "blocks":[
+   ["list",["Phone numbers show as 0803 ••• ••12 to anyone who doesn’t need them.","ID photos for door, money and data roles are deleted after the check.","Anyone can download their data from their account."]],
+   ["warn","Retention windows aren’t set yet, so erasure can’t run. This needs a decision in Settings › Legal."],
+   ["rule","Masking happens on the server. Hiding data in the page isn’t masking."]
+  ],"related":["volunteers","audit-evidence"]},
+ {"slug":"audit-evidence","ch":"policy","title":"The audit log and evidence","sum":"Every change is logged with who, when and why. Entries and reviewed evidence can’t be edited.","roles":["admin","moderator","lead"],"owner":"Sade Bello","reviewed":"28 Oct 2026","mins":2,"pages":["root.audit"],
+  "open":{"l":"Open Data and audit","scope":"root","page":"audit"},
+  "blocks":[
+   ["rule","Evidence is immutable once reviewed. There is no edit or delete for it."],
+   ["rule","Audit entries can’t be edited or deleted. A correction is a new entry."],
+   ["tip","Add a note when you act. It’s the only place the why is kept."]
+  ],"related":["privacy","release-results"]}
+]
+}

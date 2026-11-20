@@ -63,8 +63,8 @@
      Playfair Display 700 for headlines only. DM Sans for everything else.
      JetBrains Mono 500/700 only for references and codes. */
 
-  --ag-font-display:'Playfair Display',Georgia,serif;
-  --ag-font-ui:'DM Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --ag-font-display:'Playfair Display','Playfair Display fallback',Georgia,serif;
+  --ag-font-ui:'DM Sans','DM Sans fallback','DM Sans fallback android',system-ui,-apple-system,'Segoe UI',sans-serif;
   --ag-font-mono:'JetBrains Mono',ui-monospace,SFMono-Regular,monospace;
 
   /* The closed small-text ladder. Micro 11.5–12.5 · meta 13–13.5 · secondary 14.5 ·
@@ -83,8 +83,6 @@
   --ag-fs-18:1.125rem;  --ag-fs-19:1.1875rem; --ag-fs-20:1.25rem;   --ag-fs-22:1.375rem;
   --ag-fs-23:1.4375rem; --ag-fs-24:1.5rem;    --ag-fs-32:2rem;      --ag-fs-34:2.125rem;
   --ag-fs-44:2.75rem;   --ag-fs-48:3rem;
-  /* Gee (Phase 3, Gee.dc.html): 25 the panel's greeting, Playfair (§8.22 "Playfair 25"). */
-  --ag-fs-25:1.5625rem;
   /* Home (Phase 4, HomePageV3.dc.html + WeAreAfrica.dc.html): 26 → 30 → 34 a section
      headline (phone, tablet, desktop), 28 → 30 → 36 a live stat's figure, 40 the tablet
      H1, 38 → 64 "We are Africa". */
@@ -95,6 +93,8 @@
   /* Awards and voting (Phase 5, AwardsPage / VotePage DCs): 42 the award page's desktop H1,
      46 the vote page's desktop hero title, 52 the awards index's desktop H1. */
   --ag-fs-42:2.625rem;  --ag-fs-46:2.875rem;  --ag-fs-52:3.25rem;
+  /* Home V7 (HomePageV7.dc.html): the honours counter's figure, 72 → 96 → 128. */
+  --ag-fs-72:4.5rem;    --ag-fs-96:6rem;      --ag-fs-128:8rem;
 
   /* ── Spacing · §6.3 — the px name is the px value ──────────────────────── */
   /* 20 and 22 (§6.3), the 22 radius (§6.4) and the bar 30 layer (§6.7)

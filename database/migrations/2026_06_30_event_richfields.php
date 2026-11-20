@@ -9,11 +9,11 @@ $sqlite = DB::connection()->getDriverName() === 'sqlite';
 $cols = [
     'gates_site_events' => [
         'schedule'            => 'TEXT',                                        // JSON run-of-show [{time,title,body}]
-        'map_embed'           => $sqlite ? 'TEXT' : 'VARCHAR(500) DEFAULT NULL', // map URL / embed src
+        'map_embed'           => 'TEXT',                                        // map URL; TEXT: a Maps place link outgrows 500 (2027_05_09)
         'ticket_tiers'        => 'TEXT',                                        // JSON [{name,price,perk,sold_out}]
         'early_bird_text'     => $sqlite ? 'TEXT' : 'VARCHAR(255) DEFAULT NULL',
         'early_bird_deadline' => $sqlite ? 'TEXT' : 'DATETIME DEFAULT NULL',
-        'early_bird_url'      => $sqlite ? 'TEXT' : 'VARCHAR(500) DEFAULT NULL',
+        'early_bird_url'      => 'TEXT',
     ],
     'gates_event_registrations' => [
         'tier' => $sqlite ? 'TEXT' : 'VARCHAR(80) DEFAULT NULL',                // chosen ticket tier (if any)

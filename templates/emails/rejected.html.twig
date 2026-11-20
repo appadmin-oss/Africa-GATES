@@ -1,0 +1,19 @@
+{#- Not taken forward (to the nominator) · Nominations. Sender: Admin NominationsController (reject).
+    Variables: nominee, reason, rules_url, help_url. No hero — the design gives this one none.
+    Design: Email Templates.dc.html → "Not taken forward", corrected to the live site
+    (owner, 19 Oct 2026): "reply to this email" is the help desk. -#}
+{% extends 'emails/_layout.html.twig' %}
+{% block category %}Nominations{% endblock %}
+{% block why %}You nominated somebody on Africa GATES.{% endblock %}
+{% block subject %}About your nomination for {{ nominee }}{% endblock %}
+{% block preheader %}We couldn’t take it forward this time.{{ reason ? ' Here’s why.' : '' }}{% endblock %}
+{% block body %}
+{%- import 'emails/_blocks.html.twig' as b -%}
+{{ b.h1('We couldn’t take this nomination forward') }}
+{{ b.p("Thank you for nominating #{nominee}. A reviewer read it in full, and it can’t go forward in this edition.") }}
+{% if reason %}{{ b.facts([['Reason', reason, 'b']]) }}{% endif %}
+{{ b.p('Everything you wrote is saved. You are welcome to nominate again with more supporting evidence, and if you think this decision is wrong, tell us through the help desk.') }}
+{{ b.link('Read who can be nominated', rules_url) }}
+{{ b.link('Tell us through the help desk', help_url) }}
+{{ b.sign('With thanks,', 'The Africa GATES team') }}
+{% endblock %}

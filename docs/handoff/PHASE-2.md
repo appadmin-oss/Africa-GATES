@@ -481,7 +481,7 @@ deleted and written again:
   eleven typed colours and four `rgba(255,255,255,…)` → Accent (page `tint`, masthead `ground`, card `surface`, footer
   `ink` with `line-2` words and `surface` links; the shadow is `sh-float`). Structure unchanged.
 - **Kept, by test:** every mail suite is green — `InviteMailerTest`, `InviteInboxCompatTest`, `InviteRemindersTest`,
-  `EmailInboxCompatTest`, `CampaignInboxCompatTest`, `EmailCampaignTest` (the starter campaign still reads exactly like
+  `EmailInboxCompatCase`, `CampaignInboxCompatTest`, `EmailCampaignTest` (the starter campaign still reads exactly like
   final-hours), `NewsletterTest`, `NewsletterInboxCompatTest`, `QuestionnaireInvitesTest`, `StandNoticeTest`,
   `MailSendRulesTest`, `CspTest`, `TranslatorTest` (no `|trans` was added — none existed — so no catalogue entry is owed).
 - **New guard `MailPaletteTest`:** the mail environments are not strict, so `{{ c.inc }}` or a sender that forgets

@@ -4,7 +4,8 @@
    ══════════════════════════════════════════════════════════════════════════════
 
    The frame (`.acx`): one column on a phone; from 600 a rail (210px, 250px from 1024) and
-   the content, 36px apart, 1200 wide, padded 32/32/64 — the DC's `cols` and `pagePad`.
+   the content, 36px apart, 1240 wide inside 32/32/64 of padding (Account Wallet v2, 21 Oct 2026:
+   1200 left the wallet's main column too narrow for a transaction row) — the DC's `cols` and `pagePad`.
    Phase 8 drew `.acc`, a 720px column at every width, which is why a desktop showed the
    phone's account (owner report, 8 Oct 2026).
 
@@ -14,12 +15,14 @@
    ══════════════════════════════════════════════════════════════════════════════ */
 
 .acx{
-  max-width:1200px; margin:0 auto; padding:4px var(--ag-sp-16) var(--ag-sp-40);
+  max-width:1304px; margin:0 auto; padding:4px var(--ag-sp-16) var(--ag-sp-40);
   display:grid; grid-template-columns:minmax(0, 1fr); gap:36px; align-items:start;
 }
 .acx-rail{ display:none }
 .acx-main{ min-width:0; display:flex; flex-direction:column; gap:16px }
 .acx-title{ display:none }
+.acx-title__row{ display:flex; align-items:flex-end; justify-content:space-between; gap:16px }
+.acx-title__t{ display:flex; flex-direction:column; gap:6px; min-width:0 }
 .acx-title__h{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-34); line-height:1.1 }
 .acx-title__p, .acx-lead-ph{ margin:0; font-size:var(--ag-fs-14-5); line-height:1.5; color:var(--ag-ink-2) }
 .acx-lead-ph{ padding-top:6px }
@@ -29,18 +32,20 @@
 .acx-rail__id{ display:flex; flex-direction:column; gap:1px; min-width:0 }
 .acx-rail__id b{ font-size:var(--ag-fs-16) }
 .acx-rail__id span{ font-size:var(--ag-fs-12-5); color:var(--ag-soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
-.acx-rail__nav{ display:flex; flex-direction:column; gap:2px }
-.acx-tab,
-.acx-tab:hover{
+.acx-rail__me{ font-size:var(--ag-fs-13); font-weight:600; color:var(--ag-green); text-decoration:none }
+.acx-rail__nav{ display:flex; flex-direction:column; gap:14px }
+.acx-grp{ display:flex; flex-direction:column; gap:2px }
+.acx-grp__t{ padding:0 10px 4px; font-size:var(--ag-fs-12-5); font-weight:600; color:var(--ag-soft) }
+.acx-tab__i{ flex:none }
+.acx-tab{
   display:flex; align-items:center; gap:12px; min-height:44px; padding:0 10px; border-radius:var(--ag-r-12);
   color:var(--ag-ink); font-weight:500; font-size:var(--ag-fs-14-5); text-decoration:none;
 }
 .acx-tab:hover{ background:color-mix(in srgb, var(--ag-surface) 60%, transparent) }
-.acx-tab[aria-current="page"]{ background:var(--ag-surface); font-weight:700; box-shadow:0 0 0 1px var(--ag-line) }
+.acx-tab[aria-current="page"]{ background:var(--ag-surface); font-weight:700 }
 .acx-tab__l{ flex:1; min-width:0 }
-.acx-n{ flex:none; min-width:24px; height:22px; padding:0 7px; border-radius:var(--ag-r-pill); display:inline-flex; align-items:center; justify-content:center;
-  background:var(--ag-line-3); color:var(--ag-ink-2); font-size:var(--ag-fs-12); font-weight:700; font-variant-numeric:tabular-nums }
-.acx-n--on{ background:var(--ag-gold-wash-2); color:var(--ag-gold-ink) }
+.acx-n{ flex:none; font-size:var(--ag-fs-12); font-weight:600; color:var(--ag-soft); font-variant-numeric:tabular-nums }
+.acx-n--on{ color:var(--ag-live-ink); font-weight:700 }
 
 /* a glyph tile: neutral ground, the glyph in its family's word colour */
 .acx-ico{ flex:none; width:28px; height:28px; border-radius:9px; background:var(--ag-line-3); display:flex; align-items:center; justify-content:center }
@@ -52,8 +57,7 @@
 
 /* cards */
 .acx-card{ background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-20) }
-.acx-more,
-.acx-more:hover{ display:inline-flex; align-items:center; gap:4px; min-height:44px; color:var(--ag-green); font-weight:600; font-size:var(--ag-fs-14); text-decoration:none }
+.acx-more{ display:inline-flex; align-items:center; gap:4px; min-height:44px; color:var(--ag-green); font-weight:600; font-size:var(--ag-fs-14); text-decoration:none }
 .acx-btn{ min-height:48px; min-width:0; padding-inline:12px; border-radius:var(--ag-r-14); white-space:normal; text-align:center }
 .acx-btn-sm{ min-height:44px; font-size:var(--ag-fs-13-5) }
 .acx-h2{ margin:0; font-weight:700; font-size:var(--ag-fs-18) }
@@ -77,8 +81,7 @@
 .acx-bal__rk b{ font-size:var(--ag-fs-16); font-variant-numeric:tabular-nums }
 .acx-ready{ font-size:var(--ag-fs-12-5); font-weight:600; color:var(--ag-green-deep) }
 .acx-quick{ display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:4px; align-content:start; padding:8px 4px; border-radius:var(--ag-r-22) }
-.acx-qa,
-.acx-qa:hover{ display:flex; flex-direction:column; align-items:center; gap:7px; min-height:76px; padding:8px 2px; border-radius:var(--ag-r-14); color:var(--ag-ink); text-align:center; text-decoration:none }
+.acx-qa{ display:flex; flex-direction:column; align-items:center; gap:7px; min-height:76px; padding:8px 2px; border-radius:var(--ag-r-14); color:var(--ag-ink); text-align:center; text-decoration:none }
 .acx-qa__i{ position:relative; width:46px; height:46px; border-radius:15px; background:var(--ag-line-3); display:flex; align-items:center; justify-content:center }
 .acx-qa__dot{ position:absolute; top:-4px; inset-inline-end:-4px; min-width:18px; height:18px; padding:0 5px; border-radius:var(--ag-r-pill); border:2px solid var(--ag-surface);
   background:var(--ag-live-ink); color:var(--ag-surface); font-size:var(--ag-fs-11-5); font-weight:700; line-height:14px; box-sizing:border-box }
@@ -90,8 +93,7 @@
 /* overview: the two columns */
 .acx-ov{ display:grid; grid-template-columns:minmax(0, 1fr); gap:14px; align-items:start }
 .acx-col{ display:flex; flex-direction:column; gap:14px; min-width:0 }
-.acx-won,
-.acx-won:hover{ display:flex; align-items:center; gap:14px; padding:16px; border-color:var(--ag-gold-edge); color:var(--ag-ink); text-decoration:none }
+.acx-won{ display:flex; align-items:center; gap:14px; padding:16px; border-color:var(--ag-gold-edge); color:var(--ag-ink); text-decoration:none }
 .acx-won__i{ flex:none; width:44px; height:44px; border-radius:50%; background:var(--ag-gold-wash-2); color:var(--ag-gold-ink); display:flex; align-items:center; justify-content:center }
 .acx-won__t{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px }
 .acx-won__t b{ font-size:var(--ag-fs-15-5) }
@@ -110,14 +112,28 @@
 .acx-setup__head span{ font-size:var(--ag-fs-13); color:var(--ag-soft) }
 .acx-setup__bar{ height:6px }
 .acx-setup__list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column }
+/* Your profile and your roles (owner, 30 Oct 2026): the overview card and the Profile tab's head. */
+.acx-prof{ display:flex; flex-direction:column; gap:12px; padding:18px }
+.acx-prof .acx-setup__bar{ height:6px }
+.acx-prof__go{ align-self:stretch; justify-content:center }
+.acx-roles{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column }
+.acx-roles li + li{ border-top:1px solid var(--ag-line-3) }
+.acx-role{ display:flex; align-items:center; gap:12px; min-height:52px; color:var(--ag-ink); text-decoration:none }
+.acx-role__t{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px }
+.acx-role__t b{ font-size:var(--ag-fs-14-5); font-weight:600 }
+.acx-role__t span{ font-size:var(--ag-fs-13); color:var(--ag-soft) }
+.acx-role__cta{ flex:none; font-size:var(--ag-fs-13-5); font-weight:600; color:var(--ag-green) }
+.acx-me{ display:flex; align-items:center; gap:14px }
+.acx-me__t{ display:flex; flex-direction:column; gap:2px; min-width:0 }
+.acx-me__t b{ font-size:var(--ag-fs-17); font-weight:600 }
+.acx-me__t span{ font-size:var(--ag-fs-14); color:var(--ag-soft) }
+
 .acx-setup__list li + li{ border-top:1px solid var(--ag-line-3) }
-.acx-step,
-.acx-step:hover{ display:flex; align-items:center; gap:12px; min-height:52px; color:var(--ag-ink); text-decoration:none; font-size:var(--ag-fs-14-5) }
+.acx-step{ display:flex; align-items:center; gap:12px; min-height:52px; color:var(--ag-ink); text-decoration:none; font-size:var(--ag-fs-14-5) }
 .acx-step__o{ flex:none; width:24px; height:24px; border-radius:50%; box-sizing:border-box; border:2px solid var(--ag-line-2); display:flex; align-items:center; justify-content:center; color:var(--ag-surface) }
 .acx-step--done .acx-step__o{ border-color:var(--ag-green); background:var(--ag-green) }
 .acx-step--done .acx-step__l{ color:var(--ag-soft); text-decoration:line-through }
-.acx-tix,
-.acx-tix:hover{ display:flex; align-items:center; gap:14px; padding:16px; color:var(--ag-ink); text-decoration:none }
+.acx-tix{ display:flex; align-items:center; gap:14px; padding:16px; color:var(--ag-ink); text-decoration:none }
 .acx-tix__d{ flex:none; width:50px; display:flex; flex-direction:column; align-items:center; line-height:1.1 }
 .acx-tix__d span{ font-size:var(--ag-fs-12); font-weight:700; color:var(--ag-live-ink) }
 .acx-tix__d b{ font-size:var(--ag-fs-22) }
@@ -211,3 +227,72 @@
 .acc__empty{ display:flex; flex-direction:column; gap:var(--ag-sp-8); align-items:flex-start }
 .acc__empty p{ margin:0 }
 .acc__dr{ padding:var(--ag-sp-16) }
+
+/* ── Profile (owner, 30 Oct 2026; AccountPage.dc.html) ────────────────────────────────── */
+.acx-hero{ display:flex; flex-direction:column; gap:18px; padding:24px }
+.acx-hero__who{ display:flex; align-items:center; gap:18px }
+.acx-hero__t{ flex:1; min-width:0; display:flex; flex-direction:column; gap:4px }
+.acx-hero__n{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-24); line-height:1.15 }
+.acx-hero__s{ margin:0; font-size:var(--ag-fs-15); color:var(--ag-soft) }
+.acx-badge{ margin:4px 0 0; display:inline-flex; align-items:center; gap:6px; align-self:flex-start; padding:4px 10px; border-radius:var(--ag-r-pill);
+  background:var(--ag-green-wash); color:var(--ag-green-ink); font-size:var(--ag-fs-12-5); font-weight:600 }
+.acx-ring{ flex:none; width:76px; height:76px; border-radius:50%; display:grid; place-items:center;
+  background:conic-gradient(var(--ag-green) calc(var(--p) * 1%), var(--ag-line-3) 0) }
+.acx-ring span{ width:60px; height:60px; border-radius:50%; background:var(--ag-surface); display:grid; place-items:center; font-size:var(--ag-fs-15); font-weight:700; color:var(--ag-ink) }
+.acx-next{ display:flex; flex-direction:column; gap:10px; padding-top:16px; border-top:1px solid var(--ag-line-3) }
+.acx-next__h{ margin:0; font-size:var(--ag-fs-14); font-weight:600 }
+.acx-chips{ list-style:none; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:8px }
+.acx-chips form{ margin:0 }
+.acx-chip{ display:inline-flex; align-items:center; gap:6px; min-height:40px; padding:0 14px; border-radius:var(--ag-r-pill); border:1px dashed var(--ag-green-edge);
+  background:var(--ag-surface); color:var(--ag-green-ink); font:inherit; font-size:var(--ag-fs-14); font-weight:600; text-decoration:none; cursor:pointer }
+.acx-chip::before{ content:"+"; font-weight:700 }
+.acx-chip:hover{ background:var(--ag-green-wash) }
+.acx-done{ margin:0; padding-top:14px; border-top:1px solid var(--ag-line-3); font-size:var(--ag-fs-14); color:var(--ag-green-ink); font-weight:600 }
+
+.acx-rolegrid{ list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:12px }
+.acx-rcard{ display:flex; flex-direction:column; gap:12px; padding:18px }
+.acx-rcard__i{ width:40px; height:40px; border-radius:12px; background:var(--ag-line-3); display:grid; place-items:center }
+.acx-rcard__t{ display:flex; flex-direction:column; gap:3px; flex:1 }
+.acx-rcard__t b{ font-size:var(--ag-fs-16); font-weight:600 }
+.acx-rcard__t span{ font-size:var(--ag-fs-13-5); color:var(--ag-soft) }
+.acx-rcard .acx-setup__bar{ height:6px }
+.acx-rcard__go{ align-self:flex-start }
+
+.acx-form{ display:flex; flex-direction:column; gap:12px; padding:22px }
+.acx-form form{ display:flex; flex-direction:column; gap:14px }
+.acx-fgrid{ display:grid; grid-template-columns:minmax(0, 1fr); gap:4px 18px }
+.acx-pw{ border-top:1px solid var(--ag-line-3); padding-top:12px }
+.acx-pw > summary{ display:inline-flex; align-items:center; min-height:44px; font-size:var(--ag-fs-15); font-weight:600; color:var(--ag-green); cursor:pointer }
+.acx-pw[open] > summary{ margin-bottom:6px }
+
+/* ── Settings: the handoff's four groups ──────────────────────────────────────────────── */
+.acx-sgrid{ display:grid; grid-template-columns:minmax(0, 1fr); gap:18px }
+.acx-sgrp{ display:flex; flex-direction:column; gap:8px; min-width:0 }
+.acx-sgrp__h{ margin:0 0 0 4px; font-size:var(--ag-fs-13-5); font-weight:600; color:var(--ag-soft) }
+.acx-chev{ flex:none; color:var(--ag-line-2) }
+.acx-danger .ag-list__label{ color:var(--ag-error) }
+.acx-toggle{ display:flex; align-items:center; gap:12px; padding:14px 16px; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-14); margin:0 }
+.acx-toggle__t{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px }
+.acx-toggle__t b{ font-size:var(--ag-fs-15); font-weight:600 }
+.acx-toggle__t span{ font-size:var(--ag-fs-13); color:var(--ag-soft) }
+.acx-out{ margin:8px 0 0 }
+.acx-out__b{ min-height:44px; padding:0 4px; border:0; background:none; color:var(--ag-error); font:inherit; font-size:var(--ag-fs-15); font-weight:700; cursor:pointer }
+@media (min-width:900px){
+  .acx-sgrid{ grid-template-columns:repeat(2, minmax(0, 1fr)) }
+  .acx-fgrid{ grid-template-columns:repeat(2, minmax(0, 1fr)) }
+  .acx-fgrid > :first-child{ grid-column:1 / -1 }
+}
+@media (max-width:599px){
+  .acx-hero{ padding:20px 18px }
+  .acx-hero__who{ flex-wrap:wrap; justify-content:space-between }
+  .acx-hero__t{ order:3; flex-basis:100% }
+  .acx-ring{ width:64px; height:64px }
+  .acx-ring span{ width:50px; height:50px }
+}
+
+/* Shared settings navigation: wraps naturally at text zoom and narrow widths. */
+.acx-settings-nav { display:flex;flex-wrap:wrap;gap:8px;padding:6px;margin:0 0 24px;border:1px solid var(--ag-line);border-radius:16px;background:var(--ag-surface); }
+.acx-settings-nav a { flex:1 1 130px;min-height:44px;padding:12px 16px;border-radius:11px;text-align:center;text-decoration:none;color:inherit;font-size:1rem;font-weight:600; }
+.acx-settings-nav a[aria-current] { font-weight:700;text-decoration:underline;text-underline-offset:.2em;background:var(--ag-ink);color:var(--ag-surface); }
+.acx-settings-nav a:focus-visible { outline:3px solid currentColor;outline-offset:3px; }
+@media(max-width:599px) { .acx-settings-nav a { flex-basis:100%;text-align:start; } }

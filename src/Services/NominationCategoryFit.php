@@ -306,6 +306,57 @@ final class NominationCategoryFit
     }
 
     /**
+     * How far a category must out-score the one a nomination is filed in before the console
+     * says it "reads closer". Fit is a 0–100 ranking, not a measurement, and a few points
+     * either way is noise: a flag that fires on every nomination is a background, and the
+     * one that matters stops being read.
+     */
+    public const SUGGEST_MARGIN = 15;
+
+    /**
+     * The "reads closer to …" line, for many nominations at once (the review queue's
+     * category column and its "Category flagged" view).
+     *
+     * One rule: the best-fitting category overall, when it is NOT the filed category and
+     * beats the filed category's own fit by {@see SUGGEST_MARGIN}. No fit rows, or no fit for
+     * the filed category, is no suggestion — an unanalysed nomination is not a flagged one.
+     * Advisory, admin and judge only, like everything in this class.
+     *
+     * @param array<int,int> $filed nomination id => filed category id
+     * @return array<int, array{category_id:int, title:string, fit:int, filed_fit:int}>
+     */
+    public static function suggestions(array $filed): array
+    {
+        if ($filed === []) return [];
+        try {
+            $rows = DB::table('gates_nomination_category_fit as f')
+                ->join('gates_award_categories as c', 'c.id', '=', 'f.category_id')
+                ->whereIn('f.nomination_id', array_keys($filed))
+                ->whereNotNull('f.fit')
+                ->get(['f.nomination_id', 'f.category_id', 'f.fit', 'c.title']);
+        } catch (\Throwable) {
+            return [];
+        }
+        $by = [];
+        foreach ($rows as $r) $by[(int) $r->nomination_id][] = $r;
+        $out = [];
+        foreach ($by as $nid => $fits) {
+            $filedId = (int) ($filed[$nid] ?? 0);
+            $filedFit = null;
+            $best = null;
+            foreach ($fits as $f) {
+                if ((int) $f->category_id === $filedId) $filedFit = (int) $f->fit;
+                if ($best === null || (int) $f->fit > (int) $best->fit) $best = $f;
+            }
+            if ($best === null || $filedFit === null || (int) $best->category_id === $filedId) continue;
+            if ((int) $best->fit < $filedFit + self::SUGGEST_MARGIN) continue;
+            $out[$nid] = ['category_id' => (int) $best->category_id, 'title' => (string) $best->title,
+                          'fit' => (int) $best->fit, 'filed_fit' => $filedFit];
+        }
+        return $out;
+    }
+
+    /**
      * Queue the analysis. Fire-and-forget from the submit path.
      *
      * Swallows everything: a queue that is unavailable must never be the reason a

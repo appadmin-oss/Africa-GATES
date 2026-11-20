@@ -22,25 +22,56 @@
 .ei-t--live{  --ei-wash:var(--ag-cover-live-bg);  --ei-ink:var(--ag-cover-live-ink);  --ei-dot:var(--ag-cover-live-line);  --ei-edge:var(--ag-cover-live-edge) }
 .ei-t--info{  --ei-wash:var(--ag-cover-info-bg);  --ei-ink:var(--ag-cover-info-ink);  --ei-dot:var(--ag-cover-info-line);  --ei-edge:var(--ag-cover-info-edge) }
 .ei-t--stone{ --ei-wash:var(--ag-cover-stone-bg); --ei-ink:var(--ag-cover-stone-ink); --ei-dot:var(--ag-cover-stone-line); --ei-edge:var(--ag-cover-stone-edge) }
+/* AN EVENT WITH ITS OWN ARTWORK (owner, 17 Nov 2026: "it feels off. The colours do not
+   match", then "the colour must match the art"). The tone is the event's TYPE — gold for an
+   awards ceremony — and it knows nothing about the picture the organiser uploaded. So the
+   slide is painted from the artwork itself: EventArtTone reads its dominant colour and the
+   slide carries the four slots inline (`style="--ei-wash:…"`, which beats these classes).
+   Where the artwork has no colour to speak of, or could not be read, this neutral panel is the
+   fallback — never the type's colour beside a picture it does not match. A generated cover
+   (no upload) still wears its tone, because there the tone IS the picture's colour. */
+.ei-art{ --ei-wash:var(--ag-surface); --ei-ink:var(--ag-ink-2) }
+.ei-art .ei-slide__chips .ei-pill{ box-shadow:inset 0 0 0 1px var(--ag-line-2) }
+/* The panel in the artwork's own colour (EventArtTone::slots): on a DARK one every word turns
+   white and the actions invert — the go button white with the panel's colour as its words
+   (that pair is the panel's own white-text contrast, so it is measured), the line button a
+   white outline. A LIGHT one keeps the house ink, already measured against it. */
+.ei-art--dark .ei-slide__chips .ei-pill, .ei-art--light .ei-slide__chips .ei-pill{ box-shadow:none }
+.ei-art--dark .ei-slide__t a, .ei-art--dark .ei-slide__m, .ei-art--dark .ei-slide__going, .ei-art--dark .ei-slide__going b,
+.ei-art--dark .ei-slide__stand, .ei-art--dark .ei-rel, .ei-art--dark .ei-spotph__t, .ei-art--dark .ei-spotph__m{ color:var(--ag-surface) }
+.ei-art--dark .ei-rel{ border-color:color-mix(in srgb, var(--ag-surface) 45%, transparent) }
+.ei-art--dark .ei-btn--go{ background:var(--ag-surface); color:var(--ei-wash) }
+.ei-art--dark .ei-pill{ color:var(--ei-wash) }
+.ei-art--dark .ei-pill i{ background:var(--ei-wash) }
+.ei-art--dark .ei-btn--line{ border-color:var(--ag-surface); color:var(--ag-surface) }
+.ei-art--dark .ei-btn:focus-visible{ outline-color:var(--ag-surface) }
+/* THE WHOLE POSTER, ON ITS OWN COLOUR (owner, 17 Nov 2026: "is this cool?"). An organiser's
+   artwork is usually a flyer, and a flyer's words are the point: cropped to fill the box it
+   lost its edges (the date, the venue, the sponsors), and the fade that blends a photograph
+   into the panel ran across its lettering. So where the panel IS the artwork's colour, the
+   artwork is shown whole (`contain`), never faded, floating on that same colour with a soft
+   shadow — the colour carries on round it. */
+.ei-art--dark .ei-slide__fade, .ei-art--light .ei-slide__fade{ display:none }
+.ei-art--dark .ei-slide__vis .ag-photo, .ei-art--light .ei-slide__vis .ag-photo{ inset:24px 28px; width:auto; height:auto; background:none }
+.ei-art--dark .ag-photo__img, .ei-art--light .ag-photo__img{
+  object-fit:contain; filter:drop-shadow(0 18px 28px color-mix(in srgb, var(--ag-ink) 32%, transparent));
+}
+.ei-art--dark .ei-spotph__vis .ag-photo, .ei-art--light .ei-spotph__vis .ag-photo{ inset:14px 14px 0; width:auto; height:auto; background:none }
 
 .ei{ max-width:1240px; margin:0 auto; padding:4px 16px 40px; display:flex; flex-direction:column; gap:28px }
 
 /* ── buttons ── */
-.ei-btn,
-.ei-btn:hover{
+.ei-btn{
   display:inline-flex; align-items:center; justify-content:center; min-height:50px; padding:0 22px;
-  border-radius:var(--ag-r-pill); font-size:var(--ag-fs-15-5); font-weight:700; text-decoration:none; white-space:nowrap;
+  border-radius:var(--ag-r-pill); font-size:var(--ag-fs-15-5); font-weight:700; text-decoration:none;
+  /* Wraps rather than runs off the screen at the largest text setting (WCAG 1.4.4). */
+  text-align:center; padding-block:8px;
 }
-.ei-btn--go,
-.ei-btn--go:hover{ background:var(--ag-green); color:var(--ag-surface) }
-.ei-btn--line,
-.ei-btn--line:hover{ padding:0 20px; border:1px solid var(--ag-ink); color:var(--ag-ink); font-size:var(--ag-fs-15); font-weight:600; background:transparent }
-.ei-btn--ink,
-.ei-btn--ink:hover{ min-height:48px; padding:0 20px; background:var(--ag-ink); color:var(--ag-surface); font-size:var(--ag-fs-15) }
-.ei-btn--sm,
-.ei-btn--sm:hover{ min-height:44px; padding:0 18px; font-size:var(--ag-fs-14-5) }
-.ei-link,
-.ei-link:hover{ display:inline-flex; align-items:center; min-height:44px; padding:0 6px; color:var(--ag-green); font-weight:600; font-size:var(--ag-fs-14-5); white-space:nowrap }
+.ei-btn--go{ background:var(--ag-green); color:var(--ag-surface) }
+.ei-btn--line{ padding:0 20px; border:1px solid var(--ag-ink); color:var(--ag-ink); font-size:var(--ag-fs-15); font-weight:600; background:transparent }
+.ei-btn--ink{ min-height:48px; padding:0 20px; background:var(--ag-green); color:var(--ag-surface); font-size:var(--ag-fs-15) }
+.ei-btn--sm{ min-height:44px; padding:0 18px; font-size:var(--ag-fs-14-5) }
+.ei-link{ display:inline-flex; align-items:center; min-height:44px; padding:0 6px; color:var(--ag-green); font-weight:600; font-size:var(--ag-fs-14-5); white-space:nowrap }
 .ei-round{
   flex:none; width:44px; height:44px; display:flex; align-items:center; justify-content:center; padding:0;
   border:1px solid var(--ag-line-2); border-radius:50%; background:var(--ag-surface); color:var(--ag-ink); cursor:pointer; font-family:inherit;
@@ -74,8 +105,7 @@
 .ei-slide__chips{ display:flex; align-items:center; gap:8px; flex-wrap:wrap }
 .ei-slide__date{ font-weight:700; font-size:var(--ag-fs-15); color:var(--ei-ink) }
 .ei-slide__t{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-30); line-height:1.06; letter-spacing:-.015em; text-wrap:balance }
-.ei-slide__t a,
-.ei-slide__t a:hover{ color:var(--ag-ink); text-decoration:none }
+.ei-slide__t a{ color:var(--ag-ink); text-decoration:none }
 .ei-slide__m{ font-size:var(--ag-fs-15-5); color:var(--ag-ink-2) }
 .ei-slide__going{ font-size:var(--ag-fs-14); color:var(--ag-ink-2) }
 .ei-slide__going b{ color:var(--ag-ink) }
@@ -86,8 +116,8 @@
 /* The photo eases from 1.06 to 1 over the slide's time on stage (§Spotlight, motion). */
 .ei-slide__vis .ag-photo__img{ transform:scale(1.06); transition:transform 0s linear .6s }
 .ei-slide[data-on] .ag-photo__img{ transform:scale(1); transition:transform 7s ease-out }
-.ei-slide__fade{ position:absolute; top:0; bottom:0; inset-inline-start:0; width:96px; background:linear-gradient(to right, var(--ei-wash), transparent) }
-[dir="rtl"] .ei-slide__fade{ background:linear-gradient(to left, var(--ei-wash), transparent) }
+.ei-slide__fade{ position:absolute; top:0; bottom:0; inset-inline-start:0; width:38%; background:linear-gradient(to right, var(--ei-wash), color-mix(in srgb, var(--ei-wash) 55%, transparent) 45%, transparent) }
+[dir="rtl"] .ei-slide__fade{ background:linear-gradient(to left, var(--ei-wash), color-mix(in srgb, var(--ei-wash) 55%, transparent) 45%, transparent) }
 
 .ei-spot__ctl{ display:flex; align-items:center; justify-content:space-between; gap:16px; margin-top:12px }
 .ei-spot__ctl[hidden]{ display:none }
@@ -116,8 +146,9 @@
 }
 .ei-spotph__track::-webkit-scrollbar{ display:none }
 .ei-spotph__track > li{ flex:none; width:86%; scroll-snap-align:start }
-.ei-spotph__card,
-.ei-spotph__card:hover{ display:flex; flex-direction:column; border-radius:var(--ag-r-22); overflow:hidden; background:var(--ei-wash); color:var(--ag-ink); text-decoration:none }
+/* 86% is the peek that says "there are more"; with one event there are not, and the card sat short of the edge for no reason. */
+.ei-spotph__track > li:only-child{ width:100% }
+.ei-spotph__card{ display:flex; flex-direction:column; border-radius:var(--ag-r-22); overflow:hidden; background:var(--ei-wash); color:var(--ag-ink); text-decoration:none }
 .ei-spotph__vis{ position:relative; display:block; aspect-ratio:4 / 3 }
 .ei-spotph__vis .ag-photo{ position:absolute; inset:0; width:100%; height:100% }
 .ei-spotph__vis .ei-pill{ position:absolute; top:10px; inset-inline-start:10px; height:28px; padding:0 11px; font-size:var(--ag-fs-12-5); gap:6px }
@@ -146,13 +177,15 @@
 .ei-search__x span{ width:26px; height:26px; border-radius:50%; background:var(--ag-line); display:flex; align-items:center; justify-content:center }
 .ei-chips{ display:flex; gap:8px; overflow-x:auto; scrollbar-width:none; margin:0 -16px; padding:0 16px }
 .ei-chips::-webkit-scrollbar{ display:none }
-.ei-chip,
-.ei-chip:hover{
+/* One chip, wherever it is drawn: the base chip's numbers (components.css) — 44px on a phone,
+   40 on desktop, 14.5 regular, bold only when selected — and its hover. */
+.ei-chip{
   flex:none; display:inline-flex; align-items:center; height:44px; padding:0 16px; border-radius:var(--ag-r-pill);
   border:1px solid var(--ag-line-2); background:var(--ag-surface); color:var(--ag-ink); font-weight:500; font-size:var(--ag-fs-14-5);
   white-space:nowrap; text-decoration:none;
 }
 .ei-chip[aria-current="true"]{ border:2px solid var(--ag-ink); padding:0 15px; font-weight:700 }
+@media (min-width:1024px){ .ei-chip{ height:40px } }
 .ei-chip--sel{ padding:0 14px; font-family:inherit; font-weight:600; cursor:pointer }
 
 /* ══ SECTIONS ══ */
@@ -162,8 +195,7 @@
 .ei-types{ list-style:none; margin:0 -16px; padding:0 16px; display:flex; gap:14px; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none }
 .ei-types::-webkit-scrollbar{ display:none }
 .ei-types > li{ flex:none; width:38%; scroll-snap-align:start }
-.ei-type,
-.ei-type:hover{ display:flex; flex-direction:column; gap:8px; color:var(--ag-ink); text-decoration:none }
+.ei-type{ display:flex; flex-direction:column; gap:8px; color:var(--ag-ink); text-decoration:none }
 .ei-type__cover{ position:relative; display:block; aspect-ratio:1 / 1; border-radius:var(--ag-r-18); overflow:hidden; transition:transform .2s }
 .ei-type__cover .ag-photo{ position:absolute; inset:0; width:100%; height:100% }
 .ei-type:hover .ei-type__cover{ transform:translateY(-2px) }
@@ -200,8 +232,7 @@
   border-radius:var(--ag-r-pill); background:var(--ag-surface); color:var(--ag-live-ink); font-size:var(--ag-fs-12-5); font-weight:700;
 }
 .ei-livepill i{ width:7px; height:7px; border-radius:50%; background:currentColor }
-.ei-card__body,
-.ei-card__body:hover{ display:flex; flex-direction:column; gap:4px; color:var(--ag-ink); text-decoration:none; min-width:0 }
+.ei-card__body{ display:flex; flex-direction:column; gap:4px; color:var(--ag-ink); text-decoration:none; min-width:0 }
 .ei-card__t{ font-weight:700; font-size:var(--ag-fs-16); line-height:1.3; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden }
 .ei-card__m{ font-size:var(--ag-fs-13-5); color:var(--ag-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100% }
 .ei-card__p{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:3px }
@@ -221,8 +252,7 @@
   background:color-mix(in srgb, var(--ag-surface) 96%, transparent); color:var(--ag-ink);
   box-shadow:0 10px 24px -10px color-mix(in srgb, var(--ag-ink) 45%, transparent);
 }
-.ei-rec__body,
-.ei-rec__body:hover{ display:flex; flex-direction:column; gap:3px; color:var(--ag-ink); text-decoration:none }
+.ei-rec__body{ display:flex; flex-direction:column; gap:3px; color:var(--ag-ink); text-decoration:none }
 .ei-rec__body b{ font-size:var(--ag-fs-16); line-height:1.3 }
 .ei-rec__body span{ font-size:var(--ag-fs-13-5); color:var(--ag-soft) }
 
@@ -237,6 +267,8 @@
 .ei-res__head{ display:flex; align-items:baseline; justify-content:space-between; gap:12px }
 .ei-grid{ list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:22px 12px }
 .ei-grid > li{ min-width:0 }
+/* One event is not half a page: a lone card takes the row rather than leaving an empty column beside it. */
+@media (max-width:599px){ .ei-grid > li:only-child{ grid-column:1 / -1 } }
 .ei-empty{
   display:flex; flex-direction:column; align-items:center; gap:12px; padding:48px 20px; text-align:center;
   background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-24);
@@ -281,3 +313,12 @@
   .ei-track{ scroll-behavior:auto }
 }
 
+
+/* Hover — a pointer only, so a tap on a phone does not leave the state stuck. Filled
+   green deepens; an outline gains a light tint; a card gains its edge and a lift. */
+@media (hover:hover){
+  .ei-btn--go:hover,
+  .ei-btn--ink:hover{ background:var(--ag-green-deep); color:var(--ag-surface) }
+  .ei-btn--line:hover{ background:var(--ag-tint); color:var(--ag-ink) }
+  .ei-chip:not([aria-current="true"]):hover{ background:var(--ag-bar); border-color:var(--ag-mute); color:var(--ag-ink) }
+}

@@ -68,6 +68,9 @@ final class ReceiptPagesTest extends TestCase
         [$code, $html] = self::get('/vote/paid/success?ref=AFG-PVOTE-MINTED01');
         $this->assertSame(200, $code);
         $this->assertStringContainsString('ag-cel--vote', $html, 'a minted order got no celebration');
+        // The needle the "not celebrated" cases search for. Not the bare `ag-cel`: the cookie
+        // notice names the `ag-cel-` storage key, so a page with the notice open read as celebrating.
+        $this->assertStringContainsString('class="ag-cel ', $html, 'the needle below must match a real celebration');
         $this->assertStringContainsString('10 votes counted', $html);
         $this->assertSame(1, substr_count($html, '<h1'), 'one h1 — the celebration IS the heading');
         $this->assertStringContainsString('data-rc-msg', $html, 'the message box is offered where votes landed');
@@ -79,7 +82,7 @@ final class ReceiptPagesTest extends TestCase
         self::order('AFG-PVOTE-UNMINTED');
         [$code, $html] = self::get('/vote/paid/success?ref=AFG-PVOTE-UNMINTED');
         $this->assertSame(200, $code);
-        $this->assertStringNotContainsString('ag-cel', $html, 'a payment that minted no votes was celebrated');
+        $this->assertStringNotContainsString('class="ag-cel ', $html, 'a payment that minted no votes was celebrated');
         $this->assertStringNotContainsString('votes counted', $html);
         $this->assertStringNotContainsString('in the public tally.', $html);
         $this->assertStringNotContainsString('data-rc-msg', $html, 'no message box beneath "no votes were counted"');
@@ -104,7 +107,7 @@ final class ReceiptPagesTest extends TestCase
             [$code, $html] = self::get($p . '?ref=AFG-UNCONFIRMED-9');
             $this->assertSame(200, $code, $p);
             $this->assertStringContainsString('ref=AFG-UNCONFIRMED-9&amp;ask=1', $html, $p . ' drops the reference');
-            $this->assertStringNotContainsString('ag-cel', $html, $p . ' celebrates money nobody confirmed');
+            $this->assertStringNotContainsString('class="ag-cel ', $html, $p . ' celebrates money nobody confirmed');
         }
     }
 
@@ -120,7 +123,7 @@ final class ReceiptPagesTest extends TestCase
         [$code, $html] = self::get('/pay/success?ref=AFG-GIVE-OK01');
         $this->assertSame(200, $code);
         $this->assertStringContainsString('Payment confirmed', $html);
-        $this->assertStringNotContainsString('ag-cel', $html, 'a contribution is not a moment §7.8 names');
+        $this->assertStringNotContainsString('class="ag-cel ', $html, 'a contribution is not a moment §7.8 names');
     }
 
     /**
@@ -178,7 +181,7 @@ final class ReceiptPagesTest extends TestCase
 
         [$code, $html] = self::get('/nominate/success');   // the flash is spent
         $this->assertSame(200, $code, 'a refresh is a page, not an error');
-        $this->assertStringNotContainsString('ag-cel', $html, 'and not a second celebration');
+        $this->assertStringNotContainsString('class="ag-cel ', $html, 'and not a second celebration');
         $this->assertStringContainsString('Your nomination was received', $html);
     }
 

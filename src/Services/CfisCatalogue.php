@@ -53,6 +53,9 @@ final class CfisCatalogue
         'events' => 'Event tickets',
         'shop'   => 'Shop orders',
         'votes'  => 'Votes and donations',
+        // Advertising (owner, 3 Nov 2026): its own kind of money from the day it could be
+        // taken, so paid campaigns are never counted as votes or donations.
+        'ads'    => 'Advertising',
     ];
 
     private const CACHE_KEY = 'cfis_stream_catalogue';
@@ -230,13 +233,11 @@ final class CfisCatalogue
             return (self::$transport)();
         }
 
-        $base = self::setting('cfis_url', 'CFIS_URL');
-        $source = self::setting('cfis_source', 'CFIS_SOURCE');
-        $secret = self::setting('cfis_secret', 'CFIS_SECRET');
-
-        if ($base === '' || $source === '' || strlen($secret) < 32) {
+        $c = self::credentials();
+        if ($c === null) {
             return null;
         }
+        ['url' => $base, 'source' => $source, 'secret' => $secret] = $c;
 
         try {
             $token = self::mint($secret, []);
@@ -307,6 +308,29 @@ final class CfisCatalogue
     }
 
     /** The same signed envelope the settlement intake takes, so no new credential is needed. */
+    /**
+     * Finance's address, this platform's source code and the signing secret — or null when any
+     * is missing. One reader, shared with {@see CfisReturns}, so the two halves of the
+     * connection cannot disagree about whether it is configured.
+     *
+     * @return array{url:string, source:string, secret:string}|null
+     */
+    public static function credentials(): ?array
+    {
+        $base = self::setting('cfis_url', 'CFIS_URL');
+        $source = self::setting('cfis_source', 'CFIS_SOURCE');
+        $secret = self::setting('cfis_secret', 'CFIS_SECRET');
+        if ($base === '' || $source === '' || strlen($secret) < 32) return null;
+
+        return ['url' => rtrim($base, '/'), 'source' => $source, 'secret' => $secret];
+    }
+
+    /** A signed envelope carrying these claims, as finance opens it. */
+    public static function sign(string $secret, array $claims): string
+    {
+        return self::mint($secret, $claims);
+    }
+
     private static function mint(string $secret, array $claims): string
     {
         $now = time();

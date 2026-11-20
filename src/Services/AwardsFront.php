@@ -206,6 +206,10 @@ final class AwardsFront
         $span    = DB::table('gates_award_cycles')->where('programme_id', $pid)
             ->selectRaw('MIN(year) AS first_year, COUNT(*) AS editions')->first();
         $terms   = AwardTerms::current($pid);
+        // The platform's name, one way, in what the award says about itself — the stored
+        // text is repaired once (2027_03_21_brand_name_repair.php) and checked again here,
+        // because a document outlives the code that wrote it (Support\Brand).
+        if (is_array($terms) && isset($terms['body'])) $terms['body'] = \AfricaGates\Support\Brand::normalise((string) $terms['body']);
         $released = $cycle && in_array($phaseK, ['results', 'archived'], true)
             ? PublicResults::edition(PublicResults::editionSlug((string) $p->slug, (int) $cycle->year)) : null;
 
@@ -219,13 +223,32 @@ final class AwardsFront
             'id'         => $pid,
             'slug'       => (string) $p->slug,
             'title'      => (string) $p->title,
-            'subtitle'   => trim((string) ($p->subtitle ?? '')),
-            'description'=> trim((string) ($p->description ?? '')),
+            'subtitle'   => \AfricaGates\Support\Brand::normalise(trim((string) ($p->subtitle ?? ''))),
+            'description'=> \AfricaGates\Support\Brand::normalise(trim((string) ($p->description ?? ''))),
+            // The award's own sections of its Award details tab (owner, 16 Oct 2026).
+            'details'    => \AfricaGates\Support\AwardDetails::of($p),
             'cover'      => trim((string) ($p->cover_path ?? '')),
             'tone'       => self::coverTone($pid),
             'host'       => $host,
             'where'      => self::where($p),
             'cycle'      => $cycle ? (array) $cycle : null,
+            // The target pool's one public figure: the edition's vote target and how many have
+            // reached it (CommunityReturnPool). Through the same gate as the vote pages
+            // (forPublic): the pool model, paid voting on or the pool settled, a target set.
+            'pool'       => $cycle && ($pool = CommunityReturnPool::forPublic((int) $cycle->id)) !== null
+                            ? array_intersect_key($pool, array_flip(['target', 'nominees', 'combined_target', 'combined_votes', 'gap', 'pct', 'reached', 'settled']))
+                            : null,
+            // What each place wins in THIS edition (EditionPrizes).
+            // The edition's community return, in the same rows the voting letter prints
+            // (NomineeVotingNotice::communityReturn()), so the award page and the letter cannot
+            // describe different rules. Each award sets its own, so this is where it is published
+            // — /integrity states only what holds for every award, and links here. An edition that
+            // has not chosen its rule says so rather than presenting the house default as its own.
+            'community_return'         => $cycle && !NomineeVotingNotice::returnRuleUnchosen($cycle)
+                ? NomineeVotingNotice::communityReturn($pid, (int) $cycle->id) : [],
+            'community_return_pending' => $cycle && NomineeVotingNotice::returnRuleUnchosen($cycle),
+            'prizes'     => $cycle ? \AfricaGates\Support\EditionPrizes::for((int) $cycle->id) : [],
+            'prize_condition' => $cycle ? \AfricaGates\Support\EditionPrizes::condition((int) $cycle->id) : null,
             'edition'    => $cycle ? EditionName::label($cycle) : '',
             'edition_full'=> $cycle ? EditionName::full($cycle) : '',
             'is_current' => $cycle && $current && (int) $cycle->id === (int) $current->id,
@@ -244,7 +267,17 @@ final class AwardsFront
             'quorum'     => $quorum,
             'paid'       => PaidVoteService::enabled()
                 ? PaidVoteCopy::sentence($pid, $cycle ? (int) $cycle->id : null) : '',
-            'categories' => $cycle ? self::categories($cycle, $phaseK, $released) : [],
+            // Free voting can be switched off entirely; then there is no free vote to describe.
+            'paid_only'  => PaidVoteService::freeVotingDisabled(),
+            'categories' => ($cats = $cycle ? self::categories($cycle, $phaseK, $released) : []),
+            // The nomination rule as THIS award applies it — "between 2 and 3 categories" is
+            // wrong for an award with one (NominationRules is the one resolver).
+            'nom_rules'  => [
+                'min'    => \AfricaGates\Services\NominationRules::minCategories(count($cats)),
+                'max'    => \AfricaGates\Services\NominationRules::maxCategories(count($cats)),
+                'reason' => \AfricaGates\Services\NominationRules::MIN_REASON,
+                'ev'     => \AfricaGates\Services\NominationRules::MAX_EVIDENCE,
+            ],
             'decided'    => $released !== null && ($released['awards'] ?? []) !== [],
             'results_url'=> $released['url'] ?? '',
             'sponsors'   => ProgrammeSponsor::forCycle($pid, $cycle ? (int) $cycle->id : null),
@@ -256,6 +289,8 @@ final class AwardsFront
             'opens_in'   => $o ? max(0, Carbon::parse($o)->getTimestamp() - Carbon::now()->getTimestamp()) : 0,
             'waiting'    => AwardAlert::waiting($pid),
             'delay'      => ($phaseK === 'late' && $cycle) ? PublicResults::delayFor((int) $cycle->id) : null,
+            // A voting extension on this edition, stated in public (VotingExtension).
+            'extension'  => $cycle ? VotingExtension::notice((int) $cycle->id) : null,
         ];
     }
 

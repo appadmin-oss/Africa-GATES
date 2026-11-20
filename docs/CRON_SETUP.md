@@ -40,24 +40,27 @@ will report green through a broken task.
 
 ---
 
-## 1 — Find your PHP binary path
+## 1 — Use the PHP 8.4 binary, not `/usr/bin/php`
 
-Before adding any cron, get the exact path to your PHP 8.1+ binary:
-
-```bash
-which php          # → /usr/bin/php  (common on cPanel)
-php -v             # Confirm it's 8.1+
-```
-
-On cPanel with MultiPHP, PHP binaries live under:
+The site needs PHP 8.3 or newer. On cPanel, the version you pick in MultiPHP applies to the
+WEBSITE only. A cron job that runs plain `php` or `/usr/bin/php` gets the server's default,
+which is often 7.4, and every run fails before any of our code starts with:
 
 ```
-/opt/cpanel/ea-php81/root/usr/bin/php
-/opt/cpanel/ea-php82/root/usr/bin/php
-/opt/cpanel/ea-php83/root/usr/bin/php
+Your Composer dependencies require a PHP version ">= 8.3.0". You are running 7.4.33.
 ```
 
-Run `php -v` for each path and use whichever is 8.1 or higher.
+So name the 8.4 binary in full in every cron command:
+
+```
+/opt/cpanel/ea-php84/root/usr/bin/php
+```
+
+(`/opt/cpanel/ea-php83/root/usr/bin/php` also works.) No shell is needed to find it: cPanel →
+MultiPHP Manager shows the domain's version, and the path follows that pattern.
+
+Simpler still, use no cron command at all: the Cloudflare Worker calls `/__cron/run`, which
+runs inside the website and so always uses the website's PHP. See `CLOUDFLARE-CRON-WORKER.md`.
 
 ---
 
@@ -91,7 +94,7 @@ The cron scripts are in `<project_root>/cron/`. All paths below use
 
 **Command:**
 ```
-/usr/bin/php /home/youruser/africa-gates/cron/recalculate-cpi.php >> /home/youruser/africa-gates/var/logs/cpi-cron.log 2>&1
+/opt/cpanel/ea-php84/root/usr/bin/php /home/youruser/africa-gates/cron/recalculate-cpi.php >> /home/youruser/africa-gates/var/logs/cpi-cron.log 2>&1
 ```
 
 ### Job 2: Dashboard Aggregation — every 4 hours
@@ -106,7 +109,7 @@ The cron scripts are in `<project_root>/cron/`. All paths below use
 
 **Command:**
 ```
-/usr/bin/php /home/youruser/africa-gates/cron/aggregate-dashboard.php >> /home/youruser/africa-gates/var/logs/dashboard-cron.log 2>&1
+/opt/cpanel/ea-php84/root/usr/bin/php /home/youruser/africa-gates/cron/aggregate-dashboard.php >> /home/youruser/africa-gates/var/logs/dashboard-cron.log 2>&1
 ```
 
 > Note: Use minute `15` (not `0`) so it doesn't run at the same second as the CPI job.
@@ -128,7 +131,7 @@ The cron scripts are in `<project_root>/cron/`. All paths below use
 
 **Command:**
 ```
-/usr/bin/php /home/youruser/africa-gates/cron/maintenance.php >> /home/youruser/africa-gates/var/logs/maintenance-cron.log 2>&1
+/opt/cpanel/ea-php84/root/usr/bin/php /home/youruser/africa-gates/cron/maintenance.php >> /home/youruser/africa-gates/var/logs/maintenance-cron.log 2>&1
 ```
 
 ---
@@ -146,13 +149,13 @@ Paste these lines (adjust paths and PHP binary):
 ```cron
 # Africa GATES cron jobs
 # CPI recompute — every 6 hours
-0 0,6,12,18 * * * /usr/bin/php /home/youruser/africa-gates/cron/recalculate-cpi.php >> /home/youruser/africa-gates/var/logs/cpi-cron.log 2>&1
+0 0,6,12,18 * * * /opt/cpanel/ea-php84/root/usr/bin/php /home/youruser/africa-gates/cron/recalculate-cpi.php >> /home/youruser/africa-gates/var/logs/cpi-cron.log 2>&1
 
 # Dashboard aggregation — every 4 hours
-15 0,4,8,12,16,20 * * * /usr/bin/php /home/youruser/africa-gates/cron/aggregate-dashboard.php >> /home/youruser/africa-gates/var/logs/dashboard-cron.log 2>&1
+15 0,4,8,12,16,20 * * * /opt/cpanel/ea-php84/root/usr/bin/php /home/youruser/africa-gates/cron/aggregate-dashboard.php >> /home/youruser/africa-gates/var/logs/dashboard-cron.log 2>&1
 
 # Maintenance / orchestrator — every 15 minutes (drives cycles, queue, CPI, snapshots, collusion, reminders)
-*/15 * * * * /usr/bin/php /home/youruser/africa-gates/cron/maintenance.php >> /home/youruser/africa-gates/var/logs/maintenance-cron.log 2>&1
+*/15 * * * * /opt/cpanel/ea-php84/root/usr/bin/php /home/youruser/africa-gates/cron/maintenance.php >> /home/youruser/africa-gates/var/logs/maintenance-cron.log 2>&1
 ```
 
 Save and exit. Verify with:
@@ -179,7 +182,7 @@ After=network.target
 Type=oneshot
 User=www-data
 WorkingDirectory=/home/youruser/africa-gates
-ExecStart=/usr/bin/php /home/youruser/africa-gates/cron/recalculate-cpi.php
+ExecStart=/opt/cpanel/ea-php84/root/usr/bin/php /home/youruser/africa-gates/cron/recalculate-cpi.php
 StandardOutput=append:/home/youruser/africa-gates/var/logs/cpi-cron.log
 StandardError=append:/home/youruser/africa-gates/var/logs/cpi-cron.log
 ```
@@ -206,7 +209,7 @@ Description=Africa GATES — Dashboard Aggregation
 Type=oneshot
 User=www-data
 WorkingDirectory=/home/youruser/africa-gates
-ExecStart=/usr/bin/php /home/youruser/africa-gates/cron/aggregate-dashboard.php
+ExecStart=/opt/cpanel/ea-php84/root/usr/bin/php /home/youruser/africa-gates/cron/aggregate-dashboard.php
 StandardOutput=append:/home/youruser/africa-gates/var/logs/dashboard-cron.log
 StandardError=append:/home/youruser/africa-gates/var/logs/dashboard-cron.log
 ```
@@ -233,7 +236,7 @@ Description=Africa GATES — Maintenance
 Type=oneshot
 User=www-data
 WorkingDirectory=/home/youruser/africa-gates
-ExecStart=/usr/bin/php /home/youruser/africa-gates/cron/maintenance.php
+ExecStart=/opt/cpanel/ea-php84/root/usr/bin/php /home/youruser/africa-gates/cron/maintenance.php
 StandardOutput=append:/home/youruser/africa-gates/var/logs/maintenance-cron.log
 StandardError=append:/home/youruser/africa-gates/var/logs/maintenance-cron.log
 ```

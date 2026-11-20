@@ -51,7 +51,7 @@
       return pre + '<a class="ag-tag" href="/registry?q=' + encodeURIComponent(name) + '">@' + name + '</a>';
     });
     safe = safe.replace(/(^|[\s(])#([A-Za-z0-9_]{2,40})\b/g, function (_, pre, tag) {
-      return pre + '<a class="ag-tag" href="/activity?q=' + encodeURIComponent(tag) + '">#' + tag + '</a>';
+      return pre + '<a class="ag-tag" href="/discover?q=' + encodeURIComponent(tag) + '">#' + tag + '</a>';
     });
     return safe;
   }

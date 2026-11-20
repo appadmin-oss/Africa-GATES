@@ -196,7 +196,7 @@ final class CookiePrefs
     public static function offered(string $category): bool
     {
         if ($category === self::ESSENTIAL) return true;
-        if ($category === self::ANALYTICS) return VisitTracker::enabled();
+        if ($category === self::ANALYTICS) return VisitTracker::enabled() || GoogleAnalytics::enabled();
         if (!in_array($category, self::OPTIONAL, true)) return false;
 
         return CookieRegistry::inCategory($category) !== [];
@@ -289,6 +289,12 @@ final class CookiePrefs
             'rows'      => $rows,
             'return'    => self::path($request),
             'cookie'    => self::COOKIE,
+            // Google Analytics for this request: its ID and the redacted page, or null. Decided
+            // here with everything else, so the layout never asks "may we" a second way.
+            'ga'        => GoogleAnalytics::forRequest($request),
+            // Whether the operator has it on at all, so the notice can say so BEFORE anybody
+            // answers: a yes to "Analytics" that turned out to include Google is no consent.
+            'google'    => GoogleAnalytics::enabled(),
         ];
     }
 
@@ -406,6 +412,17 @@ final class CookiePrefs
         if (self::secure()) $parts[] = 'Secure';
 
         $response = $response->withAddedHeader('Set-Cookie', implode('; ', $parts));
+
+        // A no to Analytics takes Google's cookies back off the device, not only the next
+        // page's script: a withdrawal that leaves the identifier behind has not withdrawn
+        // anything. They are host-only (ga.js sets cookie_domain 'none'), so no Domain here.
+        if (($answers[self::ANALYTICS] ?? null) !== true) {
+            foreach (array_keys($_COOKIE ?? []) as $name) {
+                if (is_string($name) && preg_match('/^_ga(_[A-Z0-9]+)?$/', $name) === 1) {
+                    $response = $response->withAddedHeader('Set-Cookie', $name . '=; Path=/; Max-Age=0; SameSite=Lax');
+                }
+            }
+        }
 
         if ($dropLegacy) {
             // An expiry, never a value: the old name is only ever deleted from here on.

@@ -1,0 +1,119 @@
+{#
+  ONE AD, AS EVERY PLACE DRAWS IT (Services\Ads)
+
+  The anatomy is Meta's feed ad, because it is the one readers already know: who it is from
+  and "Sponsored" first, the advertiser's text, the image, then a link bar with the domain,
+  the headline and the button. The label sits beside the name at the top left, where the eye
+  lands first: the FTC's native-advertising guide asks for exactly that, and warns that a
+  label below or apart from the ad is missed. It is a word in the soft ink (4.8:1), never
+  pale grey.
+
+  The ⋯ menu carries what every large platform offers on an ad: hide it, report it, why you
+  are seeing it, and the advertiser's other ads (the library). Each is a plain form or link,
+  so it works with no script; ads.js only makes them answer in place.
+
+  Args (with … only):
+    ad          the pick from AdDelivery (or a campaign's ad, for a preview)
+    csrf_token  the page's token (`only` hides the global)
+    ad.house    our own notice for advertising, drawn when nothing is booked (AdDelivery::
+                house()): labelled "From Africa GATES", never "Sponsored", never counted
+    preview     true on the advertiser's own pages and the library: nothing is counted,
+                the links go straight to the advertiser, and there is no menu
+    back        the path the menu's forms return to without a script
+    media_box   true to draw the image box even with no image (the builder's live preview)
+    wide        true for the homepage band: picture beside the words from 900px up
+    ad.own      our own campaign posted by staff (AdStaff): counted like any ad, labelled
+                "From Africa GATES", never "Sponsored"
+    ad.seen     the views the ad carries on its card ({short, full}; AdDelivery::seenLabel),
+                or null below the threshold
+    ad.video    a short MP4 over the image (AdVideo), with ad.video_watch the seconds after
+                which a play counts as watched
+
+  WHAT MAKES ONE WORTH TAPPING (owner, 4 Nov 2026: "make it more enticing"), from the native
+  advertising guidance (IAB, Outbrain, TripleLift, Dable): a picture that carries the
+  headline's promise, a short headline, ONE obvious button, and the label above the
+  headline. So the button is filled (ink, never the page's green, which belongs to the
+  page's own main action), an offer sits ON the picture where the eye already is, and the
+  picture leans in slightly under a pointer. The label is untouched: first, at the top.
+#}
+{% if ad %}
+{%- set _house = ad.house|default(false) -%}
+{%- set _own = _house or ad.own|default(false) -%}
+{%- set _pv = preview|default(false) or _house -%}
+{%- set _href = _pv ? ad.url|default('#') : ad.href -%}
+{#- Our own notice links our own page, and nobody paid for it, so it is not rel="sponsored". -#}
+{%- set _rel = _own ? '' : 'sponsored' ~ (ad.external|default(not (_href starts with '/')) ? ' noopener noreferrer' : '') -%}
+<article class="ag-ad{% if wide|default(false) %} ag-ad--wide{% endif %}"{% if not _pv %} data-ad="{{ ad.token }}" data-csrf="{{ csrf_token|default('') }}"{% endif %} aria-label="{{ _own ? 'From Africa GATES'|trans : 'Sponsored: %a%'|trans({'%a%': ad.advertiser}) }}">
+  <header class="ag-ad__head">
+    {#- With no logo, the site's own monogram (Support\AvatarMark): the advertiser's initials
+        on their tone, the way every organisation without a picture is drawn here — a grey
+        box with two letters read as a placeholder nobody had filled in. -#}
+    {%- set _mk = avatar_mark(ad.advertiser|default(''), null, 'business', 44) -%}
+    <span class="ag-ad__logo{% if not ad.logo|default(null) %} ag-ad__logo--{{ _mk.tone }}{% endif %}" aria-hidden="true" data-pv="logo">{% if ad.logo|default(null) %}<img src="{{ ad.logo }}"{% if ad.logo_srcset|default(null) %} srcset="{{ ad.logo_srcset }}" sizes="40px"{% endif %} alt="" width="40" height="40" loading="lazy">{% else %}{{ ad.initials|default('?') }}{% endif %}</span>
+    <span class="ag-ad__who">
+      <span class="ag-ad__by" data-pv="by">{{ ad.advertiser }}</span>
+      <span class="ag-ad__tag">{{ _own ? 'From Africa GATES'|trans : 'Sponsored'|trans }}{% if ad.seen|default(null) %}<span class="ag-ad__seen" title="{{ ad.seen.full == '1' ? '1 view'|trans : '%n% views'|trans({'%n%': ad.seen.full}) }}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>{{ ad.seen.full == '1' ? '1 view'|trans : '%n% views'|trans({'%n%': ad.seen.short}) }}</span>{% endif %}</span>
+    </span>
+    {% if not _pv %}
+    <details class="ag-ad__menu">
+      <summary class="ag-ad__more" aria-label="{{ 'Options for this ad'|trans }}"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></summary>
+      <div class="ag-ad__pop">
+        <form method="post" action="/ads/hide" data-ad-act="hide">
+          <input type="hidden" name="_token" value="{{ csrf_token|default('') }}"><input type="hidden" name="t" value="{{ ad.token }}"><input type="hidden" name="back" value="{{ back|default('/') }}">
+          <button type="submit" class="ag-ad__item">{{ 'Hide ad'|trans }}</button>
+        </form>
+        <details class="ag-ad__sub">
+          <summary class="ag-ad__item">{{ 'Report ad'|trans }}</summary>
+          <form method="post" action="/ads/report" data-ad-act="report" class="ag-ad__rep">
+            <input type="hidden" name="_token" value="{{ csrf_token|default('') }}"><input type="hidden" name="t" value="{{ ad.token }}"><input type="hidden" name="back" value="{{ back|default('/') }}">
+            <fieldset><legend class="ag-ad__lg">{{ 'What is wrong with it?'|trans }}</legend>
+              {% for k, label in ad.reasons|default({}) %}<label class="ag-ad__opt"><input type="radio" name="reason" value="{{ k }}"{% if loop.first %} required{% endif %}> {{ label|trans }}</label>{% endfor %}
+            </fieldset>
+            <button type="submit" class="ag-btn ag-btn--secondary ag-btn--pill ag-ad__send">{{ 'Send report'|trans }}</button>
+          </form>
+        </details>
+        <p class="ag-ad__why"><b>{{ 'Why am I seeing this?'|trans }}</b> {{ 'It is shown to everyone who opens this page. Nothing you did here chose it.'|trans }}</p>
+        <a class="ag-ad__item" href="/advertise/library?from={{ ad.id }}">{{ 'More ads from %a%'|trans({'%a%': ad.advertiser}) }}</a>
+        <a class="ag-ad__item" href="/advertise">{{ 'About ads on Africa GATES'|trans }}</a>
+      </div>
+    </details>
+    {% endif %}
+  </header>
+  <p class="ag-ad__text" data-pv="body">{{ ad.body }}</p>
+  {%- set _vid = ad.video|default(null) -%}
+  {%- set _pic = ad.image|default(null) or _vid or media_box|default(false) -%}
+  {#- The offer rides ON the picture when there is one: it is the most clickable fact an ad
+      can carry, and the picture is where the eye already is. Outside the hidden picture
+      link, so a screen reader reads it. -#}
+  {%- set _offer -%}<span class="ag-ad__offer" data-pv="offer"{% if not ad.offer %} hidden{% endif %}>{{ ad.offer }}{% if ad.offer_code %} · <span class="ag-ad__code">{{ ad.offer_code }}</span>{% endif %}</span>{%- endset -%}
+  {% if _pic %}
+  {#- A VIDEO (Services\Ads\AdVideo) plays inside the same picture link, silently, with the
+      image as its poster, in the ad's SHAPE (AdRules::SHAPES: square, upright 4:5, wide 16:9).
+      It plays by default, without sound, once ads.js sees it half on screen; nothing is
+      fetched before then. With no script, on Save-Data or 2G, or under reduced motion, the
+      poster is the ad until somebody presses play. Play/pause is always offered — a clip
+      that moves by itself for more than five seconds must be stoppable (WCAG 2.2.2) — and
+      sound is one tap. Both sit OUTSIDE the hidden link so they can be reached and named,
+      and stay hidden until the script can make them do something. -#}
+  {%- set _shape = ad.shape|default('square') -%}
+  <div class="ag-ad__media ag-ad__media--{{ _shape in ['portrait', 'landscape'] ? _shape : 'square' }}{% if _vid %} ag-ad__media--video{% endif %}"{% if _vid %} data-ad-video{% if ad.video_watch|default(null) %} data-watch="{{ ad.video_watch }}"{% endif %}{% endif %}>
+    <a class="ag-ad__pic" href="{{ _href }}"{% if _rel %} rel="{{ _rel }}"{% endif %} tabindex="-1" aria-hidden="true" data-pv="image">{% if _vid %}<video class="ag-ad__vid" muted playsinline loop preload="none" width="600" height="600"{% if ad.image|default(null) %} poster="{{ ad.image }}"{% endif %}><source src="{{ _vid }}" type="video/mp4"></video>{% elseif ad.image|default(null) %}<img src="{{ ad.image }}"{% if ad.image_srcset|default(null) %} srcset="{{ ad.image_srcset }}" sizes="{{ wide|default(false) ? '(min-width: 900px) 360px, ' : '' }}(min-width: 600px) 520px, calc(100vw - 32px)"{% endif %} alt="" loading="lazy" decoding="async" width="600" height="600">{% else %}<span class="ag-ad__ph">{{ 'Your image'|trans }}</span>{% endif %}</a>
+    {% if _vid %}
+    <button type="button" class="ag-ad__vbtn ag-ad__play" data-ad-play hidden aria-label="{{ 'Play the video'|trans }}" data-play="{{ 'Play the video'|trans }}" data-pause="{{ 'Pause the video'|trans }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path class="ag-ad__i-play" d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/><path class="ag-ad__i-pause" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg></button>
+    <button type="button" class="ag-ad__vbtn ag-ad__snd" data-ad-sound hidden aria-pressed="false" aria-label="{{ 'Turn the sound on'|trans }}" data-on="{{ 'Turn the sound on'|trans }}" data-off="{{ 'Turn the sound off'|trans }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path class="ag-ad__wave" d="M15.5 8.5a5 5 0 0 1 0 7"/><path class="ag-ad__mute" d="m22 9-6 6m0-6 6 6"/></svg></button>
+    {% endif %}
+    {{ _offer }}
+  </div>
+  {% endif %}
+  <a class="ag-ad__foot" href="{{ _href }}"{% if _rel %} rel="{{ _rel }}"{% endif %}>
+    <span class="ag-ad__meta">
+      {#- Where the tap goes, with its kind of place: a chat for WhatsApp (AdRules::displayDomain
+          names it so), a link for a website. -#}
+      <span class="ag-ad__dom"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ ad.domain|default('') == 'WhatsApp' ? 'M20 11.5a8 8 0 0 1-11.7 7.1L4 20l1.4-4.1A8 8 0 1 1 20 11.5z' : 'M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1' }}"/></svg><span data-pv="domain">{{ ad.domain|default('') }}</span></span>
+      <span class="ag-ad__h" data-pv="headline">{{ ad.headline }}</span>
+      {% if not _pic %}{{ _offer }}{% endif %}
+    </span>
+    <span class="ag-btn ag-ad__cta"><span data-pv="cta">{{ ad.cta|trans }}</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+  </a>
+</article>
+{% endif %}

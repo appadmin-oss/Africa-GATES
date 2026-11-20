@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>@keyframes v3in{from{opacity:0;transform:translateX(10px)}to{opacity:1;transform:none}}@keyframes v3back{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:none}}html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none}a{color:#237b22;text-decoration:none}a:hover{color:#1a5e1a}button,input,select,textarea{font-family:inherit}button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid #237b22;outline-offset:2px}*{scrollbar-width:thin;scrollbar-color:#d9dad4 transparent}*::-webkit-scrollbar{width:10px;height:10px}*::-webkit-scrollbar-thumb{background:#d9dad4;border-radius:10px;border:3px solid transparent;background-clip:content-box}@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}</style>
+</helmet>
+<div ref="{{ rootRef }}" style="position:relative;width:100%;height:100dvh;display:flex;flex-direction:{{ rootDir }};background:#f3f3f0;color:#10292c;font-family:'Geist',system-ui,sans-serif;font-size:14px;-webkit-font-smoothing:antialiased;overflow:hidden;font-feature-settings:'tnum'">
+
+<sc-if value="{{ notPhone }}" hint-placeholder-val="{{ true }}">
+  <aside aria-label="Volunteering" style="flex:none;width:{{ sideW }};display:flex;flex-direction:column;gap:6px;padding:10px {{ sidePad }}">
+    <div style="display:flex;align-items:center;gap:10px;height:48px;padding:0 8px;justify-content:{{ itemJust }}">
+      <span style="flex:none;width:26px;height:26px;border-radius:7px;background:#237b22;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px">AG</span>
+      <sc-if value="{{ wideSide }}" hint-placeholder-val="{{ true }}"><span style="flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.2"><span style="font-weight:600;font-size:13.5px">Volunteering</span><span style="font-size:12px;color:#6b7476;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Alimosho Centre</span></span></sc-if>
+    </div>
+    <sc-if value="{{ wideSide }}" hint-placeholder-val="{{ true }}"><a href="#" style="display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;border-radius:8px;color:#6b7476;font-size:12.5px" style-hover="background:#ebebe6;color:#10292c"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg>My Africa GATES</a></sc-if>
+    <sc-if value="{{ inAw }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;gap:2px;padding-top:4px">
+        <button onClick="{{ awBack }}" title="All awards" style="display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;justify-content:{{ itemJust }};border:0;border-radius:8px;background:transparent;color:#6b7476;font-size:13px;cursor:pointer" style-hover="background:#ebebe6;color:#10292c"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg><sc-if value="{{ wideSide }}" hint-placeholder-val="{{ true }}"><span>All awards</span></sc-if></button>
+        <button onClick="{{ openAwSw }}" aria-haspopup="listbox" title="Switch award" style="display:flex;align-items:center;gap:10px;min-height:52px;padding:6px 8px;justify-content:{{ itemJust }};border:0;border-radius:10px;background:#fff;box-shadow:0 0 0 1px #e6e6e1;color:#10292c;text-align:start;cursor:pointer">
+          <span style="flex:none;width:30px;height:30px;border-radius:8px;background:{{ aw.tBg }};color:{{ aw.tFg }};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px">{{ aw.ini }}</span>
+          <sc-if value="{{ wideSide }}" hint-placeholder-val="{{ true }}"><span style="flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25"><span style="font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ aw.n }}</span><span style="font-size:12px;color:#6b7476">{{ aw.ed }} · {{ aw.phase }}</span></span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9aa1a2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M8 9l4-4 4 4M8 15l4 4 4-4"></path></svg></sc-if>
+        </button>
+      </div>
+    </sc-if>
+    <nav key="{{ navKey }}" style="flex:1;min-height:0;overflow-y:auto;scrollbar-width:none;display:flex;flex-direction:column;gap:1px;padding-top:6px;animation:{{ navAnim }}">
+      <sc-for list="{{ nav }}" as="i" hint-placeholder-count="6">
+        <button onClick="{{ i.go }}" title="{{ i.label }}" aria-current="{{ i.cur }}" style="position:relative;display:flex;align-items:center;gap:10px;height:{{ itemH }};padding:0 10px;justify-content:{{ itemJust }};border:0;border-radius:8px;background:{{ i.bg }};box-shadow:{{ i.sh }};color:{{ i.fg }};font-size:13.5px;font-weight:{{ i.fw }};cursor:pointer;text-align:start">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="{{ i.d }}"></path></svg>
+          <sc-if value="{{ wideSide }}" hint-placeholder-val="{{ true }}"><span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ i.label }}</span><sc-if value="{{ i.badge }}" hint-placeholder-val="{{ false }}"><span style="min-width:20px;height:20px;padding:0 6px;border-radius:999px;display:flex;align-items:center;justify-content:center;background:#fbf4e4;color:#8a5d0b;font-family:'Geist Mono',monospace;font-size:11.5px;font-weight:600">{{ i.n }}</span></sc-if></sc-if>
+          <sc-if value="{{ narrowSide }}" hint-placeholder-val="{{ false }}"><sc-if value="{{ i.badge }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;top:8px;right:9px;width:7px;height:7px;border-radius:50%;background:#b07a12;box-shadow:0 0 0 2px #f3f3f0"></span></sc-if></sc-if>
+        </button>
+      </sc-for>
+    </nav>
+    <div style="flex:none;display:flex;flex-direction:column;gap:2px;padding-top:8px;border-top:1px solid #e3e3de">
+      <button onClick="{{ openGee }}" title="Ask Gee" style="display:flex;align-items:center;gap:10px;height:{{ itemH }};padding:0 10px;justify-content:{{ itemJust }};border:0;border-radius:8px;background:transparent;color:#10292c;font-size:13.5px;cursor:pointer" style-hover="background:#ebebe6"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#b07a12" stroke-width="2" stroke-linecap="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M6 18l2.5-2.5M15.5 8.5L18 6"></path></svg><sc-if value="{{ wideSide }}" hint-placeholder-val="{{ true }}"><span style="flex:1;text-align:start">Ask Gee</span></sc-if></button>
+      <div title="{{ me.name }}" style="display:flex;align-items:center;gap:10px;height:40px;padding:0 10px;justify-content:{{ itemJust }}">
+        <span style="flex:none;width:24px;height:24px;border-radius:50%;background:#effaf0;color:#1a5e1a;font-size:10.5px;font-weight:700;display:flex;align-items:center;justify-content:center">CN</span>
+        <sc-if value="{{ wideSide }}" hint-placeholder-val="{{ true }}"><span style="flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.2"><span style="font-size:13.5px;font-weight:500">Chika Nwosu</span><span style="font-size:11.5px;color:#8a9294">{{ me.lvl }}</span></span></sc-if>
+      </div>
+    </div>
+  </aside>
+</sc-if>
+
+<sc-if value="{{ isPhone }}" hint-placeholder-val="{{ false }}">
+  <header style="flex:none;position:relative;z-index:5;display:flex;align-items:center;gap:2px;height:56px;padding:0 4px 0 16px;background:#fff;border-bottom:1px solid #e6e6e1">
+    <sc-if value="{{ inAw }}" hint-placeholder-val="{{ false }}"><button onClick="{{ awBack }}" aria-label="All awards" style="flex:none;width:44px;height:44px;margin-left:-12px;border:0;background:transparent;color:#10292c;display:flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg></button>
+      <button onClick="{{ openAwSw }}" style="flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;line-height:1.2;border:0;background:transparent;padding:0;color:#10292c;text-align:start;cursor:pointer"><span style="display:flex;align-items:center;gap:4px;max-width:100%;font-size:17px;font-weight:600"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ aw.n }}</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8a9294" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M6 9l6 6 6-6"></path></svg></span><span style="font-size:11.5px;color:#8a9294">{{ aw.ed }} · {{ awPgL }}</span></button></sc-if>
+    <sc-if value="{{ notInAw }}" hint-placeholder-val="{{ true }}"><span style="flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.2"><span style="font-size:17px;font-weight:600;letter-spacing:-.01em">{{ title }}</span><span style="font-size:11.5px;color:#8a9294">Alimosho Centre · {{ me.lvl }}</span></span></sc-if>
+    <sc-if value="{{ hasPass }}" hint-placeholder-val="{{ false }}"><button onClick="{{ openPass }}" aria-label="My pass" style="flex:none;width:44px;height:44px;border:0;background:transparent;color:#10292c;display:flex;align-items:center;justify-content:center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 18h2v2h-2zM14 18h2"></path></svg></button></sc-if>
+    <button onClick="{{ openGee }}" aria-label="Ask Gee" style="flex:none;width:44px;height:44px;border:0;background:transparent;color:#b07a12;display:flex;align-items:center;justify-content:center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M6 18l2.5-2.5M15.5 8.5L18 6"></path></svg></button>
+  </header>
+</sc-if>
+
+<div style="flex:1;min-width:0;min-height:0;display:flex;padding:{{ framePad }}">
+<div style="position:relative;flex:1;min-width:0;display:flex;flex-direction:column;background:#fff;border:{{ frameBd }};border-radius:{{ frameRad }};overflow:hidden">
+
+  <sc-if value="{{ notPhone }}" hint-placeholder-val="{{ true }}">
+    <header style="flex:none;min-height:52px;display:flex;align-items:center;gap:12px;padding:0 20px;border-bottom:1px solid #efefeb">
+      <span style="flex:1;min-width:0;display:flex;align-items:center;gap:8px;font-size:13.5px;white-space:nowrap;overflow:hidden"><span style="color:#8a9294">Volunteering</span><span style="color:#c3c7c6">/</span><sc-if value="{{ inAw }}" hint-placeholder-val="{{ false }}"><button onClick="{{ awBack }}" style="border:0;background:transparent;padding:0;color:#8a9294;font-size:13.5px;cursor:pointer">Awards</button><span style="color:#c3c7c6">/</span><span style="color:#8a9294">{{ aw.n }} · {{ aw.ed }}</span><span style="color:#c3c7c6">/</span><span style="font-weight:500">{{ awPgL }}</span></sc-if><sc-if value="{{ notInAw }}" hint-placeholder-val="{{ true }}"><span style="font-weight:500">{{ title }}</span></sc-if></span>
+      <sc-if value="{{ hasPass }}" hint-placeholder-val="{{ false }}"><button onClick="{{ openPass }}" style="height:32px;display:flex;align-items:center;gap:6px;padding:0 12px;border:1px solid #e3e3de;border-radius:8px;background:#fff;color:#10292c;font-size:13px;font-weight:500;cursor:pointer"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 18h2v2h-2z"></path></svg>My pass</button></sc-if>
+      <sc-if value="{{ active }}" hint-placeholder-val="{{ true }}"><button onClick="{{ openLog }}" style="height:32px;display:flex;align-items:center;gap:6px;padding:0 12px;border:1px solid #e3e3de;border-radius:8px;background:#fff;color:#10292c;font-size:13px;font-weight:500;cursor:pointer"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>Log hours</button></sc-if>
+    </header>
+  </sc-if>
+
+  <sc-if value="{{ offline }}" hint-placeholder-val="{{ false }}">
+    <div role="status" style="flex:none;padding:10px {{ padX }};background:#fbf4e4;border-bottom:1px solid #f0e2bf;color:#6b4a07;font-size:13px;line-height:1.45">You’re offline. Your pass and your shifts are saved on this phone, and gate scans still work. Anything you send waits and goes when you’re back.</div>
+  </sc-if>
+
+  <sc-if value="{{ awChips }}" hint-placeholder-val="{{ false }}">
+    <div role="tablist" style="flex:none;display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:10px 16px;border-bottom:1px solid #efefeb;background:#fff"><sc-for list="{{ nav }}" as="i" hint-placeholder-count="4"><button role="tab" aria-selected="{{ i.cur }}" onClick="{{ i.go }}" style="flex:none;height:36px;padding:0 14px;border:1px solid {{ i.chBd }};border-radius:999px;background:{{ i.chBg }};color:#10292c;font-size:13.5px;font-weight:500;cursor:pointer;white-space:nowrap">{{ i.label }}</button></sc-for></div>
+  </sc-if>
+  <div style="flex:1;min-height:0;display:flex">
+  <main key="{{ mainKey }}" style="flex:1;min-width:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain">
+
+    <!-- APPLICANT -->
+    <sc-if value="{{ pg.apply }}" hint-placeholder-val="{{ false }}">
+      <div style="max-width:720px;margin:0 auto;padding:{{ padTop }} {{ padX }} 64px;display:flex;flex-direction:column;gap:24px">
+        <div style="display:flex;flex-direction:column;gap:6px"><h1 style="margin:0;font-size:{{ h1 }};font-weight:600;letter-spacing:-.02em">Your application</h1><span style="font-size:14px;line-height:1.55;color:#6b7476;text-wrap:pretty">Four steps before your first shift. Most people are ready within a week.</span></div>
+        <ol style="margin:0;padding:0;list-style:none;border:1px solid #e8e5dd;border-radius:14px;overflow:hidden">
+          <sc-for list="{{ apSteps }}" as="s" hint-placeholder-count="4">
+            <li style="display:flex;align-items:flex-start;gap:14px;padding:16px;border-top:{{ s.bt }}">
+              <span style="flex:none;width:28px;height:28px;border-radius:50%;border:1.5px solid {{ s.ring }};background:{{ s.fill }};color:{{ s.numFg }};display:flex;align-items:center;justify-content:center;font-family:'Geist Mono',monospace;font-size:12.5px;font-weight:600">{{ s.n }}</span>
+              <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px"><span style="font-size:14.5px;font-weight:600">{{ s.t }}</span><span style="font-size:13px;line-height:1.5;color:#6b7476;text-wrap:pretty">{{ s.b }}</span></span>
+              <sc-if value="{{ s.hasCta }}" hint-placeholder-val="{{ false }}"><button onClick="{{ s.go }}" style="flex:none;height:{{ btnSm }};padding:0 14px;border:0;border-radius:9px;background:#237b22;color:#fff;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">{{ s.cta }}</button></sc-if>
+            </li>
+          </sc-for>
+        </ol>
+        <span style="font-size:13px;line-height:1.55;color:#6b7476;text-wrap:pretty">An ID check is only asked for roles that handle a door, money or people’s contact details. Your referees only see your name and the role you applied for.</span>
+      </div>
+    </sc-if>
+
+    <!-- TODAY -->
+    <sc-if value="{{ pg.today }}" hint-placeholder-val="{{ true }}">
+      <div style="max-width:1120px;margin:0 auto;padding:{{ padTop }} {{ padX }} 56px;display:grid;grid-template-columns:{{ todayCols }};gap:{{ colGap }};align-items:start">
+        <div style="min-width:0;display:flex;flex-direction:column;gap:28px">
+          <div style="display:flex;flex-direction:column;gap:4px"><h1 style="margin:0;font-size:{{ h1 }};font-weight:600;letter-spacing:-.02em">Good afternoon, Chika</h1><span style="font-size:14px;color:#6b7476">{{ todaySub }}</span></div>
+
+          <sc-if value="{{ hasNeeds }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;flex-direction:column;border:1px solid #e8e5dd;border-radius:14px;overflow:hidden">
+              <sc-for list="{{ needs }}" as="n" hint-placeholder-count="2">
+                <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-top:{{ n.bt }};flex-wrap:{{ wrap }}">
+                  <span style="flex:none;width:8px;height:8px;border-radius:50%;background:{{ n.dot }}"></span>
+                  <span style="flex:1;min-width:200px;display:flex;flex-direction:column;gap:2px"><span style="font-size:14px;font-weight:600">{{ n.t }}</span><span style="font-size:13px;line-height:1.45;color:#6b7476;text-wrap:pretty">{{ n.sub }}</span></span>
+                  <button onClick="{{ n.go }}" style="flex:none;height:{{ btnSm }};padding:0 14px;border:1px solid #e3e3de;border-radius:9px;background:#fff;color:#10292c;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">{{ n.cta }}</button>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ hasNext }}" hint-placeholder-val="{{ true }}">
+            <section aria-label="Next shift" style="display:flex;flex-direction:column;gap:12px">
+              <span style="font-size:13px;font-weight:500;color:#6b7476">Next shift · {{ nx.when }}</span>
+              <div style="display:flex;flex-direction:column;border:1px solid #e8e5dd;border-radius:16px;overflow:hidden">
+                <div style="display:flex;gap:16px;padding:18px">
+                  <span style="flex:none;width:60px;height:64px;border-radius:12px;background:#effaf0;color:#1a5e1a;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1"><span style="font-size:24px;font-weight:700;letter-spacing:-.02em">{{ nx.day }}</span><span style="font-size:12px;font-weight:500;margin-top:4px">{{ nx.mon }}</span></span>
+                  <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+                    <span style="font-size:{{ nextT }};font-weight:600;letter-spacing:-.01em">{{ nx.t }}</span>
+                    <span style="font-size:13.5px;color:#3a4a4c">{{ nx.time }} · {{ nx.place }}</span>
+                    <span style="font-size:13px;color:#6b7476">{{ nx.role }} · lead Kemi Bello · {{ nx.team }}</span>
+                  </span>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:3px;padding:12px 18px;border-top:1px solid #f0f0ec"><span style="font-size:12.5px;color:#8a9294">Bring</span><span style="font-size:13.5px;line-height:1.45;text-wrap:pretty">{{ nx.bring }}</span></div>
+                <div style="display:flex;flex-direction:column;gap:3px;padding:12px 18px;border-top:1px solid #f0f0ec"><span style="font-size:12.5px;color:#8a9294">Your hours come from</span><span style="font-size:13.5px;line-height:1.45">{{ nx.vb }}</span></div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;padding:14px 18px;border-top:1px solid #f0f0ec">
+                  <button onClick="{{ nx.primGo }}" style="height:{{ btnH }};padding:0 18px;border:0;border-radius:10px;background:#237b22;color:#fff;font-size:14px;font-weight:600;cursor:pointer">{{ nx.prim }}</button>
+                  <button onClick="{{ nx.cal }}" style="height:{{ btnH }};padding:0 16px;border:1px solid #e3e3de;border-radius:10px;background:#fff;color:#10292c;font-size:14px;font-weight:500;cursor:pointer">Add to calendar</button>
+                  <button onClick="{{ nx.drop }}" style="height:{{ btnH }};padding:0 16px;border:0;border-radius:10px;background:transparent;color:#3a4a4c;font-size:14px;font-weight:500;cursor:pointer">Swap or drop</button>
+                </div>
+              </div>
+              <sc-if value="{{ hasThen }}" hint-placeholder-val="{{ false }}"><button onClick="{{ goShifts }}" style="align-self:flex-start;border:0;background:transparent;padding:4px 0;color:#3a4a4c;font-size:13.5px;cursor:pointer">Then: {{ thenT }} →</button></sc-if>
+            </section>
+          </sc-if>
+
+          <sc-if value="{{ hasMyTasks }}" hint-placeholder-val="{{ true }}">
+            <section style="display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px"><h2 style="margin:0;font-size:16px;font-weight:600">Your tasks</h2><button onClick="{{ goTasks }}" style="border:0;background:transparent;color:#237b22;font-size:13.5px;font-weight:500;cursor:pointer;padding:6px 0">All tasks</button></div>
+              <div style="display:flex;flex-direction:column">
+                <sc-for list="{{ myTasks }}" as="t" hint-placeholder-count="3">
+                  <button onClick="{{ t.open }}" style="display:flex;align-items:center;gap:14px;min-height:{{ rowH }};padding:10px 0;border:0;border-top:{{ t.bt }};background:transparent;color:#10292c;text-align:start;cursor:pointer">
+                    <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px"><span style="font-size:14px;font-weight:500">{{ t.t }}</span>
+                      <sc-if value="{{ t.hasBar }}" hint-placeholder-val="{{ true }}"><span style="display:flex;align-items:center;gap:10px"><span style="flex:1;max-width:220px;height:4px;border-radius:4px;background:#eef0ec;overflow:hidden"><span style="display:block;height:100%;width:{{ t.pct }};background:#237b22;border-radius:4px"></span></span><span style="font-size:12.5px;color:#6b7476;white-space:nowrap">{{ t.progL }}</span></span></sc-if>
+                      <sc-if value="{{ t.noBar }}" hint-placeholder-val="{{ false }}"><span style="font-size:12.5px;color:#6b7476">{{ t.progL }}</span></sc-if>
+                    </span>
+                    <span style="flex:none;height:22px;padding:0 8px;border-radius:999px;background:{{ t.chip.bg }};color:{{ t.chip.fg }};font-size:12px;font-weight:500;display:flex;align-items:center;white-space:nowrap">{{ t.chip.t }}</span>
+                  </button>
+                </sc-for>
+              </div>
+            </section>
+          </sc-if>
+
+          <section aria-label="Your record" style="display:grid;grid-template-columns:{{ numCols }};border-top:1px solid #ecebe6;border-bottom:1px solid #ecebe6">
+            <sc-for list="{{ nums }}" as="m" hint-placeholder-count="4">
+              <div style="display:flex;flex-direction:column;gap:4px;padding:16px {{ m.pr }} 16px {{ m.pl }};border-left:{{ m.bl }};border-top:{{ m.bt }}">
+                <span style="font-size:12.5px;color:#6b7476">{{ m.l }}</span>
+                <span style="font-size:24px;font-weight:600;letter-spacing:-.02em">{{ m.v }}</span>
+                <span style="font-size:12px;line-height:1.4;color:#8a9294;text-wrap:pretty">{{ m.s }}</span>
+              </div>
+            </sc-for>
+          </section>
+
+          <sc-if value="{{ hasMsgs }}" hint-placeholder-val="{{ true }}">
+            <section style="display:flex;flex-direction:column;gap:6px">
+              <h2 style="margin:0 0 4px;font-size:16px;font-weight:600">From your leads</h2>
+              <sc-for list="{{ msgs }}" as="g" hint-placeholder-count="2">
+                <div style="display:flex;gap:12px;padding:12px 0;border-top:{{ g.bt }}">
+                  <span style="flex:none;width:32px;height:32px;border-radius:50%;background:#f3f3f0;color:#3a4a4c;font-size:11.5px;font-weight:600;display:flex;align-items:center;justify-content:center">{{ g.ini }}</span>
+                  <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px"><span style="font-size:13px"><span style="font-weight:600">{{ g.n }}</span><span style="color:#8a9294"> · {{ g.w }}</span></span><span style="font-size:14px;line-height:1.5;text-wrap:pretty">{{ g.t }}</span></span>
+                </div>
+              </sc-for>
+            </section>
+          </sc-if>
+        </div>
+
+        <aside style="min-width:0;display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;flex-direction:column;gap:14px;padding:18px;border:1px solid #e8e5dd;border-radius:16px">
+            <div style="display:flex;align-items:center;gap:12px"><span style="flex:none;width:44px;height:44px;border-radius:12px;background:#effaf0;color:#1a5e1a;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700">{{ lv.n }}</span><span style="display:flex;flex-direction:column;gap:2px"><span style="font-size:15px;font-weight:600">{{ lv.t }}</span><span style="font-size:12.5px;color:#6b7476">{{ lv.sub }}</span></span></div>
+            <span style="font-size:13.5px;line-height:1.5;color:#3a4a4c;text-wrap:pretty">{{ lv.can }}</span>
+            <sc-if value="{{ lv.hasNext }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;flex-direction:column;gap:10px;padding-top:12px;border-top:1px solid #f0f0ec">
+                <span style="font-size:12.5px;color:#8a9294">{{ lv.nextL }}</span>
+                <sc-for list="{{ lv.reqs }}" as="r" hint-placeholder-count="4">
+                  <div style="display:flex;flex-direction:column;gap:5px">
+                    <span style="display:flex;align-items:center;gap:8px;font-size:13px"><span style="flex:none;width:16px;height:16px;border-radius:50%;background:{{ r.dotBg }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;border:{{ r.dotBd }}">{{ r.mark }}</span><span style="flex:1">{{ r.t }}</span><span style="font-family:'Geist Mono',monospace;font-size:12px;color:#6b7476">{{ r.v }}</span></span>
+                    <sc-if value="{{ r.hasBar }}" hint-placeholder-val="{{ false }}"><span style="margin-left:24px;height:4px;border-radius:4px;background:#eef0ec;overflow:hidden"><span style="display:block;height:100%;width:{{ r.pct }};background:#237b22"></span></span></sc-if>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+            <button onClick="{{ goRecord }}" style="align-self:flex-start;border:0;background:transparent;padding:2px 0;color:#237b22;font-size:13.5px;font-weight:500;cursor:pointer">How levels work</button>
+          </div>
+          <sc-if value="{{ hasCert }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;flex-direction:column;gap:6px;padding:16px 18px;border:1px solid #e8e5dd;border-radius:16px">
+              <span style="font-size:14px;font-weight:600">Certificates</span>
+              <span style="font-size:13px;line-height:1.5;color:#6b7476;text-wrap:pretty">1st Edition, 12 verified hours. Your 2nd Edition certificate is issued Mon 9 Nov, once the night’s hours are locked.</span>
+              <button onClick="{{ dlCert }}" style="align-self:flex-start;margin-top:4px;height:{{ btnSm }};padding:0 14px;border:1px solid #e3e3de;border-radius:9px;background:#fff;color:#10292c;font-size:13px;font-weight:500;cursor:pointer">Download 1st Edition (PDF)</button>
+            </div>
+          </sc-if>
+        </aside>
+      </div>
+    </sc-if>
+
+    <!-- SHIFTS -->
+    <sc-if value="{{ pg.shifts }}" hint-placeholder-val="{{ false }}">
+      <div style="max-width:960px;margin:0 auto;padding:{{ padTop }} {{ padX }} 56px;display:flex;flex-direction:column;gap:20px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <h1 style="margin:0;font-size:{{ h1 }};font-weight:600;letter-spacing:-.02em">Shifts</h1>
+          <div role="tablist" style="display:flex;gap:2px;padding:3px;border-radius:10px;background:#f3f3f0">
+            <sc-for list="{{ shTabs }}" as="t" hint-placeholder-count="3"><button role="tab" aria-selected="{{ t.on }}" onClick="{{ t.go }}" style="height:{{ segH }};padding:0 14px;border:0;border-radius:8px;background:{{ t.bg }};box-shadow:{{ t.sh }};color:#10292c;font-size:13.5px;font-weight:{{ t.fw }};cursor:pointer;white-space:nowrap">{{ t.l }}</button></sc-for>
+          </div>
+        </div>
+        <sc-if value="{{ shEmpty }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:48px 16px;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;border:1px dashed #e3e3de;border-radius:14px"><span style="font-size:15px;font-weight:600">{{ shEmp.t }}</span><span style="max-width:420px;font-size:13.5px;line-height:1.55;color:#6b7476;text-wrap:pretty">{{ shEmp.b }}</span><sc-if value="{{ shEmp.hasCta }}" hint-placeholder-val="{{ false }}"><button onClick="{{ shEmp.go }}" style="margin-top:8px;height:{{ btnH }};padding:0 18px;border:0;border-radius:10px;background:#237b22;color:#fff;font-size:14px;font-weight:600;cursor:pointer">{{ shEmp.cta }}</button></sc-if></div>
+        </sc-if>
+        <div style="display:flex;flex-direction:column">
+          <sc-for list="{{ shRows }}" as="s" hint-placeholder-count="4">
+            <div style="display:flex;align-items:center;gap:14px;padding:14px 0;border-top:{{ s.bt }};flex-wrap:{{ wrap }}">
+              <span style="flex:none;width:48px;height:52px;border-radius:10px;background:{{ s.dBg }};color:{{ s.dFg }};display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1"><span style="font-size:18px;font-weight:700">{{ s.day }}</span><span style="font-size:11px;font-weight:500;margin-top:3px">{{ s.mon }}</span></span>
+              <span style="flex:1;min-width:180px;display:flex;flex-direction:column;gap:3px">
+                <span style="font-size:14.5px;font-weight:600">{{ s.t }}</span>
+                <span style="font-size:13px;color:#6b7476">{{ s.meta }}</span>
+                <sc-if value="{{ s.hasFill }}" hint-placeholder-val="{{ false }}"><span style="display:flex;align-items:center;gap:8px;margin-top:3px"><span style="width:96px;height:4px;border-radius:4px;background:#eef0ec;overflow:hidden"><span style="display:block;height:100%;width:{{ s.fillPct }};background:#3a4a4c"></span></span><span style="font-size:12px;color:#6b7476">{{ s.fillL }}</span></span></sc-if>
+                <sc-if value="{{ s.hasNote }}" hint-placeholder-val="{{ false }}"><span style="font-size:12.5px;color:{{ s.noteFg }}">{{ s.note }}</span></sc-if>
+              </span>
+              <sc-if value="{{ s.hasChip }}" hint-placeholder-val="{{ false }}"><span style="flex:none;height:22px;padding:0 8px;border-radius:999px;background:{{ s.chip.bg }};color:{{ s.chip.fg }};font-size:12px;font-weight:500;display:flex;align-items:center;white-space:nowrap">{{ s.chip.t }}</span></sc-if>
+              <sc-if value="{{ s.hasA }}" hint-placeholder-val="{{ false }}"><button onClick="{{ s.aGo }}" style="flex:none;height:{{ btnSm }};padding:0 14px;border:{{ s.aBd }};border-radius:9px;background:{{ s.aBg }};color:{{ s.aFg }};font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">{{ s.a }}</button></sc-if>
+              <sc-if value="{{ s.hasB }}" hint-placeholder-val="{{ false }}"><button onClick="{{ s.bGo }}" style="flex:none;height:{{ btnSm }};padding:0 12px;border:0;border-radius:9px;background:transparent;color:#3a4a4c;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap">{{ s.b }}</button></sc-if>
+            </div>
+          </sc-for>
+        </div>
+        <sc-if value="{{ shFoot }}" hint-placeholder-val="{{ false }}"><span style="font-size:13px;line-height:1.55;color:#6b7476;text-wrap:pretty">{{ shFootT }}</span></sc-if>
+      </div>
+    </sc-if>
+
+    <!-- TASKS -->
+    <sc-if value="{{ pg.tasks }}" hint-placeholder-val="{{ false }}">
+      <div style="max-width:960px;margin:0 auto;padding:{{ padTop }} {{ padX }} 56px;display:flex;flex-direction:column;gap:28px">
+        <div style="display:flex;flex-direction:column;gap:4px"><h1 style="margin:0;font-size:{{ h1 }};font-weight:600;letter-spacing:-.02em">Tasks</h1><span style="font-size:14px;line-height:1.5;color:#6b7476;text-wrap:pretty">A task counts when the platform or a reviewer can see the result. Effort you report on its own never adds to your hours.</span></div>
+        <section style="display:flex;flex-direction:column;gap:6px">
+          <h2 style="margin:0 0 4px;font-size:16px;font-weight:600">Yours</h2>
+          <sc-if value="{{ noMyTasks }}" hint-placeholder-val="{{ false }}"><span style="padding:14px 0;border-top:1px solid #ecebe6;font-size:13.5px;color:#6b7476">Nothing yet. Take one below; it shows here with what counts.</span></sc-if>
+          <sc-for list="{{ myTasks }}" as="t" hint-placeholder-count="3">
+            <button onClick="{{ t.open }}" aria-pressed="{{ t.on }}" style="display:flex;align-items:center;gap:14px;padding:14px 12px;margin:0 -12px;border:0;border-top:{{ t.bt }};border-radius:{{ t.rad }};background:{{ t.bg }};color:#10292c;text-align:start;cursor:pointer">
+              <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:5px"><span style="font-size:14.5px;font-weight:600">{{ t.t }}</span><span style="font-size:13px;color:#6b7476;text-wrap:pretty">{{ t.vb }}</span>
+                <sc-if value="{{ t.hasBar }}" hint-placeholder-val="{{ true }}"><span style="display:flex;align-items:center;gap:10px"><span style="flex:1;max-width:240px;height:4px;border-radius:4px;background:#eef0ec;overflow:hidden"><span style="display:block;height:100%;width:{{ t.pct }};background:#237b22"></span></span><span style="font-size:12.5px;color:#6b7476">{{ t.progL }}</span></span></sc-if>
+              </span>
+              <span style="flex:none;height:22px;padding:0 8px;border-radius:999px;background:{{ t.chip.bg }};color:{{ t.chip.fg }};font-size:12px;font-weight:500;display:flex;align-items:center;white-space:nowrap">{{ t.chip.t }}</span>
+            </button>
+          </sc-for>
+        </section>
+        <section style="display:flex;flex-direction:column;gap:6px">
+          <h2 style="margin:0 0 4px;font-size:16px;font-weight:600">You can take</h2>
+          <sc-for list="{{ lib }}" as="l" hint-placeholder-count="3">
+            <div style="display:flex;align-items:center;gap:14px;padding:14px 0;border-top:{{ l.bt }};flex-wrap:{{ wrap }}">
+              <span style="flex:1;min-width:200px;display:flex;flex-direction:column;gap:3px"><span style="font-size:14.5px;font-weight:600;color:{{ l.fg }}">{{ l.t }}</span><span style="font-size:13px;line-height:1.45;color:#6b7476;text-wrap:pretty">{{ l.sub }}</span><sc-if value="{{ l.locked }}" hint-placeholder-val="{{ false }}"><span style="font-size:12.5px;color:#8a5d0b">{{ l.why }}</span></sc-if></span>
+              <button onClick="{{ l.go }}" style="flex:none;height:{{ btnSm }};padding:0 14px;border:{{ l.bd }};border-radius:9px;background:{{ l.bg }};color:{{ l.bfg }};font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">{{ l.cta }}</button>
+            </div>
+          </sc-for>
+        </section>
+      </div>
+    </sc-if>
+
+    <!-- AWARD WORK -->
+    <sc-if value="{{ pg.award }}" hint-placeholder-val="{{ false }}">
+      <div style="max-width:1080px;margin:0 auto;padding:{{ padTop }} {{ padX }} 56px;display:flex;flex-direction:column;gap:28px">
+        <div style="display:flex;flex-direction:column;gap:4px"><h1 style="margin:0;font-size:{{ h1 }};font-weight:600;letter-spacing:-.02em">{{ awH1 }}</h1><span style="font-size:14px;line-height:1.5;color:#6b7476;text-wrap:pretty">{{ awLead }}</span></div>
+
+        <sc-if value="{{ awList }}" hint-placeholder-val="{{ true }}">
+          <div style="display:grid;grid-template-columns:{{ awListCols }};gap:12px">
+            <sc-for list="{{ awTabs }}" as="t" hint-placeholder-count="3">
+              <button onClick="{{ t.go }}" style="display:flex;flex-direction:column;gap:10px;padding:16px;border:1px solid #e8e5dd;border-radius:16px;background:#fff;color:#10292c;text-align:start;cursor:pointer" style-hover="border-color:#c9cbc4">
+                <span style="display:flex;align-items:center;gap:10px"><span style="flex:none;width:36px;height:36px;border-radius:9px;background:{{ t.tBg }};color:{{ t.tFg }};font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center">{{ t.ini }}</span><span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"><span style="font-size:15px;font-weight:600;line-height:1.3">{{ t.n }}</span><span style="font-size:12.5px;color:#6b7476">{{ t.ed }}</span></span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#b5bab9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg></span>
+                <span style="display:flex;align-items:center;gap:8px;font-size:13px"><span style="width:8px;height:8px;border-radius:50%;background:{{ t.dot }}"></span>{{ t.phase }}<span style="color:#8a9294">· {{ t.next }}</span></span>
+                <span style="display:flex;flex-direction:column;gap:4px"><span style="height:4px;border-radius:4px;background:#eef0ec;overflow:hidden"><span style="display:block;height:100%;width:{{ t.pct }};background:#237b22"></span></span><span style="font-size:12px;color:#6b7476">{{ t.barT }}</span></span>
+                <span style="padding-top:10px;border-top:1px solid #f0f0ec;font-size:12.5px;color:#3a4a4c">Your roles: {{ t.roles }}</span>
+              </button>
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{ awOv }}" hint-placeholder-val="{{ false }}">
+        <section style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap"><h2 style="margin:0;font-size:18px;font-weight:600;letter-spacing:-.01em">{{ aw.n }} · {{ aw.ed }}</h2><span style="font-size:13px;font-weight:500;color:{{ aw.nextFg }}">{{ aw.next }}</span></div>
+          <ol style="margin:0;padding:0;list-style:none;display:grid;grid-template-columns:{{ aw.phCols }};border-top:1px solid #ecebe6;border-bottom:1px solid #ecebe6">
+            <sc-for list="{{ aw.phases }}" as="p" hint-placeholder-count="5"><li style="display:flex;flex-direction:column;gap:6px;padding:12px {{ p.pr }} 12px 0;border-top:{{ p.bt }}"><span style="height:3px;border-radius:3px;background:{{ p.bar }}"></span><span style="font-size:13px;font-weight:{{ p.fw }};color:{{ p.fg }}">{{ p.t }}</span><span style="font-size:12px;color:#8a9294">{{ p.d }}</span></li></sc-for>
+          </ol>
+        </section>
+
+        <section aria-label="How the award is doing" style="display:flex;flex-direction:column;gap:10px">
+          <h2 style="margin:0;font-size:16px;font-weight:600">How the award is doing</h2>
+          <div style="display:grid;grid-template-columns:{{ mtCols }};gap:10px">
+            <sc-for list="{{ aw.metrics }}" as="m" hint-placeholder-count="5">
+              <div style="display:flex;flex-direction:column;gap:6px;padding:14px 16px;border:1px solid #e8e5dd;border-radius:14px">
+                <span style="font-size:12.5px;color:#6b7476">{{ m.l }}</span>
+                <span style="font-size:22px;font-weight:600;letter-spacing:-.02em">{{ m.v }}</span>
+                <sc-if value="{{ m.hasBar }}" hint-placeholder-val="{{ true }}"><span style="height:4px;border-radius:4px;background:#eef0ec;overflow:hidden"><span style="display:block;height:100%;width:{{ m.pct }};background:{{ m.barC }}"></span></span></sc-if>
+                <span style="font-size:12px;line-height:1.4;color:{{ m.sFg }};text-wrap:pretty">{{ m.s }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <span style="font-size:12.5px;line-height:1.5;color:#6b7476">Totals for the whole award. Results and per-nominee standings stay with the public results page and the judges.</span>
+        </section>
+
+        <section aria-label="Events" style="display:flex;flex-direction:column;gap:10px">
+          <h2 style="margin:0;font-size:16px;font-weight:600">{{ aw.evH }}</h2>
+          <sc-for list="{{ aw.events }}" as="e" hint-placeholder-count="1">
+            <div style="display:flex;flex-direction:column;border:1px solid #e8e5dd;border-radius:16px;overflow:hidden">
+              <div style="display:flex;gap:14px;padding:16px;flex-wrap:{{ wrap }}">
+                <span style="flex:none;width:52px;height:56px;border-radius:12px;background:#effaf0;color:#1a5e1a;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1"><span style="font-size:20px;font-weight:700">{{ e.day }}</span><span style="font-size:11.5px;font-weight:500;margin-top:3px">{{ e.mon }}</span></span>
+                <span style="flex:1;min-width:200px;display:flex;flex-direction:column;gap:3px"><span style="font-size:15.5px;font-weight:600">{{ e.n }}</span><span style="font-size:13px;color:#3a4a4c">{{ e.when }} · {{ e.place }}</span><sc-if value="{{ e.shared }}" hint-placeholder-val="{{ false }}"><span style="font-size:12.5px;color:#1f5f8b">{{ e.sharedT }}</span></sc-if></span>
+                <button onClick="{{ e.go }}" style="flex:none;align-self:center;height:{{ btnSm }};padding:0 14px;border:1px solid #e3e3de;border-radius:9px;background:#fff;color:#10292c;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">{{ e.cta }}</button>
+              </div>
+              <div style="display:grid;grid-template-columns:{{ evCols }};border-top:1px solid #f0f0ec">
+                <sc-for list="{{ e.stats }}" as="s" hint-placeholder-count="3"><div style="display:flex;flex-direction:column;gap:3px;padding:12px 16px;border-left:{{ s.bl }};border-top:{{ s.bt }}"><span style="font-size:12px;color:#8a9294">{{ s.l }}</span><span style="font-size:14px;font-weight:500">{{ s.v }}</span></div></sc-for>
+              </div>
+            </div>
+          </sc-for>
+        </section>
+
+        </sc-if>
+        <sc-if value="{{ awWork }}" hint-placeholder-val="{{ false }}">
+        <section style="display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap"><h2 style="margin:0;font-size:16px;font-weight:600">Your part</h2><span style="font-size:13px;color:#6b7476">{{ aw.mine }}</span></div>
+          <div style="display:grid;grid-template-columns:{{ roleCols }};gap:12px">
+            <sc-for list="{{ awRoles }}" as="r" hint-placeholder-count="2">
+              <div style="display:flex;flex-direction:column;gap:10px;padding:16px;border:1px solid #e8e5dd;border-radius:14px">
+                <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:14.5px;font-weight:600">{{ r.t }}</span><span style="font-size:12.5px;color:#6b7476">{{ r.at }}</span></div>
+                <div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:12px;color:#1a5e1a;font-weight:500">You can</span><span style="font-size:13px;line-height:1.45;color:#3a4a4c;text-wrap:pretty">{{ r.can }}</span></div>
+                <div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:12px;color:#a52a19;font-weight:500">You can’t</span><span style="font-size:13px;line-height:1.45;color:#3a4a4c;text-wrap:pretty">{{ r.cant }}</span></div>
+                <span style="margin-top:auto;padding-top:10px;border-top:1px solid #f0f0ec;font-size:12.5px;color:#6b7476">{{ r.ends }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </section>
+
+        <sc-if value="{{ hasQueue }}" hint-placeholder-val="{{ false }}">
+          <section aria-label="Nomination check" style="display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap"><h2 style="margin:0;font-size:16px;font-weight:600">Nomination check</h2><span style="font-size:13px;color:#6b7476">{{ qStat }}</span></div>
+            <sc-if value="{{ qEmpty }}" hint-placeholder-val="{{ false }}"><div style="padding:32px 16px;text-align:center;border:1px dashed #e3e3de;border-radius:14px;font-size:13.5px;line-height:1.5;color:#6b7476">{{ qEmptyT }}</div></sc-if>
+            <sc-if value="{{ qHas }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;flex-direction:column;border:1px solid #e8e5dd;border-radius:16px;overflow:hidden">
+                <div style="display:flex;align-items:center;gap:10px;padding:12px 18px;border-bottom:1px solid #f0f0ec;background:#fafbf8;flex-wrap:wrap"><span style="font-family:'Geist Mono',monospace;font-size:12.5px;color:#6b7476">{{ qi.id }}</span><span style="font-size:13px;font-weight:500">{{ qi.cat }}</span><span style="margin-left:auto;font-size:12.5px;color:#8a9294">{{ qi.pos }}</span></div>
+                <div style="display:flex;flex-direction:column;gap:14px;padding:18px">
+                  <div style="display:grid;grid-template-columns:{{ qCols }};gap:14px">
+                    <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:12.5px;color:#8a9294">Nominee</span><span style="font-size:15px;font-weight:600">{{ qi.nm }}</span></div>
+                    <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:12.5px;color:#8a9294">Nominated by</span><span style="font-size:14px">{{ qi.by }}</span></div>
+                  </div>
+                  <div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:12.5px;color:#8a9294">Why they should be recognised</span><span style="font-size:14.5px;line-height:1.55;text-wrap:pretty">{{ qi.why }}</span></div>
+                  <div style="display:flex;flex-direction:column">
+                    <sc-for list="{{ qi.checks }}" as="c" hint-placeholder-count="3"><div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid #f0f0ec;font-size:13.5px"><span style="flex:none;width:8px;height:8px;border-radius:50%;background:{{ c.dot }}"></span><span style="flex:1;line-height:1.4">{{ c.t }}</span><span style="flex:none;font-size:12px;color:#8a9294">{{ c.src }}</span></div></sc-for>
+                  </div>
+                  <sc-if value="{{ qFlagOpen }}" hint-placeholder-val="{{ false }}">
+                    <div style="display:flex;flex-direction:column;gap:8px;padding:14px;border-radius:12px;background:#fafbf8;border:1px solid #ecebe6"><span style="font-size:13px;font-weight:600">What should the moderator look at?</span><div style="display:flex;gap:8px;flex-wrap:wrap"><sc-for list="{{ qReasons }}" as="x" hint-placeholder-count="4"><button onClick="{{ x.go }}" aria-pressed="{{ x.on }}" style="height:{{ chipH }};padding:0 14px;border:1px solid {{ x.bd }};border-radius:999px;background:{{ x.bg }};color:{{ x.fg }};font-size:13.5px;font-weight:500;cursor:pointer">{{ x.l }}</button></sc-for></div></div>
+                  </sc-if>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;padding:14px 18px;border-top:1px solid #f0f0ec">
+                  <button onClick="{{ qOk }}" style="height:{{ btnH }};padding:0 18px;border:0;border-radius:10px;background:#237b22;color:#fff;font-size:14px;font-weight:600;cursor:pointer">{{ qOkT }}</button>
+                  <button onClick="{{ qFlag }}" style="height:{{ btnH }};padding:0 16px;border:1px solid #e3e3de;border-radius:10px;background:#fff;color:#10292c;font-size:14px;font-weight:500;cursor:pointer">{{ qFlagT }}</button>
+                  <button onClick="{{ qSkip }}" style="height:{{ btnH }};padding:0 14px;border:0;border-radius:10px;background:transparent;color:#3a4a4c;font-size:14px;font-weight:500;cursor:pointer">Skip, I know them</button>
+                </div>
+              </div>
+            </sc-if>
+            <span style="font-size:12.5px;line-height:1.5;color:#6b7476;text-wrap:pretty">You recommend, a moderator decides. Contacts stay masked; skipping one you know is recorded as a conflict, not a miss. 1 in 5 of your checks is reviewed.</span>
+          </section>
+        </sc-if>
+
+        <sc-if value="{{ hasCare }}" hint-placeholder-val="{{ false }}">
+          <section aria-label="Nominee care" style="display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap"><h2 style="margin:0;font-size:16px;font-weight:600">Nominee care · Education category</h2><span style="font-size:13px;color:#6b7476">{{ careStat }}</span></div>
+            <div style="display:flex;flex-direction:column">
+              <div style="display:grid;grid-template-columns:{{ careCols }};gap:12px;padding:0 0 8px;font-size:12px;color:#8a9294"><span>Finalist</span><span>Page</span><sc-if value="{{ notPhone }}" hint-placeholder-val="{{ true }}"><span>Profile</span></sc-if><span>RSVP</span></div>
+              <sc-for list="{{ care }}" as="c" hint-placeholder-count="6">
+                <div style="display:grid;grid-template-columns:{{ careCols }};align-items:center;gap:12px;min-height:48px;border-top:1px solid #ecebe6;font-size:13.5px">
+                  <span style="font-weight:500;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ c.n }}</span>
+                  <span style="color:{{ c.pFg }}">{{ c.p }}</span>
+                  <sc-if value="{{ notPhone }}" hint-placeholder-val="{{ true }}"><span style="display:flex;align-items:center;gap:8px"><span style="width:64px;height:4px;border-radius:4px;background:#eef0ec;overflow:hidden"><span style="display:block;height:100%;width:{{ c.pr }};background:#237b22"></span></span><span style="font-family:'Geist Mono',monospace;font-size:12px;color:#6b7476">{{ c.pr }}</span></span></sc-if>
+                  <span style="color:{{ c.rFg }}">{{ c.r }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display:flex;align-items:center;gap:14px;padding:14px 16px;border:1px solid #e8e5dd;border-radius:14px;flex-wrap:{{ wrap }}">
+              <span style="flex:1;min-width:220px;display:flex;flex-direction:column;gap:3px"><span style="font-size:14px;font-weight:600">{{ careAct.t }}</span><span style="font-size:13px;line-height:1.45;color:#6b7476;text-wrap:pretty">{{ careAct.sub }}</span></span>
+              <sc-if value="{{ careAct.can }}" hint-placeholder-val="{{ true }}"><button onClick="{{ careSend }}" style="flex:none;height:{{ btnSm }};padding:0 14px;border:0;border-radius:9px;background:#237b22;color:#fff;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">Send to both</button></sc-if>
+            </div>
+            <span style="font-size:12.5px;line-height:1.5;color:#6b7476;text-wrap:pretty">The same help for everyone in a category: the same kit, the same message, at the same time. You can’t message one finalist on their own, and you never see who voted for whom.</span>
+          </section>
+        </sc-if>
+
+        </sc-if>
+        <sc-if value="{{ awRoleP }}" hint-placeholder-val="{{ false }}">
+        <sc-if value="{{ hasReq }}" hint-placeholder-val="{{ true }}">
+          <section style="display:flex;flex-direction:column;gap:6px">
+            <h2 style="margin:0 0 4px;font-size:16px;font-weight:600">More roles on this award</h2>
+            <sc-for list="{{ reqRoles }}" as="q" hint-placeholder-count="2">
+              <div style="display:flex;align-items:center;gap:14px;padding:14px 0;border-top:1px solid #ecebe6;flex-wrap:{{ wrap }}">
+                <span style="flex:1;min-width:200px;display:flex;flex-direction:column;gap:3px"><span style="font-size:14.5px;font-weight:600">{{ q.t }}</span><span style="font-size:13px;line-height:1.45;color:#6b7476;text-wrap:pretty">{{ q.sub }}</span><span style="font-size:12.5px;color:{{ q.nFg }}">{{ q.needs }}</span></span>
+                <button onClick="{{ q.go }}" style="flex:none;height:{{ btnSm }};padding:0 14px;border:{{ q.bd }};border-radius:9px;background:{{ q.bg }};color:{{ q.fg }};font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">{{ q.cta }}</button>
+              </div>
+            </sc-for>
+          </section>
+        </sc-if>
+        <span style="padding-top:12px;border-top:1px solid #ecebe6;font-size:12.5px;line-height:1.5;color:#6b7476">Judging, results and anything that moves money are never volunteer roles.</span>
+        </sc-if>
+      </div>
+    </sc-if>
+
+    <!-- TRAINING -->
+    <sc-if value="{{ pg.training }}" hint-placeholder-val="{{ false }}">
+      <div style="max-width:880px;margin:0 auto;padding:{{ padTop }} {{ padX }} 56px;display:flex;flex-direction:column;gap:22px">
+        <div style="display:flex;flex-direction:column;gap:4px"><h1 style="margin:0;font-size:{{ h1 }};font-weight:600;letter-spacing:-.02em">Training</h1><span style="font-size:14px;color:#6b7476">{{ trSub }}</span></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap"><sc-for list="{{ quals }}" as="q" hint-placeholder-count="3"><span style="height:28px;padding:0 10px;border-radius:999px;border:1px solid #cfe6ce;background:#effaf0;color:#1a5e1a;font-size:12.5px;font-weight:500;display:flex;align-items:center;gap:6px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"></path></svg>{{ q }}</span></sc-for></div>
+        <ol style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column">
+          <sc-for list="{{ mods }}" as="m" hint-placeholder-count="6">
+            <li style="display:flex;align-items:center;gap:14px;padding:14px 0;border-top:{{ m.bt }};flex-wrap:{{ wrap }}">
+              <span style="flex:none;width:26px;height:26px;border-radius:50%;background:{{ m.cBg }};border:{{ m.cBd }};color:#fff;display:flex;align-items:center;justify-content:center"><sc-if value="{{ m.done }}" hint-placeholder-val="{{ false }}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"></path></svg></sc-if></span>
+              <span style="flex:1;min-width:200px;display:flex;flex-direction:column;gap:3px"><span style="font-size:14.5px;font-weight:600">{{ m.t }}</span><span style="font-size:13px;color:{{ m.whyFg }};text-wrap:pretty">{{ m.why }}</span></span>
+              <sc-if value="{{ m.done }}" hint-placeholder-val="{{ false }}"><span style="flex:none;font-size:12.5px;color:#6b7476">{{ m.doneT }}</span></sc-if>
+              <sc-if value="{{ m.todo }}" hint-placeholder-val="{{ true }}"><button onClick="{{ m.go }}" style="flex:none;height:{{ btnSm }};padding:0 14px;border:{{ m.bd }};border-radius:9px;background:{{ m.bg }};color:{{ m.fg }};font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">Start · {{ m.len }}</button></sc-if>
+            </li>
+          </sc-for>
+        </ol>
+      </div>
+    </sc-if>
+
+    <!-- RECORD -->
+    <sc-if value="{{ pg.record }}" hint-placeholder-val="{{ false }}">
+      <div style="max-width:960px;margin:0 auto;padding:{{ padTop }} {{ padX }} 56px;display:flex;flex-direction:column;gap:30px">
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap"><div style="display:flex;flex-direction:column;gap:4px"><h1 style="margin:0;font-size:{{ h1 }};font-weight:600;letter-spacing:-.02em">My record</h1><span style="font-size:14px;color:#6b7476">{{ standing }}</span></div><sc-if value="{{ hasHours }}" hint-placeholder-val="{{ true }}"><button onClick="{{ dlRec }}" style="height:{{ btnSm }};padding:0 14px;border:1px solid #e3e3de;border-radius:9px;background:#fff;color:#10292c;font-size:13px;font-weight:500;cursor:pointer">Download my record (PDF)</button></sc-if></div>
+        <section style="display:grid;grid-template-columns:{{ numCols }};border-top:1px solid #ecebe6;border-bottom:1px solid #ecebe6">
+          <sc-for list="{{ nums }}" as="m" hint-placeholder-count="4">
+            <div style="display:flex;flex-direction:column;gap:4px;padding:16px {{ m.pr }} 16px {{ m.pl }};border-left:{{ m.bl }};border-top:{{ m.bt }}"><span style="font-size:12.5px;color:#6b7476">{{ m.l }}</span><span style="font-size:24px;font-weight:600;letter-spacing:-.02em">{{ m.v }}</span><span style="font-size:12px;line-height:1.4;color:#8a9294">{{ m.s }}</span></div>
+          </sc-for>
+        </section>
+        <section style="display:flex;flex-direction:column;gap:12px">
+          <h2 style="margin:0;font-size:16px;font-weight:600">Levels</h2>
+          <div style="display:grid;grid-template-columns:{{ lvCols }};gap:10px">
+            <sc-for list="{{ ladder }}" as="l" hint-placeholder-count="3">
+              <div style="display:flex;flex-direction:column;gap:6px;padding:16px;border:1px solid {{ l.bd }};border-radius:14px;background:{{ l.bg }}">
+                <span style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span style="font-size:14.5px;font-weight:600">{{ l.t }}</span><sc-if value="{{ l.here }}" hint-placeholder-val="{{ false }}"><span style="height:22px;padding:0 8px;border-radius:999px;background:#fff;border:1px solid #cfe6ce;color:#1a5e1a;font-size:12px;font-weight:500;display:flex;align-items:center">You</span></sc-if></span>
+                <span style="font-size:13px;line-height:1.5;color:#3a4a4c;text-wrap:pretty">{{ l.can }}</span>
+                <span style="font-size:12.5px;line-height:1.45;color:#6b7476;text-wrap:pretty">{{ l.req }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <span style="font-size:13px;line-height:1.55;color:#6b7476;text-wrap:pretty">Levels come from your record, never set by hand without a reason on the log. {{ spot }}</span>
+        </section>
+        <section style="display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px"><h2 style="margin:0 0 4px;font-size:16px;font-weight:600">Hours</h2><sc-if value="{{ active }}" hint-placeholder-val="{{ true }}"><button onClick="{{ openLog }}" style="border:0;background:transparent;color:#237b22;font-size:13.5px;font-weight:500;cursor:pointer;padding:6px 0">Log hours</button></sc-if></div>
+          <sc-if value="{{ noHours }}" hint-placeholder-val="{{ false }}"><span style="padding:14px 0;border-top:1px solid #ecebe6;font-size:13.5px;line-height:1.5;color:#6b7476">Your first hours appear here after your first shift. Gate and stand scans count on their own; anything else needs your lead to confirm it.</span></sc-if>
+          <sc-for list="{{ hours }}" as="h" hint-placeholder-count="5">
+            <div style="display:grid;grid-template-columns:{{ hrCols }};align-items:center;gap:12px;padding:12px 0;border-top:{{ h.bt }}">
+              <span style="display:flex;flex-direction:column;gap:2px;min-width:0"><span style="font-size:14px;font-weight:500">{{ h.t }}</span><span style="font-size:12.5px;color:#6b7476;text-wrap:pretty">{{ h.d }} · {{ h.how }}</span></span>
+              <span style="justify-self:start;height:22px;padding:0 8px;border-radius:999px;background:{{ h.chip.bg }};color:{{ h.chip.fg }};font-size:12px;font-weight:500;display:flex;align-items:center;white-space:nowrap">{{ h.chip.t }}</span>
+              <span style="justify-self:end;font-family:'Geist Mono',monospace;font-size:13.5px;font-weight:500;color:{{ h.hFg }}">{{ h.h }}</span>
+            </div>
+          </sc-for>
+          <sc-if value="{{ hasHours }}" hint-placeholder-val="{{ true }}"><span style="padding-top:10px;border-top:1px solid #ecebe6;font-size:12.5px;line-height:1.5;color:#6b7476">Observed: the platform recorded it (a scan, a verified sign-up). Witnessed: a lead or reviewer confirmed it. Reported hours wait for your lead and only count once confirmed.</span></sc-if>
+        </section>
+      </div>
+    </sc-if>
+
+    <!-- TEAM (lead) -->
+    <sc-if value="{{ pg.team }}" hint-placeholder-val="{{ false }}">
+      <div style="max-width:960px;margin:0 auto;padding:{{ padTop }} {{ padX }} 56px;display:flex;flex-direction:column;gap:28px">
+        <div style="display:flex;flex-direction:column;gap:4px"><h1 style="margin:0;font-size:{{ h1 }};font-weight:600;letter-spacing:-.02em">My team</h1><span style="font-size:14px;color:#6b7476">You lead 14 volunteers at Alimosho Centre. Each decision here is logged with your name.</span></div>
+        <section style="display:flex;flex-direction:column;gap:6px">
+          <h2 style="margin:0 0 4px;font-size:16px;font-weight:600">Waiting on you</h2>
+          <sc-if value="{{ apprClear }}" hint-placeholder-val="{{ false }}"><span style="padding:14px 0;border-top:1px solid #ecebe6;font-size:13.5px;color:#6b7476">All clear. New requests arrive here and in your morning digest.</span></sc-if>
+          <sc-for list="{{ appr }}" as="a" hint-placeholder-count="4">
+            <div style="display:flex;align-items:center;gap:14px;padding:14px 0;border-top:{{ a.bt }};flex-wrap:{{ wrap }}">
+              <span style="flex:none;width:32px;height:32px;border-radius:50%;background:#f3f3f0;color:#3a4a4c;font-size:11.5px;font-weight:600;display:flex;align-items:center;justify-content:center">{{ a.ini }}</span>
+              <span style="flex:1;min-width:200px;display:flex;flex-direction:column;gap:2px"><span style="font-size:14px"><span style="font-weight:600">{{ a.who }}</span><span style="color:#6b7476"> · {{ a.what }}</span></span><span style="font-size:13px;line-height:1.45;color:#6b7476;text-wrap:pretty">{{ a.sub }}</span></span>
+              <button onClick="{{ a.yes }}" style="flex:none;height:{{ btnSm }};padding:0 14px;border:0;border-radius:9px;background:#237b22;color:#fff;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">{{ a.yesT }}</button>
+              <sc-if value="{{ a.hasNo }}" hint-placeholder-val="{{ true }}"><button onClick="{{ a.no }}" style="flex:none;height:{{ btnSm }};padding:0 12px;border:1px solid #e3e3de;border-radius:9px;background:#fff;color:#10292c;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap">{{ a.noT }}</button></sc-if>
+            </div>
+          </sc-for>
+        </section>
+        <section style="display:flex;flex-direction:column;gap:6px">
+          <h2 style="margin:0 0 4px;font-size:16px;font-weight:600">Award work progress</h2>
+          <sc-for list="{{ awProg }}" as="p" hint-placeholder-count="3">
+            <div style="display:grid;grid-template-columns:{{ apCols }};align-items:center;gap:14px;padding:12px 0;border-top:1px solid #ecebe6">
+              <span style="display:flex;flex-direction:column;gap:2px;min-width:0"><span style="font-size:14px;font-weight:500">{{ p.t }}</span><span style="font-size:12.5px;color:#6b7476;text-wrap:pretty">{{ p.who }}</span></span>
+              <span style="display:flex;flex-direction:column;gap:5px"><span style="height:4px;border-radius:4px;background:#eef0ec;overflow:hidden"><span style="display:block;height:100%;width:{{ p.pct }};background:#237b22"></span></span><span style="font-size:12.5px;color:#3a4a4c">{{ p.l }}</span></span>
+              <span style="justify-self:end;height:22px;padding:0 8px;border-radius:999px;background:{{ p.chip.bg }};color:{{ p.chip.fg }};font-size:12px;font-weight:500;display:flex;align-items:center;white-space:nowrap">{{ p.chip.t }}</span>
+            </div>
+          </sc-for>
+        </section>
+        <section style="display:flex;flex-direction:column;gap:6px">
+          <h2 style="margin:0 0 4px;font-size:16px;font-weight:600">This week’s rota</h2>
+          <sc-for list="{{ roster }}" as="r" hint-placeholder-count="5">
+            <div style="display:grid;grid-template-columns:{{ rosCols }};align-items:center;gap:12px;padding:11px 0;border-top:{{ r.bt }}">
+              <span style="display:flex;flex-direction:column;gap:2px;min-width:0"><span style="font-size:14px;font-weight:500">{{ r.n }}</span><span style="font-size:12.5px;color:#6b7476">{{ r.lv }} · {{ r.next }}</span></span>
+              <sc-if value="{{ notPhone }}" hint-placeholder-val="{{ true }}"><span style="font-family:'Geist Mono',monospace;font-size:13px;color:#3a4a4c">{{ r.h }}</span></sc-if>
+              <span style="justify-self:end;font-family:'Geist Mono',monospace;font-size:13px;color:{{ r.relFg }}">{{ r.rel }}</span>
+            </div>
+          </sc-for>
+        </section>
+      </div>
+    </sc-if>
+
+    <!-- PROFILE & ACCESS -->
+    <sc-if value="{{ pg.profile }}" hint-placeholder-val="{{ false }}">
+      <div style="max-width:760px;margin:0 auto;padding:{{ padTop }} {{ padX }} 56px;display:flex;flex-direction:column;gap:30px">
+        <h1 style="margin:0;font-size:{{ h1 }};font-weight:600;letter-spacing:-.02em">Profile and access</h1>
+        <section style="display:flex;flex-direction:column;gap:6px">
+          <h2 style="margin:0;font-size:16px;font-weight:600">What you can open</h2>
+          <span style="font-size:13px;line-height:1.5;color:#6b7476;margin-bottom:6px;text-wrap:pretty">Each role is for one place and ends on its own, so access never outlives the reason for it.</span>
+          <sc-if value="{{ noGrants }}" hint-placeholder-val="{{ false }}"><span style="padding:14px 0;border-top:1px solid #ecebe6;font-size:13.5px;color:#6b7476">Nothing yet. Your first role is given once screening and training are done.</span></sc-if>
+          <sc-for list="{{ grants }}" as="g" hint-placeholder-count="3">
+            <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-top:{{ g.bt }};flex-wrap:{{ wrap }}"><span style="flex:1;min-width:180px;display:flex;flex-direction:column;gap:2px"><span style="font-size:14px;font-weight:600">{{ g.r }}</span><span style="font-size:13px;color:#6b7476">{{ g.at }}</span></span><span style="font-size:12.5px;color:#3a4a4c">{{ g.ends }}</span></div>
+          </sc-for>
+        </section>
+        <section style="display:flex;flex-direction:column;gap:10px">
+          <h2 style="margin:0;font-size:16px;font-weight:600">When you’re free</h2>
+          <span style="font-size:13px;color:#6b7476">Leads see this when they fill shifts. Nobody books you without asking.</span>
+          <div style="display:flex;gap:8px;flex-wrap:wrap"><sc-for list="{{ avail }}" as="a" hint-placeholder-count="5"><button onClick="{{ a.go }}" aria-pressed="{{ a.on }}" style="height:{{ chipH }};padding:0 14px;border:1px solid {{ a.bd }};border-radius:999px;background:{{ a.bg }};color:{{ a.fg }};font-size:13.5px;font-weight:500;cursor:pointer">{{ a.l }}</button></sc-for></div>
+        </section>
+        <section style="display:flex;flex-direction:column;gap:10px">
+          <h2 style="margin:0;font-size:16px;font-weight:600">How we reach you</h2>
+          <span style="font-size:13px;color:#6b7476">Shift changes always come by email. Pick what else you’re happy to get; quiet hours are 21:00 to 08:00.</span>
+          <div style="display:flex;gap:8px;flex-wrap:wrap"><sc-for list="{{ chans }}" as="a" hint-placeholder-count="3"><button onClick="{{ a.go }}" aria-pressed="{{ a.on }}" style="height:{{ chipH }};padding:0 14px;border:1px solid {{ a.bd }};border-radius:999px;background:{{ a.bg }};color:{{ a.fg }};font-size:13.5px;font-weight:500;cursor:pointer">{{ a.l }}</button></sc-for></div>
+        </section>
+        <section style="display:flex;flex-direction:column">
+          <h2 style="margin:0 0 8px;font-size:16px;font-weight:600">Your details</h2>
+          <sc-for list="{{ details }}" as="d" hint-placeholder-count="3"><div style="display:flex;align-items:center;gap:12px;min-height:52px;border-top:1px solid #ecebe6"><span style="width:150px;flex:none;font-size:13px;color:#6b7476">{{ d.l }}</span><span style="flex:1;min-width:0;font-size:14px">{{ d.v }}</span><button onClick="{{ d.go }}" style="flex:none;height:36px;padding:0 10px;border:0;background:transparent;color:#237b22;font-size:13px;font-weight:500;cursor:pointer">Change</button></div></sc-for>
+          <span style="padding-top:12px;border-top:1px solid #ecebe6;font-size:12.5px;line-height:1.5;color:#6b7476;text-wrap:pretty">Other volunteers see your first name and initial. Your phone is masked to everyone except your lead, and each time someone opens it, it’s logged.</span>
+        </section>
+        <sc-if value="{{ active }}" hint-placeholder-val="{{ true }}">
+          <section style="display:flex;align-items:center;gap:12px;padding-top:18px;border-top:1px solid #ecebe6;flex-wrap:{{ wrap }}"><span style="flex:1;min-width:200px;display:flex;flex-direction:column;gap:2px"><span style="font-size:14px;font-weight:600">Take a break</span><span style="font-size:13px;line-height:1.45;color:#6b7476">Pauses new shift requests. Your record and certificates stay.</span></span><button onClick="{{ pauseIt }}" style="flex:none;height:{{ btnSm }};padding:0 14px;border:1px solid #e3e3de;border-radius:9px;background:#fff;color:#10292c;font-size:13px;font-weight:500;cursor:pointer">{{ pauseT }}</button></section>
+        </sc-if>
+      </div>
+    </sc-if>
+  </main>
+
+  <sc-if value="{{ paneDock }}" hint-placeholder-val="{{ false }}">
+    <aside aria-label="Task" style="flex:none;width:400px;border-left:1px solid #efefeb;overflow-y:auto;display:flex;flex-direction:column">
+      <div style="flex:none;display:flex;align-items:center;justify-content:space-between;height:52px;padding:0 12px 0 20px;border-bottom:1px solid #efefeb"><span style="font-size:13px;color:#6b7476">Task</span><button onClick="{{ closeSel }}" aria-label="Close" style="width:36px;height:36px;border:0;border-radius:8px;background:transparent;color:#3a4a4c;cursor:pointer;display:flex;align-items:center;justify-content:center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
+      <div style="padding:20px;display:flex;flex-direction:column;gap:18px">
+        <div style="display:flex;flex-direction:column;gap:8px"><span style="align-self:flex-start;height:22px;padding:0 8px;border-radius:999px;background:{{ tk.chip.bg }};color:{{ tk.chip.fg }};font-size:12px;font-weight:500;display:flex;align-items:center">{{ tk.chip.t }}</span><span style="font-size:19px;font-weight:600;letter-spacing:-.01em;line-height:1.3">{{ tk.t }}</span></div>
+        <sc-if value="{{ tk.hasBar }}" hint-placeholder-val="{{ true }}"><div style="display:flex;flex-direction:column;gap:6px"><span style="height:6px;border-radius:6px;background:#eef0ec;overflow:hidden"><span style="display:block;height:100%;width:{{ tk.pct }};background:#237b22"></span></span><span style="font-size:13px;color:#3a4a4c">{{ tk.progL }}</span></div></sc-if>
+        <div style="display:flex;flex-direction:column">
+          <sc-for list="{{ tk.facts }}" as="f" hint-placeholder-count="3"><div style="display:flex;flex-direction:column;gap:2px;padding:10px 0;border-top:1px solid #f0f0ec"><span style="font-size:12.5px;color:#8a9294">{{ f.l }}</span><span style="font-size:13.5px;line-height:1.45">{{ f.v }}</span></div></sc-for>
+        </div>
+        <sc-if value="{{ tk.isLink }}" hint-placeholder-val="{{ false }}"><div style="display:flex;gap:8px"><span style="flex:1;min-width:0;height:40px;display:flex;align-items:center;padding:0 12px;border:1px solid #e3e3de;border-radius:9px;background:#fafbf8;font-family:'Geist Mono',monospace;font-size:13px;overflow:hidden;white-space:nowrap">agates.ng/v/chika-n4</span><button onClick="{{ copyLink }}" style="flex:none;height:40px;padding:0 14px;border:0;border-radius:9px;background:#237b22;color:#fff;font-size:13px;font-weight:600;cursor:pointer">Copy</button></div></sc-if>
+        <sc-if value="{{ tk.isSubmit }}" hint-placeholder-val="{{ false }}"><div style="display:flex;flex-direction:column;gap:8px"><label style="font-size:13px;font-weight:500" for="ev-in">Send work for review</label><input id="ev-in" value="{{ evQ }}" onInput="{{ setEv }}" placeholder="Link to the sheet, or the entry numbers" style="height:40px;padding:0 12px;border:1px solid #e3e3de;border-radius:9px;font-size:14px;color:#10292c"><button onClick="{{ sendEv }}" style="align-self:flex-start;height:40px;padding:0 16px;border:0;border-radius:9px;background:#237b22;color:#fff;font-size:13.5px;font-weight:600;cursor:pointer">Send to Femi</button></div></sc-if>
+        <div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:13px;font-weight:600">History</span><sc-for list="{{ tk.hist }}" as="h" hint-placeholder-count="2"><div style="display:flex;gap:12px;padding:8px 0;border-top:1px solid #f0f0ec;font-size:13px"><span style="flex:none;width:84px;color:#8a9294">{{ h.d }}</span><span style="flex:1;line-height:1.45">{{ h.t }}</span></div></sc-for></div>
+      </div>
+    </aside>
+  </sc-if>
+  </div>
+
+  <sc-if value="{{ isPhone }}" hint-placeholder-val="{{ false }}">
+    <nav aria-label="Sections" style="flex:none;display:flex;height:64px;padding-bottom:env(safe-area-inset-bottom);border-top:1px solid #e6e6e1;background:#fff">
+      <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="5">
+        <button onClick="{{ t.go }}" aria-current="{{ t.cur }}" style="position:relative;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border:0;background:transparent;color:{{ t.fg }};font-size:11.5px;font-weight:{{ t.fw }};cursor:pointer">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="{{ t.d }}"></path></svg>{{ t.label }}
+          <sc-if value="{{ t.badge }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;top:9px;left:calc(50% + 7px);width:7px;height:7px;border-radius:50%;background:#b07a12;box-shadow:0 0 0 2px #fff"></span></sc-if>
+        </button>
+      </sc-for>
+    </nav>
+  </sc-if>
+
+  <sc-if value="{{ toastOn }}" hint-placeholder-val="{{ false }}">
+    <div role="status" style="position:absolute;left:50%;bottom:{{ toastB }};transform:translateX(-50%);z-index:30;max-width:calc(100% - 32px);padding:12px 16px;border-radius:12px;background:#10292c;color:#fff;font-size:13.5px;line-height:1.4;box-shadow:0 10px 30px rgba(16,41,44,.2)">{{ toastT }}</div>
+  </sc-if>
+</div>
+</div>
+
+<sc-if value="{{ sheetOn }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeSheet }}" style="position:absolute;inset:0;z-index:40;background:rgba(16,41,44,.18)"></div>
+  <div role="dialog" aria-modal="true" aria-label="{{ sh.title }}" style="position:absolute;z-index:41;left:{{ shL }};right:{{ shR }};top:{{ shT }};bottom:{{ shB }};width:{{ shW }};max-height:{{ shMax }};display:flex;flex-direction:column;background:#fff;border-radius:{{ shRad }};box-shadow:0 20px 60px rgba(16,41,44,.18);overflow:hidden">
+    <sc-if value="{{ isPhone }}" hint-placeholder-val="{{ false }}"><span style="align-self:center;margin-top:8px;width:36px;height:4px;border-radius:4px;background:#d9dad4"></span></sc-if>
+    <div style="flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:56px;padding:0 8px 0 20px"><span style="font-size:16px;font-weight:600">{{ sh.title }}</span><button onClick="{{ closeSheet }}" aria-label="Close" style="width:44px;height:44px;border:0;border-radius:10px;background:transparent;color:#3a4a4c;cursor:pointer;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
+    <div style="flex:1;min-height:0;overflow-y:auto;padding:0 20px 20px;display:flex;flex-direction:column;gap:16px">
+
+      <sc-if value="{{ sh.pass }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:14px;padding:8px 0">
+          <div style="padding:14px;border:1px solid #e8e5dd;border-radius:16px;background:#fff"><div style="display:grid;grid-template-columns:repeat(25,8px);grid-auto-rows:8px"><sc-for list="{{ qr }}" as="c" hint-placeholder-count="25"><span style="background:{{ c }}"></span></sc-for></div></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:3px;text-align:center"><span style="font-size:18px;font-weight:600">Chika N.</span><span style="font-size:13.5px;color:#3a4a4c">{{ pass.role }}</span><span style="font-size:13px;color:#6b7476">{{ pass.valid }}</span></div>
+          <span style="max-width:340px;text-align:center;font-size:13px;line-height:1.55;color:#6b7476;text-wrap:pretty">Scan in when you arrive and scan out when you leave. Your hours come from those two scans. Turn your brightness up at the gate. Works offline.</span>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ sh.take }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column"><sc-for list="{{ sd.facts }}" as="f" hint-placeholder-count="4"><div style="display:flex;flex-direction:column;gap:2px;padding:10px 0;border-top:1px solid #f0f0ec"><span style="font-size:12.5px;color:#8a9294">{{ f.l }}</span><span style="font-size:14px;line-height:1.45">{{ f.v }}</span></div></sc-for></div>
+        <span style="font-size:13px;line-height:1.5;color:#6b7476;text-wrap:pretty">If you can’t make it, drop it at least 48 hours before so someone else can take it. Later drops count against reliability.</span>
+        <button onClick="{{ confirmTake }}" style="height:48px;border:0;border-radius:12px;background:#237b22;color:#fff;font-size:15px;font-weight:600;cursor:pointer">Take this shift</button>
+      </sc-if>
+
+      <sc-if value="{{ sh.drop }}" hint-placeholder-val="{{ false }}">
+        <span style="font-size:14px;line-height:1.55;text-wrap:pretty">{{ sd.t }}, {{ sd.d }}, {{ sd.time }}.</span>
+        <div style="padding:12px 14px;border-radius:12px;background:{{ sd.wBg }};color:{{ sd.wFg }};font-size:13.5px;line-height:1.5;text-wrap:pretty">{{ sd.warn }}</div>
+        <button onClick="{{ offerSwap }}" style="height:48px;border:0;border-radius:12px;background:#237b22;color:#fff;font-size:15px;font-weight:600;cursor:pointer">Offer it to the team first</button>
+        <button onClick="{{ confirmDrop }}" style="height:48px;border:1px solid #e3e3de;border-radius:12px;background:#fff;color:#a52a19;font-size:15px;font-weight:500;cursor:pointer">Drop the shift</button>
+      </sc-if>
+
+      <sc-if value="{{ sh.log }}" hint-placeholder-val="{{ false }}">
+        <span style="font-size:13.5px;line-height:1.5;color:#6b7476;text-wrap:pretty">For work no scan can see. It counts once Kemi confirms it, and you’ll see it as waiting until then.</span>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500">What it was for<select value="{{ lg.task }}" onChange="{{ lgTask }}" style="height:44px;padding:0 10px;border:1px solid #e3e3de;border-radius:10px;background:#fff;font-size:16px;color:#10292c"><option value="Voter drive">Voter drive</option><option value="Digitising the 1st Edition booklet">Digitising the booklet</option><option value="Set-up help">Set-up help</option><option value="Something else">Something else</option></select></label>
+        <div style="display:grid;grid-template-columns:minmax(0,1fr) 110px;gap:10px">
+          <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500">Date<input type="date" value="{{ lg.date }}" onInput="{{ lgDate }}" style="height:44px;padding:0 10px;border:1px solid #e3e3de;border-radius:10px;font-size:16px;color:#10292c"></label>
+          <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500">Hours<input type="number" inputmode="decimal" min="0.5" max="12" step="0.5" value="{{ lg.h }}" onInput="{{ lgH }}" style="height:44px;padding:0 10px;border:1px solid #e3e3de;border-radius:10px;font-size:16px;color:#10292c"></label>
+        </div>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500">What you did<textarea value="{{ lg.what }}" onInput="{{ lgWhat }}" rows="3" placeholder="Printed 200 voting guides for Saturday’s drive" style="padding:10px;border:1px solid #e3e3de;border-radius:10px;font-size:16px;line-height:1.45;color:#10292c;resize:vertical"></textarea></label>
+        <sc-if value="{{ lg.hasErr }}" hint-placeholder-val="{{ false }}"><span role="alert" style="font-size:13px;color:#a52a19">{{ lg.err }}</span></sc-if>
+        <button onClick="{{ sendLog }}" style="height:48px;border:0;border-radius:12px;background:#237b22;color:#fff;font-size:15px;font-weight:600;cursor:pointer">Send to Kemi</button>
+      </sc-if>
+
+      <sc-if value="{{ sh.train }}" hint-placeholder-val="{{ false }}">
+        <span style="font-size:13.5px;line-height:1.5;color:#6b7476">{{ qz.len }} · {{ qz.why }}</span>
+        <div style="display:flex;flex-direction:column;gap:2px">
+          <sc-for list="{{ qz.parts }}" as="p" hint-placeholder-count="3"><div style="display:flex;gap:10px;padding:10px 0;border-top:1px solid #f0f0ec;font-size:14px;line-height:1.45"><span style="flex:none;width:20px;font-family:'Geist Mono',monospace;color:#8a9294">{{ p.n }}</span><span>{{ p.t }}</span></div></sc-for>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;padding:14px;border-radius:14px;background:#fafbf8;border:1px solid #ecebe6">
+          <span style="font-size:12.5px;color:#8a9294">Check</span>
+          <span style="font-size:14.5px;font-weight:600;line-height:1.4;text-wrap:pretty">{{ qz.q }}</span>
+          <sc-for list="{{ qz.opts }}" as="o" hint-placeholder-count="3"><button onClick="{{ o.go }}" style="min-height:48px;padding:10px 14px;border:1px solid {{ o.bd }};border-radius:10px;background:{{ o.bg }};color:#10292c;font-size:14px;text-align:start;line-height:1.4;cursor:pointer">{{ o.t }}</button></sc-for>
+          <sc-if value="{{ qz.wrong }}" hint-placeholder-val="{{ false }}"><span role="alert" style="font-size:13px;line-height:1.45;color:#a52a19">Not quite. Read part {{ qz.hintN }} again, then try another answer.</span></sc-if>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ sh.task }}" hint-placeholder-val="{{ false }}">
+        <span style="align-self:flex-start;height:22px;padding:0 8px;border-radius:999px;background:{{ tk.chip.bg }};color:{{ tk.chip.fg }};font-size:12px;font-weight:500;display:flex;align-items:center">{{ tk.chip.t }}</span>
+        <sc-if value="{{ tk.hasBar }}" hint-placeholder-val="{{ true }}"><div style="display:flex;flex-direction:column;gap:6px"><span style="height:6px;border-radius:6px;background:#eef0ec;overflow:hidden"><span style="display:block;height:100%;width:{{ tk.pct }};background:#237b22"></span></span><span style="font-size:13px;color:#3a4a4c">{{ tk.progL }}</span></div></sc-if>
+        <div style="display:flex;flex-direction:column"><sc-for list="{{ tk.facts }}" as="f" hint-placeholder-count="3"><div style="display:flex;flex-direction:column;gap:2px;padding:10px 0;border-top:1px solid #f0f0ec"><span style="font-size:12.5px;color:#8a9294">{{ f.l }}</span><span style="font-size:14px;line-height:1.45">{{ f.v }}</span></div></sc-for></div>
+        <sc-if value="{{ tk.isLink }}" hint-placeholder-val="{{ false }}"><button onClick="{{ copyLink }}" style="height:48px;border:0;border-radius:12px;background:#237b22;color:#fff;font-size:15px;font-weight:600;cursor:pointer">Copy agates.ng/v/chika-n4</button></sc-if>
+        <sc-if value="{{ tk.isSubmit }}" hint-placeholder-val="{{ false }}"><input value="{{ evQ }}" onInput="{{ setEv }}" aria-label="Link or entry numbers" placeholder="Link to the sheet, or the entry numbers" style="height:48px;padding:0 12px;border:1px solid #e3e3de;border-radius:10px;font-size:16px;color:#10292c"><button onClick="{{ sendEv }}" style="height:48px;border:0;border-radius:12px;background:#237b22;color:#fff;font-size:15px;font-weight:600;cursor:pointer">Send to Femi</button></sc-if>
+        <div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:13px;font-weight:600">History</span><sc-for list="{{ tk.hist }}" as="h" hint-placeholder-count="2"><div style="display:flex;gap:12px;padding:8px 0;border-top:1px solid #f0f0ec;font-size:13px"><span style="flex:none;width:84px;color:#8a9294">{{ h.d }}</span><span style="flex:1;line-height:1.45">{{ h.t }}</span></div></sc-for></div>
+      </sc-if>
+
+      <sc-if value="{{ sh.more }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column">
+          <sc-for list="{{ moreItems }}" as="i" hint-placeholder-count="3"><button onClick="{{ i.go }}" style="display:flex;align-items:center;gap:14px;height:56px;border:0;border-top:{{ i.bt }};background:transparent;color:#10292c;font-size:15px;text-align:start;cursor:pointer"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="{{ i.d }}"></path></svg><span style="flex:1">{{ i.label }}</span><sc-if value="{{ i.badge }}" hint-placeholder-val="{{ false }}"><span style="min-width:22px;height:22px;padding:0 7px;border-radius:999px;background:#fbf4e4;color:#8a5d0b;font-family:'Geist Mono',monospace;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center">{{ i.n }}</span></sc-if></button></sc-for>
+          <button onClick="{{ openLogM }}" style="display:flex;align-items:center;gap:14px;height:56px;border:0;border-top:1px solid #f0f0ec;background:transparent;color:#10292c;font-size:15px;text-align:start;cursor:pointer"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>Log hours</button>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ sh.awsw }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:4px"><sc-for list="{{ awTabs }}" as="t" hint-placeholder-count="3"><button onClick="{{ t.sw }}" aria-current="{{ t.on }}" style="display:flex;align-items:center;gap:12px;min-height:56px;padding:8px 10px;border:0;border-radius:12px;background:{{ t.swBg }};color:#10292c;text-align:start;cursor:pointer"><span style="flex:none;width:32px;height:32px;border-radius:8px;background:{{ t.tBg }};color:{{ t.tFg }};font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center">{{ t.ini }}</span><span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"><span style="font-size:14.5px;font-weight:600">{{ t.n }}</span><span style="font-size:12.5px;color:#6b7476">{{ t.ed }} · {{ t.phase }}</span></span></button></sc-for></div>
+      </sc-if>
+      <sc-if value="{{ sh.role }}" hint-placeholder-val="{{ false }}">
+        <span style="font-size:14px;line-height:1.55;text-wrap:pretty">{{ rq.sub }}</span>
+        <div style="display:flex;flex-direction:column"><sc-for list="{{ rq.facts }}" as="f" hint-placeholder-count="3"><div style="display:flex;flex-direction:column;gap:2px;padding:10px 0;border-top:1px solid #f0f0ec"><span style="font-size:12.5px;color:#8a9294">{{ f.l }}</span><span style="font-size:14px;line-height:1.45">{{ f.v }}</span></div></sc-for></div>
+        <div style="display:flex;flex-direction:column;gap:8px;padding:14px;border-radius:14px;background:#fafbf8;border:1px solid #ecebe6">
+          <span style="font-size:14px;font-weight:600;line-height:1.4">Do you know anyone nominated in {{ rq.award }}?</span>
+          <span style="font-size:13px;line-height:1.45;color:#6b7476">Family, a colleague, your own school or church. It doesn’t stop you helping; it keeps you away from their category.</span>
+          <sc-for list="{{ rq.opts }}" as="o" hint-placeholder-count="2"><button onClick="{{ o.go }}" aria-pressed="{{ o.on }}" style="min-height:48px;padding:10px 14px;border:1px solid {{ o.bd }};border-radius:10px;background:{{ o.bg }};color:#10292c;font-size:14px;text-align:start;cursor:pointer">{{ o.t }}</button></sc-for>
+          <sc-if value="{{ rq.yes }}" hint-placeholder-val="{{ false }}"><input value="{{ rq.names }}" onInput="{{ rqNames }}" aria-label="Who, and which category" placeholder="Who, and which category" style="height:44px;padding:0 12px;border:1px solid #e3e3de;border-radius:10px;font-size:16px;color:#10292c;background:#fff"></sc-if>
+        </div>
+        <button onClick="{{ sendReq }}" style="height:48px;border:0;border-radius:12px;background:#237b22;color:#fff;font-size:15px;font-weight:600;cursor:pointer">Send request to Kemi</button>
+      </sc-if>
+
+      <sc-if value="{{ sh.gee }}" hint-placeholder-val="{{ false }}">
+        <span style="font-size:13.5px;line-height:1.5;color:#6b7476">Gee answers from your shifts, tasks and the volunteer handbook.</span>
+        <div style="display:flex;flex-direction:column;gap:8px"><sc-for list="{{ geeQs }}" as="q" hint-placeholder-count="3"><button onClick="{{ q.go }}" style="min-height:44px;padding:10px 14px;border:1px solid #e3e3de;border-radius:10px;background:#fff;color:#10292c;font-size:14px;text-align:start;cursor:pointer">{{ q.t }}</button></sc-for></div>
+        <sc-if value="{{ hasGeeA }}" hint-placeholder-val="{{ false }}"><div style="padding:14px;border-radius:12px;background:#fafbf8;border:1px solid #ecebe6;font-size:14px;line-height:1.55;white-space:pre-line">{{ geeA }}</div></sc-if>
+      </sc-if>
+    </div>
+  </div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;role&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;active&quot;,&quot;lead&quot;,&quot;new&quot;,&quot;applicant&quot;],&quot;default&quot;:&quot;active&quot;,&quot;tsType&quot;:&quot;'active'|'lead'|'new'|'applicant'&quot;,&quot;section&quot;:&quot;State&quot;},&quot;offline&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;State&quot;}}">
+const TONE={ok:['#effaf0','#1a5e1a'],warn:['#fbf4e4','#8a5d0b'],bad:['#fdeeeb','#a52a19'],info:['#e6f0f4','#1f5f8b'],mute:['#f3f3f0','#3a4a4c']};
+const ch=(t,tn)=>({t,bg:TONE[tn][0],fg:TONE[tn][1]});
+const IC={today:'M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z',shifts:'M7 3v3M17 3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z',tasks:'M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2',training:'M2 9l10-5 10 5-10 5zM6 11v5c3 2 9 2 12 0v-5',record:'M12 15a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM8.5 14L7 22l5-3 5 3-1.5-8',team:'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8',profile:'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z',more:'M5 12h.01M12 12h.01M19 12h.01'};
+IC.award='M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3';
+const NQ=[
+ {id:'N-4102',nm:'Mr Adebayo O.',cat:'Primary teacher of the year',by:'Grace A. · 0803 ••• ••12',why:'Runs a free Saturday reading club for 40 pupils in Ikotun and has trained four other teachers to start their own.',ev:1,dup:null},
+ {id:'N-4107',nm:'Mrs Halima B.',cat:'School leader of the year',by:'Musa I. · 0812 ••• ••40',why:'As head teacher she raised the school’s pass rate from 41% to 78% in three years, and opened the library to the community on Saturdays.',ev:0,dup:'N-3977 · same name and school'},
+ {id:'N-4111',nm:'Mr Tunde K.',cat:'Primary teacher of the year',by:'Self-nominated · 0703 ••• ••88',why:'I teach mathematics at a secondary school in Egbeda and coach the debate team that reached the state final.',ev:1,dup:null}];
+const QR_=['Wrong category','Evidence missing','Possible duplicate','Something else'];
+const CARE=[['Mrs Folake A.',1,100,'Yes'],['Mr Chinedu O.',1,80,'Yes'],['Mrs Ronke S.',0,20,'No reply'],['Mr Yusuf B.',1,60,'Yes'],['Ms Amaka E.',0,0,'No reply'],['Mr Segun L.',1,90,'No reply']];
+const RQ={rq1:['Interview scheduling','Teachers Prize, 4th Edition','Book finalists into interview slots and send the fixed reminders. You never see scores or the judges’ notes.','m3',2,'Ends when interviews close, Fri 27 Nov','tp'],rq2:['Honours seating','Alimosho ceremony, Sat 7 Nov','Seat finalists and their guests from the plan, by name at the door.','m2',2,'Ends Sun 8 Nov, 06:00','acag'],rq3:['Digitising past winners','Alimosho Community Awards archive','Enter 1st Edition winners and citations for the legacy pages. Entries publish after a spot check.','m3',1,'Ends Mon 30 Nov','acag'],rq4:['Honours seating','Lagos Education Honours Night, Sat 5 Dec','Seat finalists of both awards and their guests from the plan.','m2',2,'Ends Sun 6 Dec, 06:00','sla'],rq5:['Nominee care','Teachers Prize · one category after the shortlist','Help one whole category’s finalists claim their pages and RSVP.','m3',2,'From Fri 20 Nov to Sun 6 Dec','tp']};
+const TITLE={award:'Award work',today:'Today',shifts:'Shifts',tasks:'Tasks',training:'Training',record:'My record',team:'My team',profile:'Profile and access',apply:'Application'};
+const SH={
+ o5:{t:'Voter drive, Egbeda junction',role:'Community drive',d:'Wed 28 Oct',day:'28',mon:'Oct',time:'16:00 to 18:30',place:'Egbeda junction, by the bus stop',fill:[1,4],vb:'Sign-ups through your link that verify a phone',scan:0,when:'Tomorrow',bring:'Your voter link on your phone, the green tabard'},
+ s1:{t:'Voter drive, Ikotun Market',role:'Community drive',d:'Sat 31 Oct',day:'31',mon:'Oct',time:'10:00 to 14:00',place:'Ikotun Market, main gate',fill:[5,6],vb:'Sign-ups through your link that verify a phone',scan:0,when:'In 4 days',bring:'Your voter link on your phone, the green tabard, a power bank'},
+ o4:{t:'Set-up crew, hall and stage',role:'General',d:'Fri 6 Nov',day:'6',mon:'Nov',time:'09:00 to 13:00',place:'Alimosho Civic Centre',fill:[4,8],vb:'Check-in and check-out scans',scan:1,when:'In 10 days',bring:'Your pass, closed shoes, work gloves if you have them'},
+ o3:{t:'Stand marshal, stand set-up',role:'Stand marshal',d:'Fri 6 Nov',day:'6',mon:'Nov',time:'14:00 to 18:00',place:'Alimosho Civic Centre, car park',fill:[1,3],q:'m5',vb:'Stand check-ins on your pass',scan:1,when:'In 10 days',bring:'Your pass, the stand map'},
+ s2:{t:'Door, Gate A',role:'Door steward',d:'Sat 7 Nov',day:'7',mon:'Nov',time:'16:00 to 21:00',place:'Alimosho Civic Centre, Gate A',fill:[3,4],q:'m2',vb:'Check-in and check-out scans at the gate',scan:1,when:'In 11 days',bring:'Your pass on your phone, the green tabard, closed shoes',need:'m4'},
+ o1:{t:'Hall ushers',role:'Usher',d:'Sat 7 Nov',day:'7',mon:'Nov',time:'17:00 to 22:00',place:'Main hall',fill:[3,6],q:'m2',vb:'Check-in and check-out scans',scan:1,when:'In 11 days',bring:'Your pass, the seating plan'},
+ o2:{t:'Door, Gate B',role:'Door steward',d:'Sat 7 Nov',day:'7',mon:'Nov',time:'16:00 to 21:00',place:'Alimosho Civic Centre, Gate B',fill:[2,4],q:'m2',vb:'Check-in and check-out scans at the gate',scan:1,when:'In 11 days',bring:'Your pass, the green tabard',need:'m4'}};
+const ORDER=['o5','s1','o4','o3','s2','o1','o2'];
+const CL={o1:['s2','o2'],o2:['s2','o1'],s2:['o1','o2']};
+const MD={m1:['Code of conduct, version 3','5 min','Everyone accepts it before a first shift','Accepted 12 Sep 2026'],m2:['Door steward','15 min','Unlocks door and usher shifts','Passed 14 Sep · 9 of 10'],m3:['Handling people’s data','10 min','Unlocks tasks that touch contact details','Passed 15 Sep · 10 of 10'],m4:['Safety basics, 2026 refresh','8 min','Needed before a door shift on Sat 7 Nov',''],m5:['Stand marshal','12 min','Unlocks stand marshal shifts',''],m6:['Media basics','20 min','Unlocks photo and video tasks',''],m7:['Leading a team','25 min','Part of Level 3','']};
+const QN={m1:'Code of conduct',m2:'Door steward',m3:'Data handling',m4:'Safety 2026',m5:'Stand marshal',m6:'Media',m7:'Team lead'};
+const QZ={
+ m2:[['Check every pass on the scanner, never by eye','A refused pass goes to the gate lead, not back to the queue','Count the queue every 30 minutes'],'Someone’s pass scans red. What do you do?',['Let them in if they show a receipt','Send them to the gate lead with the pass','Ask them to buy another ticket'],1,2],
+ m4:[['Know where the two exits and the first-aid point are','Radio first, then keep people back; don’t move someone who has fallen','Every incident goes in the log, even small ones'],'A guest collapses near Gate A. What do you do first?',['Carry them outside for air','Radio the safety marshal and keep people back','Look for a doctor in the queue'],1,2],
+ m5:[['Each stand has a number and an approved list of what it sells','Check the stand in on your pass when it’s set up','A stand that isn’t on the list waits for the lead'],'A stand arrives that isn’t on your list. What do you do?',['Find it a free spot','Ask it to wait and call the stand lead','Send it home'],1,3],
+ m6:[['Ask before photographing anyone under 18','Never photograph the results envelope or the judges’ table','Upload the same night; accepted photos count'],'A parent says no to a photo of their child. What now?',['Take it from further away','Don’t take it, and move on','Blur the face later'],1,1],
+ m7:[['Confirm hours only for work you saw or have proof of','Give a reason when you decline','Fill gaps from the free list before asking someone twice'],'Someone reports 3 hours you didn’t see and has no proof. What do you do?',['Approve it, they’re reliable','Ask for proof, or decline with a reason','Approve half'],1,1]};
+QZ.m1=QZ.m4;QZ.m3=QZ.m2;
+const TK={
+ t1:{t:'Bring voters through your link',vb:'A sign-up counts once it verifies a phone',prog:[41,58],progL:'41 verified of 58 started',due:'Until voting closes Sat 31 Oct, 23:59',pts:'2 points per verified voter',kind:'link',chip:['Active','info'],hist:[['Today','6 new verified sign-ups'],['Sat 24 Oct','12 verified at Ikotun']]},
+ t2:{t:'Digitise the 1st Edition booklet',vb:'Femi checks 1 in 5 entries; accepted entries count',prog:[40,62],progL:'40 of 62 entries · 96% accepted',due:'Due Fri 30 Oct',pts:'1 point per accepted entry',kind:'submit',chip:['Due Fri','warn'],hist:[['Mon 26 Oct','8 entries sent, 8 accepted'],['Sat 10 Oct','25 entries, 24 accepted']]},
+ t3:{t:'Translate the voting guide into Yoruba',vb:'Counts when Femi accepts it for publishing',prog:null,progL:'Sent Mon 26 Oct, review by Thu 29 Oct',due:'Review by Thu 29 Oct',pts:'15 points when published',kind:'wait',chip:['In review','mute'],hist:[['Mon 26 Oct','Sent for review: guide-yo-v1.docx']]},
+ l2:{t:'Call finalists who haven’t replied',vb:'Counts when the finalist’s RSVP arrives',prog:[0,12],progL:'0 of 12 replied',due:'By Fri 30 Oct',pts:'3 points per reply',kind:'wait',chip:['Just started','info'],hist:[['Today','You took this task']]},
+ l3:{t:'Check the hall signage list',vb:'Kemi confirms it on the walk-through',prog:null,progL:'Walk-through Fri 6 Nov',due:'Fri 6 Nov',pts:'5 points',kind:'wait',chip:['Just started','info'],hist:[['Today','You took this task']]}};
+const LIB=[['l2','Call finalists who haven’t replied','Calls go through the platform, numbers stay masked · about 2 hours','m3',2],['l3','Check the hall signage list','Walk the hall with the list; Kemi confirms · about 1 hour',null,1],['l1','Photograph guest arrivals','Photos accepted for the gallery count · on the night','m6',2]];
+const HRS=[['Mon 26 Oct','Translating the voting guide into Yoruba','Counts when Femi accepts it','4.0','mute','In review'],['Sat 17 Oct','Voter drive, Egbeda','Verified sign-ups through your link','3.0','ok','Observed'],['Sat 10 Oct','Digitising the 1st Edition booklet','Femi accepted 24 of 25 entries','2.5','ok','Witnessed'],['Sat 3 Oct','Voter drive, Igando','Dropped 6 hours before','0','bad','Missed'],['Sat 26 Sep','Voter drive, Ikotun','Verified sign-ups through your link','3.5','ok','Observed'],['Sat 19 Sep','Digitising the 1st Edition booklet','Femi accepted 20 of 20 entries','2.5','ok','Witnessed'],['Sat 8 Nov 2025','Door, Gate A · 1st Edition','Scanned in 16:02, out 21:07','5.0','ok','Observed'],['Fri 7 Nov 2025','Set-up crew · 1st Edition','Scanned in 09:01, out 13:04','4.0','ok','Observed'],['Thu 6 Nov 2025','Stand check-in help · 1st Edition','Confirmed by Kemi Bello','3.0','ok','Witnessed']];
+const PAST=[['17','Oct','Voter drive, Egbeda','Sat 17 Oct · 3.0 verified hours','Observed','ok'],['3','Oct','Voter drive, Igando','Sat 3 Oct · dropped 6 hours before','Missed','bad'],['26','Sep','Voter drive, Ikotun','Sat 26 Sep · 3.5 verified hours','Observed','ok'],['8','Nov','Door, Gate A · 1st Edition','Sat 8 Nov 2025 · 5.0 verified hours','Observed','ok']];
+const APPR=[['a1','BA','Bayo Adewale','reported 2.0 hours','Carried chairs from the store to the hall, Mon 26 Oct. No photo.','Confirm','Ask for proof'],['a2','HM','Hauwa Musa','asks you to witness','Put up 3 voting posters at Ikotun Market. Photo attached.','Confirm','Decline'],['a3','NE','Ngozi E.','missed a check-out scan','Sat 17 Oct · in at 10:04, no scan out. The rota says 13:00.','Use rota time','Leave open'],['a4','GB','Door, Gate B','2 places open','Sat 7 Nov · 12 door-trained volunteers are free that night.','Invite 2','']];
+const ROS=[['Bayo Adewale','Level 1','Sat 31 Oct, Ikotun','11.0h','100%','#1a5e1a'],['Hauwa Musa','Level 2','Sat 7 Nov, Gate A','19.5h','92%','#1a5e1a'],['Ibrahim Sule','Level 1','Sat 7 Nov, Gate B','4.0h','67%','#8a5d0b'],['Ngozi Eze','Level 2','Fri 6 Nov, set-up','27.0h','95%','#1a5e1a'],['Tolu Bankole','Level 1','No shift booked','0h','No shifts yet','#6b7476']];
+
+class Component extends DCLogic {
+  state={w:1280,scr:'today',shTab:'mine',sel:null,sheet:null,sd:null,toast:null,added:[],dropped:[],passed:{},took:[],ev:{},evQ:'',logged:[],lg:{task:'Voter drive',date:'2026-10-26',h:'2',what:'',err:''},qzPick:null,appr:{},av:{wkev:1,sat:1,sun:1},chan:{wa:1,email:1},paused:false,geeA:'',aw:'acag',awIn:null,awPg:'overview',dir:0,qi:0,qn:42,qAg:0,qFlagOpen:false,qReason:null,careSent:false,reqd:{},rqC:null,rqN:''};
+  rootRef=React.createRef();
+  componentDidMount(){const el=this.rootRef.current;if(!el)return;const m=()=>{const w=el.getBoundingClientRect().width;if(w&&Math.abs(w-this.state.w)>1)this.setState({w});};this.ro=new ResizeObserver(m);this.ro.observe(el);m();}
+  componentWillUnmount(){this.ro&&this.ro.disconnect();clearTimeout(this.tt);}
+  toastMsg(t){clearTimeout(this.tt);this.setState({toast:t});this.tt=setTimeout(()=>this.setState({toast:null}),4200);}
+  role(){return this.props.role??'active';}
+  base(){const r=this.role();return {mine:r==='active'||r==='lead'?['s1','s2']:[],done:r==='applicant'?{}:r==='new'?{m1:1,m3:1}:r==='lead'?{m1:1,m2:1,m3:1,m4:1,m7:1}:{m1:1,m2:1,m3:1},tasks:r==='active'||r==='lead'?['t1','t2','t3']:[]};}
+  go(k){this.setState({scr:k,sel:null,sheet:null,awIn:k==='award'?this.state.awIn:null,dir:0});}
+  sheet(k,sd){this.setState({sheet:k,sd:sd||null,qzPick:null});}
+  renderVals(){
+    const S=this.state,r=this.role(),W=S.w||1280,ph=W<600,tab=W>=600&&W<1024,desk=W>=1024,wide=W>=1200;
+    const app=r==='applicant',fresh=r==='new',lead=r==='lead',active=!app;
+    const B=this.base(),done={...B.done,...S.passed};
+    const mine=[...B.mine.filter(x=>!S.dropped.includes(x)),...S.added.filter(x=>!S.dropped.includes(x))].sort((a,b)=>ORDER.indexOf(a)-ORDER.indexOf(b));
+    const tasks=[...B.tasks,...S.took];
+    const lvN=lead?3:fresh?1:2;
+    let scr=S.scr;const allowed=app?['apply','training','profile']:['today','shifts','tasks','award','training','record',...(lead?['team']:[]),'profile'];
+    if(app&&scr==='today')scr='apply';if(!allowed.includes(scr))scr=allowed[0];
+    const needs=[];
+    if(mine.some(id=>SH[id].need&&!done[SH[id].need]))needs.push({t:'Safety refresh before your door shift',sub:'8 minutes. Your pass won’t open the gate on Sat 7 Nov until it’s done.',cta:'Start',go:()=>this.sheet('train','m4'),dot:'#b07a12'});
+    if(tasks.includes('t2'))needs.push({t:'Booklet entries due Fri 30 Oct',sub:'22 entries left. Femi checks 1 in 5.',cta:'Open',go:()=>this.openTask('t2',desk),dot:'#b07a12'});
+    const qLeft=Math.max(0,NQ.length-S.qi);
+    if(!fresh&&qLeft)needs.push({t:(15+qLeft)+' nominations to check',sub:'Teachers Prize, 4th Edition. About 2 minutes each; nominations close Fri 13 Nov.',cta:'Check',go:()=>this.setState({scr:'award',aw:'tp',awIn:'tp',awPg:'work',sel:null,sheet:null,dir:1}),dot:'#1f5f8b'});
+    if(fresh&&!mine.length)needs.push({t:'Pick your first shift',sub:'Two open this week need no extra training.',cta:'See shifts',go:()=>this.setState({scr:'shifts',shTab:'open'}),dot:'#237b22'});
+    if(lead){const n=APPR.filter(a=>!S.appr[a[0]]).length;if(n)needs.push({t:n+' requests from your team',sub:'Hours to confirm, a witness request, a missed scan and an open place.',cta:'Review',go:()=>this.go('team'),dot:'#1f5f8b'});}
+    const apprLeft=APPR.filter(a=>!S.appr[a[0]]).length;
+    const badges={training:mine.some(id=>SH[id].need&&!done[SH[id].need])?1:0,team:lead?apprLeft:0};
+    const navKeys=app?['apply','training','profile']:allowed;
+    const inAw=scr==='award'&&!!S.awIn;
+    const navItem=k=>{const cur=scr===k,n=badges[k]||0;return {label:k==='apply'?'Application':TITLE[k],d:IC[k==='apply'?'today':k],go:()=>this.go(k),cur:cur?'page':'false',bg:cur?'#fff':'transparent',sh:cur?'0 1px 2px rgba(16,41,44,.06),0 0 0 1px #e6e6e1':'none',fg:cur?'#10292c':'#3a4a4c',fw:cur?600:400,badge:n>0,n:String(n)};};
+    const o={rootRef:this.rootRef,isPhone:ph,notPhone:!ph,rootDir:ph?'column':'row',wideSide:desk,narrowSide:tab,sideW:tab?'64px':'232px',sidePad:tab?'8px':'10px',itemH:tab?'40px':'34px',itemJust:tab?'center':'flex-start',
+      framePad:ph?'0':'8px 8px 8px 0',frameBd:ph?'0':'1px solid #e6e6e1',frameRad:ph?'0':'14px',padX:ph?'16px':tab?'24px':'32px',padTop:ph?'20px':'28px',h1:ph?'24px':'28px',nextT:ph?'17px':'19px',colGap:wide?'40px':'28px',
+      rowH:ph?'60px':'52px',btnH:ph?'48px':'40px',btnSm:ph?'44px':'34px',chipH:ph?'44px':'34px',segH:ph?'40px':'30px',wrap:ph?'wrap':'nowrap',
+      todayCols:wide?'minmax(0,1fr) 320px':'minmax(0,1fr)',numCols:ph?'repeat(2,minmax(0,1fr))':'repeat(5,minmax(0,1fr))',lvCols:ph?'minmax(0,1fr)':'repeat(3,minmax(0,1fr))',hrCols:ph?'minmax(0,1fr) auto':'minmax(0,1fr) 120px 60px',rosCols:ph?'minmax(0,1fr) 90px':'minmax(0,1fr) 80px 110px',
+      nav:inAw?[['overview','Overview','today'],['work','Your work','tasks'],['roles','More roles','profile']].map(([k,l,ic])=>{const cur=S.awPg===k;return {label:l,d:IC[ic],go:()=>this.setState({awPg:k,dir:0}),cur:cur?'page':'false',bg:cur?'#fff':'transparent',sh:cur?'0 1px 2px rgba(16,41,44,.06),0 0 0 1px #e6e6e1':'none',fg:cur?'#10292c':'#3a4a4c',fw:cur?600:400,badge:false,n:'',chBd:cur?'#10292c':'#e3e3de',chBg:cur?'#f3f3f0':'#fff'};}):navKeys.map(navItem),inAw,notInAw:!inAw,navKey:inAw?'aw'+S.awIn:'root',navAnim:S.dir===1?'v3in .18s ease-out':S.dir===-1?'v3back .18s ease-out':'none',mainKey:scr+(S.awIn||'')+S.awPg,awChips:false,title:scr==='apply'?'Application':TITLE[scr],active,offline:!!this.props.offline,
+      me:{name:'Chika Nwosu',lvl:app?'Applicant':'Level '+lvN+(lead?' · Lead':'')},
+      openGee:()=>this.sheet('gee'),openLog:()=>this.sheet('log'),openLogM:()=>this.sheet('log'),
+      goShifts:()=>this.go('shifts'),goTasks:()=>this.go('tasks'),goRecord:()=>this.go('record'),
+      dlCert:()=>this.toastMsg('Certificate downloaded (PDF)'),dlRec:()=>this.toastMsg('Your record downloaded (PDF), with every hour and how it was verified'),
+      toastOn:!!S.toast,toastT:S.toast,toastB:ph?'80px':'24px',
+      pg:{apply:scr==='apply',today:scr==='today',shifts:scr==='shifts',tasks:scr==='tasks',training:scr==='training',record:scr==='record',team:scr==='team',profile:scr==='profile',award:scr==='award'}};
+    // phone tabs
+    const tabK=app?['apply','training','profile']:['today','shifts','tasks','award','more'];
+    const moreK=app?[]:['record','training',...(lead?['team']:[]),'profile'];
+    const moreCur=moreK.includes(scr)||S.sheet==='more';
+    o.tabs=tabK.map(k=>{const cur=k==='more'?moreCur:scr===k&&S.sheet!=='more';const b=k==='more'?moreK.some(x=>badges[x]):!!badges[k];return {label:k==='more'?'More':k==='award'?'Awards':k==='apply'?'Application':k==='record'?'Record':k==='profile'?'Profile':TITLE[k],d:IC[k==='apply'?'today':k],cur:cur?'page':'false',fg:cur?'#10292c':'#8a9294',fw:cur?600:500,badge:b,go:()=>k==='more'?this.sheet('more'):this.go(k)};});
+    o.moreItems=moreK.map((k,i)=>({label:TITLE[k],d:IC[k],go:()=>this.go(k),bt:i?'1px solid #f0f0ec':'0',badge:!!badges[k],n:String(badges[k]||0)}));
+    // pass
+    const passShift=mine.find(id=>SH[id].scan);o.hasPass=!app&&!!passShift;
+    o.openPass=()=>this.sheet('pass',passShift);
+    // applicant
+    const AP=[['Applied','Mon 12 Oct · door steward and voter drives','done'],['References','1 of 2 replied. We reminded Pastor Okafor on Monday.','now'],['ID check','Needed for door roles. A photo of your NIN slip is enough.','cta','Upload'],['Training and first role','Three short modules, then Kemi Bello gives you your first role.','todo']];
+    o.apSteps=AP.map((s,i)=>({n:s[2]==='done'?'✓':String(i+1),t:s[0],b:s[1],bt:i?'1px solid #f0f0ec':'0',ring:s[2]==='done'?'#237b22':s[2]==='todo'?'#d9dad4':'#237b22',fill:s[2]==='done'?'#237b22':'#fff',numFg:s[2]==='done'?'#fff':s[2]==='todo'?'#8a9294':'#1a5e1a',hasCta:s[2]==='cta',cta:s[3]||'',go:()=>this.toastMsg('Upload opens your camera or files. Only the screening team sees it.')}));
+    // today
+    o.todaySub=fresh?'Level 1 · Alimosho Centre · active since Mon 26 Oct':lead?'Level 3 · lead for Alimosho Centre':'Level 2 · Alimosho Centre · volunteering since Sep 2025';
+    o.needs=needs.map((n,i)=>({...n,bt:i?'1px solid #f0f0ec':'0'}));o.hasNeeds=needs.length>0;
+    const nxId=mine[0],nx=nxId&&SH[nxId];o.hasNext=!!nx;
+    if(nx)o.nx={...nx,team:nx.fill[0]+(mine.includes(nxId)?0:0)+' of '+nx.fill[1]+' booked',prim:nx.scan?'Show my pass':'Copy my voter link',primGo:nx.scan?()=>this.sheet('pass',nxId):()=>this.toastMsg('Link copied: agates.ng/v/chika-n4'),cal:()=>this.toastMsg('Calendar file downloaded'),drop:()=>this.sheet('drop',nxId)};
+    else o.nx={};
+    o.hasThen=mine.length>1;o.thenT=mine[1]?SH[mine[1]].d+', '+SH[mine[1]].t:'';
+    const tRow=(id,i,list)=>{const t=TK[id],ev=(S.ev[id]||[]).length;const pg=t.prog?[t.prog[0]+(id==='t2'?ev*5:0),t.prog[1]]:null;const on=S.sel===id&&desk;
+      return {t:t.t,vb:t.vb,hasBar:!!pg,noBar:!pg,pct:pg?Math.round(100*pg[0]/pg[1])+'%':'0%',progL:id==='t2'&&ev?(pg[0]+' of 62 entries · '+ev+' batch waiting on Femi'):t.progL,chip:ch(t.chip[0],t.chip[1]),open:()=>this.openTask(id,desk),bt:i?'1px solid #ecebe6':'1px solid #ecebe6',on:on?'true':'false',bg:on?'#f6f7f3':'transparent',rad:on?'10px':'0'};};
+    o.myTasks=tasks.map(tRow);o.hasMyTasks=tasks.length>0;o.noMyTasks=!tasks.length;
+    // numbers
+    const pend=S.logged.length,pendH=S.logged.reduce((a,l)=>a+parseFloat(l.h),0);
+    const ver=lead?61.5:23.5,spent=(lead?66:27.5)+pendH,unc=spent-ver;
+    o.nums=(fresh?[['Hours spent','0','Everything you’ve given, verified or not'],['Verified hours','0','Your first scanned shift adds here'],['Outcomes','0','Voters and nominations through your link'],['Quality','No work yet','Share of your work accepted'],['Reliability','No shifts yet','Shifts kept against shifts taken']]:
+      [['Hours spent',spent.toFixed(1),unc.toFixed(1)+' not counted yet: in review or waiting on Kemi'],['Verified hours',ver.toFixed(1),pend?pend+' entr'+(pend>1?'ies':'y')+' waiting on Kemi':'Observed and witnessed only'],['Outcomes',lead?'132':'50',lead?'38 nominations, 94 voters':'9 nominations, 41 voters'],['Quality',lead?'98%':'96%','of your work accepted'],['Reliability',lead?'95%':'88%',lead?'19 of 20 shifts kept':'7 of 8 shifts kept']])
+      .map((m,i)=>({l:m[0],v:m[1],s:m[2],pl:ph?(i%2?'14px':'0'):(i?'18px':'0'),pr:'12px',bl:ph?(i%2?'1px solid #ecebe6':'0'):(i?'1px solid #ecebe6':'0'),bt:ph&&i>1?'1px solid #ecebe6':'0'}));
+    const MS=fresh?[['KB','Kemi Bello','Yesterday','Welcome, Chika. The Egbeda drive on Wednesday is a good first shift: short, and Bayo will show you the link.']]:[['KB','Kemi Bello','2 hours ago','Gate A briefing moves to 15:30 on the night. Green tabards, closed shoes.'],['FA','Femi Ade','Yesterday','Thanks for the Yoruba guide. I’ll have it reviewed by Thursday.']];
+    o.msgs=MS.map((m,i)=>({ini:m[0],n:m[1],w:m[2],t:m[3],bt:i?'1px solid #f0f0ec':'0'}));o.hasMsgs=!app;
+    // level
+    const h=lead?61.5:fresh?0:23.5;
+    const reqs=lvN===1?[['10 verified hours',h+' of 10',h/10],['Data handling module',done.m3?'Done':'To do',done.m3?1:0],['A first shift kept',mine.length?'Booked':'None yet',0]]:[['40 verified hours',h+' of 40',h/40],['Reliability 90% or more','88%',.88/.9],['Quality 95% or more','96%',1],['Leading a team module',done.m7?'Done':'To do',done.m7?1:0],['Recommended by Kemi Bello','Not yet',0]];
+    o.lv={n:String(lvN),t:'Level '+lvN,sub:lead?'Lead · Alimosho Centre':fresh?'Since Mon 26 Oct':'Since Mar 2026',can:lvN===3?'You assign work, confirm hours and witness evidence for your team.':lvN===2?'Your entries publish after a spot check. 1 in 5 is checked, fewer as your accuracy holds.':'You take general tasks and shifts. A reviewer checks everything you create.',hasNext:lvN<3,nextL:'For Level '+(lvN+1),
+      reqs:reqs.map(q=>{const ok=q[2]>=1;return {t:q[0],v:q[1],mark:ok?'✓':'',dotBg:ok?'#237b22':'#fff',dotBd:ok?'0':'1.5px solid #d9dad4',hasBar:!ok&&q[2]>0,pct:Math.round(Math.min(1,q[2])*100)+'%'};})};
+    o.hasCert=!fresh&&!app;
+    // shifts
+    const tabs=[['mine','Mine'+(mine.length?' · '+mine.length:'')],['open','Open'],['past','Past']];
+    o.shTabs=tabs.map(t=>{const on=S.shTab===t[0];return {l:t[1],on:on?'true':'false',bg:on?'#fff':'transparent',sh:on?'0 1px 2px rgba(16,41,44,.08)':'none',fw:on?600:500,go:()=>this.setState({shTab:t[0]})};});
+    const clashOf=id=>(CL[id]||[]).find(x=>mine.includes(x));
+    let rows=[],emp=null,foot='';
+    if(S.shTab==='mine'){rows=mine.map((id,i)=>{const s=SH[id],nd=s.need&&!done[s.need];return {day:s.day,mon:s.mon,t:s.t,meta:s.d+' · '+s.time+' · '+s.role,dBg:'#effaf0',dFg:'#1a5e1a',hasFill:false,hasNote:nd,note:'Safety refresh needed before this shift',noteFg:'#8a5d0b',hasChip:false,hasA:true,a:nd?'Start refresh':s.scan?'Pass':'Copy link',aBd:nd?'0':'1px solid #e3e3de',aBg:nd?'#237b22':'#fff',aFg:nd?'#fff':'#10292c',aGo:nd?()=>this.sheet('train','m4'):s.scan?()=>this.sheet('pass',id):()=>this.toastMsg('Link copied: agates.ng/v/chika-n4'),hasB:true,b:'Swap or drop',bGo:()=>this.sheet('drop',id)};});
+      if(!rows.length)emp={t:'No shifts booked',b:'Open shifts show what each needs. The ones you can take now are at the top.',cta:'See open shifts',go:()=>this.setState({shTab:'open'})};}
+    else if(S.shTab==='open'){const ids=ORDER.filter(id=>!mine.includes(id));const sc=id=>{const s=SH[id];return clashOf(id)?2:s.q&&!done[s.q]?1:0;};
+      rows=ids.slice().sort((a,b)=>sc(a)-sc(b)).map(id=>{const s=SH[id],cl=clashOf(id),lock=s.q&&!done[s.q];const left=s.fill[1]-s.fill[0];
+        return {day:s.day,mon:s.mon,t:s.t,meta:s.d+' · '+s.time+' · '+s.role,dBg:'#f3f3f0',dFg:'#3a4a4c',hasFill:true,fillPct:Math.round(100*s.fill[0]/s.fill[1])+'%',fillL:left+' of '+s.fill[1]+' places left',hasNote:!!(cl||lock),note:cl?'Clashes with your '+SH[cl].t+' shift':'Needs '+MD[s.q][0]+' training ('+MD[s.q][1]+')',noteFg:cl?'#6b7476':'#8a5d0b',hasChip:false,
+          hasA:!cl,a:lock?'Start training':'Take',aBd:lock?'1px solid #e3e3de':'0',aBg:lock?'#fff':'#237b22',aFg:lock?'#10292c':'#fff',aGo:lock?()=>this.sheet('train',s.q):()=>this.sheet('take',id),hasB:false};});
+      foot='Shifts you can’t take yet say what unlocks them. Leads only see you for shifts that match your training and when you’re free.';}
+    else{rows=fresh?[]:PAST.map(p=>({day:p[0],mon:p[1],t:p[2],meta:p[3],dBg:'#f3f3f0',dFg:'#6b7476',hasFill:false,hasNote:false,hasChip:true,chip:ch(p[4],p[5]),hasA:false,hasB:false}));if(!rows.length)emp={t:'Nothing here yet',b:'Shifts you’ve worked show here with the hours they earned and how they were verified.'};}
+    o.shRows=rows.map((x,i)=>({...x,bt:i?'1px solid #ecebe6':'1px solid #ecebe6'}));o.shEmpty=!!emp;o.shEmp=emp?{...emp,hasCta:!!emp.cta,cta:emp.cta||'',go:emp.go||null}:{};o.shFoot=!!foot&&rows.length>0;o.shFootT=foot;
+    // library
+    o.lib=LIB.filter(l=>!tasks.includes(l[0])).map((l,i)=>{const ql=l[3]&&!done[l[3]],ll=lvN<l[4];const lock=ql||ll;
+      return {t:l[1],sub:l[2],locked:lock,why:ll?'Needs Level '+l[4]:ql?'Needs '+MD[l[3]][0]+' training':'',fg:'#10292c',bt:'1px solid #ecebe6',cta:ll?'Locked':ql?'Start training':'Take task',bd:lock?'1px solid #e3e3de':'0',bg:lock?'#fff':'#237b22',bfg:lock?(ll?'#8a9294':'#10292c'):'#fff',
+        go:ll?()=>this.toastMsg('Level '+l[4]+' opens this. See My record for what it needs.'):ql?()=>this.sheet('train',l[3]):()=>{this.setState(s=>({took:[...s.took,l[0]]}));this.toastMsg('Added to your tasks');}};});
+    // task detail
+    const tid=S.sel||(S.sheet==='task'&&S.sd);const T=tid&&TK[tid];
+    if(T){const ev=S.ev[tid]||[];const pg=T.prog?[T.prog[0]+(tid==='t2'?ev.length*5:0),T.prog[1]]:null;
+      o.tk={t:T.t,chip:ch(T.chip[0],T.chip[1]),hasBar:!!pg,pct:pg?Math.round(100*pg[0]/pg[1])+'%':'0%',progL:T.progL,facts:[{l:'Counts when',v:T.vb},{l:'When',v:T.due},{l:'Points',v:T.pts}],isLink:T.kind==='link',isSubmit:T.kind==='submit',hist:[...ev.map(e=>({d:'Just now',t:'Sent: '+e+' · waiting on Femi'})),...T.hist.map(x=>({d:x[0],t:x[1]}))]};}
+    else o.tk={chip:{},facts:[],hist:[]};
+    o.paneDock=desk&&!!S.sel&&scr==='tasks';o.closeSel=()=>this.setState({sel:null});
+    o.copyLink=()=>this.toastMsg('Link copied: agates.ng/v/chika-n4');o.evQ=S.evQ;o.setEv=e=>this.setState({evQ:e.target.value});
+    o.sendEv=()=>{const q=S.evQ.trim();if(!q){this.toastMsg('Add a link or the entry numbers first');return;}this.setState(s=>({ev:{...s.ev,[tid]:[...(s.ev[tid]||[]),q]},evQ:''}));this.toastMsg('Sent. Femi checks 1 in 5 and you’ll see the result here.');};
+    // training
+    const mk=Object.keys(MD);const nDone=mk.filter(k=>done[k]).length;
+    o.trSub=nDone+' of '+mk.length+' done · each ends with one question';
+    o.quals=mk.filter(k=>done[k]).map(k=>QN[k]);
+    o.mods=mk.map((k,i)=>{const m=MD[k],d=!!done[k],req=k==='m4'&&mine.includes('s2');return {t:m[0],len:m[1],why:m[2],whyFg:req&&!d?'#8a5d0b':'#6b7476',done:d,todo:!d,doneT:m[3]||'Passed today',cBg:d?'#237b22':'#fff',cBd:d?'0':'1.5px solid #d9dad4',bt:i?'1px solid #ecebe6':'1px solid #ecebe6',bd:req?'0':'1px solid #e3e3de',bg:req?'#237b22':'#fff',fg:req?'#fff':'#10292c',go:()=>this.sheet('train',k)};});
+    // record
+    o.standing=fresh?'Level 1 · your record starts with your first shift':lead?'2nd of 38 volunteers at Alimosho Centre by verified hours':'4th of 38 volunteers at Alimosho Centre by verified hours';
+    const LD=[['Level 1','General tasks and shifts. A reviewer checks everything you create.','To start: code of conduct and data handling'],['Level 2','Your work publishes after a spot check. Fewer checks as accuracy holds.','10 verified hours, a shift kept, quality 90%+'],['Level 3 · Lead','Assign work, confirm hours and witness evidence for others.','40 verified hours, reliability 90%+, quality 95%+, lead module, your lead’s recommendation']];
+    o.ladder=LD.map((l,i)=>({t:l[0],can:l[1],req:l[2],here:i+1===lvN,bd:i+1===lvN?'#cfe6ce':'#e8e5dd',bg:i+1===lvN?'#effaf0':'#fff'}));
+    o.spot=lvN===2?'Right now 1 in 5 of your entries is checked.':lvN===3?'Your own entries are checked 1 in 10.':'Every entry is checked until Level 2.';
+    const hr=[...S.logged.map(l=>({t:l.task,d:l.d,how:'“'+l.what+'”',h:l.h,chip:ch('Waiting on Kemi','warn'),hFg:'#8a9294'})),...(fresh?[]:HRS.map(x=>({t:x[1],d:x[0],how:x[2],h:x[3],chip:ch(x[5],x[4]),hFg:x[4]==='bad'?'#a52a19':x[4]==='mute'?'#8a9294':'#10292c'})))];
+    o.hours=hr.map((x,i)=>({...x,bt:'1px solid #ecebe6'}));o.hasHours=hr.length>0;o.noHours=!hr.length;
+    // team
+    o.appr=APPR.filter(a=>!S.appr[a[0]]).map((a,i)=>({ini:a[1],who:a[2],what:a[3],sub:a[4],yesT:a[5],noT:a[6],hasNo:!!a[6],bt:'1px solid #ecebe6',yes:()=>{this.setState(s=>({appr:{...s.appr,[a[0]]:'y'}}));this.toastMsg(a[0]==='a4'?'Invites sent to 2 door-trained volunteers. First to accept gets it.':a[2]+': done, logged with your name');},no:()=>{this.setState(s=>({appr:{...s.appr,[a[0]]:'n'}}));this.toastMsg(a[0]==='a1'?'Asked Bayo for a photo or a witness':'Done, logged with your reason');}}));o.apprClear=!o.appr.length;
+    o.roster=ROS.map((x,i)=>({n:x[0],lv:x[1],next:x[2],h:x[3],rel:x[4],relFg:x[5],bt:'1px solid #ecebe6'}));
+    // profile
+    const GR=app?[]:fresh?[['Volunteer, level 1','Alimosho Centre','Ends Sun 8 Nov, 06:00']]:[...(lead?[['Volunteer lead','Alimosho Centre','Renews Thu 31 Dec']]:[]),['Nominee care','Alimosho 2nd Edition · Education category','Ends Sun 8 Nov, 06:00'],['Nomination check','Teachers Prize, 4th Edition','Ends when nominations close, Fri 13 Nov'],['Nomination check','Lagos School Leaders Award, 1st Edition','Ends when nominations close, Fri 13 Nov'],['Door steward','Alimosho ceremony, Sat 7 Nov','Ends Sun 8 Nov, 06:00'],['Voter drives','Alimosho Centre','Ends when voting closes, Sat 31 Oct'],['Data entry','Past editions archive','Ends Mon 30 Nov']];
+    o.grants=GR.map((g,i)=>({r:g[0],at:g[1],ends:g[2],bt:'1px solid #ecebe6'}));o.noGrants=!GR.length;
+    const tog=(key,k)=>()=>this.setState(s=>({[key]:{...s[key],[k]:s[key][k]?0:1}}));
+    const pill=(on)=>({bd:on?'#cfe6ce':'#e3e3de',bg:on?'#effaf0':'#fff',fg:on?'#1a5e1a':'#3a4a4c',on:on?'true':'false'});
+    o.avail=[['wkm','Weekday mornings'],['wkev','Weekday evenings'],['sat','Saturdays'],['sun','Sundays after 14:00']].map(a=>({l:a[1],...pill(!!S.av[a[0]]),go:tog('av',a[0])}));
+    o.chans=[['wa','WhatsApp'],['sms','SMS'],['email','Email']].map(a=>({l:a[1],...pill(a[0]==='email'||!!S.chan[a[0]]),go:a[0]==='email'?()=>this.toastMsg('Email stays on for shift changes'):tog('chan',a[0])}));
+    o.details=[['Phone','0803 ••• ••12'],['Emergency contact','Mrs Nwosu · 0805 ••• ••41'],['Tabard size','Medium']].map(d=>({l:d[0],v:d[1],go:()=>this.toastMsg('We send a code to confirm the change')}));
+    o.pauseT=S.paused?'Resume':'Pause for now';o.pauseIt=()=>{this.setState({paused:!S.paused});this.toastMsg(S.paused?'Welcome back. Leads can see you again.':'Paused. Booked shifts stay booked.');};
+    // award work
+    const AWD={
+     acag:{n:'Alimosho Community Awards',ed:'2nd Edition',ph:[['Nominations','Closed Fri 2 Oct',2],['Shortlist','Published Fri 9 Oct',2],['Voting','Until Sat 31 Oct, 23:59',1],['Judging','Closes Wed 4 Nov',0],['Ceremony and results','Sat 7 Nov',0]],phase:'Voting',dot:'#237b22',next:'Voting closes in 4 days',nextFg:'#8a5d0b',
+      mt:[['Nominations','640','Closed · 412 at the 1st Edition',null],['Finalist pages claimed','26 of 30','4 still to claim',26/30],['Verified voters','8,420','84% of the 10,000 goal',.842],['Finalist RSVPs','18 of 30','Replies due Mon 2 Nov',.6],['Judging','Not started','Scorecards open Sun 1 Nov',0]],ev:['e1'],
+      mine:fresh?'Voter drives only':'9 nominations approved through your link · 41 verified voters'},
+     tp:{n:'Teachers Prize',ed:'4th Edition',ph:[['Nominations','Until Fri 13 Nov',1],['Shortlist','Fri 20 Nov',0],['Voting','Mon 23 to Mon 30 Nov',0],['Judging','Closes Wed 2 Dec',0],['Ceremony and results','Sat 5 Dec',0]],phase:'Nominations open',dot:'#1f5f8b',next:'Nominations close in 17 days',nextFg:'#3a4a4c',
+      mt:[['Nominations','2,588','86% of the 3,000 goal',.86],['Checked',''+(612+S.qi),Math.round((612+S.qi)/25.88)+'% of nominations, 94% agreed',(612+S.qi)/2588],['Duplicates merged','41','By moderators, from flags',null],['Categories ready','4 of 5','Rural teacher has 18 of the 40 it needs',.8],['Nominees confirmed','1,904','74% have confirmed consent',.74]],ev:['e2'],
+      mine:(S.qn)+' checked · 95% agreed with the moderator'},
+     sla:{n:'Lagos School Leaders Award',ed:'1st Edition',ph:[['Nominations','Until Fri 13 Nov',1],['Shortlist','Fri 20 Nov',0],['Judging only','No public vote · closes Wed 2 Dec',0],['Ceremony and results','Sat 5 Dec',0]],phase:'Nominations open',dot:'#1f5f8b',next:'Nominations close in 17 days',nextFg:'#3a4a4c',
+      mt:[['Nominations','214','54% of the 400 goal',.535],['Checked','180','84% of nominations',.84],['Categories ready','2 of 3','Secondary head teacher needs 12 more',.67],['Judges confirmed','5 of 6','One invitation open',.83]],ev:['e2'],
+      mine:'Queue clear · 26 checked'}};
+    const EVD={e1:{n:'Alimosho Community Awards ceremony',day:'7',mon:'Nov',when:'Sat 7 Nov, 18:00',place:'Alimosho Civic Centre',aws:['acag'],stats:[['Tickets','412 of 600 sold'],['Volunteer places','21 of 28 filled'],['Your shifts',(mine.filter(x=>SH[x].d==='Sat 7 Nov'||SH[x].d==='Fri 6 Nov').length||'None')+'']],cta:'See shifts'},
+      e2:{n:'Lagos Education Honours Night',day:'5',mon:'Dec',when:'Sat 5 Dec, 17:00',place:'Lagos City Hall, Onikan',aws:['tp','sla'],stats:[['Tickets','On sale Mon 16 Nov'],['Volunteer places','40, open Mon 9 Nov'],['Your shifts','None yet']],cta:'Remind me'}};
+    const myAw=fresh?['acag']:['acag','tp','sla'];const awK=S.awIn&&myAw.includes(S.awIn)?S.awIn:(myAw.includes(S.aw)?S.aw:myAw[0]);const AW=AWD[awK];
+    const TI={acag:['AC','#effaf0','#1a5e1a',84,'8,420 verified voters'],tp:['TP','#e6f0f4','#1f5f8b',86,'2,588 of 3,000 nominations'],sla:['SL','#e6f0f4','#1f5f8b',54,'214 of 400 nominations']};
+    o.awList=scr==='award'&&!S.awIn;o.awOv=!!S.awIn&&S.awPg==='overview';o.awWork=!!S.awIn&&S.awPg==='work';o.awRoleP=!!S.awIn&&S.awPg==='roles';
+    o.awH1=S.awIn?({overview:AW.n+' · '+AW.ed,work:'Your work',roles:'More roles'}[S.awPg]):'Awards';
+    o.awPgL={overview:'Overview',work:'Your work',roles:'More roles'}[S.awPg];
+    o.aw={...(o.aw||{}),n:AW.n,ed:AW.ed,phase:AW.phase,ini:TI[awK][0],tBg:TI[awK][1],tFg:TI[awK][2]};
+    o.awBack=()=>this.setState({awIn:null,awPg:'overview',dir:-1,sheet:null});o.openAwSw=()=>this.sheet('awsw');
+    o.awChips=ph&&!!S.awIn;o.awListCols=ph?'minmax(0,1fr)':W>=1100?'repeat(3,minmax(0,1fr))':'repeat(2,minmax(0,1fr))';
+    o.awLead=S.awIn?({overview:'How the whole award is going and where it ends.',work:AW.mine,roles:'Roles you can ask for on this award. Each is checked against your level, training and any conflict.'}[S.awPg]):myAw.length>1?'You help on '+myAw.length+' awards. Each one shows how the whole award is going, the events it ends in, and your part in it.':'How the award is going, the event it ends in, and your part in it.';
+    o.awTabCols=ph?'repeat('+myAw.length+',minmax(220px,1fr))':'repeat('+myAw.length+',minmax(0,1fr))';o.awTabMin=ph?'220px':'0';
+    const RL={acag:fresh?'Voter drives':'Nominee care, voter drives',tp:'Nomination check',sla:'Nomination check'};
+    o.awTabs=myAw.map(k=>{const on=k===awK&&!!S.awIn;return {n:AWD[k].n,ed:AWD[k].ed,phase:AWD[k].phase,next:AWD[k].next,dot:AWD[k].dot,roles:RL[k],ini:TI[k][0],tBg:TI[k][1],tFg:TI[k][2],pct:TI[k][3]+'%',barT:TI[k][4],on:on?'true':'false',swBg:on?'#f3f3f0':'transparent',go:()=>this.setState({aw:k,awIn:k,awPg:'overview',dir:1,qFlagOpen:false,qReason:null}),sw:()=>this.setState({aw:k,awIn:k,sheet:null,dir:1,qFlagOpen:false,qReason:null})};});
+    o.aw={phase:AW.phase,ini:TI[awK][0],tBg:TI[awK][1],tFg:TI[awK][2],n:AW.n,ed:AW.ed,next:AW.next,nextFg:AW.nextFg,mine:AW.mine,phCols:ph?'minmax(0,1fr)':'repeat('+AW.ph.length+',minmax(0,1fr))',
+      phases:AW.ph.map((p,i)=>({t:p[0],d:p[1],bar:p[2]===2?'#237b22':p[2]===1?'#7fbf7e':'#e3e3de',fw:p[2]===1?600:500,fg:p[2]===0?'#6b7476':'#10292c',pr:ph?'0':'14px',bt:ph&&i?'1px solid #f0f0ec':'0'})),
+      metrics:AW.mt.map(m=>({l:m[0],v:m[1],s:m[2],hasBar:m[3]!=null,pct:Math.round((m[3]||0)*100)+'%',barC:m[3]!=null&&m[3]<.6?'#b07a12':'#237b22',sFg:m[3]!=null&&m[3]<.6?'#8a5d0b':'#6b7476'})),
+      evH:AW.ev.length>1?'Events':'Where it ends',
+      events:AW.ev.map(id=>{const e=EVD[id],oth=e.aws.filter(x=>x!==awK);return {n:e.n,day:e.day,mon:e.mon,when:e.when,place:e.place,shared:oth.length>0,sharedT:'One night for '+e.aws.length+' awards: also '+oth.map(x=>AWD[x].n+', '+AWD[x].ed).join(' and '),cta:e.cta,go:id==='e1'?()=>this.go('shifts'):()=>this.toastMsg('We’ll tell you when volunteer places open on Mon 9 Nov'),
+        stats:e.stats.map((s,i)=>({l:s[0],v:s[1],bl:!ph&&i?'1px solid #f0f0ec':'0',bt:ph&&i?'1px solid #f0f0ec':'0'}))};})};
+    o.mtCols=ph?'repeat(2,minmax(0,1fr))':W>=1100?'repeat('+Math.min(5,AW.mt.length)+',minmax(0,1fr))':'repeat(3,minmax(0,1fr))';o.evCols=ph?'minmax(0,1fr)':'repeat(3,minmax(0,1fr))';
+    o.roleCols=ph?'minmax(0,1fr)':'repeat(2,minmax(0,1fr))';o.qCols=ph?'minmax(0,1fr)':'repeat(2,minmax(0,1fr))';o.careCols=ph?'minmax(0,1fr) 92px 76px':'minmax(0,1fr) 110px 130px 90px';o.apCols=ph?'minmax(0,1fr) auto':'minmax(0,1fr) 220px 110px';
+    const ARD={acag:fresh?[['Voter drives','Alimosho Centre','Share your link at drives. It opens the award’s vote page.','Use a link to a single nominee, or ask anyone to vote for someone.','Ends when voting closes, Sat 31 Oct']]:[
+      ['Nominee care','Education category · 6 finalists','See each finalist’s page, profile and RSVP status. Send the category’s fixed reminders.','Message one finalist alone, see votes by person, or see results before the cue.','Ends Sun 8 Nov, 06:00'],
+      ['Voter drives','Alimosho Centre','Share your link at drives. It opens the award’s vote page.','Use a link to a single nominee, or ask anyone to vote for someone.','Ends when voting closes, Sat 31 Oct']],
+     tp:[['Nomination check','All 5 categories','Read nominations in your queue with contacts masked. Mark them complete or flag them for a moderator.','Approve, reject, merge or score. A moderator decides every nomination.','Ends when nominations close, Fri 13 Nov']],
+     sla:[['Nomination check','All 3 categories','Read nominations in your queue with contacts masked. Mark them complete or flag them for a moderator.','Approve, reject, merge or score. A moderator decides every nomination.','Ends when nominations close, Fri 13 Nov']]};
+    o.awRoles=ARD[awK].map(r=>({t:r[0],at:r[1],can:r[2],cant:r[3],ends:r[4]}));
+    o.hasQueue=awK==='tp'||awK==='sla';const qq=awK==='tp'?NQ[S.qi]:null;o.qHas=!!qq;o.qEmpty=!qq;
+    o.qEmptyT=awK==='sla'?'Your queue is clear. New nominations arrive here as they come in, until Fri 13 Nov.':'Batch done. The next batch of 15 arrives at 18:00.';
+    o.qStat=awK==='sla'?'26 checked · 0 left':(S.qn)+' checked · '+(qq?(15+NQ.length-S.qi):15)+' left';
+    if(qq){o.qi={id:qq.id,cat:qq.cat,nm:qq.nm,by:qq.by,why:qq.why,pos:(S.qi+1)+' of '+NQ.length+' in this batch',checks:[{t:qq.dup?'Possible duplicate: '+qq.dup:'No duplicate found',dot:qq.dup?'#b07a12':'#237b22',src:'Platform check'},{t:qq.ev?'Evidence link opens':'No evidence attached',dot:qq.ev?'#237b22':'#b07a12',src:'Platform check'},{t:'Does the reason fit “'+qq.cat+'”?',dot:'#c3c7c6',src:'Your call'}]};}else o.qi={checks:[]};
+    o.qFlagOpen=S.qFlagOpen;o.qOkT='Looks complete';o.qFlagT=S.qFlagOpen?(S.qReason!=null?'Send flag':'Cancel'):'Flag for a moderator';
+    const nextQ=(msg)=>{this.setState(s=>({qi:s.qi+1,qn:s.qn+1,qFlagOpen:false,qReason:null}));this.toastMsg(msg);};
+    o.qOk=()=>nextQ('Marked complete. A moderator approves it.');
+    o.qFlag=()=>{if(!S.qFlagOpen)this.setState({qFlagOpen:true});else if(S.qReason!=null)nextQ('Flagged: '+QR_[S.qReason].toLowerCase()+'. Sent to the moderators’ queue.');else this.setState({qFlagOpen:false});};
+    o.qSkip=()=>{this.setState(s=>({qi:s.qi+1,qFlagOpen:false,qReason:null}));this.toastMsg('Skipped and recorded as a conflict. Someone else checks it.');};
+    o.qReasons=QR_.map((l,i)=>({l,...pill(S.qReason===i),go:()=>this.setState({qReason:i})}));
+    o.hasCare=awK==='acag'&&!fresh;const cr=CARE.map(c=>S.careSent&&!c[1]?[c[0],0.5,c[2],c[3]]:c);
+    o.care=cr.map(c=>({n:c[0],p:c[1]===1?'Claimed':c[1]===0.5?'Reminded':'Not claimed',pFg:c[1]===1?'#1a5e1a':c[1]===0.5?'#3a4a4c':'#8a5d0b',pr:c[2]+'%',r:c[3],rFg:c[3]==='Yes'?'#1a5e1a':'#6b7476'}));
+    o.careStat='4 of 6 pages claimed · 3 of 6 RSVPs';
+    o.careAct=S.careSent?{t:'Claim reminder sent to the 2 who haven’t claimed',sub:'Sent just now by email, free. The platform’s own reminder on Thu 29 Oct is skipped for them so nobody gets it twice.',can:false}:{t:'2 finalists haven’t claimed their page',sub:'The claim reminder goes to both at once, by email (free). The platform’s next one is Thu 29 Oct; sending now replaces it.',can:true};
+    o.careSend=()=>{this.setState({careSent:true});this.toastMsg('Sent to both. Logged under Nominee care.');};
+    const rqK=Object.keys(RQ).filter(k=>RQ[k][6]===awK);o.hasReq=rqK.length>0;
+    o.reqRoles=rqK.map(k=>{const q=RQ[k],sent=S.reqd[k],ql=!done[q[3]],ll=lvN<q[4];const lock=ql||ll;return {t:q[0],sub:q[2],needs:sent?'Request sent · Kemi decides within 2 days':ll?'Needs Level '+q[4]:ql?'Needs '+MD[q[3]][0]+' training':'You meet what it needs',nFg:sent?'#1f5f8b':lock?'#8a5d0b':'#1a5e1a',cta:sent?'Requested':lock?(ll?'Locked':'Start training'):'Request',bd:lock||sent?'1px solid #e3e3de':'0',bg:lock||sent?'#fff':'#237b22',fg:lock||sent?(ll||sent?'#8a9294':'#10292c'):'#fff',go:sent?()=>this.toastMsg('Waiting on Kemi'):ll?()=>this.toastMsg('Level '+q[4]+' opens this role'):ql?()=>this.sheet('train',q[3]):()=>this.setState({sheet:'role',sd:k,rqC:null,rqN:''})};});
+    const RK=S.sheet==='role'&&RQ[S.sd];
+    o.rq=RK?{sub:RK[2],award:AWD[RK[6]].n+', '+AWD[RK[6]].ed,facts:[{l:'Where',v:RK[1]},{l:'Access',v:'Only this award and edition. Contacts masked; opening one is logged.'},{l:'Ends',v:RK[5]}],yes:S.rqC===1,names:S.rqN,opts:['No, nobody I know','Yes, I know someone nominated'].map((t,i)=>({t,on:S.rqC===i?'true':'false',bd:S.rqC===i?'#cfe6ce':'#e3e3de',bg:S.rqC===i?'#effaf0':'#fff',go:()=>this.setState({rqC:i})}))}:{facts:[],opts:[]};
+    o.rqNames=e=>this.setState({rqN:e.target.value});
+    o.sendReq=()=>{if(S.rqC==null){this.toastMsg('Answer the question first');return;}if(S.rqC===1&&S.rqN.trim().length<3){this.toastMsg('Say who, so we keep you away from their category');return;}this.setState(s=>({reqd:{...s.reqd,[s.sd]:1},sheet:null}));this.toastMsg('Request sent. Kemi decides within 2 days.');};
+    o.awProg=[['Nomination check · Teachers Prize','4 volunteers · 2,588 nominations','612 checked · 94% agreement',612/2588,'On pace','ok'],['Nominee care · Alimosho 2nd Edition','6 volunteers · 30 finalists in 6 categories','26 claimed · 18 RSVPs',26/30,'4 unclaimed','warn'],['Voter drives · Alimosho Centre','9 volunteers · 4 drives left','412 verified voters',412/600,'Target 600','info'],['Nomination check · School Leaders','2 volunteers · 214 nominations','180 checked · 97% agreement',180/214,'Ahead','ok']].map(p=>({t:p[0],who:p[1],l:p[2],pct:Math.round(p[3]*100)+'%',chip:ch(p[4],p[5])}));
+    // sheets
+    const sk=S.sheet;o.sheetOn=!!sk;o.closeSheet=()=>this.setState({sheet:null});
+    o.sh={title:'',pass:sk==='pass',take:sk==='take',drop:sk==='drop',log:sk==='log',train:sk==='train',task:sk==='task',more:sk==='more',gee:sk==='gee',role:sk==='role',awsw:sk==='awsw'};
+    o.sh.title={pass:'My pass',take:'Take this shift',drop:'Swap or drop',log:'Log hours',train:sk==='train'&&S.sd?MD[S.sd][0]:'',task:T?T.t:'',more:'More',gee:'Ask Gee',awsw:'Switch award',role:RK?'Request: '+RK[0]:''}[sk]||'';
+    const drawer=!ph;o.shL=ph?'0':'auto';o.shR=ph?'0':'12px';o.shT=ph?'auto':'12px';o.shB=ph?'0':'12px';o.shW=ph?'auto':'420px';o.shMax=ph?'88%':'none';o.shRad=ph?'20px 20px 0 0':'20px';
+    // pass
+    const pid=sk==='pass'&&S.sd||passShift;const ps=pid&&SH[pid];o.pass=ps?{role:ps.role+' · '+ps.t,valid:'Valid '+ps.d+', from 30 min before '+ps.time.split(' ')[0]}:{};
+    if(sk==='pass'){if(!this.qr){const n=25,c=[];let seed=7;const rnd=()=>{seed=(seed*9301+49297)%233280;return seed/233280;};const fin=(x,y)=>{for(const[a,b]of[[0,0],[n-7,0],[0,n-7]]){if(x>=a&&x<a+7&&y>=b&&y<b+7){const dx=x-a,dy=y-b;return (dx===0||dx===6||dy===0||dy===6||(dx>=2&&dx<=4&&dy>=2&&dy<=4))?1:0;}if(x>=a-1&&x<=a+7&&y>=b-1&&y<=b+7)return 0;}return -1;};for(let y=0;y<n;y++)for(let x=0;x<n;x++){const f=fin(x,y);c.push((f===-1?rnd()>.52:f)?'#10292c':'#fff');}this.qr=c;}o.qr=this.qr;}else o.qr=[];
+    // take / drop
+    const sdS=(sk==='take'||sk==='drop')&&SH[S.sd];
+    o.sd=sdS?{t:sdS.t,d:sdS.d,time:sdS.time,facts:[{l:'When',v:sdS.d+' · '+sdS.time},{l:'Where',v:sdS.place},{l:'Role',v:sdS.role+' · lead Kemi Bello'},{l:'Your hours come from',v:sdS.vb},{l:'Bring',v:sdS.bring}],
+      warn:S.sd==='o5'?'This is less than 48 hours away, so dropping counts as a late drop.':'More than 48 hours away, so dropping doesn’t affect your reliability. Kemi is told and the place reopens.',wBg:S.sd==='o5'?'#fdeeeb':'#f3f3f0',wFg:S.sd==='o5'?'#a52a19':'#3a4a4c'}:{facts:[]};
+    o.confirmTake=()=>{const id=S.sd;this.setState(s=>({added:[...s.added,id],dropped:s.dropped.filter(x=>x!==id),sheet:null,shTab:'mine'}));this.toastMsg('Booked. Kemi sees you on the rota.'+(SH[id].need&&!done[SH[id].need]?' Do the safety refresh before the day.':''));};
+    o.confirmDrop=()=>{const id=S.sd;this.setState(s=>({dropped:[...s.dropped,id],sheet:null}));this.toastMsg('Dropped. The place is open again.');};
+    o.offerSwap=()=>{this.setState({sheet:null});this.toastMsg('Offered to 9 volunteers who are free. You stay booked until someone takes it.');};
+    // log
+    const lg=S.lg;o.lg={...lg,hasErr:!!lg.err};const setLg=k=>e=>this.setState(s=>({lg:{...s.lg,[k]:e.target.value,err:''}}));
+    o.lgTask=setLg('task');o.lgDate=setLg('date');o.lgH=setLg('h');o.lgWhat=setLg('what');
+    o.sendLog=()=>{const hv=parseFloat(lg.h);if(!(hv>=0.5&&hv<=12)){this.setState(s=>({lg:{...s.lg,err:'Hours must be between 0.5 and 12.'}}));return;}if(lg.what.trim().length<8){this.setState(s=>({lg:{...s.lg,err:'Say what you did in a few words, so Kemi can confirm it.'}}));return;}
+      const dd=new Date(lg.date+'T12:00');const d=isNaN(dd)?lg.date:dd.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
+      this.setState(s=>({logged:[{task:lg.task,d,h:hv.toFixed(1),what:lg.what.trim()},...s.logged],lg:{...s.lg,what:'',err:''},sheet:null}));this.toastMsg('Sent to Kemi. It counts once she confirms it.');};
+    // train
+    const qk=sk==='train'&&S.sd;const Q=qk&&QZ[qk];
+    o.qz=Q?{len:MD[qk][1],why:MD[qk][2],parts:Q[0].map((t,i)=>({n:String(i+1),t})),q:Q[1],wrong:S.qzPick!=null&&S.qzPick!==Q[3],hintN:String(Q[4]),
+      opts:Q[2].map((t,i)=>{const p=S.qzPick===i,bad=p&&i!==Q[3];return {t,bd:bad?'#f0c7bf':'#e3e3de',bg:bad?'#fdeeeb':'#fff',go:()=>{if(i===Q[3]){this.setState(s=>({passed:{...s.passed,[qk]:1},sheet:null}));const UN={m2:'Door and usher shifts are open to you.',m4:'Your pass will open the gate on Sat 7 Nov.',m5:'Stand marshal shifts are open to you.',m6:'Photo tasks are open to you.',m7:'One step closer to Level 3.'};this.toastMsg('Passed. '+(UN[qk]||''));}else this.setState({qzPick:i});}};})}:{parts:[],opts:[]};
+    // gee
+    const GQ=['What do I need for Saturday?','How do my hours get verified?','How do I reach Level 3?'];
+    const GA=[(mine[0]?SH[mine[0]].d+', '+SH[mine[0]].t+', '+SH[mine[0]].time+'.\nBring: '+SH[mine[0]].bring+'.':'You have no shifts booked. Open shifts lists the ones you can take now.'),'Scans at a gate or stand, and sign-ups that verify a phone, count on their own. Anything else needs Kemi to confirm it. Hours you report alone stay waiting until she does.',lvN>=3?'You’re already Level 3.':'From your record: '+reqs.filter(q=>q[2]<1).map(q=>q[0].toLowerCase()+' ('+q[1]+')').join('; ')+'.'];
+    o.geeQs=GQ.map((t,i)=>({t,go:()=>this.setState({geeA:GA[i]})}));o.geeA=S.geeA;o.hasGeeA=!!S.geeA;
+    return o;
+  }
+  openTask(id,desk){if(desk)this.setState({scr:'tasks',sel:id,sheet:null});else this.setState({sheet:'task',sd:id});}
+}
+</script>
+</body>
+</html>

@@ -47,6 +47,11 @@
   .so-move{ display:flex; gap:6px; flex-wrap:wrap; align-items:center }
   .so-move select, .so-move input{ border:1px solid rgba(16,41,44,.18); border-radius:9px; padding:7px 9px; font-family:inherit; font-size:12px; color:#10292C }
   .so-move input{ width:150px }
+  .so-date{ display:flex; gap:6px; align-items:center; font-size:12px; color:#3d4b4d }
+  .so-bulk{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; padding:10px 12px; border-radius:12px; background:#f1efe9; margin:8px 0 10px; font-size:12px }
+  .so-hint{ font-size:12px; color:#5a6d6f; margin:6px 0 10px }
+  .so-check{ width:18px; height:18px }
+  .so-pager{ display:flex; gap:8px; align-items:center; justify-content:space-between; margin-top:12px; font-size:13px }
   .so-warn{ background:#fdf2f2; border:1px solid rgba(180,35,24,.24); color:#8a2020; border-radius:10px; padding:9px 12px; font-size:12px; font-weight:600; margin-top:7px }
 </style>
 {% endblock %}
@@ -54,7 +59,12 @@
 {% block topbar_title %}Shop orders{% endblock %}
 {% block topbar_actions %}
   <a class="ad-btn" href="/admin/products">Catalogue</a>
+  <a class="ad-btn" href="/admin/shop/stock">Stock</a>
   <a class="ad-btn" href="/admin/shop/codes">Discount codes</a>
+  <a class="ad-btn" href="/admin/shop/pickup">Collection points</a>
+  <a class="ad-btn" href="/admin/shop/till">Till</a>
+  <a class="ad-btn" href="/admin/shop/today">Today</a>
+  <a class="ad-btn" href="/admin/shop/reports">Reports</a>
   <a class="ad-btn" href="/admin/shop/shipping">Delivery charges</a>
 {% endblock %}
 
@@ -146,7 +156,7 @@
     <label class="sr-only" for="soStatus">Payment status</label>
     <select name="status" id="soStatus">
       <option value="">Any payment</option>
-      {% for s in ['paid', 'pending', 'failed'] %}
+      {% for s in ['paid', 'pending', 'failed', 'refunded', 'cancelled'] %}
       <option value="{{ s }}" {% if status == s %}selected{% endif %}>{{ s|capitalize }}</option>
       {% endfor %}
     </select>
@@ -159,23 +169,55 @@
       {% endfor %}
     </select>
     {% endif %}
+    <label class="so-date">From <input type="date" name="from" value="{{ from }}"></label>
+    <label class="so-date">To <input type="date" name="to" value="{{ to }}"></label>
     <button class="so-btn" type="submit">Filter</button>
-    {% if q or status or ful %}<a class="so-btn so-btn--ghost" href="/admin/shop/orders">Clear</a>{% endif %}
+    {% if q or status or ful or from or to %}<a class="so-btn so-btn--ghost" href="/admin/shop/orders">Clear</a>{% endif %}
   </form>
 </div>
 
 <div class="so-sec">
-  <h2>{{ rows|length }} order{{ rows|length == 1 ? '' : 's' }}</h2>
+  <h2 role="status" aria-live="polite">{{ total|number_format }} order{{ total == 1 ? '' : 's' }}{% if pages > 1 %} · page {{ page }} of {{ pages }}{% endif %}</h2>
+  {% if error %}
+  <div class="so-warn" role="alert">{{ error }} <a href="/admin/shop/orders?{{ query|url_encode }}">Try again</a></div>
+  {% endif %}
+
+  {# ── BULK: one form, one op, several declared actions (ShopController::bulk) ──
+     Checkboxes join it with form="soBulk", so each row's own move form stays a separate form
+     (a form inside a form is silently deleted by the parser). Capped at bulk_max, named. #}
+  {% if has_ful and rows|length %}
+  <form id="soBulk" method="post" action="/admin/shop/orders/bulk" class="so-bulk">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <input type="hidden" name="back_query" value="{{ query|url_encode }}">
+    <label class="so-date"><input type="checkbox" data-so-all aria-label="Tick every order on this page"> All on this page</label>
+    <span data-so-picked aria-live="polite">None ticked</span>
+    <label class="sr-only" for="soAction">With the ticked orders</label>
+    <select name="action" id="soAction">
+      {% for key, label in moves %}<option value="{{ key }}">Mark {{ label|lower }}</option>{% endfor %}
+    </select>
+    <button class="so-btn so-btn--tiny" type="submit" data-so-apply data-confirm="Change the delivery state of the ticked orders?">Apply</button>
+    <button class="so-btn so-btn--ghost so-btn--tiny" type="submit" name="action" value="pick" formtarget="_blank">Pick list</button>
+    <button class="so-btn so-btn--ghost so-btn--tiny" type="submit" name="action" value="slips" formtarget="_blank">Packing slips</button>
+    <span class="so-hint">At most {{ bulk_max }} at once.</span>
+  </form>
+  {% endif %}
+  <p class="so-hint">
+    Print for every paid order not yet sent:
+    <a href="/admin/shop/orders/print?kind=pick" target="_blank" rel="noopener">pick list</a> ·
+    <a href="/admin/shop/orders/print?kind=slips" target="_blank" rel="noopener">packing slips</a>
+  </p>
+
   <div class="ad-table-wrap">
     <table class="so-list">
       <thead>
-        <tr><th>Order</th><th>Buyer</th><th>What</th><th>Money</th><th>Payment</th><th>Delivery</th></tr>
+        <tr><th scope="col"><span class="sr-only">Tick</span></th><th scope="col">Order</th><th scope="col">Buyer</th><th scope="col">What</th><th scope="col">Money</th><th scope="col">Payment</th><th scope="col">Delivery</th></tr>
       </thead>
       <tbody>
         {% for o in rows %}
         <tr class="{{ o.stock_short|default(0) and o.status == 'paid' ? 'is-short' : '' }}">
+          <td>{% if has_ful %}<input type="checkbox" class="so-check" name="ids[]" value="{{ o.id }}" form="soBulk" aria-label="Tick {{ o.reference }}">{% endif %}</td>
           <td>
-            <a class="so-ref" href="/shop/order/{{ o.reference|url_encode }}" target="_blank" rel="noopener noreferrer">{{ o.reference }}</a>
+            <a class="so-ref" href="/admin/shop/orders/{{ o.id }}">{{ o.reference }}</a>
             <div style="color:#67797b;margin-top:4px">{{ o.created_at }}</div>
             {% if o.provider %}<div style="color:#8a9a9c">{{ o.provider }}</div>{% endif %}
           </td>
@@ -230,7 +272,8 @@
               <input type="hidden" name="_token" value="{{ csrf_token }}">
               <input type="hidden" name="id" value="{{ o.id }}">
               <select name="fulfilment" aria-label="Delivery state for {{ o.reference }}">
-                {% for key, label in fulfilments %}
+                {# Not "cancelled": that is an act on the order's own page, which refunds. #}
+                {% for key, label in fulfilments|filter((v, k) => k not in ['cancelled', 'collected'] and (o.pickup_point_id|default(0) or k != 'ready')) %}
                 <option value="{{ key }}" {% if key == state %}selected{% endif %}>{{ label }}</option>
                 {% endfor %}
               </select>
@@ -248,12 +291,41 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="6" style="padding:22px 0;text-align:center;color:#8a9a9c">
-          {% if q or status or ful %}Nothing matches that filter.{% else %}No orders yet.{% endif %}
+        <tr><td colspan="7" style="padding:22px 0;text-align:center;color:#8a9a9c">
+          {% if error %}The list could not be read.{% elseif q or status or ful or from or to %}Nothing matches that filter.{% else %}No orders yet.{% endif %}
         </td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
+  {% if pages > 1 %}
+  <nav class="so-pager" aria-label="Pages of orders">
+    {% if page > 1 %}<a class="so-btn so-btn--ghost so-btn--tiny" href="/admin/shop/orders?{{ query|merge({page: page - 1})|url_encode }}">Newer</a>{% else %}<span></span>{% endif %}
+    <span>Page {{ page }} of {{ pages }}</span>
+    {% if page < pages %}<a class="so-btn so-btn--ghost so-btn--tiny" href="/admin/shop/orders?{{ query|merge({page: page + 1})|url_encode }}">Older</a>{% else %}<span></span>{% endif %}
+  </nav>
+  {% endif %}
 </div>
+
+<script nonce="{{ csp_nonce }}" data-nav="rerun">
+/* Tick-all, the running count, and a confirm that names the number ticked — read before the
+   confirm, so a list that changes underneath cannot change what the operator agreed to. Bound
+   to this page's own elements only, so it is safe to run again on every console swap. */
+(function () {
+  var all = document.querySelector('[data-so-all]');
+  var out = document.querySelector('[data-so-picked]');
+  var apply = document.querySelector('[data-so-apply]');
+  var boxes = function () { return Array.prototype.slice.call(document.querySelectorAll('input[name="ids[]"][form="soBulk"]')); };
+  if (!out) return;
+  function count() {
+    var b = boxes(), n = b.filter(function (x) { return x.checked; }).length;
+    out.textContent = n === 0 ? 'None ticked' : n + ' ticked';
+    if (all) { all.checked = n > 0 && n === b.length; all.indeterminate = n > 0 && n < b.length; }
+    if (apply) apply.setAttribute('data-confirm', 'Change the delivery state of ' + n + ' order' + (n === 1 ? '' : 's') + '?');
+  }
+  if (all) all.addEventListener('change', function () { boxes().forEach(function (x) { x.checked = all.checked; }); count(); });
+  boxes().forEach(function (x) { x.addEventListener('change', count); });
+  count();
+})();
+</script>
 {% endblock %}

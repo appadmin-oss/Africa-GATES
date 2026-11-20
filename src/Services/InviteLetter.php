@@ -2,7 +2,7 @@
 declare(strict_types=1);
 namespace AfricaGates\Services;
 
-use AfricaGates\Support\Brand;
+use AfricaGates\Support\Letterhead;
 use AfricaGates\Support\DisplayTime;
 use AfricaGates\Support\Pdf;
 use Illuminate\Support\Carbon;
@@ -39,14 +39,13 @@ use Illuminate\Support\Carbon;
  */
 final class InviteLetter
 {
-    private const PAGE_W = 210.0;
-    private const PAGE_H = 297.0;
-    private const MARGIN = 22.0;
+    private const PAGE_W = Letterhead::PAGE_W;
+    private const PAGE_H = Letterhead::PAGE_H;
+    private const MARGIN = Letterhead::MARGIN;
 
-    private const INK   = [0x10, 0x29, 0x2C];
-    private const MUTE  = [0x5D, 0x72, 0x75];
-    private const GOLD  = [0xF3, 0xB4, 0x16];
-    private const RULE  = [0xCD, 0xD6, 0xD6];
+    private const INK   = Letterhead::INK;
+    private const MUTE  = Letterhead::MUTE;
+    private const RULE  = Letterhead::RULE;
 
     /**
      * Where the reference block and the sign-off sit, measured up from the page foot.
@@ -55,17 +54,6 @@ final class InviteLetter
      * place — see the note at the reference block. `REF_Y` leaves 18.5mm for the block
      * itself plus a gap before `SIGN_Y`.
      */
-    /**
-     * The printed width of the lockup. Its height follows from the artwork's own ratio.
-     *
-     * 26mm, not 21. The artwork is a fine line drawing of Africa with "Africa G.A.T.E.S."
-     * set inside it, and at 21mm the wordmark inside it came out around 7pt with the
-     * coastline at a sub-hairline stroke — present, but reading as a smudge rather than as
-     * a mark. Every piece of artwork has a size below which it stops saying what it is,
-     * and for this one that size is above 21mm.
-     */
-    private const LOGO_W = 26.0;
-
     private const REF_Y  = self::PAGE_H - self::MARGIN - 66.0;
     private const SIGN_Y = self::PAGE_H - self::MARGIN - 42.0;
 
@@ -102,49 +90,9 @@ final class InviteLetter
         $y     = self::MARGIN;
 
         // ── 1 · letterhead ───────────────────────────────────────────────────
-        //
-        // The mark, then the words — the ordinary shape of a letterhead, and the reason
-        // the wordmark below is set quietly: with the lockup present, "AFRICA GATES" in
-        // tracked capitals beside it is the same name twice.
-        //
-        // The box is sized from the artwork's OWN ratio, because Pdf::image() covers and
-        // clips its box like `object-fit: cover` — correct for a poster on a ticket, and
-        // the wrong thing entirely for a logo, where a box of the wrong shape crops the
-        // Africa outline rather than fitting it. Matching the ratio makes cover and
-        // contain the same operation.
-        $logoH = 0.0;
-        $logo  = Brand::logoJpeg((int) round(self::LOGO_W * 3));   // ~300dpi
-        if ($logo !== null) {
-            $logoH = self::LOGO_W / Brand::LOGO_RATIO;
-            $pdf->image($logo, $x, $y, self::LOGO_W, $logoH, 0.5);
-        }
-
-        // Set beside the mark when there is one, and in its place when the deploy is
-        // missing the file — a letterhead that silently loses its name because an image
-        // did not load is worse than one that never had a picture.
-        //
-        // TOP-aligned with the mark, not centred against it. The mark is 30mm tall and the
-        // text block is 11; centring one on the other put the words at an optical position
-        // that matched nothing else on the page, and three left edges that do not relate
-        // is what reads as "placed" rather than "laid out". The type sits on the mark's own
-        // top line, and the host closes the same line on the right.
-        $tx = $logo !== null ? $x + self::LOGO_W + 8.0 : $x;
-        $ty = $y + 6.4;
-        if ($logo === null) {
-            $pdf->text('AFRICA GATES', $tx, $ty, 'mono', 9.5, self::INK, 2.2);
-            $ty += 5.6;
-        }
-        $pdf->text('Continental Cultural Recognition', $tx, $ty, 'semi', 9.5, self::INK);
-        $pdf->text('An Afrovanguard Initiative', $tx, $ty + 5.2, 'text', 8.5, self::MUTE);
-
-        $host = self::host();
-        $pdf->text($host, $x + $w - $pdf->width($host, 'text', 8.5), $ty, 'text', 8.5, self::MUTE);
-
-        $y += max(17.0, $logoH + 5.0);
-        // Two rules, 0.9mm apart — the letterpress convention for a letterhead, and the
-        // one piece of ornament in the document. The gold is the thin one.
-        $pdf->line($x, $y, $x + $w, $y, self::INK, 0.5);
-        $pdf->line($x, $y + 1.4, $x + $w, $y + 1.4, self::GOLD, 0.5);
+        // Shared with every formal letter; the reasoning for its shape is in Letterhead.
+        $y    = Letterhead::draw($pdf);
+        $host = Letterhead::host();
 
         // ── 2 · reference and date ───────────────────────────────────────────
         // A letter with no date is a notice. Both sit right, above the recipient block,
@@ -318,50 +266,8 @@ final class InviteLetter
              . strtolower((string) $invite->reference) . '.pdf';
     }
 
-    /** The site's own hostname for the letterhead — one resolver, not a literal. */
-    private static function host(): string
-    {
-        $h = parse_url(\AfricaGates\Support\SiteUrl::base(), PHP_URL_HOST);
-
-        return is_string($h) && $h !== '' ? $h : 'africagates.org';
-    }
-
     private static function begin(): Pdf
     {
-        $pdf = new Pdf(self::PAGE_W, self::PAGE_H);
-        $dir = dirname(__DIR__, 2) . '/resources/fonts/';
-
-        // ── THE FACES, AND WHY THE BODY CHANGED ──────────────────────────────
-        //
-        // The letter was set in AGText — DejaVu — at 10.5pt across a 166mm measure. DejaVu
-        // is a fallback face: very wide, loosely fitted, and drawn for screens at small
-        // sizes. Printed at that size across that measure it reads as a web page sent to a
-        // printer, which is what this document was being told it looked like.
-        //
-        // DM Sans is the site's own body face and it is already in this repository. It is
-        // narrower, tighter and has actual character; the letter is set in it now.
-        //
-        // ── AND WHY DEJAVU IS STILL HERE ─────────────────────────────────────
-        //
-        // DM Sans has no Ọ, ẹ or ṣ, and no ₦ — the exact gap CODEBASE-INDEX records
-        // against the ticket. So every DM Sans face is registered WITH the DejaVu face
-        // behind it, and Pdf::font() splits runs per character: "Dr Ọlásùnkànmí
-        // Adébáyọ̀-Williams" sets in DM Sans for everything DM Sans has and falls through
-        // for the rest, rather than printing boxes through the middle of somebody's name
-        // on the one document they keep.
-        //
-        // `fb` is registered FIRST so it exists to be named as a fallback, and so a call
-        // site that forgets a face gets the one that can set any name at all.
-        $pdf->font('fb', $dir . 'AGText-Regular.ttf');
-        $pdf->font('fbb', $dir . 'AGText-Bold.ttf');
-        $pdf->font('text', $dir . 'DMSans-Regular.ttf', 'fb');
-        $pdf->font('semi', $dir . 'DMSans-SemiBold.ttf', 'fbb');
-        $pdf->font('bold', $dir . 'DMSans-Bold.ttf', 'fbb');
-        $pdf->font('mono', $dir . 'AGMono-Bold.ttf');
-        // Playfair covers U+1EA0–1EFF so it sets "Ọlásùnkànmí" properly, but it has no ₦ —
-        // registered with the text face behind it for exactly that reason.
-        $pdf->font('display', $dir . 'PlayfairDisplay-Bold.ttf', 'fbb');
-
-        return $pdf;
+        return Letterhead::pdf();
     }
 }

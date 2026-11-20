@@ -25,7 +25,7 @@
   <section class="rs-late" aria-labelledby="rs-late-h">
     <span class="rs-late__k">{{ late.programme }}{% if late.edition %} · {{ late.edition }}{% endif %}</span>
     <h1 class="rs-late__h" id="rs-late-h">{{ late.award ? '%a% has not been decided yet'|trans({'%a%': late.award}) : 'This award has not been decided yet'|trans }}</h1>
-    <p class="rs-late__p">{{ 'The results were expected on %d%. The award has not been announced, so no standing and no winner are published here yet.'|trans({'%d%': late.promised|when_zoned('j F Y')}) }}</p>
+    <p class="rs-late__p">{{ 'Results were expected on %d%. Nothing is published until it’s announced.'|trans({'%d%': late.promised|when_zoned('j F Y')}) }}</p>
     {% if late.note %}<div class="rs-late__note"><b>{{ 'From the organisers'|trans }}</b><p>{{ late.note }}</p></div>{% endif %}
     <p class="rs-late__p">{{ 'This page becomes the result the moment it is announced.'|trans }}</p>
     <div class="rs-late__acts">

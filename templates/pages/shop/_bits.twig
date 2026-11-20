@@ -43,7 +43,7 @@
   <article class="sp-card{{ p.sold_out ? ' is-gone' }}">
     <div class="sp-card__img">
       <a class="sp-card__media" href="/shop/{{ p.slug }}" tabindex="-1" aria-hidden="true">
-        {% include 'partials/photo.twig' with {kind: 'thing', subject: 'product', src: p.cover_path|default(''), name: p.name, label: false} only %}
+        {% include 'partials/photo.twig' with {identity: p.id|default(null), kind: 'thing', subject: 'product', cover_kind: p.category|default(''), src: p.cover_path|default(''), name: p.name, label: false} only %}
       </a>
       {% if p.sold_out %}<span class="sp-tag sp-tag--gone">{{ 'Sold out'|trans }}</span>
       {% elseif p.tag|default('') %}<span class="sp-tag">{{ p.tag }}</span>{% endif %}
@@ -97,7 +97,7 @@
             items: '%n% items'|trans, item: '1 item'|trans, empty: 'Your cart is empty.'|trans,
             remove: 'Remove'|trans, freeGot: 'You’ve got free delivery.'|trans,
             freeLeft: 'Add %amount% more for free delivery.'|trans, charged: 'Charged in Naira · %amount%'|trans,
-            free: 'Free'|trans, fewer: 'One fewer'|trans, more: 'One more'|trans, changed: 'Your cart changed:'|trans
+            free: 'Free'|trans, total: 'Total'|trans, delivery: 'Delivery'|trans, discount: 'Discount'|trans, fewer: 'One fewer'|trans, more: 'One more'|trans, changed: 'Your cart changed:'|trans
          }|json_encode }}">
     <div class="sp-cart__head">
       <h2 class="sp-cart__h" id="spCartH" data-sp-cart-title>{{ 'Your cart'|trans }}</h2>
@@ -108,10 +108,10 @@
 
     {% if ctx.providers is empty %}
       {# No gateway can take money right now. Said before anybody fills a form in. #}
-      <p class="sp-cart__soon" role="status">{{ 'Online checkout is being set up. To order now, write to us and we’ll arrange payment and delivery.'|trans }}</p>
+      <p class="sp-cart__soon" role="status">{{ 'Online checkout is being set up. Write to us to order.'|trans }}</p>
     {% endif %}
 
-    <form class="sp-cart__form" method="post" action="/shop/checkout" data-sp-checkout novalidate data-favicon-busy>
+    <form class="sp-cart__form" method="post" action="/shop/checkout" data-sp-checkout novalidate data-ag-validate data-favicon-busy>
       <input type="hidden" name="_token" value="{{ csrf_token }}">
       <input type="hidden" name="cart" value="{}" data-sp-cart-json>
       <div class="sp-cart__body">
@@ -182,13 +182,17 @@
       <div class="sp-cart__foot">
         <div class="sp-free" data-sp-free-row hidden>
           <span class="sp-free__t" data-sp-free-text></span>
-          <span class="sp-free__bar" aria-hidden="true"><span data-sp-free-bar></span></span>
+          <span class="sp-free__bar" role="progressbar" aria-label="{{ 'Towards free delivery'|trans }}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-sp-free-meter><span data-sp-free-bar></span></span>
         </div>
         <span class="sp-cart__tot"><span>{{ 'Total'|trans }}</span><b data-sp-total></b></span>
         <span class="sp-cart__ngn" data-sp-ngn hidden></span>
         <span class="sp-cart__give">{{ 'Every order funds child leadership programmes.'|trans }}</span>
-        <button type="button" class="sp-btn sp-btn--go" data-sp-next>{{ 'Checkout'|trans }}</button>
-        <button type="submit" class="sp-btn sp-btn--go" data-sp-pay hidden{{ ctx.providers is empty ? ' disabled' }}></button>
+        {# With no gateway able to take money, Checkout led to a form whose Pay button was
+           disabled: the cart said "write to us" and then offered the opposite. The way to
+           order is the button, and the dead step is not offered. #}
+        {% if ctx.providers is empty %}<a class="sp-btn sp-btn--go" href="/support">{{ 'Write to us to order'|trans }}</a>{% endif %}
+        <button type="button" class="sp-btn sp-btn--go{{ ctx.providers is empty ? ' sp-off' }}" data-sp-next>{{ 'Checkout'|trans }}</button>
+        <button type="submit" class="sp-btn sp-btn--go" data-sp-pay hidden{{ ctx.providers is empty ? ' disabled' }}>{{ 'Pay'|trans }}</button>
         <button type="button" class="sp-back" data-sp-back hidden>{{ 'Back to your cart'|trans }}</button>
       </div>
     </form>
@@ -209,10 +213,14 @@
     </div>
     <div class="sp-added__sum"><span data-sp-added-count></span><b data-sp-added-total></b></div>
     <div class="sp-added__do">
-      <button type="button" class="sp-btn sp-btn--line" data-sp-cart-open>{{ 'View cart'|trans }}</button>
-      <button type="button" class="sp-btn sp-btn--go" data-sp-cart-open="checkout">{{ 'Checkout'|trans }}</button>
+      {% if ctx.providers is empty %}
+        <button type="button" class="sp-btn sp-btn--go sp-added__one" data-sp-cart-open>{{ 'View cart'|trans }}</button>
+      {% else %}
+        <button type="button" class="sp-btn sp-btn--line" data-sp-cart-open>{{ 'View cart'|trans }}</button>
+        <button type="button" class="sp-btn sp-btn--go" data-sp-cart-open="checkout">{{ 'Checkout'|trans }}</button>
+      {% endif %}
     </div>
     <button type="button" class="sp-keep" data-sp-added-close>{{ 'Keep shopping'|trans }}</button>
   </div>
-  <noscript><p class="sp-noscript">{{ 'The cart needs JavaScript. To order without it, write to us and we’ll arrange payment and delivery.'|trans }}</p></noscript>
+  <noscript><p class="sp-noscript">{{ 'The cart needs JavaScript. Write to us to order without it.'|trans }}</p></noscript>
 {% endmacro %}

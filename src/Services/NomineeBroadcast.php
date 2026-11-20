@@ -6,8 +6,6 @@ namespace AfricaGates\Services;
 use AfricaGates\Support\Slug;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
-use Twig\Environment;
-use Twig\Loader\FilesystemLoader;
 
 /**
  * Who receives the nominee broadcast, and what each of them is sent.
@@ -136,32 +134,32 @@ final class NomineeBroadcast
      * @param array{nominee:object,cycle:object,email:string} $r
      * @return array{ok:bool, error:string}
      */
-    public function sendOne(array $r, string $site, OtpService $mailer): array
+    public function sendOne(array $r, string $site, OtpService $mailer, ?string $subject = null,
+                            ?string $variant = null, ?string $emailHash = null): array
     {
+        $html = $this->html($r, $site);
+        // From the outbox (Mail\Outbox): the links are counted, so the campaign can be told
+        // what it achieved (Mail\MailTraction). The unsubscribe link is never touched.
+        if ($emailHash !== null && $emailHash !== '') {
+            $html = \AfricaGates\Services\Mail\MailTraction::wrap($html, $site, $this->campaignKey(), $emailHash, $variant);
+        }
         $res = $mailer->sendRawHtml(
-            $r['email'], $this->subject(),
-            $this->html($r, $site), $this->plain($r, $site),
+            $r['email'], $subject !== null && trim($subject) !== '' ? $subject : $this->subject(),
+            $html, $this->plain($r, $site),
             $this->campaignKey(), EmailOptOut::url($site, $r['email'])
         );
         $ok    = (bool) ($res['success'] ?? false);
         $error = (string) ($res['error'] ?? '');
         $this->logSend($r, $ok, $error);
 
-        return ['ok' => $ok, 'error' => $error];
+        // `held` says WHY a message did not go (refused or deferred by the send rules), which
+        // the outbox needs to tell a retry from a stop.
+        return ['ok' => $ok, 'error' => $error, 'held' => $res['held'] ?? null];
     }
 
     /** @param array{nominee:object,cycle:object,email:string} $r */
     public function html(array $r, string $site): string
     {
-        // A bare Twig environment: this template uses plain variables only — no asset()
-        // or csp_nonce — so it does not need the app's extensions, and not depending on
-        // them keeps it renderable from a console with no HTTP request in flight.
-        static $twig = null;
-        $twig ??= \AfricaGates\Support\Translator::register(new Environment(
-            new FilesystemLoader(\dirname(__DIR__, 2) . '/templates'),
-            ['autoescape' => 'html']
-        ));
-
         $vars = $this->vars($r, $site);
 
         // An editable campaign renders through EmailCampaign, which owns the block
@@ -171,8 +169,11 @@ final class NomineeBroadcast
             return EmailCampaign::renderFor($this->campaign, $vars);
         }
 
-        // `c`: the palette, by name — mail cannot read var() (Accent::mail()).
-        return $twig->render('emails/final-hours.twig', $vars + ['c' => \AfricaGates\Support\Accent::mail()]);
+        // The fixed message: emails/final.html.twig in the house shell, wrapped here because
+        // this path sends through sendRawHtml() with its own List-Unsubscribe.
+        $m = \AfricaGates\Services\Mail\Emails::compose('final', $vars);
+        return OtpService::boot()->brandWrap($m['subject'], $m['html'], $m['category'], $m['hero'],
+            (string) $vars['unsubscribe_url'], $m['preheader'], 0, $m['why']);
     }
 
     /** @return array<string,mixed> @param array{nominee:object,cycle:object,email:string} $r */
@@ -190,7 +191,13 @@ final class NomineeBroadcast
             'countdown_alt'   => 'Voting closes ' . $close->format('D j M Y, H:i T'),
             'closes_human'    => $close->format('D j M Y, H:i T'),
             'first_name'      => $first,
+            'full_name'       => trim((string) $n->name),
             'category_name'   => (string) ($n->category_title ?? ''),
+            // Empty rather than invented when unknown, so {award_name|Africa GATES} falls back.
+            'award_name'      => trim((string) ($r['cycle']->programme_title ?? '')),
+            'edition_name'    => trim((string) ($r['cycle']->edition_label ?? '')) !== ''
+                ? trim((string) $r['cycle']->edition_label)
+                : (string) ($r['cycle']->year ?? ''),
             'vote_url'        => $this->votePage($site, $n),
             'events_url'      => $site . '/events',
             'site_url'        => $site,
@@ -226,26 +233,8 @@ final class NomineeBroadcast
             return EmailCampaign::plainFor($this->campaign, $this->vars($r, $site));
         }
 
-        $n     = $r['nominee'];
-        $close = Carbon::parse((string) $r['cycle']->voting_close)->format('D j M Y, H:i T');
-        $first = trim(explode(' ', trim((string) $n->name))[0] ?? '');
-
-        // Written, not strip_tags'd: a stripped campaign is style rules and link text with
-        // no sentences in it, and that is the version a plain-text client shows.
-        return implode("\n", [
-            $first !== '' ? "$first," : 'Hello,',
-            '',
-            'You are in the final stretch of Africa GATES voting'
-                . (($n->category_title ?? '') !== '' ? ' in ' . $n->category_title : '') . '.',
-            "Voting closes $close.",
-            '',
-            'Two things we are asking of you:',
-            '1. Mobilise your supporters — share your voting link: ' . $this->votePage($site, $n),
-            '2. Be there on the night — ' . $site . '/events',
-            '',
-            '— Africa GATES',
-            'Unsubscribe: ' . EmailOptOut::url($site, $r['email']),
-        ]);
+        // Written, not strip_tags'd: emails/final.txt.twig.
+        return \AfricaGates\Services\Mail\Emails::compose('final', $this->vars($r, $site))['text'];
     }
 
     /** @return list<object> cycles in voting with a usable close date */
@@ -255,7 +244,7 @@ final class NomineeBroadcast
             ->leftJoin('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
             ->whereNotNull('cy.voting_close')
             ->where('cy.voting_close', '>', Carbon::now()->toDateTimeString())
-            ->select('cy.id', 'cy.programme_id', 'cy.voting_close', 'p.title as programme_title');
+            ->select('cy.*', 'p.title as programme_title');
 
         // The rehearsal is seeded at status 'voting' with voting_close twenty days out,
         // precisely so the sandbox shows a usable ballot — which is also exactly the
@@ -275,9 +264,49 @@ final class NomineeBroadcast
         // thing an operator could learn from it is what a bounce looks like.
         DemoSeeder::notSandbox($q, 'cy.programme_id');
 
-        $only > 0 ? $q->where('cy.id', $only) : $q->where('cy.status', 'voting');
+        if ($only > 0) $q->where('cy.id', $only);
 
-        return $q->orderBy('cy.voting_close')->get()->all();
+        // OPEN FOR VOTING IS THE COMPUTED PHASE, NOT THE STATUS COLUMN. `status` is a cache
+        // the maintenance run moves to `judging` when voting first closes — so a cycle whose
+        // close was then EXTENDED was voting again on every public page while this read
+        // `status = 'voting'`, found nothing, and the voting-extension campaign — the one
+        // send whose whole subject is "you now have until …" — resolved nobody: "Will be
+        // sent 0", and a preview that refused with no reason. CyclePolicy::phaseFor() is
+        // what the ballot itself obeys; one answer to "is voting open", never two.
+        $rows = $q->orderBy('cy.voting_close')->get()->all();
+        if ($only > 0) return $rows;
+        return array_values(array_filter($rows, static fn ($cy) => CyclePolicy::phaseFor($cy)->isVotingOpen()));
+    }
+
+    /**
+     * Why nobody resolved, in a sentence an operator can act on. Empty when somebody did.
+     * The refusal used to be one line for every cause — no cycle, a cycle the dates say is
+     * closed, nominees with no address — and each needs a different fix.
+     */
+    public function whyEmpty(?array $plan = null): string
+    {
+        $plan ??= $this->plan();
+        if ($plan['queue'] !== []) return '';
+        if ($plan['cycles'] === []) {
+            $q = DB::table('gates_award_cycles as cy')
+                ->leftJoin('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
+                ->select('cy.*', 'p.title as programme_title')->orderByDesc('cy.id')->limit(20);
+            DemoSeeder::notSandbox($q, 'cy.programme_id');
+            $near = [];
+            foreach ($q->get() as $cy) {
+                $phase = CyclePolicy::phaseFor($cy);
+                if (in_array($phase, [CyclePhase::Archived, CyclePhase::Results], true)) continue;
+                $close = $cy->voting_close ? Carbon::parse((string) $cy->voting_close)->format('D j M Y, H:i') : 'no voting close date';
+                $near[] = trim(((string) ($cy->programme_title ?? 'Cycle ' . $cy->id)) . ' ' . ($cy->year ?? '')) . ' (' . $phase->label() . ', voting closes ' . $close . ')';
+            }
+            return 'No cycle is open for voting right now, so there is nobody to write to.'
+                . ($near ? ' Checked: ' . implode('; ', array_slice($near, 0, 3)) . '. To extend voting, set the cycle\'s voting close date in the future'
+                    . ' (and its voting open date, if it has none), then come back.' : '');
+        }
+        $c = $plan['counts'];
+        return 'Voting is open, but none of its ' . $c['nominees'] . ' nominees has a usable email address'
+            . ($c['ambiguous'] ? ' (' . $c['ambiguous'] . ' have more than one and are never guessed)' : '')
+            . '. Add addresses on the nominees, then come back.';
     }
 
     /** @return list<object> approved, unmerged nominees in a cycle */

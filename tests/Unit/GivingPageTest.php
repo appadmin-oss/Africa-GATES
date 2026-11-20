@@ -96,7 +96,7 @@ final class GivingPageTest extends TestCase
     {
         $html = $this->withPaystack(fn () => $this->page()[1]);
         $this->assertStringNotContainsString('₦0 raised', $html);
-        $this->assertStringContainsString('Be among the first to give', $html);
+        $this->assertStringContainsString('Be one of the first to give', $html);
     }
 
     /** With no provider the page says how to give rather than drawing a button that cannot. */

@@ -197,7 +197,12 @@ final class ChallengeService
             return ['ok' => true, 'code' => 'SHORT', 'entry' => self::entry($entryId)];
         }
 
-        return self::qualify($entryId);
+        $r = self::qualify($entryId);
+        // A place, just now: they are told once (the ledger claim makes a repeat a no-op).
+        if (($r['code'] ?? '') === 'QUALIFIED' && isset($r['standing'])) {
+            ChallengeAftercare::after((int) $ch->id, [$entryId]);
+        }
+        return $r;
     }
 
     /**
@@ -209,8 +214,9 @@ final class ChallengeService
     {
         if ((string) $ch->action === E::ACTION_NOMINATE) {
             $rows = DB::table('gates_nominations')
-                ->where('challenge_entry_id', $entry->id)
-                ->get(['status', 'nominee_confirmed_at', 'nominee_identity_hash']);
+                ->where('challenge_entry_id', $entry->id);
+            self::inWindow($rows, $ch, 'created_at');
+            $rows = $rows->get(['status', 'nominee_confirmed_at', 'nominee_identity_hash']);
 
             // ── DISTINCT PEOPLE, NOT DISTINCT ROWS ──────────────────────────
             // The target is "10 different nominees". Counting rows lets one friend
@@ -312,6 +318,7 @@ final class ChallengeService
         if ($events !== []) $q->whereIn('event_id', $events);
 
         if (SchemaHas::column('gates_referral_credits', 'reversed_at')) $q->whereNull('reversed_at');
+        self::inWindow($q, $ch, 'gates_referral_credits.created_at');
 
         // "Buying tickets for yourself through your own link doesn't count" — also
         // published. The credit's own `user_id` is the REFERRER, so the buyer is read
@@ -331,6 +338,25 @@ final class ChallengeService
     }
 
     /**
+     * Only what happened while the challenge was running counts.
+     *
+     * Neither count was bounded by the dates, so a referral challenge opened today paid for
+     * every ticket the member had EVER sold through their link — somebody with a year of
+     * referrals behind them qualified on the first page view — and a nomination attached
+     * after the close still moved a standing. The challenge's dates are UTC
+     * ({@see ChallengeWindow} compares them with gmdate); the rows are stamped in the
+     * site's own zone, so the bounds are converted rather than compared as typed.
+     */
+    private static function inWindow(object $q, object $ch, string $col): void
+    {
+        foreach (['starts_at' => '>=', 'ends_at' => '<='] as $k => $op) {
+            $v = trim((string) ($ch->$k ?? ''));
+            if ($v === '' || ($t = strtotime($v . ' UTC')) === false) continue;
+            $q->where($col, $op, date('Y-m-d H:i:s', $t));
+        }
+    }
+
+    /**
      * A referral credit has been reversed: recount the member's open entries.
      *
      * The stamp itself is {@see ReferralService::reverseSale()} — the one reversal, called
@@ -342,15 +368,19 @@ final class ChallengeService
      * so "Refunded tickets are removed" was printed on the challenge page while every
      * refunded ticket stayed in the count.
      *
-     * Only entries without a `standing` are recounted, so a reversal can take a qualification
-     * away but never a standing already assigned.
+     * A reversal can take a qualification away but never a standing already assigned; a
+     * placed entry that falls short has its prize held instead ({@see markPaid()}).
      */
     public static function referralReversed(int $creditId, int $userId, string $reason = ''): void
     {
         if ($userId < 1 || !SchemaHas::table('gates_challenge_entries')) return;
 
+        // EVERY entry, placed ones included. recount() never moves a standing, but it does
+        // bring `verified` down — and that is what holds a placed entry's prize when the
+        // refund took it below the target (see markPaid()). Recounting only unplaced
+        // entries meant a winner could refund every ticket after qualifying and be paid.
         foreach (DB::table('gates_challenge_entries')->where('user_id', $userId)
-                     ->whereNull('standing')->pluck('id') as $entryId) {
+                     ->pluck('id') as $entryId) {
             self::recount((int) $entryId);
         }
 
@@ -411,7 +441,12 @@ final class ChallengeService
                 // called again by a later approval on the same entry.
                 return ['ok' => true, 'code' => 'ALREADY', 'entry' => $entry];
             }
-            if (!in_array($ch->status, [E::ST_OPEN, E::ST_FULL], true)) {
+            // The CLOCK, not the stored word: the stored status catches up on the sweep, so a
+            // challenge past its close still read `open` until the next tick and took
+            // qualifiers after the draw had been made from the pool. And never after a draw,
+            // whatever the dates say — the pool is what the published seed was applied to.
+            if (!in_array(\AfricaGates\Support\ChallengeWindow::status($ch), [E::ST_OPEN, E::ST_FULL], true)
+                || !empty($ch->draw_seed)) {
                 return ['ok' => false, 'code' => 'NOT_OPEN', 'entry' => $entry];
             }
 
@@ -505,11 +540,17 @@ final class ChallengeService
 
             DB::table('gates_challenges')->where('id', $entry->challenge_id)->lockForUpdate()->first();
 
+            $ch    = DB::table('gates_challenges')->where('id', $entry->challenge_id)->first();
             $freed = $entry->standing !== null ? (int) $entry->standing : null;
+            // A prize already PAID stays recorded as paid. Writing `none` over it erased the
+            // only record that money had gone to this person — the reference survived on a
+            // row that now said nothing was owed or sent, which is the evidence an appeal or
+            // a recovery needs first.
+            $paid  = (string) $entry->payout_status === E::PAY_PAID;
 
             DB::table('gates_challenge_entries')->where('id', $entryId)->update([
                 'status' => E::E_DISQUALIFIED, 'disqualify_reason' => mb_substr($reason, 0, 300),
-                'standing' => null, 'payout_status' => E::PAY_NONE,
+                'standing' => null, 'payout_status' => $paid ? E::PAY_PAID : E::PAY_NONE,
                 'updated_at' => date('Y-m-d H:i:s'),
             ]);
 
@@ -521,17 +562,121 @@ final class ChallengeService
                     ->where('standing', '>', $freed)
                     ->decrement('standing');
 
-                // A place has opened, so the challenge is not full any more.
-                DB::table('gates_challenges')->where('id', $entry->challenge_id)
-                    ->where('status', E::ST_FULL)
-                    ->update(['status' => E::ST_OPEN, 'updated_at' => date('Y-m-d H:i:s')]);
+                // ── AND THE PLACE THAT OPENED AT THE BACK GOES TO SOMEBODY ──────
+                // Moving everybody up leaves the LAST place empty. Somebody who qualified
+                // after the cap was told "qualified, too late for a prize"; reopening the
+                // challenge only helped whoever qualified NEXT, so the person who finished
+                // first behind the cap was skipped for a stranger. The earliest such
+                // qualifier takes it. A draw takes the next entry in the seeded order, so
+                // the replacement is as checkable as the draw. Not when the prize was
+                // already paid: that place's money has gone, and refilling it pays it twice.
+                $promoted = $paid ? null : self::backfill($ch, $entryId);
+
+                // A place has opened and nobody took it, so the challenge is not full any more.
+                if ($promoted === null) {
+                    DB::table('gates_challenges')->where('id', $entry->challenge_id)
+                        ->where('status', E::ST_FULL)
+                        ->update(['status' => E::ST_OPEN, 'updated_at' => date('Y-m-d H:i:s')]);
+                }
             }
 
             self::event((int) $entry->challenge_id, $entryId, 'disqualified',
-                ['reason' => mb_substr($reason, 0, 300), 'freed' => $freed, 'by' => $adminId]);
+                ['reason' => mb_substr($reason, 0, 300), 'freed' => $freed, 'by' => $adminId,
+                 'promoted' => $promoted ?? null, 'kept_paid' => $paid]);
 
-            return ['ok' => true, 'code' => 'DISQUALIFIED', 'freed' => $freed];
+            return ['ok' => true, 'code' => 'DISQUALIFIED', 'freed' => $freed, 'promoted' => $promoted ?? null];
         });
+    }
+
+    /**
+     * Give the place that opened at the back to who is owed it. Inside disqualify()'s lock.
+     * Returns the entry promoted, or null when nobody is waiting.
+     */
+    private static function backfill(?object $ch, int $exceptId): ?int
+    {
+        if (!$ch) return null;
+        $taken = (int) DB::table('gates_challenge_entries')->where('challenge_id', $ch->id)
+            ->whereNotNull('standing')->count();
+        $places = (string) $ch->mode === E::MODE_DRAW ? (int) ($ch->draw_count ?? 0) : (int) ($ch->cap ?? 0);
+        if ($places < 1 || $taken >= $places) return null;
+
+        $waiting = DB::table('gates_challenge_entries')->where('challenge_id', $ch->id)
+            ->where('id', '!=', $exceptId)->whereNull('standing')->whereNotNull('qualified_at')
+            ->whereNotIn('status', [E::E_DISQUALIFIED, E::E_WITHDRAWN]);
+        $next = null;
+        if ((string) $ch->mode === E::MODE_DRAW) {
+            if (empty($ch->draw_seed)) return null;            // not drawn yet: the draw decides
+            $order = [];
+            foreach ($waiting->pluck('id') as $id) $order[(int) $id] = hash_hmac('sha256', (string) $id, (string) $ch->draw_seed);
+            asort($order, SORT_STRING);
+            $next = array_key_first($order);
+        } elseif ((string) $ch->mode === E::MODE_FIRST) {
+            $next = $waiting->where('verified', '>=', (int) $ch->target)
+                ->orderBy('qualified_at')->orderBy('id')->value('id');
+        }
+        if ($next === null) return null;
+
+        DB::table('gates_challenge_entries')->where('id', (int) $next)->update([
+            'standing' => $taken + 1, 'payout_status' => E::PAY_PENDING,
+            'status' => (string) $ch->mode === E::MODE_DRAW ? E::E_WON : E::E_QUALIFIED,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+        self::event((int) $ch->id, (int) $next, 'promoted', ['standing' => $taken + 1, 'replacing' => $exceptId]);
+        return (int) $next;
+    }
+
+    /**
+     * Record a prize paid. One place, because the controller used to update the entry BY ID
+     * with no other condition: an entry from another challenge (the URL's challenge id was
+     * never checked), a disqualified one, one already paid (a second reference over the
+     * first) or one with no place at all could each be stamped paid.
+     *
+     * And a placed entry whose count has fallen below the target since it qualified — every
+     * ticket refunded — is HELD: the standing is kept, as the rules promise, but the money
+     * is not sent for work that was undone. A points prize is credited here, through the
+     * points ledger, so "paid" means the balance moved.
+     *
+     * @return array{ok:bool,message:string}
+     */
+    public static function markPaid(int $challengeId, int $entryId, string $ref, ?int $adminId = null): array
+    {
+        $ref = trim($ref);
+        if ($ref === '') return ['ok' => false, 'message' => 'Put the transfer reference in. "Paid" with nothing to look up is not a record anybody can check.'];
+        $ch = self::find($challengeId);
+        $e  = self::entry($entryId);
+        if (!$ch || !$e || (int) $e->challenge_id !== $challengeId) return ['ok' => false, 'message' => 'That entry is not in this challenge.'];
+
+        $counts = self::countFor($ch, $e);
+        if ($counts['verified'] < (int) $ch->target) {
+            return ['ok' => false, 'message' => 'Held: this entry now has ' . $counts['verified'] . ' of '
+                . (int) $ch->target . ' — something it counted was refunded or withdrawn after it qualified. '
+                . 'The place stands; the prize waits until it is back at the target, or disqualify it with a reason.'];
+        }
+
+        $now = date('Y-m-d H:i:s');
+        $points = (string) $ch->prize_type === E::PRIZE_POINTS;
+        try {
+            $ok = DB::transaction(static function () use ($challengeId, $entryId, $ref, $now, $points, $ch, $e): bool {
+                $n = DB::table('gates_challenge_entries')->where('id', $entryId)->where('challenge_id', $challengeId)
+                    ->where('payout_status', E::PAY_PENDING)->whereNotNull('standing')
+                    ->where('status', '!=', E::E_DISQUALIFIED)
+                    ->update(['payout_status' => E::PAY_PAID, 'payout_ref' => mb_substr($ref, 0, 120),
+                              'payout_at' => $now, 'updated_at' => $now]);
+                if ($n !== 1) return false;
+                if ($points && (int) $e->user_id > 0) {
+                    if (PointsService::award((int) $e->user_id, (int) $ch->prize_amount, 'challenge_prize',
+                            'challenge_entry', (string) $entryId, mb_substr((string) $ch->title, 0, 120)) === null) {
+                        throw new \RuntimeException('points ledger refused');
+                    }
+                }
+                return true;
+            });
+        } catch (\Throwable) {
+            return ['ok' => false, 'message' => 'Could not credit the points, so nothing was recorded. Try again.'];
+        }
+        if (!$ok) return ['ok' => false, 'message' => 'That entry has no prize waiting — already paid, disqualified, or without a place.'];
+        self::event($challengeId, $entryId, 'paid', ['ref' => mb_substr($ref, 0, 120), 'by' => $adminId]);
+        return ['ok' => true, 'message' => $points ? 'Points credited and marked paid.' : 'Marked paid.'];
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -558,15 +703,25 @@ final class ChallengeService
             if (!$ch) return ['ok' => false, 'code' => 'NO_CHALLENGE', 'winners' => []];
             if ((string) $ch->mode !== E::MODE_DRAW) return ['ok' => false, 'code' => 'NOT_A_DRAW', 'winners' => []];
 
-            // A draw already made is NOT re-made. The seed is the record; re-drawing
-            // on a different one would be exactly the quiet edit the publication rule
-            // exists to prevent.
-            $seed = $ch->draw_seed ?: ($seed ?: bin2hex(random_bytes(16)));
-
-            if (!$ch->draw_seed) {
-                DB::table('gates_challenges')->where('id', $challengeId)
-                    ->update(['draw_seed' => $seed, 'updated_at' => date('Y-m-d H:i:s')]);
+            // ── A DRAW ALREADY MADE IS NOT RE-MADE, AND NOT RE-WRITTEN ──────────
+            // The seed is the record. The second press used to keep the seed and run the
+            // loop again — writing `payout_status = pending` over winners already PAID (and
+            // `won` over anybody disqualified since), so a paid prize read as owed and was
+            // paid twice. A drawn challenge answers with what it drew.
+            if (!empty($ch->draw_seed)) {
+                $won = DB::table('gates_challenge_entries')->where('challenge_id', $challengeId)
+                    ->whereNotNull('standing')->orderBy('standing')->pluck('id')->map(static fn ($v) => (int) $v)->all();
+                return ['ok' => true, 'code' => 'ALREADY_DRAWN', 'seed' => (string) $ch->draw_seed, 'winners' => $won];
             }
+            // And only once entries have closed: a draw made while people can still
+            // qualify is drawn from a pool the published seed was never applied to.
+            if (\AfricaGates\Support\ChallengeWindow::status($ch) !== E::ST_ENDED) {
+                return ['ok' => false, 'code' => 'NOT_ENDED', 'winners' => []];
+            }
+
+            $seed = $seed ?: bin2hex(random_bytes(16));
+            DB::table('gates_challenges')->where('id', $challengeId)
+                ->update(['draw_seed' => $seed, 'updated_at' => date('Y-m-d H:i:s')]);
 
             $pool = DB::table('gates_challenge_entries')
                 ->where('challenge_id', $challengeId)
@@ -826,6 +981,12 @@ final class ChallengeService
             // In the ledger, because a challenge closing is the moment entries stop
             // being accepted and somebody will ask when that was.
             self::event((int) $c->id, null, 'window', ['from' => (string) $c->status, 'to' => $live]);
+
+            // A first-past-the-post race is decided the moment it closes, so that is when
+            // everybody else hears. A draw announces when it is drawn, not before.
+            if ($live === E::ST_ENDED && (string) ($c->mode ?? '') === E::MODE_FIRST) {
+                ChallengeAftercare::after((int) $c->id, [], [], true);
+            }
 
             $moved++;
         }

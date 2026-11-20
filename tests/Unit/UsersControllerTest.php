@@ -34,7 +34,7 @@ class UsersControllerTest extends TestCase
     private function adjust(array $body): Response
     {
         $req = (new ServerRequestFactory())->createServerRequest('POST', 'https://x/admin/users/1/points')->withParsedBody($body);
-        return (new UsersController(new AuditService()))->adjustPoints($req, new Response(), ['id' => 1]);
+        return (new UsersController(new AuditService(), \Slim\Views\Twig::create(dirname(__DIR__, 2) . '/templates'), new \AfricaGates\Admin\Services\MemberAccountsService()))->adjustPoints($req, new Response(), ['id' => 1]);
     }
 
     private function points(): int

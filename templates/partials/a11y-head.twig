@@ -47,6 +47,7 @@ try{if(K){v=sessionStorage.getItem('ag-a11y');if(v!==null&&localStorage.getItem(
 else{v=localStorage.getItem('ag-a11y');if(v!==null&&sessionStorage.getItem('ag-a11y')===null)sessionStorage.setItem('ag-a11y',v);localStorage.removeItem('ag-a11y');}}catch(e){}
 try{if(m){s=m;if(K)localStorage.setItem('ag-a11y',JSON.stringify(m));else sessionStorage.setItem('ag-a11y',JSON.stringify(m));}else{s=JSON.parse((K?localStorage.getItem('ag-a11y'):sessionStorage.getItem('ag-a11y'))||'{}')||{};}}catch(e){s=m||{};}
 try{var t={1:'ag-t125',2:'ag-t150'}[s.size];if(t)c.add(t);
+var h={1:'ag-light',2:'ag-dark',3:'ag-sepia'}[s.scheme];if(h)c.add(h);
 var k={hc:'ag-hc',easy:'ag-easy',space:'ag-ls',ul:'ag-ul',motion:'ag-rm',saver:'ag-saver'};
 for(var x in k){if(s[x])c.add(k[x]);}
 var f=d.getAttribute('data-ag-easy-font');

@@ -273,9 +273,8 @@ final class CheckoutStartsEndToEndTest extends TestCase
      */
     public function test_the_error_viewer_says_when_its_entries_predate_the_code(): void
     {
-        $dir = dirname(__DIR__, 2) . '/var/logs';
-        if (!is_dir($dir)) @mkdir($dir, 0775, true);
-        $log = $dir . '/error-detail.log';
+        $log = \AfricaGates\Support\PublicFault::logFile();
+        if (!is_dir(dirname($log))) @mkdir(dirname($log), 0775, true);
         $kept = is_file($log) ? (string) file_get_contents($log) : null;
 
         file_put_contents($log, "[2020-01-01T00:00:00+00:00] RuntimeException: ANCIENT in /a.php:1\n#0 x\n\n");
@@ -297,9 +296,8 @@ final class CheckoutStartsEndToEndTest extends TestCase
     /** Entries come back newest first, and a stack trace's own blank lines do not split one. */
     public function test_the_error_viewer_shows_the_newest_entry_first(): void
     {
-        $dir = dirname(__DIR__, 2) . '/var/logs';
-        if (!is_dir($dir)) @mkdir($dir, 0775, true);
-        $log = $dir . '/error-detail.log';
+        $log = \AfricaGates\Support\PublicFault::logFile();
+        if (!is_dir(dirname($log))) @mkdir(dirname($log), 0775, true);
         $kept = is_file($log) ? (string) file_get_contents($log) : null;
 
         file_put_contents($log,

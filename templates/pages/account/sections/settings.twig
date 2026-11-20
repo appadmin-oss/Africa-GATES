@@ -1,0 +1,44 @@
+{% import 'partials/field.twig' as f %}
+{# ══ SETTINGS ══════════════════════════════════════════════════════════════
+     The handoff's four groups (AccountPage.dc.html): You, Preferences, Privacy, Your data, as
+     cards of rows, two across on a wide screen. Asking to delete the account sits apart, in
+     the danger colour, and sign-out last. #}
+  {% set _row = 'ag-list__row' %}
+  <div class="acx-sgrid">
+    <section class="acx-sgrp" aria-labelledby="sg-you"><h2 class="acx-sgrp__h" id="sg-you">{{ 'You'|trans }}</h2>
+      <nav class="ag-list" aria-labelledby="sg-you">
+        <a class="ag-list__row" href="/account?tab=profile#profile"><span class="ag-list__label">{{ 'Personal details'|trans }}</span><span class="ag-list__value acc__val">{{ _u.name }}</span><svg class="ag-ico-dir acx-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg></a>
+        <a class="ag-list__row" href="/account?tab=profile#roles"><span class="ag-list__label">{{ 'Your roles'|trans }}</span><span class="ag-list__value acc__val">{{ my_roles|filter(r => r.cta != 'Apply')|length ?: 'None yet'|trans }}</span><svg class="ag-ico-dir acx-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg></a>
+        <a class="ag-list__row" href="/account?tab=referral#me-referral"><span class="ag-list__label">{{ 'Payout account'|trans }}</span><span class="ag-list__value acc__val">{{ payout_bank.bank|default('') ?: 'Add'|trans }}</span><svg class="ag-ico-dir acx-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg></a>
+        <a class="ag-list__row" href="/account?tab=security"><span class="ag-list__label">{{ 'Sign-in and security'|trans }}</span><svg class="ag-ico-dir acx-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg></a>
+      </nav>
+    </section>
+    <section class="acx-sgrp" aria-labelledby="sg-pref"><h2 class="acx-sgrp__h" id="sg-pref">{{ 'Preferences'|trans }}</h2>
+      <nav class="ag-list" aria-labelledby="sg-pref">
+        <a class="ag-list__row" href="/account/notifications"><span class="ag-list__label">{{ 'Notifications'|trans }}</span>{% if unread %}<span class="ag-list__value acc__val">{{ '%n% new'|trans({'%n%': unread}) }}</span>{% endif %}<svg class="ag-ico-dir acx-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg></a>
+        <a class="ag-list__row" href="/account/interests"><span class="ag-list__label">{{ 'What you care about'|trans }}</span><span class="ag-list__value acc__val">{{ interests|length ? interests|map(k => _labels[k]|default(k)|trans)|join(', ') : 'Not chosen'|trans }}</span><svg class="ag-ico-dir acx-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg></a>
+        <a class="ag-list__row" href="/account/display"><span class="ag-list__label">{{ 'Display & reading'|trans }}</span><svg class="ag-ico-dir acx-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg></a>
+      </nav>
+      <form class="acx-toggle" id="greetings" method="post" action="/account/greetings">
+        <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="on" value="{{ greetings_on ? '0' : '1' }}">
+        <span class="acx-toggle__t"><b>{{ 'Seasonal greetings'|trans }}</b><span>{{ greetings_on ? 'On holidays, a short greeting on your account pages.'|trans : 'Off.'|trans }}</span></span>
+        <button class="ag-btn ag-btn--secondary ag-btn--pill" type="submit">{{ greetings_on ? 'Turn off'|trans : 'Turn on'|trans }}</button>
+      </form>
+    </section>
+    <section class="acx-sgrp" aria-labelledby="sg-priv"><h2 class="acx-sgrp__h" id="sg-priv">{{ 'Privacy'|trans }}</h2>
+      <nav class="ag-list" aria-labelledby="sg-priv">
+        <a class="ag-list__row" href="/cookies#choices" data-ag-do="consent-open" aria-haspopup="dialog" aria-controls="ag-consent-sheet"><span class="ag-list__label">{{ 'Cookie settings'|trans }}</span><svg class="ag-ico-dir acx-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg></a>
+        <a class="ag-list__row" href="/privacy"><span class="ag-list__label">{{ 'How we use your data'|trans }}</span><svg class="ag-ico-dir acx-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg></a>
+      </nav>
+    </section>
+    <section class="acx-sgrp" aria-labelledby="sg-data"><h2 class="acx-sgrp__h" id="sg-data">{{ 'Your data'|trans }}</h2>
+      <nav class="ag-list" aria-labelledby="sg-data">
+        <a class="ag-list__row" href="/support"><span class="ag-list__label">{{ 'Ask for a copy of your data'|trans }}</span><svg class="ag-ico-dir acx-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg></a>
+        <a class="ag-list__row acx-danger" href="/support"><span class="ag-list__label">{{ 'Ask to delete your account'|trans }}</span><svg class="ag-ico-dir acx-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg></a>
+      </nav>
+    </section>
+  </div>
+  <form class="acx-out" method="post" action="/account/logout">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <button class="acx-out__b" type="submit">{{ 'Sign out'|trans }}</button>
+  </form>

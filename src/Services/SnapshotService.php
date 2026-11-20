@@ -72,32 +72,63 @@ class SnapshotService
 
         $rows = [];
         foreach ($cycles as $cycleId) {
-            $catIds = DB::table('gates_award_categories')->where('cycle_id', $cycleId)->pluck('id')->all();
-            foreach ($catIds as $catId) {
-                foreach ($this->scoring->scoreCategory((int) $catId) as $nomineeId => $s) {
-                    $rows[] = [
-                        'cycle_id'          => (int) $cycleId,
-                        'nominee_id'        => (int) $nomineeId,
-                        'vote_count'        => (int) $s['vote_count'],
-                        'cpi_score'         => (int) $s['cpi_score'],
-                        'judge_score'       => $s['judge_score'],
-                        'community_points'  => $s['community_points'] ?? null,
-                        'judge_points'      => $s['judge_points'] ?? null,
-                        'cohort_max'        => $s['cohort_max'] ?? null,
-                        'unique_voters'     => $s['unique_voters'] ?? null,
-                        'cohort_max_unique' => $s['cohort_max_unique'] ?? null,
-                        // The routine sweep records arithmetic, not an outcome: it runs
-                        // while a cycle is still being voted on and judged, and there is
-                        // no published standing to record. Only the release capture below
-                        // seals a ranking.
-                        'standing_rank'     => null,
-                        'in_running'        => null,
-                    ];
-                }
-            }
+            array_push($rows, ...$this->routineRows((int) $cycleId));
         }
 
         return $this->append($rows, self::KIND_ROUTINE);
+    }
+
+    /**
+     * Capture ONE cycle's standings as a routine row set, now — whatever its stored status.
+     *
+     * For the moments an operator needs the record taken at a known instant rather than at the
+     * next six-hourly sweep: an extension of voting ({@see VotingExtension}) captures the
+     * standings as they were when the extension was recorded, so nobody can later claim the
+     * date was moved to suit a leaderboard that did not exist yet. Same appender, same chain,
+     * same kind as the sweep: it records arithmetic, never an outcome.
+     *
+     * @return string|null the chain hash of the last row written (it commits to every row
+     *                     before it), or null when the cycle had nothing to capture
+     */
+    public function captureCycle(int $cycleId): ?string
+    {
+        if ($cycleId < 1) return null;
+        $rows = $this->routineRows($cycleId);
+        if ($rows === []) return null;
+        if ($this->append($rows, self::KIND_ROUTINE) < 1) return null;
+
+        $hash = DB::table('gates_vote_snapshots')->where('cycle_id', $cycleId)->orderByDesc('id')->value('hash');
+        return is_string($hash) && $hash !== '' ? $hash : null;
+    }
+
+    /** @return list<array<string,mixed>> one routine row per scored nominee in the cycle */
+    private function routineRows(int $cycleId): array
+    {
+        $rows = [];
+        $catIds = DB::table('gates_award_categories')->where('cycle_id', $cycleId)->pluck('id')->all();
+        foreach ($catIds as $catId) {
+            foreach ($this->scoring->scoreCategory((int) $catId) as $nomineeId => $s) {
+                $rows[] = [
+                    'cycle_id'          => (int) $cycleId,
+                    'nominee_id'        => (int) $nomineeId,
+                    'vote_count'        => (int) $s['vote_count'],
+                    'cpi_score'         => (int) $s['cpi_score'],
+                    'judge_score'       => $s['judge_score'],
+                    'community_points'  => $s['community_points'] ?? null,
+                    'judge_points'      => $s['judge_points'] ?? null,
+                    'cohort_max'        => $s['cohort_max'] ?? null,
+                    'unique_voters'     => $s['unique_voters'] ?? null,
+                    'cohort_max_unique' => $s['cohort_max_unique'] ?? null,
+                    // The routine sweep records arithmetic, not an outcome: it runs
+                    // while a cycle is still being voted on and judged, and there is
+                    // no published standing to record. Only the release capture below
+                    // seals a ranking.
+                    'standing_rank'     => null,
+                    'in_running'        => null,
+                ];
+            }
+        }
+        return $rows;
     }
 
     /** The scheduled sweep. */
@@ -144,44 +175,47 @@ class SnapshotService
         // saying that it is. Better to have no seal than a seal that means nothing.
         if (!OptionalColumn::on('gates_vote_snapshots', 'capture_kind')) return 0;
 
-        try {
-            if (DB::table('gates_vote_snapshots')
-                    ->where('cycle_id', $cycleId)
-                    ->where('capture_kind', self::KIND_RELEASE)->exists()) {
+        $written = DB::transaction(function () use ($cycleId): int {
+            // Lock the cycle before checking for a seal. Locking reads see a seal
+            // committed by a caller we waited for, even under REPEATABLE READ.
+            if (!DB::table('gates_award_cycles')->where('id', $cycleId)->lockForUpdate()->first(['id'])) {
                 return 0;
             }
-        } catch (\Throwable) {
-            return 0;
-        }
-
-        $rows = [];
-        foreach (ResultRelease::forCycle($cycleId) as $cat) {
-            foreach ($cat['rows'] as $r) {
-                $rows[] = [
-                    'cycle_id'          => $cycleId,
-                    'nominee_id'        => (int) $r['nominee_id'],
-                    'vote_count'        => (int) $r['votes'],
-                    'cpi_score'         => (int) $r['cpi'],
-                    'judge_score'       => $r['judge_score'],
-                    'community_points'  => (int) $r['community_points'],
-                    'judge_points'      => (int) $r['judge_points'],
-                    'cohort_max'        => (int) ($cat['cohort_max'] ?? 0),
-                    'unique_voters'     => (int) ($r['unique_voters'] ?? 0),
-                    'cohort_max_unique' => (int) ($cat['cohort_max_unique'] ?? 0),
-                    'standing_rank'     => $r['rank'] === null ? null : (int) $r['rank'],
-                    'in_running'        => !empty($r['in_running']) ? 1 : 0,
-                ];
+            if (DB::table('gates_vote_snapshots')->where('cycle_id', $cycleId)
+                    ->where('capture_kind', self::KIND_RELEASE)->lockForUpdate()->first(['id'])) {
+                return 0;
             }
-        }
 
-        if ($rows === []) return 0;
+            $rows = [];
+            foreach (ResultRelease::forCycle($cycleId) as $cat) {
+                foreach ($cat['rows'] as $r) {
+                    $rows[] = [
+                        'cycle_id'          => $cycleId,
+                        'nominee_id'        => (int) $r['nominee_id'],
+                        'vote_count'        => (int) $r['votes'],
+                        'cpi_score'         => (int) $r['cpi'],
+                        'judge_score'       => $r['judge_score'],
+                        'community_points'  => (int) $r['community_points'],
+                        'judge_points'      => (int) $r['judge_points'],
+                        'cohort_max'        => (int) ($cat['cohort_max'] ?? 0),
+                        'unique_voters'     => (int) ($r['unique_voters'] ?? 0),
+                        'cohort_max_unique' => (int) ($cat['cohort_max_unique'] ?? 0),
+                        'standing_rank'     => $r['rank'] === null ? null : (int) $r['rank'],
+                        'in_running'        => !empty($r['in_running']) ? 1 : 0,
+                    ];
+                }
+            }
 
-        $written = $this->append($rows, self::KIND_RELEASE);
+            if ($rows === []) return 0;
+
+            return $this->append($rows, self::KIND_RELEASE);
+        });
         // A seal is immutable, so {@see ReleasedStanding::forCycle()} caches it for the
         // life of the process — including the answer "there is no seal", which this call
         // has just made wrong. The promotion sweep is the one process that can see both
         // sides of that, and it draws the cycle before it seals it.
         ReleasedStanding::forget($cycleId);
+        if ($written === 0) return 0;
 
         // The announcement is also the issue of its recognitions (winner, runner-up,
         // published finalists) — from this seal and nothing else. Evidence about a result

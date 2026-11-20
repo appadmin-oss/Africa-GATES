@@ -1,0 +1,12 @@
+{% extends 'admin/layout.twig' %}
+{% block topbar_title %}{{ member.name }}{% endblock %}
+{% block topbar_sub %}Member #{{ id }} · Account details and points history{% endblock %}
+{% block topbar_actions %}<a class="ad-btn" href="/admin/users">← Members</a>{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/console/people.css') }}">{% endblock %}
+{% block content %}
+<section class="aw-summary"><div><span class="aw-kicker">Member account</span><h2>{{ member.name }}</h2><p>{{ member.email }} · {{ member.email_verified ? 'Email verified' : 'Email unverified' }}</p><span class="ad-chip">{{ member.status|capitalize }}</span></div><div><span class="aw-kicker">Voting points</span><h2>{{ member.points|number_format }}</h2></div></section>
+<div class="aw-detail-grid"><section class="ad-card"><div class="ad-card__body"><h2>Account details</h2><dl class="aw-details"><dt>Email</dt><dd>{{ member.email }}</dd><dt>Phone</dt><dd>{{ member.phone ?: 'Not provided' }}</dd><dt>Joined</dt><dd>{{ member.created_at ? member.created_at|date('j M Y') : 'Not recorded' }}</dd><dt>Last sign-in</dt><dd>{{ member.last_login_at ? member.last_login_at|date('j M Y, H:i') : 'Not recorded' }}</dd></dl></div></section>
+<section class="ad-card"><div class="ad-card__body"><h2>Account support</h2><p>Use the ledger to check a points query before making an adjustment. Changes to staff permissions belong in Team.</p><p>Every adjustment requires a reason and keeps the member’s balance and ledger in sync.</p></div></section></div>
+{% include 'admin/users/_points.twig' %}
+<section class="ad-card aw-ledger"><div class="ad-card__body"><h2>Recent points activity</h2><p>Latest 20 entries for this member.</p></div><div class="ad-table-wrap"><table class="ad-table"><thead><tr><th scope="col">Date</th><th scope="col">Reason</th><th scope="col">Change</th><th scope="col">Balance after</th></tr></thead><tbody>{% for entry in ledger %}<tr><td>{{ entry.created_at ? entry.created_at|date('j M Y, H:i') : 'Not recorded' }}</td><td>{{ entry.reason }}</td><td>{{ entry.delta > 0 ? '+' : '' }}{{ entry.delta|number_format }}</td><td>{{ entry.balance_after|number_format }}</td></tr>{% else %}<tr><td colspan="4">No points activity recorded.</td></tr>{% endfor %}</tbody></table></div></section>
+{% endblock %}

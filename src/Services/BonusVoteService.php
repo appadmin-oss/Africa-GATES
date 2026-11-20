@@ -274,6 +274,20 @@ class BonusVoteService
             );
         } catch (\Throwable) {}
 
+        // The community return this contribution set aside goes with it. RefundService
+        // reverses it on the refunds it issues; this is the OTHER way money comes back — a
+        // gateway refund or a chargeback arriving by webhook, and the console clawback —
+        // and it never did, so the share stayed where it was: on the nominee's balance under
+        // a threshold rule, and inside the edition's pool under the target pool, which then
+        // paid money the payer already had back to whoever reached the target. reverse() is
+        // idempotent (one reversal per contribution) and refuses a settled pool, whose
+        // shares are final and whose refunds the platform absorbs.
+        try {
+            CommunityReturnService::reverse($donationId, 'payment reversed: ' . mb_substr($reason, 0, 200), $adminId);
+        } catch (\Throwable $e) {
+            error_log('[bonus-vote clawback] community return not reversed for donation ' . $donationId . ': ' . $e->getMessage());
+        }
+
         return ['ok' => true] + $out;
     }
 

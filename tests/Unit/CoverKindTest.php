@@ -59,7 +59,7 @@ final class CoverKindTest extends TestCase
         // The spec's own hex, slot by slot — the cover shows exactly these.
         $want = ['green' => ['#effaf0', '#237b22', '#1a6118'], 'gold' => ['#fcf4de', '#c99a06', '#7a5600'],
                  'live' => ['#fdecef', '#e0245e', '#b0224f'], 'info' => ['#e6f0f4', '#1f6fa3', '#1f5f8b'],
-                 'stone' => ['#f1efe9', '#3a4a4c', '#10292c']];
+                 'stone' => ['#fafbf8', '#3a4a4c', '#10292c']];
         foreach ($want as $tone => [$bg, $line, $ink]) {
             $this->assertSame([$bg, $line, $ink],
                 [Accent::coverHex($tone, 'bg'), Accent::coverHex($tone, 'line'), Accent::coverHex($tone, 'ink')], $tone);
@@ -139,4 +139,35 @@ final class CoverKindTest extends TestCase
         $this->assertStringContainsString("opacity='.42'", $svg);
         $this->assertStringContainsString("/img/patterns/games-green.svg", (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/css/components/cover.css'));
     }
+
+    /**
+     * A product's cover follows its category (owner, 22 Oct 2026). The category is typed
+     * by an operator, so the match is by word; and every kind needs a glyph, or the cover
+     * silently falls back to a trophy on a T-shirt.
+     */
+    public function test_a_product_cover_follows_its_category_and_every_kind_has_a_glyph(): void
+    {
+        foreach (['Apparel' => 'apparel', 'T-shirts' => 'apparel', 'Tote bags' => 'bag', 'Mugs' => 'home',
+                  'Art prints' => 'art', 'Caps' => 'headwear', 'Notebooks' => 'book', 'Keepsakes' => 'keepsake'] as $cat => $k) {
+            $this->assertSame($k, CoverKind::productKind($cat), $cat);
+            $this->assertSame('product-' . $k, CoverKind::resolve('product', $cat)['glyph'], $cat);
+        }
+        $this->assertSame('', CoverKind::productKind('Misc'));
+        // By WORD: a stem hidden inside another word decided the cover — "art" in
+        // "party", "top" in "laptop", "print" in "footprint", "cap" in "capsule".
+        foreach (['Party supplies', 'Laptop sleeves', 'Footprint decals', 'Coffee capsules', 'Smartwatch straps'] as $cat) {
+            $this->assertSame('', CoverKind::productKind($cat), $cat);
+        }
+        foreach (['Accessories' => 'keepsake', 'Jewellery' => 'keepsake', 'Sportswear' => 'apparel', 'Wall art' => 'art'] as $cat => $k) {
+            $this->assertSame($k, CoverKind::productKind($cat), $cat);
+        }
+        $this->assertSame(['stone', 'weave', 'product'], array_values(array_intersect_key(CoverKind::resolve('product', 'Misc'),
+            ['tone' => 1, 'pattern' => 1, 'glyph' => 1])), 'an unknown category keeps the shop cover');
+
+        $icons = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/partials/icons.twig');
+        foreach (array_keys(CoverKind::PRODUCT_KINDS) as $k) {
+            $this->assertStringContainsString('"product-' . $k . '":', $icons, "no glyph for $k");
+        }
+    }
 }
+

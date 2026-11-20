@@ -222,6 +222,9 @@ final class ColourIsNeverAloneTest extends TestCase
                         'attrs'   => $el['attrs'],
                         'inner'   => substr($body, $el['end'], $at - $el['end']),
                         'sibling' => '',
+                        // What a screen reader hears ABOVE this element: the attributes of
+                        // every open ancestor, nearest last (see named()).
+                        'above'   => array_column($stack, 'attrs'),
                     ];
 
                     // A word usually sits AFTER the mark it explains, so the sibling text
@@ -318,9 +321,36 @@ final class ColourIsNeverAloneTest extends TestCase
 
     private function named(array $el): bool
     {
-        return preg_match('/\baria-label(?:ledby)?\s*=\s*"(?!\s*")/i', $el['attrs']) === 1
+        if (preg_match('/\baria-label(?:ledby)?\s*=\s*"(?!\s*")/i', $el['attrs']) === 1
             || preg_match('/\btitle\s*=\s*"(?!\s*")/i', $el['attrs']) === 1
-            || $this->saysSomething($el['inner']);
+            || $this->saysSomething($el['inner'])) {
+            return true;
+        }
+
+        // A LIVE REGION'S WORDS ARE WRITTEN WHEN IT APPEARS. `role="alert"` and its kin exist
+        // to carry a sentence the script puts in them at the moment they are shown (an
+        // error, a total), so in the template they are empty by construction — and a sweep
+        // that reads that as "says nothing" condemns exactly the elements that say the most.
+        if (preg_match('/\brole\s*=\s*"(?:alert|status)"|\baria-live\s*=\s*"(?:polite|assertive)"/i', $el['attrs']) === 1) {
+            return true;
+        }
+
+        // NAMED BY WHAT CONTAINS IT, the way assistive technology actually reads it. Inside a
+        // named `role="img"`, `progressbar` or `meter` every child is presentational (ARIA:
+        // "children presentational") and the container's name IS the reading — the shared
+        // meter bar and Pulse's giving bar. And a mark the author hid (`aria-hidden`) inside
+        // a container that is named — the cart badge in a button whose name the script keeps
+        // as "Cart, 3 items" — is named by that container. Only the NEAREST named ancestor
+        // counts, and only those two shapes: an aria-label three levels up on a landmark
+        // does not explain a coloured dot.
+        $hidden = $this->hidden($el);
+        foreach (array_reverse($el['above'] ?? []) as $up) {
+            if (preg_match('/\baria-label(?:ledby)?\s*=\s*"(?!\s*")/i', $up) !== 1) continue;
+            if ($hidden) return true;
+            return preg_match('/\brole\s*=\s*"(?:img|progressbar|meter)"/i', $up) === 1;
+        }
+
+        return false;
     }
 
     private function hidden(array $el): bool
@@ -441,6 +471,41 @@ final class ColourIsNeverAloneTest extends TestCase
 
         $this->assertCount(1, $bad);
         $this->assertStringContainsString('nothing beside it names it', $bad[0]);
+    }
+
+    public function test_a_named_container_names_its_marks_and_an_unnamed_one_does_not(): void
+    {
+        $sel = $this->paintingSelectors('.fill{ background:var(--ag-green); } .badge{ background:var(--ag-green); }');
+
+        // role=img / progressbar with a name: the fill inside is presentational.
+        $this->assertSame([], $this->violations('x.twig',
+            '<span role="img" aria-label="{{ pct }}% of the goal"><span class="fill"></span></span>', $sel));
+        $this->assertSame([], $this->violations('x.twig',
+            '<span role="progressbar" aria-label="Towards free delivery"><span class="fill"></span></span>', $sel));
+        // A hidden badge in a named button.
+        $this->assertSame([], $this->violations('x.twig',
+            '<button aria-label="Cart"><svg aria-hidden="true"></svg><span class="badge" aria-hidden="true"></span></button>', $sel));
+
+        // The faults the rule must still see: the same fill in an UNNAMED img, a visible
+        // fill inside a named button (it is not presentational there), a hidden badge in
+        // an unnamed button.
+        $this->assertCount(1, $this->violations('x.twig',
+            '<span role="img"><span class="fill"></span></span>', $sel));
+        $this->assertCount(1, $this->violations('x.twig',
+            '<button aria-label="Cart"><span class="badge"></span></button>', $sel));
+        $this->assertCount(1, $this->violations('x.twig',
+            '<button><span class="badge" aria-hidden="true"></span></button>', $sel));
+    }
+
+    public function test_a_live_region_is_not_condemned_for_being_empty_until_it_speaks(): void
+    {
+        $sel = $this->paintingSelectors('.err{ background:var(--ag-live-wash); }');
+
+        $this->assertSame([], $this->violations('x.twig',
+            '<div><p class="err" role="alert" hidden></p></div>', $sel));
+        $this->assertCount(1, $this->violations('x.twig',
+            '<div><p class="err" hidden></p></div>', $sel),
+            'the same empty paragraph with no live role is a colour-only signal');
     }
 
     public function test_a_bare_tag_in_a_descendant_selector_does_not_condemn_the_site(): void

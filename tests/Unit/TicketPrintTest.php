@@ -263,4 +263,66 @@ class TicketPrintTest extends TestCase
         $this->assertSame(302, $res->getStatusCode());
         $this->assertStringContainsString('/events/ticket/', $res->getHeaderLine('Location'));
     }
+
+    // ───────────────────────── the QR in the ticket email ───────────────────
+
+    /**
+     * The ticket email's QR is a hosted PNG, because inboxes strip data: images. It must draw
+     * the CURRENT code with the specification's four-module quiet zone, and only for a
+     * confirmed booking — an old email of a cancelled ticket must not go on showing entry.
+     */
+    public function test_the_email_qr_is_a_png_of_the_live_code_with_its_quiet_zone(): void
+    {
+        $e   = $this->makeEvent();
+        $reg = $this->makeReg((int) $e->id);
+        $c   = $this->container()->get(\AfricaGates\Controllers\EventsController::class);
+        $res = $c->ticketQr((new ServerRequestFactory())->createServerRequest('GET', '/x'),
+                            new Response(), ['ref' => $reg['reference']]);
+
+        $this->assertSame('image/png', $res->getHeaderLine('Content-Type'));
+        $this->assertStringContainsString('private', $res->getHeaderLine('Cache-Control'), 'the URL is the ticket\'s credential');
+        $img = imagecreatefromstring((string) $res->getBody());
+        $n   = count(\AfricaGates\Support\Qr::encode((string) $reg['ticket_code']));
+        $this->assertSame(($n + 8) * 8, imagesx($img), 'the four-module quiet zone was trimmed');
+        $ink = static fn(int $x, int $y): bool => (imagecolorat($img, $x, $y) & 0xFF) < 128;
+        $this->assertFalse($ink(4 * 8 - 1, 4 * 8 - 1), 'the quiet zone is not blank');
+        $this->assertTrue($ink(4 * 8, 4 * 8), 'the finder pattern does not start where the quiet zone ends');
+    }
+
+    public function test_a_cancelled_ticket_has_no_email_qr(): void
+    {
+        $e   = $this->makeEvent();
+        $reg = $this->makeReg((int) $e->id, ['status' => 'cancelled']);
+        $c   = $this->container()->get(\AfricaGates\Controllers\EventsController::class);
+        $res = $c->ticketQr((new ServerRequestFactory())->createServerRequest('GET', '/x'),
+                            new Response(), ['ref' => $reg['reference']]);
+        $this->assertSame(404, $res->getStatusCode());
+    }
+
+    public function test_the_ticket_email_carries_the_qr_the_calendar_and_the_organisers_note(): void
+    {
+        $e   = $this->makeEvent(['attendee_note' => "Bring an ID & arrive early."]);
+        $reg = $this->makeReg((int) $e->id);
+        $m   = new class extends \AfricaGates\Services\OtpService {
+            public array $sent = [];
+            public function __construct() { parent::__construct(['username' => 'u', 'password' => 'p']); }
+            public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '', string $category = '', string $hero = '', string $unsubscribeUrl = '', array $attachments = [], string $preheader = '', int $heroHeight = 0, string $why = ''): array
+            {
+                $this->sent[] = compact('to', 'subject', 'htmlBody', 'plainBody', 'unsubscribeUrl');
+                return ['success' => true];
+            }
+        };
+        \AfricaGates\Services\EventTicketMailer::send((int) $reg['id'], $m);
+
+        $mail = $m->sent[0] ?? null;
+        $this->assertNotNull($mail, 'no ticket email was sent');
+        $this->assertSame($reg['email'], $mail['to']);
+        $this->assertStringStartsWith('Your ticket — ', $mail['subject']);
+        $url = '/events/ticket/' . rawurlencode($reg['reference']);
+        $this->assertStringContainsString($url . '/qr.png', $mail['htmlBody']);
+        $this->assertStringContainsString($url . '/calendar.ics', $mail['htmlBody']);
+        $this->assertStringContainsString('Bring an ID &amp; arrive early.', $mail['htmlBody']);
+        $this->assertStringContainsString('88 College Road, Igando, Lagos', $mail['htmlBody']);
+        $this->assertSame('', $mail['unsubscribeUrl'], 'a ticket is not an announcement');
+    }
 }

@@ -38,7 +38,7 @@ use Illuminate\Database\Capsule\Manager as DB;
  * remote images by default — so it is asserted below against the invitation's own
  * critical facts and its own two images.
  */
-final class InviteInboxCompatTest extends EmailInboxCompatTest
+final class InviteInboxCompatTest extends EmailInboxCompatCase
 {
     private static string $rendered = '';
 
@@ -78,7 +78,7 @@ final class InviteInboxCompatTest extends EmailInboxCompatTest
 
     protected static function tpl(): string
     {
-        return __DIR__ . '/../../templates/emails/invitation.twig';
+        return __DIR__ . '/../../templates/emails/invite.html.twig';
     }
 
     /** The whole message: shell plus body, exactly as it goes on the wire. */
@@ -120,7 +120,7 @@ final class InviteInboxCompatTest extends EmailInboxCompatTest
         // The mark. Its alt is the organisation's name and it has to be STYLED: an
         // unstyled alt renders as 10px serif and reads as a broken attachment rather
         // than as a wordmark.
-        $mark = self::img('logo-africa-gates');
+        $mark = self::img('logo-mark');
         $this->assertStringContainsString('alt="Africa GATES"', $mark);
         $this->assertStringContainsString('font-family', $mark,
             'unstyled alt text renders as 10px serif');
@@ -182,7 +182,7 @@ final class InviteInboxCompatTest extends EmailInboxCompatTest
      * Counted on the BODY rather than the whole message, because the shell's footer
      * carries Help, Privacy and Unsubscribe on every message the platform sends and
      * those are chrome, not asks. The hierarchy decision this holds is the one made in
-     * `invitation.twig`.
+     * `invite.html.twig`.
      */
     public function test_there_are_exactly_two_actions(): void
     {

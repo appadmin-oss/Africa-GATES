@@ -36,6 +36,16 @@ final class NomineeUrl
     }
 
     /** The path part only. `/vote` when the nominee cannot be resolved. */
+    /**
+     * The same link from parts a list's own query already holds — no query per row. One
+     * shape with path(), so a list and a single link cannot disagree.
+     */
+    public static function of(string $programmeSlug, int $nomineeId, string $name): string
+    {
+        if ($nomineeId < 1 || $programmeSlug === '') return '/vote';
+        return '/vote/' . $programmeSlug . '/' . Slug::idSegment($nomineeId, $name);
+    }
+
     public static function path(int $nomineeId): string
     {
         if ($nomineeId < 1) return '/vote';

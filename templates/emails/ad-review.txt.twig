@@ -1,0 +1,25 @@
+{#- Plain-text part for ad-review.html.twig. -#}
+{% if decision == 'approved' %}Your ad is approved
+
+A person checked “{{ headline }}” in {{ campaign }} and it can run now.
+{% if ends_on %}
+Your free trial runs until {{ ends_on }}, or until it reaches its views.
+{% endif %}
+See its results: {{ manage_url }}
+{% else %}{{ decision == 'taken_down' ? 'Your ad was taken down' : 'Your ad needs a change' }}
+
+A person checked “{{ headline }}” in {{ campaign }}. It is not showing for this reason:
+
+Reason: {{ reason }}
+
+Fix it and send it again: {{ manage_url }}
+
+The rules every ad follows are in the Advertising Policy: {{ policy_url }}
+{% endif %}
+Thank you,
+The Africa GATES team
+
+—
+You placed an ad on Africa GATES.
+{{ postal_address }}
+Help: {{ site_url }}/help · Privacy: {{ site_url }}/privacy

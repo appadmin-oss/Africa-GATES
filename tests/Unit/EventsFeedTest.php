@@ -91,4 +91,25 @@ final class EventsFeedTest extends TestCase
         $this->assertStringNotContainsString('Rehearsal Gala', $ics);
         $this->assertStringNotContainsString('Last Year Gala', $ics);
     }
+
+    public function test_one_bad_byte_in_an_event_does_not_empty_the_feed(): void
+    {
+        // Strict MySQL's UTF-8 column rejects these bytes before they can reach a feed.
+        // SQLite permits the legacy/corrupt value, where the serializer must still recover.
+        if (DB::connection()->getDriverName() === 'mysql') {
+            $this->expectException(\Illuminate\Database\QueryException::class);
+            $this->expectExceptionMessage('Incorrect string value');
+        }
+        $this->event(['slug' => 'fd-bad', 'title' => 'Bad Bytes Night', 'event_date' => $this->at(3), 'venue' => "Eko \xC3\x28 Hotel"]);
+        $d = json_decode((string) ChromeRender::page('/api/events')->getBody(), true);
+        $this->assertIsArray($d, 'json_encode refused the whole response');
+        $this->assertSame(['Bad Bytes Night'], array_column($d['events'], 'title'));
+    }
+
+    public function test_the_events_page_offers_the_calendar(): void
+    {
+        $this->world();
+        $this->assertStringContainsString('href="/events.ics"', ChromeRender::html('/events'),
+            'a subscribable calendar nobody is ever handed is reachable only by typing its URL');
+    }
 }

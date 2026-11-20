@@ -107,6 +107,8 @@ final class ChallengeController
         ]);
 
         return $this->view->render($res, 'pages/challenges/show.twig', [
+            // How many people have looked at it (Services\PageViews).
+            'views'       => \AfricaGates\Services\PageViews::forPage('challenge', (int) $c->id),
             'page_title'  => $c->title . ' — Africa GATES',
             'meta_description' => $copy['promise'],
             'gates_page'  => 'challenges',

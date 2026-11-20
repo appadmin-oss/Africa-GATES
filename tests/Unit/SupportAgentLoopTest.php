@@ -285,4 +285,84 @@ final class SupportAgentLoopTest extends TestCase
         $desk = (new SupportAgentService())->ask('zzzz I paid but my votes have not appeared', [], SupportContext::fromSession());
         $this->assertLessThanOrEqual(1, substr_count($desk['reply'], 'talk to a human'), $desk['reply']);
     }
+
+    /**
+     * The owner's conversation: "check the payments I've made", answered three times with
+     * "I will check your payments, please hold on" and nothing checked. A promise is sent
+     * back once, told why, with the tools still offered, and the model then acts.
+     */
+    public function test_a_promise_to_check_is_sent_back_and_the_check_then_runs(): void
+    {
+        $ai = $this->ai([self::claudeSays('I will check your payments to see if there are any issues. Please hold on for a moment.'),
+                         self::claudeTool('site_state'),
+                         self::claudeSays('Voting is open and nothing is wrong on our side.')]);
+        $r = (new SupportAgentService($ai))->ask('is anything wrong with voting', [], SupportContext::fromSession());
+
+        $this->assertCount(3, $ai->sent, 'the promise went back once, then the tool ran, then the answer');
+        $this->assertStringContainsString('PLATFORM CHECK', $ai->sent[1]['json']);
+        $this->assertStringContainsString('called no tool', $ai->sent[1]['json']);
+        $this->assertStringNotContainsString('hold on', $r['reply']);
+        $this->assertStringContainsString('Voting is open', $r['reply']);
+    }
+
+    /** A second promise after being told is not shown to anybody. */
+    public function test_a_second_promise_is_discarded(): void
+    {
+        $ai = $this->ai([self::claudeSays('Let me check that for you.'),
+                         self::claudeSays('I will look into it, one moment.')]);
+        $r = (new SupportAgentService($ai))->ask('is anything wrong with voting', [], SupportContext::fromSession());
+
+        $this->assertStringNotContainsString('one moment', $r['reply']);
+        $this->assertStringNotContainsString('Let me check', $r['reply']);
+    }
+
+    /** What counts as a promise, and what is an honest conditional offer. */
+    public function test_the_promise_detector_reads_sentences_not_keywords(): void
+    {
+        foreach (['I will check your payments to see if there are any issues. Please hold on.',
+                  "I'll look into that now.", 'Let me check your recent transactions.',
+                  'Give me a moment while I review this.', 'I am going to verify the payment.'] as $promise) {
+            $this->assertTrue(SupportAgentService::promisesInsteadOfActing($promise), $promise);
+        }
+        foreach (['Send me the payment reference and I will check it.',
+                  'If you share the reference, I will look it up straight away.',
+                  'Your payment AFG-1 is confirmed and 10 votes were counted.',
+                  'I checked your payments: one failed and nothing was taken.', ''] as $fine) {
+            $this->assertFalse(SupportAgentService::promisesInsteadOfActing($fine), $fine);
+        }
+    }
+
+    /**
+     * A signed-in member who asks about "the payments I've made" gives no reference
+     * because we know who they are: their own payments are looked up before the model
+     * is asked anything, and a guest's are not, because a guest has none to read.
+     */
+    public function test_a_members_own_payments_are_looked_up_without_a_reference(): void
+    {
+        $member = new SupportContext(viewerId: 42, viewerEmail: 'ada@example.com');
+        $steps  = array_column(\AfricaGates\Services\SupportPlan::steps(
+            "Can you help check out the payments I've made. One of my votes did not go through and I need a refund", $member), 'tool');
+        $this->assertContains('my_transactions', $steps);
+
+        $guest = array_column(\AfricaGates\Services\SupportPlan::steps(
+            "Can you help check out the payments I've made. One of my votes did not go through and I need a refund",
+            SupportContext::fromSession()), 'tool');
+        $this->assertNotContains('my_transactions', $guest, 'a guest is never offered somebody\'s payments');
+    }
+
+    /** "Hurry" is planned from the problem in the turn before it, not from the word "hurry". */
+    public function test_a_follow_up_is_planned_from_the_conversation(): void
+    {
+        $member  = new SupportContext(viewerId: 42, viewerEmail: 'ada@example.com');
+        $history = [['role' => 'user', 'content' => 'One of my paid votes did not go through and I need a refund'],
+                    ['role' => 'assistant', 'content' => 'Sorry about that.']];
+        $text = SupportAgentService::planningText('Hurry', $history, $member);
+        $this->assertStringContainsString('paid votes', $text);
+        $this->assertContains('my_transactions',
+            array_column(\AfricaGates\Services\SupportPlan::steps($text, $member), 'tool'));
+
+        // A message with its own problem is planned on its own.
+        $this->assertSame('my code never arrived', SupportAgentService::planningText('my code never arrived', $history, $member));
+    }
 }
+

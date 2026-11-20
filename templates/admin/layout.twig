@@ -1,14 +1,16 @@
 {#
   ══════════════════════════════════════════════════════════════════════════════
   THE ADMIN CONSOLE SHELL — destroyed and rebuilt 4 Oct 2026 from the admin handoff
-  (`design_handoff_admin_console`, README §2 and `Admin Console v9.dc.html`).
+  (`design_handoff_admin_console`, README §2 and `Admin Console v9.dc.html`), and moved
+  to AdminConsole v2 on 20 Oct 2026 (`design_handoff_letter_email_admin`, README §10b):
+  a ground rail, one white work surface, the production signal beside the bell.
   What the old layout did, rule by rule, and where each rule lives now:
   docs/handoff/inventory/_admin.md. Decisions and deviations: docs/handoff/PHASE-ADMIN.md.
   ══════════════════════════════════════════════════════════════════════════════
 
   · Grid `auto minmax(0,1fr)`, the viewport's height; ONLY the rail's nav and <main>
-    scroll (§2). The top bar is 56px and its right-hand group never takes `min-width:0`,
-    which is the overlap the handoff warns about.
+    scroll (§10b). The top bar is 52px; its controls never take `min-width:0`, so only
+    the crumb gives way when the bar is narrow.
   · Colour is `ag_accents('console')` — the console set of Support\Accent — in a nonced
     <style> BEFORE the stylesheets. The public palette is never emitted here.
   · Everything the shell knows comes from ONE call, `console_shell()` (ConsoleShell):
@@ -30,37 +32,84 @@
 <meta name="csrf-token" content="{{ csrf_token }}">
 <meta name="robots" content="noindex, nofollow">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-<script nonce="{{ csp_nonce }}">document.documentElement.classList.add('cn-js');</script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script nonce="{{ csp_nonce }}" data-nav="shell">document.documentElement.classList.add('cn-js');
+/* cnPage: what a page script binds OUTSIDE its own elements, undone when the page goes.
+   console-nav.js swaps pages without a reload, so a listener on the document or window, a
+   timer or an open camera would otherwise outlive its page. In the head, so it exists before
+   any page script runs on a full load too. ConsoleNavTest sends every such binding here. */
+window.cnPage = (function () {
+  var offs = [];
+  document.addEventListener('cn:unload', function () {
+    var o = offs; offs = [];
+    o.forEach(function (f) { try { f(); } catch (e) {} });
+  });
+  return {
+    on: function (t, type, fn, opt) {
+      t.addEventListener(type, fn, opt);
+      var off = function () { t.removeEventListener(type, fn, opt); };
+      offs.push(off);
+      return off;
+    },
+    every: function (fn, ms) { var id = setInterval(fn, ms); offs.push(function () { clearInterval(id); }); return id; },
+    leave: function (fn) { offs.push(fn); }
+  };
+})();</script>
+<link rel="preload" href="/assets/fonts/geist/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin>
 <style nonce="{{ csp_nonce }}">{{ ag_accents('console')|raw }}</style>
 <link rel="stylesheet" href="{{ asset('/assets/css/vendor/tippy.css') }}">
 <link rel="stylesheet" href="{{ asset('/assets/css/console/tokens.css') }}">
 <link rel="stylesheet" href="{{ asset('/assets/css/console/console.css') }}">
+<link rel="stylesheet" href="{{ asset('/assets/css/console/role-switch.css') }}">
+<link rel="stylesheet" href="{{ asset('/assets/css/console/assistant.css') }}">
 {% block head_styles %}{% endblock %}
   {% include 'partials/csrf-fresh.twig' %}
+<link rel="stylesheet" href="{{ asset('/assets/css/components/photo-upload.css') }}">
 </head>
 <body class="cn" data-console{% if not shell.can_write %} data-readonly{% endif %}{% if shell.sidebar_closed %} data-side="closed"{% endif %}>
 
-<a href="#cnMain" class="cn-skip">Skip to content</a>
+<a href="#cnMain" class="cn-skip" data-skip-link>Skip to content</a>
 {% include 'admin/partials/nav-icons.twig' %}
 
 <div class="cn-shell" id="cnShell">
 
-  {# ── THE SIDEBAR (§2.1, §2.2) ─────────────────────────────────────────────── #}
+  {# ── THE RAIL (v2, README §10b) ──────────────────────────────────────────────
+     The ground, not a panel: 232px at ≥1024, a 60px icon rail at 600–1023 (labels and
+     group names give way to hairlines, counts to a corner dot), and on a phone the same
+     tree opened as a sheet from the tab bar's More. One tree, three widths, so the phone
+     can never offer a page the desktop does not. #}
   <aside class="cn-side" id="cnSide" aria-label="Console">
-    <div class="cn-side__brand">
-      <img src="/assets/img/logo-mark.png" alt="" width="24" height="24">
-      <span>Africa GATES</span>
+    {# The brand. The role switch (Account\Roles) is at the FOOT of the rail since 4 Nov
+       2026 — partials/role-switch.twig — beside the personal account menu. #}
+    {% set acct = account_switch() %}
+    <div class="cn-side__top">
+      <div class="cn-side__brand" title="Africa GATES · {{ shell.role_label }}">
+        <span class="cn-side__mark" aria-hidden="true">AG</span>
+        <span class="cn-side__who"><span class="cn-side__name">Africa GATES</span><span class="cn-side__role">{{ shell.role_label }}</span></span>
+      </div>
+      <button type="button" class="cn-side__close" data-ag-do="side-close" aria-label="Close menu">✕</button>
     </div>
+
+    <button type="button" class="cn-side__search" data-ag-do="palette-open" aria-haspopup="dialog" aria-controls="cnPal" title="Search">
+      <svg aria-hidden="true" focusable="false"><use href="#ic-search"/></svg>
+      <span class="cn-side__search-l">Search</span>
+      <kbd class="cn-side__kbd" data-cn-kbd>⌘K</kbd>
+    </button>
+
     <nav class="cn-nav" aria-label="Console pages">
+      <div class="cn-nav__top">
       {% if shell.home %}
-        <a class="cn-nav__i" href="{{ shell.home.href }}"{% if shell.current == 'dashboard' %} aria-current="page"{% endif %}>
+        <a class="cn-nav__i" href="{{ shell.home.href }}" title="Home"{% if shell.current == 'dashboard' %} aria-current="page"{% endif %}>
           <svg aria-hidden="true" focusable="false"><use href="#ic-home"/></svg>
           <span class="cn-nav__l">Home</span>
         </a>
       {% endif %}
+      {% for t in shell.top %}
+        <a class="cn-nav__i" href="{{ t.href }}" title="{{ t.label }}"{% if shell.current == t.page %} aria-current="page"{% endif %}>
+          <svg aria-hidden="true" focusable="false"><use href="#ic-{{ t.icon }}"/></svg>
+          <span class="cn-nav__l">{{ t.label }}</span>
+        </a>
+      {% endfor %}
+      </div>
 
       {% if shell.pins %}
         <div class="cn-nav__group">
@@ -68,10 +117,10 @@
           <ul aria-labelledby="cnPinsLabel">
             {% for p in shell.pins %}
               <li class="cn-pin">
-                <a class="cn-nav__i" href="{{ p.href }}"{% if p.href == shell.here %} aria-current="page"{% endif %}>
-                  <svg aria-hidden="true" focusable="false"><use href="#ic-shortlists"/></svg>
+                <a class="cn-nav__i" href="{{ p.href }}" title="{{ p.label }}"{% if p.href == shell.here %} aria-current="page"{% endif %}>
+                  <svg aria-hidden="true" focusable="false"><use href="#ic-list"/></svg>
                   <span class="cn-nav__l">{{ p.label }}</span>
-                  {% if p.count is not null %}<span class="cn-nav__n">{{ p.count }}</span>{% endif %}
+                  {% if p.count %}<span class="cn-nav__n">{{ p.count }}</span><span class="cn-nav__dot" aria-hidden="true"></span>{% endif %}
                 </a>
                 <form method="post" action="/admin/me/pins/{{ p.id }}/unpin" data-cn-safe data-ag-do="unpin">
                   <input type="hidden" name="_token" value="{{ csrf_token }}">
@@ -84,121 +133,170 @@
         </div>
       {% endif %}
 
+      {# Every group starts open (ConsoleShell::rail); a person's own choice is applied by
+         admin.js. Without script every group stays open — a collapse nobody can expand is a
+         missing page. #}
       {% for g in shell.groups %}
-        <div class="cn-nav__group"{% if g.fold %} data-fold{% if g.forced_open %} data-open{% endif %}{% endif %}>
-          <span class="cn-nav__label" id="cnGroup{{ loop.index }}">{{ g.label }}</span>
-          <ul aria-labelledby="cnGroup{{ loop.index }}">
+        <div class="cn-nav__group" data-group="{{ g.key }}"{% if g.open %} data-open{% endif %}{% if g.here %} data-here{% endif %}>
+          <button type="button" class="cn-nav__label cn-nav__fold" data-ag-do="nav-fold" id="cnGroup{{ loop.index }}"
+                  aria-expanded="{{ g.open ? 'true' : 'false' }}" aria-controls="cnGroupList{{ loop.index }}">
+            <span class="cn-nav__fold-l">{{ g.label }}</span>
+            {% if g.count %}<span class="cn-nav__num{% if g.urgent %} cn-nav__num--urgent{% endif %}" aria-label="{{ g.count }} waiting">{{ g.count > 999 ? '999+' : g.count }}</span>{% endif %}
+            <svg class="cn-nav__chev" aria-hidden="true" focusable="false" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <ul id="cnGroupList{{ loop.index }}" aria-labelledby="cnGroup{{ loop.index }}">
             {% for i in g.items %}
-              <li{% if i.folded %} data-folded{% endif %}>
-                <a class="cn-nav__i" href="{{ i.href }}"{% if shell.current == i.page %} aria-current="page"{% endif %}>
+              {# One level, by design (owner, 20 Oct 2026): only a GROUP opens and closes; a
+                 page's sub-pages are on its "also here" strip and in ⌘K, never nested here.
+                 A rail item stays lit while you are on one of its sub-pages. #}
+              <li>
+                <a class="cn-nav__i" href="{{ i.href }}" title="{{ i.label }}"{% if shell.current == i.page or shell.current_page == i.page %} aria-current="page"{% endif %}>
                   <svg aria-hidden="true" focusable="false"><use href="#ic-{{ i.icon }}"/></svg>
                   <span class="cn-nav__l">{{ i.label }}</span>
-                  {% set n = i.page == 'review' ? shell.counts.review : (i.page == 'payments' ? shell.counts.payments : (i.page == 'alerts' ? shell.counts.alerts : null)) %}
-                  {% if n %}<span class="cn-nav__n">{{ n }}</span>{% endif %}
+                  {% if i.n %}
+                    <span class="cn-nav__n{% if i.urgent %} cn-nav__n--urgent{% endif %}">{{ i.n }}{% if i.urgent %}<span class="sr-only">, urgent</span>{% endif %}</span>
+                    <span class="cn-nav__dot{% if i.urgent %} cn-nav__dot--urgent{% endif %}" aria-hidden="true"></span>
+                  {% endif %}
                 </a>
               </li>
             {% endfor %}
           </ul>
-          {% if g.fold %}
-            <button type="button" class="cn-nav__more" data-ag-do="nav-more"
-                    aria-expanded="{{ g.forced_open ? 'true' : 'false' }}"
-                    data-more="{{ g.hidden_count }} more" data-less="Show less">
-              <span aria-hidden="true">···</span><span class="cn-nav__more-l">{{ g.forced_open ? 'Show less' : g.hidden_count ~ ' more' }}</span>
-            </button>
-          {% endif %}
         </div>
       {% endfor %}
     </nav>
+
+    <div class="cn-side__foot">
+      {% if shell.assistant %}
+        <button type="button" class="cn-nav__i cn-side__ask" data-ag-do="assist-open" aria-haspopup="dialog" aria-controls="cnAssist" title="Ask (⌘J)">
+          <svg aria-hidden="true" focusable="false"><use href="#ic-spark"/></svg>
+          <span class="cn-nav__l">Ask</span>
+          <kbd class="cn-side__kbd" data-cn-kbd-j>⌘J</kbd>
+        </button>
+      {% endif %}
+      {% include 'partials/role-switch.twig' with {items: acct|default([]), here: 'admin', csrf_token: csrf_token} only %}
+      <div class="cn-acct">
+        <button type="button" class="cn-nav__i cn-side__me" data-ag-do="acct-toggle" aria-haspopup="menu"
+                aria-expanded="false" aria-controls="cnAcct" title="{{ shell.name }}">
+          <span class="cn-avatar" aria-hidden="true">{{ shell.initials }}</span>
+          <span class="cn-nav__l">{{ shell.name }}</span>
+          <span class="sr-only">, account menu</span>
+        </button>
+        <div class="cn-menu cn-menu--up" id="cnAcct" role="menu" hidden>
+          <div class="cn-menu__who">
+            <span class="cn-menu__name">{{ shell.name }}</span>
+            {% if shell.email %}<span class="cn-menu__meta">{{ shell.email }}</span>{% endif %}
+            <span class="cn-menu__meta">{{ shell.role_label }} · {{ shell.role_blurb }}</span>
+          </div>
+          {% if shell.handbook %}<a class="cn-menu__i" role="menuitem" href="/admin/handbook">Handbook</a>{% endif %}
+          {% if shell.assistant %}<a class="cn-menu__i" role="menuitem" href="/admin/assistant">Assistant, full page</a>{% endif %}
+          <button type="button" class="cn-menu__i" role="menuitem" data-ag-do="feedback-open" aria-haspopup="dialog" aria-controls="cnFeedback">Send feedback</button>
+          <a class="cn-menu__i" role="menuitem" href="/" target="_blank" rel="noopener">View the site</a>
+          <a class="cn-menu__i cn-menu__i--out" role="menuitem" href="/admin/logout">Sign out</a>
+        </div>
+      </div>
+    </div>
   </aside>
   <div class="cn-scrim" data-ag-do="side-close" hidden></div>
 
+  {# ── THE WORK SURFACE: one white rounded panel, 8px in from the ground ──────── #}
   <div class="cn-col">
+   <div class="cn-surface">
 
-    {# ── THE TOP BAR (§2.3) ─────────────────────────────────────────────────── #}
     <header class="cn-bar">
-      <div class="cn-bar__left">
-        <form method="post" action="/admin/me/sidebar" class="cn-bar__toggle-form" data-cn-safe>
-          <input type="hidden" name="_token" value="{{ csrf_token }}">
-          <input type="hidden" name="closed" value="{{ shell.sidebar_closed ? '0' : '1' }}">
-          <input type="hidden" name="back" value="{{ shell.here }}">
-          <button type="submit" class="cn-iconbtn" data-ag-do="side-toggle" aria-controls="cnSide"
-                  aria-expanded="{{ shell.sidebar_closed ? 'false' : 'true' }}" aria-label="Toggle sidebar">
-            <svg aria-hidden="true" focusable="false"><use href="#ic-sidebar"/></svg>
-          </button>
-        </form>
-        <span class="cn-bar__title">{% block topbar_crumb %}{{ block('topbar_title') }}{% endblock %}</span>
-      </div>
+      <form method="post" action="/admin/me/sidebar" class="cn-bar__toggle-form" data-cn-safe>
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <input type="hidden" name="closed" value="{{ shell.sidebar_closed ? '0' : '1' }}">
+        <input type="hidden" name="back" value="{{ shell.here }}">
+        <button type="submit" class="cn-iconbtn cn-bar__toggle" data-ag-do="side-toggle" aria-controls="cnSide"
+                aria-expanded="{{ shell.sidebar_closed ? 'false' : 'true' }}" aria-label="Toggle sidebar">
+          <svg aria-hidden="true" focusable="false"><use href="#ic-sidebar"/></svg>
+        </button>
+      </form>
+      <span class="cn-bar__title">
+        {% if shell.group_label %}<span class="cn-crumb__a">{{ shell.group_label }}</span><span class="cn-crumb__sep" aria-hidden="true">/</span>{% endif %}
+        <span class="cn-crumb__b">{% block topbar_crumb %}{{ block('topbar_title') }}{% endblock %}</span>
+      </span>
 
-      <button type="button" class="cn-search" data-ag-do="palette-open" aria-haspopup="dialog" aria-controls="cnPal">
+      <button type="button" class="cn-iconbtn cn-bar__phone" data-ag-do="palette-open" aria-haspopup="dialog" aria-controls="cnPal" aria-label="Search">
         <svg aria-hidden="true" focusable="false"><use href="#ic-search"/></svg>
-        <span class="cn-search__l">Search everything</span>
-        <kbd class="cn-kbd" data-cn-kbd>⌘K</kbd>
       </button>
+      {% if shell.assistant %}
+        <button type="button" class="cn-iconbtn cn-bar__phone cn-bar__ask" data-ag-do="assist-open" aria-haspopup="dialog" aria-controls="cnAssist" aria-label="Ask">
+          <svg aria-hidden="true" focusable="false"><use href="#ic-spark"/></svg>
+        </button>
+      {% endif %}
 
-      <div class="cn-bar__right">
-        {# Feedback and Docs (owner's screenshots, 13 Oct 2026). Feedback is a short
-           dialog that posts to /admin/me/feedback — recorded in the audit log as
-           `console.feedback` with the page it came from, where a superadmin can filter
-           for it; never into the public support queue. Docs is the handbook. #}
-        <button type="button" class="cn-pillbtn cn-bar__wide" data-ag-do="feedback-open" aria-haspopup="dialog" aria-controls="cnFeedback">Feedback</button>
-        {% if shell.handbook %}<a class="cn-pillbtn cn-bar__wide" href="/admin/handbook">Docs</a>{% endif %}
-        {% if shell.alert_pill %}
-          {# The bell IS the alert pill: one indicator, not two saying the same thing.
-             Without script it is a <details> that still opens; the summary keeps the
-             pill's words so the count is never only a dot. #}
-          <details class="cn-menuwrap cn-bell">
-            <summary class="cn-alertpill cn-alertpill--{{ shell.alert_pill.tone }}" aria-label="Notifications: {{ shell.alert_pill.label }}">
-              <svg aria-hidden="true" focusable="false"><use href="#ic-bell"/></svg>
-              {% if shell.alert_pill.total|default(0) > 0 %}<span class="cn-dot" aria-hidden="true"></span>{% endif %}
-              <span class="cn-alertpill__l">{{ shell.alert_pill.label }}</span>
-            </summary>
-            <div class="cn-pop cn-pop--end cn-bell__pop" role="menu">
-              <span class="cn-bell__h">Notifications</span>
-              {% for a in shell.alert_pill.items|default([]) %}
-                <a class="cn-bell__i" role="menuitem" href="{{ a.href }}">
-                  <span class="cn-status cn-status--{{ a.severity }}">{{ a.severity|capitalize }}</span>
+      {% if shell.alert_pill %}
+        {# The production signal sits left of the bell: red and pulsing while an alert is
+           reaching people, amber while one may, grey while any other is open, green when
+           every check passes. It is a link, so it works with no script; the words carry
+           the count, never the dot alone. #}
+        <a class="cn-alertpill cn-alertpill--{{ shell.alert_pill.tone }}" href="{{ shell.alert_pill.href }}">
+          <span class="cn-dot" aria-hidden="true"></span>{{ shell.alert_pill.label }}
+        </a>
+        {# Without script the bell is a <details> that still opens. #}
+        <details class="cn-menuwrap cn-bell cn-bell--{{ shell.alert_pill.tone }}">
+          <summary class="cn-iconbtn cn-bell__btn" aria-label="Notifications: {{ shell.alert_pill.label }}">
+            <svg aria-hidden="true" focusable="false"><use href="#ic-bell"/></svg>
+            {% if shell.alert_pill.total|default(0) > 0 %}<span class="cn-bell__dot" aria-hidden="true"></span>{% endif %}
+          </summary>
+          <div class="cn-pop cn-pop--end cn-bell__pop" role="menu">
+            {% if shell.alert_pill.production|default([]) %}
+              <span class="cn-bell__h cn-bell__h--prod">Production</span>
+              {% for a in shell.alert_pill.production %}
+                <a class="cn-bell__i cn-bell__i--{{ a.impact }}" role="menuitem" href="{{ a.href }}">
+                  <span class="cn-bell__imp cn-bell__imp--{{ a.impact }}">{{ a.impact == 'affects' ? 'Affects production' : 'May affect production' }}</span>
                   <span class="cn-bell__t">{{ a.title }}</span>
                   <span class="cn-bell__m">{{ a.source }}{% if a.raised %} · {{ a.raised|when }}{% endif %}</span>
                 </a>
-              {% else %}
-                <span class="cn-bell__none">Nothing needs a person. The checks are all passing.</span>
               {% endfor %}
-              <a class="cn-pop__i cn-bell__all" role="menuitem" href="{{ shell.alert_pill.href }}">View all alerts{% if shell.alert_pill.total|default(0) > 5 %} ({{ shell.alert_pill.total }}){% endif %}</a>
-            </div>
-          </details>
-        {% endif %}
-        {% if shell.assistant %}
-          <button type="button" class="cn-pillbtn cn-askpill" data-ag-do="assist-open" aria-haspopup="dialog" aria-controls="cnAssist">
-            <svg aria-hidden="true" focusable="false"><use href="#ic-assistant"/></svg><span class="cn-askpill__l">Ask</span>
-          </button>
-        {% endif %}
-        <div class="cn-acct">
-          <button type="button" class="cn-avatar" data-ag-do="acct-toggle" aria-haspopup="menu"
-                  aria-expanded="false" aria-controls="cnAcct" aria-label="Account: {{ shell.name }}">{{ shell.initials }}</button>
-          <div class="cn-menu" id="cnAcct" role="menu" hidden>
-            <div class="cn-menu__who">
-              <span class="cn-menu__name">{{ shell.name }}</span>
-              {% if shell.email %}<span class="cn-menu__meta">{{ shell.email }}</span>{% endif %}
-              <span class="cn-menu__meta">{{ shell.role_label }} · {{ shell.role_blurb }}</span>
-            </div>
-            {% if shell.handbook %}<a class="cn-menu__i" role="menuitem" href="/admin/handbook">Handbook</a>{% endif %}
-            {% if shell.assistant %}<a class="cn-menu__i" role="menuitem" href="/admin/assistant">Assistant, full page</a>{% endif %}
-            <a class="cn-menu__i" role="menuitem" href="/" target="_blank" rel="noopener">View the site</a>
-            <a class="cn-menu__i cn-menu__i--out" role="menuitem" href="/admin/logout">Sign out</a>
+            {% endif %}
+            {% if shell.alert_pill.items|default([]) or not shell.alert_pill.production|default([]) %}<span class="cn-bell__h">Alerts</span>{% endif %}
+            {% for a in shell.alert_pill.items|default([]) %}
+              <a class="cn-bell__i" role="menuitem" href="{{ a.href }}">
+                <span class="cn-status cn-status--{{ a.severity }}">{{ a.severity|capitalize }}</span>
+                <span class="cn-bell__t">{{ a.title }}</span>
+                <span class="cn-bell__m">{{ a.source }}{% if a.raised %} · {{ a.raised|when }}{% endif %}</span>
+              </a>
+            {% else %}
+              {% if not shell.alert_pill.production|default([]) %}<span class="cn-bell__none">Nothing needs a person. The checks are all passing.</span>{% endif %}
+            {% endfor %}
+            <a class="cn-pop__i cn-bell__all" role="menuitem" href="{{ shell.alert_pill.href }}">View all alerts{% if shell.alert_pill.total|default(0) > 5 %} ({{ shell.alert_pill.total }}){% endif %}</a>
           </div>
-        </div>
-      </div>
+        </details>
+      {% endif %}
+
+      {% if shell.create %}
+        <details class="cn-menuwrap cn-new">
+          <summary class="cn-newbtn" aria-haspopup="menu">
+            <svg aria-hidden="true" focusable="false"><use href="#ic-plus"/></svg><span class="cn-newbtn__l">New</span>
+          </summary>
+          <div class="cn-pop cn-pop--end cn-new__pop" role="menu" aria-label="Create">
+            {% for g in shell.create %}
+              <div class="cn-new__g">
+                <span class="cn-new__h">{{ g.label }}</span>
+                {% for i in g.items %}
+                  <a class="cn-new__i" role="menuitem" href="{{ i.href }}"><svg aria-hidden="true" focusable="false"><use href="#ic-{{ i.icon }}"/></svg>{{ i.label }}</a>
+                {% endfor %}
+              </div>
+            {% endfor %}
+          </div>
+        </details>
+      {% endif %}
     </header>
 
     {# ── THE PAGE (§2.4) ───────────────────────────────────────────────────── #}
     <main class="cn-main" id="cnMain" tabindex="-1">
       <div class="cn-main__in">
 
+        {% block page_head %}
         <div class="cn-head">
           <div class="cn-head__text">
             <div class="cn-head__eyebrow">{% block topbar_eyebrow %}{% endblock %}</div>
             <h1 class="cn-h1">{% block topbar_title %}{{ shell.label|default(page_title|default('Admin')) }}{% endblock %}</h1>
-            {% if shell.sub %}<p class="cn-head__sub">{{ shell.sub }}</p>{% endif %}
+            {# A page may say what it is about more exactly than the rail's one line can. #}
+            {% set head_sub %}{% block topbar_sub %}{{ shell.sub }}{% endblock %}{% endset %}
+            {% if head_sub|trim %}<p class="cn-head__sub">{{ head_sub }}</p>{% endif %}
           </div>
           <div class="cn-head__side">
             <div class="cn-head__actions">{% block topbar_actions %}{% endblock %}</div>
@@ -208,19 +306,20 @@
                 <form method="post" action="/admin/me/pins/{{ shell.pinned.id }}/unpin" data-cn-safe data-ag-do="unpin">
                   <input type="hidden" name="_token" value="{{ csrf_token }}">
                   <input type="hidden" name="back" value="{{ shell.here }}">
-                  <button type="submit" class="cn-pillbtn cn-pillbtn--sm" aria-pressed="true">Pinned ✓</button>
+                  <button type="submit" class="cn-pin-btn" aria-pressed="true" title="Unpin from the sidebar" aria-label="Unpin from the sidebar"><svg aria-hidden="true" focusable="false"><use href="#ic-star"/></svg></button>
                 </form>
               {% else %}
                 <form method="post" action="/admin/me/pins" data-cn-safe data-ag-do="pin">
                   <input type="hidden" name="_token" value="{{ csrf_token }}">
                   <input type="hidden" name="href" value="{{ shell.here }}">
                   <input type="hidden" name="label" value="{{ shell.label|default(page_title|default('Pinned view')) }}">
-                  <button type="submit" class="cn-pillbtn cn-pillbtn--sm" aria-pressed="false">+ Pin this view</button>
+                  <button type="submit" class="cn-pin-btn" aria-pressed="false" title="Pin to the sidebar" aria-label="Pin to the sidebar"><svg aria-hidden="true" focusable="false"><use href="#ic-star"/></svg></button>
                 </form>
               {% endif %}
             {% endif %}
           </div>
         </div>
+        {% endblock %}
 
         {% if shell.related %}
           <nav class="cn-related" aria-label="Also here">
@@ -231,19 +330,34 @@
         {% endif %}
 
         {% if flash_error %}
-          <div class="cn-error" role="alert">
+          <div class="cn-error" role="alert" data-feedback-error tabindex="-1">
             <span class="cn-error__t">That did not work</span>
             <span class="cn-error__m">{{ flash_error }}</span>
             <a class="cn-pillbtn cn-pillbtn--sm" href="{{ shell.here|default('/admin/dashboard') }}">Try again</a>
           </div>
         {% endif %}
+        {% if flash_ok %}<div class="cn-note" role="status">{{ flash_ok }}</div>{% endif %}
         {% if flash_notice %}<div class="cn-note" role="status">{{ flash_notice }}</div>{% endif %}
 
         {% block content %}{% endblock %}
 
       </div>
     </main>
+   </div>
   </div>
+
+  {# ── THE PHONE TAB BAR (<600px): Home · Review · Money · Alerts · More ──────── #}
+  <nav class="cn-tabbar" aria-label="Console">
+    {% for t in shell.tabs %}
+      <a class="cn-tabbar__i" href="{{ t.href }}"{% if t.on %} aria-current="page"{% endif %}>
+        <svg aria-hidden="true" focusable="false"><use href="#ic-{{ t.icon }}"/></svg>{{ t.label }}
+        {% if t.n %}<span class="cn-tabbar__n{% if t.urgent %} cn-tabbar__n--urgent{% endif %}">{{ t.n > 99 ? '99+' : t.n }}</span>{% endif %}
+      </a>
+    {% endfor %}
+    <button type="button" class="cn-tabbar__i" data-ag-do="side-toggle" aria-controls="cnSide" aria-expanded="false">
+      <svg aria-hidden="true" focusable="false"><use href="#ic-more"/></svg>More
+    </button>
+  </nav>
 </div>
 
 {# ── OVERLAYS (§7) ─────────────────────────────────────────────────────────── #}
@@ -251,7 +365,7 @@
 {# Toast — a black pill at the bottom centre, 5.2 s, optional Undo. A flash from the
    last request arrives as one; without script it simply stays. #}
 <div class="cn-toasts" id="cnToasts" aria-live="polite">
-  {% if flash_ok %}<div class="cn-toast" role="status"><span>{{ flash_ok }}</span></div>{% endif %}
+
 </div>
 
 {# Confirm with reason — the reason is for the audit log, and the confirm stays disabled
@@ -287,39 +401,29 @@
     </div>
   </form>
 </dialog>
-{# The assistant drawer — the same conversation, endpoint and session key as the old
-   copilot and the assistant's own page. Alpine-driven, which is why ag-chat.js loads
-   before Alpine below. #}
+{# The assistant drawer — console-assistant.js, the same component as the expanded page
+   (/admin/assistant), on the same conversation: the thread the person last spoke in, kept on
+   the server. It sends the page under it as context, so "why is this one stuck?" means this
+   one. Expand opens the conversation full size, with its evidence beside it. #}
+{% set as_suggest = ['What should I do first this morning?', 'Why are payments stuck?', 'Which results are ready to release?', 'Anything suspicious in the nomination queue?'] %}
 {% if shell.assistant %}
 <div class="cn-drawer-scrim" data-ag-do="assist-close" hidden></div>
-<aside class="cn-drawer" id="cnAssist" role="dialog" aria-modal="true" aria-labelledby="cnAssistT" hidden
-       x-data="agChat({storageKey:'ag-copilot',logId:'cnAssistLog',focusId:'cnAssistIn',csrf:'{{ csrf_token }}'})">
+<aside class="cn-drawer as-drawer" id="cnAssist" role="dialog" aria-modal="true" aria-labelledby="cnAssistT" hidden
+       data-as="drawer" data-as-suggest="{{ as_suggest|json_encode }}"
+       data-as-dest="{{ shell.destinations|map(d => {label: d.label, href: d.href, group: d.group})|json_encode }}">
   <div class="cn-drawer__head">
     <div class="cn-drawer__ht">
-      <span class="cn-drawer__t" id="cnAssistT">Assistant</span>
-      <span class="cn-drawer__s">Reads this console as {{ shell.role_label }}</span>
+      <span class="cn-drawer__t" id="cnAssistT" data-as-title>Assistant</span>
+      <span class="cn-drawer__s">Reads this console as {{ shell.role_label }}, and the page you are on</span>
     </div>
-    <a class="cn-drawer__full" href="/admin/assistant">Full page</a>
-    <button type="button" class="cn-roundbtn" data-ag-do="assist-close" aria-label="Close">✕</button>
+    <button type="button" class="as-iconbtn" data-as-new aria-label="New chat" title="New chat"><svg aria-hidden="true" focusable="false"><use href="#ic-plus"/></svg></button>
+    <a class="as-iconbtn" href="/admin/assistant" data-as-expand aria-label="Expand" title="Expand"><svg aria-hidden="true" focusable="false"><use href="#ic-expand"/></svg></a>
+    <button type="button" class="as-iconbtn" data-ag-do="assist-close" aria-label="Close" title="Close"><svg aria-hidden="true" focusable="false"><use href="#ic-x"/></svg></button>
   </div>
-  <div class="cn-drawer__body" id="cnAssistLog" role="log" aria-live="polite">
-    <template x-for="(m, i) in msgs" :key="i">
-      <div class="cn-msg" :class="m.role === 'user' ? 'cn-msg--me' : ''"><span class="sr-only" x-text="m.role === 'user' ? 'You said:' : 'Assistant said:'"></span><span x-text="m.text"></span></div>
-    </template>
-    <div class="cn-msg" x-show="busy" x-cloak>Thinking…</div>
-    <p class="cn-drawer__err" role="alert" x-show="error" x-cloak x-text="error"></p>
-    <div class="cn-suggest" x-show="!msgs.length">
-      {% for q in ['What should I do first this morning?', 'Why are payments stuck?', 'Which results are ready to release?', 'Anything suspicious in the queue?'] %}
-        <button type="button" class="cn-suggest__q" data-ag-do="assist-ask" data-q="{{ q }}">{{ q }}</button>
-      {% endfor %}
-    </div>
+  <div class="as-log as-log--drawer" data-as-log role="log" aria-live="polite" aria-label="Conversation"></div>
+  <div class="as-compose as-compose--drawer">
+    {% include 'admin/partials/assistant-composer.twig' with {as_disabled: false, as_id: 'D'} %}
   </div>
-  <form class="cn-drawer__ask" data-cn-safe @submit.prevent="send()">
-    <label for="cnAssistIn" class="sr-only">Ask the assistant</label>
-    <input id="cnAssistIn" x-model="draft" maxlength="2000" placeholder="Ask about the queue, money, results…" autocomplete="off">
-    <button type="submit" class="cn-send" aria-label="Ask" x-bind:disabled="busy || !draft.trim()">↑</button>
-  </form>
-  <div class="cn-drawer__foot">Answers from live figures. It can't approve, refund or publish; it links you to the page that can.</div>
 </aside>
 {% endif %}
 
@@ -338,7 +442,7 @@
         <li role="option" aria-selected="false"><a class="cn-pal__i" href="{{ d.href }}" data-cmd="{{ (d.label ~ ' ' ~ d.group)|lower }}">{{ d.label }}<span class="cn-pal__k">{{ d.group }}</span></a></li>
       {% endfor %}
       {% for f in [
-          ['Show nominations waiting longest', '/admin/nominations?status=pending&sort=oldest', 'late old overdue waiting oldest 4h'],
+          ['Show nominations waiting longest', '/admin/nominations/review?sort=recv&dir=asc', 'late old overdue waiting oldest 4h'],
           ['Show paid orders with no votes', '/admin/payments', 'refund owed no votes paid stuck'],
           ['Show high alerts', '/admin/alerts?tab=high', 'alert high urgent broken down'],
         ] %}
@@ -356,15 +460,21 @@
   </form>
 </dialog>
 
-{# Script order is load-bearing: ag-chat BEFORE Alpine (Alpine evaluates x-data on load,
-   and agChat must exist by then); Popper before Tippy; admin.js last. #}
-<script defer src="{{ asset('/assets/js/ag-chat.js') }}"></script>
-<script defer src="{{ asset('/assets/js/vendor/alpine-3.13.5.min.js') }}"></script>
-<script defer src="{{ asset('/assets/js/vendor/popper-2.11.8.min.js') }}"></script>
-<script defer src="{{ asset('/assets/js/vendor/tippy-6.3.7.umd.min.js') }}"></script>
+{# Script order is load-bearing: console-assistant before admin.js (which opens the drawer
+   through window.cnAssist); Popper before Tippy; admin.js last. #}
+<script defer src="{{ asset('/assets/js/console-assistant.js') }}" data-nav="shell"></script>
+<script defer src="{{ asset('/assets/js/vendor/alpine-3.13.5.min.js') }}" data-nav="shell"></script>
+<script defer src="{{ asset('/assets/js/vendor/popper-2.11.8.min.js') }}" data-nav="shell"></script>
+<script defer src="{{ asset('/assets/js/vendor/tippy-6.3.7.umd.min.js') }}" data-nav="shell"></script>
+{# A page's own scripts. Unmarked, the page loads the ordinary way; `data-nav="rerun"` lets
+   console-nav.js swap it in, and ConsoleNavTest decides who may say that. #}
+<script defer src="{{ asset('/assets/js/photo-upload.js') }}" data-photo-max-bytes="{{ photo_upload_limit|default(10485760) }}" data-photo-post-bytes="{{ photo_post_limit|default(0) }}" data-nav="shell"></script>
 {% block foot_scripts %}{% endblock %}
-<script defer src="{{ asset('/assets/js/admin.js') }}"></script>
-<script defer src="{{ asset('/assets/js/console-ux.js') }}"></script>
+<script defer src="{{ asset('/assets/js/accessibility-focus.js') }}" data-nav="shell"></script>
+<script defer src="{{ asset('/assets/js/admin.js') }}" data-nav="shell"></script>
+<script defer src="{{ asset('/assets/js/console-ux.js') }}" data-nav="shell"></script>
+{# Last: it listens after everything else has had its chance to handle a click. #}
+<script defer src="{{ asset('/assets/js/console-nav.js') }}" data-nav="shell"></script>
 {% include 'admin/partials/richtext.twig' %}
 {% include 'admin/partials/ui.twig' %}
 </body>

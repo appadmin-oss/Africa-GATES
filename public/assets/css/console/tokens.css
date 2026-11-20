@@ -1,7 +1,7 @@
 /* ══════════════════════════════════════════════════════════════════════════════
    AFRICA GATES — ADMIN CONSOLE TOKENS (everything but colour)
-   The admin handoff's README §10 (`design_handoff_admin_console`), built 4 Oct 2026
-   when the owner chose its monochrome design (GAPS §8d, option (A)).
+   Built 4 Oct 2026 from the v9 admin handoff; faces and measures moved to AdminConsole v2
+   (design_handoff_letter_email_admin/admin-console, 20 Oct 2026).
    ══════════════════════════════════════════════════════════════════════════════
 
    ── NO COLOUR HERE, FOR THE PUBLIC TOKENS' REASON ───────────────────────────
@@ -12,8 +12,8 @@
 
    ── THE FACE IS THE HOUSE'S, THE SCALE IS THE CONSOLE'S ────────────────────
 
-   The handoff draws Geist and Geist Mono; the owner kept DM Sans and the house
-   JetBrains Mono (GAPS §8d). The SIZES are the handoff's own ladder (§10: 11 · 11.5 ·
+   Geist and Geist Mono, as AdminConsole v2 draws them (20 Oct 2026; v2 supersedes the
+   v9 choice of DM Sans and JetBrains Mono). The SIZES are the handoff's own ladder (§10: 11 · 11.5 ·
    12 · 12.5 · 13 · 13.5 · 14 · 15 · 17 · 18 · 22 · 24 · 26 · 30), plus the two its HTML
    draws in the shell that §10 leaves out — 10.5 for a count badge and 16 for the hero
    ask box. The public ladder (tokens.css) is not this one and neither may borrow the
@@ -28,9 +28,16 @@
    pixel.
    ══════════════════════════════════════════════════════════════════════════════ */
 
+/* The console's faces, served from this site (Geist 1.3.1, SIL OFL — OFL.txt beside them).
+   Self-hosted rather than from Google Fonts: the console then looks the same on a network
+   that blocks a third-party host, and on a slow one it is one fewer connection to open.
+   Variable files: every weight in one ~57KB file each, against ~160KB for four statics. */
+@font-face { font-family: 'Geist'; font-style: normal; font-weight: 100 900; font-display: swap; src: url('/assets/fonts/geist/Geist-Variable.woff2') format('woff2'); }
+@font-face { font-family: 'Geist Mono'; font-style: normal; font-weight: 100 900; font-display: swap; src: url('/assets/fonts/geist/GeistMono-Variable.woff2') format('woff2'); }
+
 :root{
-  --cn-font: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --cn-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --cn-font: 'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --cn-mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
 
   --cn-fs-10-5: .65625rem;
   --cn-fs-11:   .6875rem;
@@ -46,6 +53,8 @@
   --cn-fs-22:   1.375rem;
   --cn-fs-24:   1.5rem;
   --cn-fs-26:   1.625rem;
+  /* v7 (consoles handoff §2.2): the page h1 is 28 on desktop, 24 on a phone. */
+  --cn-fs-28:   1.75rem;
   --cn-fs-30:   1.875rem;
 
   /* §10: 3–4 (bars) · 6 · 8 (nav, inputs) · 10 · 12 (tiles, menus) · 16 (cards) ·
@@ -54,14 +63,18 @@
   --cn-r-4: 4px;
   --cn-r-6: 6px;
   --cn-r-8: 8px;
+  --cn-r-10: 10px;
   --cn-r-12: 12px;
+  /* v7: card and frame 14, hero 18 (README §2.1, §2.7). */
+  --cn-r-14: 14px;
+  --cn-r-18: 18px;
   --cn-r-16: 16px;
   --cn-r-20: 20px;
   --cn-r-pill: 999px;
 
   /* §2: the shell's own measures. */
-  --cn-side-w: 248px;
-  --cn-bar-h: 56px;
+  --cn-side-w: 232px;
+  --cn-bar-h: 52px;
   --cn-max: 1240px;
 
   /* §10 motion: agIn over .14s (menus), .16s (toasts, modals), .18s (drawers); toggles

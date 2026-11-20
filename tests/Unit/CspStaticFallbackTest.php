@@ -93,14 +93,15 @@ class CspStaticFallbackTest extends TestCase
         $this->assertStringContainsString('flutterwave.com', $fa[0] ?? '');
 
         preg_match('/script-src[^;]*/', $p, $ss);
-        // The hosts that still serve script: Leaflet from unpkg, jQuery, Turnstile.
-        foreach (['unpkg.com', 'code.jquery.com', 'challenges.cloudflare.com'] as $host) {
+        // The host that still serves script on a ballot: Turnstile. unpkg and jQuery's CDN
+        // were on this list and left the policy on 5 Nov 2026 — nothing loads from them.
+        foreach (['challenges.cloudflare.com'] as $host) {
             $this->assertStringContainsString($host, $ss[0] ?? '', "script-src is missing $host — the CDN blocks come back.");
         }
         // cdn.jsdelivr.net and cdn.plyr.io were in this list and are deliberately gone:
         // everything they served is vendored under public/assets now. A host kept in the
         // policy past its last real use is attack surface with no remaining upside.
-        foreach (['cdn.jsdelivr.net', 'cdn.plyr.io'] as $retired) {
+        foreach (['cdn.jsdelivr.net', 'cdn.plyr.io', 'unpkg.com', 'code.jquery.com'] as $retired) {
             $this->assertStringNotContainsString($retired, $ss[0] ?? '',
                 "script-src permits {$retired} again — nothing should load script from it.");
         }

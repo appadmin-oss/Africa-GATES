@@ -17,7 +17,7 @@
 {% block auth_body %}
   <div class="si__head">
     <h1 class="si__h1">{{ 'Reset your password'|trans }}</h1>
-    <p class="si__lede">{{ 'Tell us the email on your account and we will send a link to set a new password. It works once and lasts an hour.'|trans }}</p>
+    <p class="si__lede">{{ 'We’ll email you a reset link. It works once and lasts an hour.'|trans }}</p>
   </div>
   {{ auth.say(_error, _notice) }}
   <form class="si__form-step" method="post" action="/account/forgot" novalidate data-ag-validate>
@@ -29,6 +29,6 @@
     <button class="si__go" type="submit">{{ 'Email me a reset link'|trans }}</button>
     <p class="si__alt"><button class="si__link" type="submit" formaction="/account/login/otp" formnovalidate>{{ 'Send a one-time code instead'|trans }}</button></p>
   </form>
-  <p class="si__fine">{{ 'A one-time code signs you in straight away and lasts %n% minutes; you can set a new password from your account afterwards.'|trans({'%n%': otp_ttl_minutes}) }}</p>
+  <p class="si__fine">{{ 'A one-time code lasts %n% minutes. Change your password once signed in.'|trans({'%n%': otp_ttl_minutes}) }}</p>
   <p class="si__alt"><a href="/account/login">{{ 'Remembered it? Sign in'|trans }}</a></p>
 {% endblock %}

@@ -1,0 +1,32 @@
+{
+  "base": "a3373979",
+  "sqlite": {
+    "tests": 140,
+    "assertions": 1322,
+    "passed": true
+  },
+  "mysql": {
+    "tests": 140,
+    "assertions": 1312,
+    "skipped": 1,
+    "passed": true
+  },
+  "browser": {
+    "pages": 12,
+    "viewportChecks": 72,
+    "widths": [
+      320,
+      390,
+      600,
+      768,
+      1024,
+      1440
+    ],
+    "currentTabsVisible": true,
+    "sectionNavigation": true,
+    "morePageIndicator": true,
+    "zoom200": true,
+    "pageErrors": []
+  },
+  "syntax": "Changed PHP and JavaScript passed syntax checks"
+}

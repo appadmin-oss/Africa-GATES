@@ -90,10 +90,10 @@ reminders. **This one line is required** — without it the queue is never drain
 never advance:
 
 ```
-*/15 * * * * /usr/bin/php /path/to/cron/maintenance.php
-*/10 * * * * /usr/bin/php /path/to/bin/console payments:reconcile   # confirm paid orders whose browser callback dropped
-0 */4 * * *  /usr/bin/php /path/to/cron/aggregate-dashboard.php      # OPTIONAL: pre-warm the dashboard stats cache
-15 3 * * *   /usr/bin/php /path/to/bin/console privacy:purge --commit # OPTIONAL: PII retention purge — only after setting RETAIN_* (see docs/SECURITY-HARDENING-V3.md)
+*/15 * * * * /opt/cpanel/ea-php84/root/usr/bin/php /path/to/cron/maintenance.php
+*/10 * * * * /opt/cpanel/ea-php84/root/usr/bin/php /path/to/bin/console payments:reconcile   # confirm paid orders whose browser callback dropped
+0 */4 * * *  /opt/cpanel/ea-php84/root/usr/bin/php /path/to/cron/aggregate-dashboard.php      # OPTIONAL: pre-warm the dashboard stats cache
+15 3 * * *   /opt/cpanel/ea-php84/root/usr/bin/php /path/to/bin/console privacy:purge --commit # OPTIONAL: PII retention purge — only after setting RETAIN_* (see docs/SECURITY-HARDENING-V3.md)
 ```
 
 `cron/recalculate-cpi.php` is a **standalone** CPI recompute (it delegates to the same

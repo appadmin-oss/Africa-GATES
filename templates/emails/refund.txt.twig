@@ -1,0 +1,16 @@
+{#- Plain-text part for refund.html.twig. -#}
+{{ settled ? 'Your refund is done' : 'Your refund is on its way' }}
+
+Amount: {{ back ?: 'In full' }}
+Back to: the card or account you paid with
+Expected: {{ settled ? 'refunded' : 'banks usually take 5–10 working days to show it' }}
+Reference: {{ reference }}
+
+Your payment of {{ charged }} went through, but voting in that category had already closed by the time it reached us, so no votes were added. We do not keep money for votes we did not count. Nothing is needed from you.
+
+Questions, or would you rather have the votes if the category reopens? Tell us through the help desk: {{ help_url }}
+
+—
+You made a payment on Africa GATES.
+{{ postal_address }}
+Help: {{ site_url }}/help · Privacy: {{ site_url }}/privacy

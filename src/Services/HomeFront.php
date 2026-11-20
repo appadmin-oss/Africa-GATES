@@ -128,6 +128,33 @@ final class HomeFront
      *
      * @return array{nominations_open:int,voting_open:int,nations:int,votes:int}
      */
+    /**
+     * The stats strip as it is drawn: only the figures that are worth printing.
+     *
+     * LOW-DATA-RULES §3 (mandatory, owner, 13 Oct 2026): a figure below its minimum is
+     * dropped, not printed. "0 countries taking part · 0 votes cast" on the first screen of
+     * the site reads as a verdict on the platform rather than a fact about it. A count of
+     * nought is never shown; the vote total waits for `votes_public_total`. With nothing
+     * left the strip is not drawn at all.
+     *
+     * @return list<array{n:int, one:string, many:string}>
+     */
+    public static function statRows(?array $stats = null): array
+    {
+        $s = $stats ?? self::stats();
+        $rows = [
+            [$s['nominations_open'], 'edition open for nominations', 'editions open for nominations', 1],
+            [$s['voting_open'],      'vote happening now',           'votes happening now',           1],
+            [$s['nations'],          'country taking part',          'countries taking part',         1],
+            [$s['votes'],            'vote cast',                    'votes cast', \AfricaGates\Support\DisplayThreshold::min('votes_public_total')],
+        ];
+        $out = [];
+        foreach ($rows as [$n, $one, $many, $min]) {
+            if ((int) $n >= $min) $out[] = ['n' => (int) $n, 'one' => $one, 'many' => $many];
+        }
+        return $out;
+    }
+
     public static function stats(): array
     {
         if (isset(self::$memo['stats'])) return self::$memo['stats'];
@@ -308,13 +335,16 @@ final class HomeFront
             if (!OrgCampaign::isOpen($c)) continue;
             $org  = $orgs[(int) $c->org_id];
             $p    = OrgCampaign::progress((int) $c->id);
+            // Featured only past the low-data line: a campaign at 2% with three gifts on
+            // the front page reads as a cause nobody backs (LOW-DATA-RULES, Giving).
+            if (!self::featurable($p, isset($c->closes_on) ? (string) $c->closes_on : null)) continue;
             $logo = (string) (OrgBrand::of($org)['logo'] ?? '');
 
             return self::$memo['campaign'] = [
                 'title'  => (string) $c->title,
                 'org'    => (string) ($org->name ?? ''),
                 'ini'    => self::initials((string) ($org->name ?? '')),
-                'url'    => '/giving/' . $org->slug . '/' . $c->slug,
+                'url'    => \AfricaGates\Support\GivingUrl::org((string) $org->slug, (string) $c->slug),
                 'raised' => '₦' . number_format($p['raised']),
                 'goal'   => $p['target'] > 0 ? '₦' . number_format($p['target']) : '',
                 'pct'    => $p['pct'],
@@ -325,6 +355,164 @@ final class HomeFront
         }
 
         return self::$memo['campaign'] = null;
+    }
+
+    // ── HOME V5 (HomePageV5.dc.html, 16 Oct 2026) ────────────────────────────────
+    //
+    // The page that tells stories rather than counting. Everything below is either a
+    // real record or evergreen copy that names nobody — LOW-DATA-RULES.md rule 3: never
+    // fabricate. The DC's sample people (Mama Ngozi, the Mathare choir, the bank, the
+    // honours office) are design content, not records, and none of them is drawn here.
+
+    /** The six "Who do you want to honour?" tiles: the photos the owner supplied. */
+    public const HONOUR = [
+        ['teacher',          'A teacher',          'A teacher guiding two students at a classroom table'],
+        ['nurse',            'A nurse or carer',   'A community nurse checking an elderly woman’s blood pressure'],
+        ['community-leader', 'A community leader', 'A community leader speaking at a neighbourhood meeting'],
+        ['creative',         'A creative',         'A designer draping indigo fabric in her studio'],
+        ['business',         'A business',         'A shop founder at the counter of her boutique'],
+        ['young-leader',     'A young leader',     'A young volunteer holding a clipboard at a youth event'],
+    ];
+
+    /** @return list<array{key:string,label:string,alt:string,src:string,srcset:string}> */
+    public static function honourTiles(): array
+    {
+        $out = [];
+        foreach (self::HONOUR as [$key, $label, $alt]) {
+            $base = '/assets/img/honour/' . $key;
+            // Versioned exactly as `asset()` versions a `src`: the same photo appears in the hero,
+            // the honour row and the topics, and a bare path in one srcset beside a versioned
+            // `src` in another is two URLs — the phone downloaded three of these twice.
+            $a = static fn (string $u): string => \AfricaGates\Support\Assets::url($u);
+            $out[] = ['key' => $key, 'label' => $label, 'alt' => $alt,
+                      'src' => $base . '-480.webp', 'srcset' => $a($base . '-480.webp') . ' 480w, ' . $a($base . '-960.webp') . ' 960w'];
+        }
+        return $out;
+    }
+
+    /**
+     * The hero's rotating recognitions: real decided awards, at most four.
+     *
+     * LOW-DATA-RULES: two or more rotate; one is static with no dots; none falls back to
+     * the bundled default slides. The defaults are the honour photos with a line about the
+     * KIND of person this platform honours — never a name, a count or an award nobody won.
+     *
+     * @param list<array<string,mixed>> $decided HomeFront::decided()
+     * @return list<array<string,mixed>>
+     */
+    public static function heroSlides(array $decided): array
+    {
+        $slides = [];
+        foreach (array_slice($decided, 0, 4) as $d) {
+            $slides[] = ['real' => true, 'name' => (string) ($d['name'] ?? ''), 'ini' => (string) ($d['ini'] ?? ''),
+                         'photo' => (string) ($d['photo'] ?? ''), 'what' => (string) ($d['category'] ?? ''),
+                         'issuer' => trim((string) ($d['programme'] ?? '') . ' ' . (string) ($d['edition'] ?? '')),
+                         'url' => (string) ($d['url'] ?? ''), 'img' => '', 'srcset' => '', 'alt' => ''];
+        }
+        if ($slides !== []) return $slides;
+
+        $lines = ['teacher' => 'Teachers who changed a classroom', 'nurse' => 'Carers who keep a community well',
+                  'community-leader' => 'Leaders their street already celebrates', 'young-leader' => 'Young people building what comes next'];
+        foreach (self::honourTiles() as $t) {
+            if (!isset($lines[$t['key']])) continue;
+            $slides[] = ['real' => false, 'name' => $lines[$t['key']], 'ini' => '', 'photo' => '', 'what' => 'Nominate someone like this',
+                         'issuer' => 'Africa GATES', 'url' => '/nominate', 'img' => $t['src'], 'srcset' => $t['srcset'], 'alt' => $t['alt']];
+        }
+        return $slides;
+    }
+
+    /**
+     * Whether the shop sells anything that frames or prints a recognition — the promise
+     * the homepage's "Frame your recognition" topic makes. It was a typed card linking to
+     * /shop whatever the shop held, so on a store selling caps and mugs the homepage
+     * offered "certificates and frames for the honours on your profile" and delivered a
+     * page with neither. Read from the catalogue by the same kind rule the shop's covers
+     * use (CoverKind), on the category or the name.
+     */
+    public static function framesOnSale(): bool
+    {
+        try {
+            if (!\AfricaGates\Support\SchemaHas::table('gates_products')) return false;
+            foreach (DB::table('gates_products')->where('is_active', 1)->limit(500)->get(['name', 'category']) as $p) {
+                if (\AfricaGates\Support\CoverKind::productKind((string) $p->category) === 'art') return true;
+                if (preg_match('/\b(frames?|framed|certificates?|prints?|plaques?)\b/i', (string) $p->name) === 1) return true;
+            }
+        } catch (\Throwable) {}
+        return false;
+    }
+
+    /**
+     * The one wide Featured card: the open challenge closing soonest, or null (the section
+     * then hides — "nothing curated: hide the section").
+     *
+     * @return array{title:string,body:string,url:string,img:string}|null
+     */
+    public static function featuredChallenge(): ?array
+    {
+        if (array_key_exists('challenge', self::$memo)) return self::$memo['challenge'];
+        try {
+            $now = date('Y-m-d H:i:s');
+            $c = DB::table('gates_challenges')->where('status', \AfricaGates\Support\ChallengeEnum::ST_OPEN)
+                ->where(fn ($q) => $q->whereNull('ends_at')->orWhere('ends_at', '>', $now))
+                ->orderByRaw('CASE WHEN ends_at IS NULL THEN 1 ELSE 0 END')->orderBy('ends_at')->first();
+        } catch (\Throwable) {
+            return self::$memo['challenge'] = null;
+        }
+        if (!$c) return self::$memo['challenge'] = null;
+        $art = (string) ($c->art_url ?? '');
+        return self::$memo['challenge'] = [
+            'title' => (string) $c->title,
+            'body'  => trim((string) ($c->summary ?? '')),
+            'url'   => '/challenges/' . $c->slug,
+            'img'   => preg_match('#^(/|https://)#', $art) ? $art : '',
+        ];
+    }
+
+    /**
+     * Open appeals from organisations that can receive, closing soonest first — the giving
+     * page's "More ways to grow Africa's next leaders". No feature threshold here: these are
+     * listed, not promoted.
+     *
+     * @return list<array{title:string,org:string,url:string,raised:string,pct:int,days_left:?int,logo:string}>
+     */
+    public static function openCampaigns(int $limit = 4, ?int $exceptId = null): array
+    {
+        $orgs = [];
+        foreach (PartnerOrg::listReceivable() as $o) $orgs[(int) $o->id] = $o;
+        if ($orgs === []) return [];
+        try {
+            $q = DB::table('gates_org_campaigns')->whereIn('org_id', array_keys($orgs))
+                ->where('status', OrgCampaign::STATUS_LIVE)
+                ->orderByRaw('CASE WHEN closes_on IS NULL THEN 1 ELSE 0 END')->orderBy('closes_on')->orderBy('id');
+            if ($exceptId) $q->where('id', '!=', $exceptId);
+            $rows = $q->limit($limit * 3)->get()->all();
+        } catch (\Throwable) {
+            return [];
+        }
+        $out = [];
+        foreach ($rows as $c) {
+            if (!OrgCampaign::isOpen($c)) continue;
+            $org  = $orgs[(int) $c->org_id];
+            $p    = OrgCampaign::progress((int) $c->id);
+            $logo = (string) (OrgBrand::of($org)['logo'] ?? '');
+            $out[] = ['title' => (string) $c->title, 'org' => (string) ($org->name ?? ''),
+                      'url' => \AfricaGates\Support\GivingUrl::org((string) $org->slug, (string) $c->slug),
+                      'raised' => '₦' . number_format($p['raised']), 'pct' => (int) $p['pct'],
+                      'days_left' => OrgCampaign::daysLeft($c),
+                      'logo' => OrgBrand::safePath($logo) ? '/' . $logo : ''];
+            if (count($out) >= $limit) break;
+        }
+        return $out;
+    }
+
+    /** Whether a campaign may be FEATURED (LOW-DATA-RULES, Giving row). */
+    public static function featurable(array $p, ?string $closesOn): bool
+    {
+        if (!\AfricaGates\Support\DisplayThreshold::met('campaign_feature_pct', (int) ($p['pct'] ?? 0))) return false;
+        if (!\AfricaGates\Support\DisplayThreshold::met('campaign_feature_gifts', (int) ($p['count'] ?? 0))) return false;
+        if (!empty($p['met']) || (int) ($p['pct'] ?? 0) >= 100) return false;          // already funded
+        if ($closesOn !== null && $closesOn !== '' && strtotime($closesOn . ' 23:59:59') - time() < 86400) return false;
+        return true;
     }
 
     /**

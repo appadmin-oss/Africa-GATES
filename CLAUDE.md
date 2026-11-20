@@ -134,6 +134,55 @@ on a form routes it through `agConfirm` — since the console rebuild a confirm-
 dialog: a POSTing form cannot be confirmed without a reason, which travels as `_reason` and
 `AuditService::record()` attaches to the audit row (one place, not 124 call sites).
 
+## The admin console swaps pages; a page script must say whether it may run twice
+
+`public/assets/js/console-nav.js` (21 Oct 2026) fetches the next console page and swaps in
+`#cnMain`'s contents, the rail's tree, the top bar and the tab bar — no reload, links fetched
+ahead on hover. `#cnMain` itself is never replaced, so listeners on it survive; anything that
+SCANS the page runs again on `cn:load` (admin.js, console-ux.js, richtext), and scripts can
+clean up on `cn:unload`.
+
+**A page's own `<script>` is the hazard.** Re-executed on every visit, a listener it put on
+the document or window outlives its page — the review list's A key approves the open
+nomination, and a stale one pressed on the next page would approve one from the last. So:
+`data-nav="rerun"` lets it be swapped, and `ConsoleNavTest` only allows that while it binds
+nothing outside its own elements directly — no document/window/`#cnMain` listener, no
+uncleared `setInterval`, no top-level `const`/`let`. **Bind those through `cnPage`** (defined
+inline in the layout head, so it exists before any page script): `cnPage.on(target, type, fn)`,
+`cnPage.every(fn, ms)`, `cnPage.leave(fn)` — all undone at `cn:unload`. Since 21 Oct 2026
+every console page takes part, and the test fails on an unmarked page script, because one
+unmarked script means the whole console reloads every time that page is opened or left. Shell scripts say `data-nav="shell"` — one left
+unmarked turns the swap off on EVERY page, silently. Navigation listens on `window`, so a
+page script's document listener always gets a click first, whenever it was added.
+
+A swapped page's nonce is not this document's: console-nav re-signs the fetched HTML BEFORE
+parsing, because Chromium checks a `<style>` against the policy even in an inert parsed
+document. A prefetch carries `X-Console-Prefetch: 1`, and `ConsoleShell::prefetch()` keeps it
+out of Recent and Presence — a link hovered over is not a page viewed.
+
+## The public site swaps pages too; a page script must say whether it may run again
+
+`public/assets/js/site-nav.js` (2 Nov 2026) does for the public shell what console-nav does
+for the console: a link or a GET form fetches the next page and swaps the inside of `<main>`,
+the header, the app bar and the bottom bars, with prefetch on hover or touch. Every POST is a
+full navigation, always (a vote, a payment). A page swaps only when each script of its own
+says `data-nav="rerun"` (safe on every visit), `once` (a third party's loader, Turnstile) or
+is the layout's (`shell`); `reload` or anything unmarked is a full load. A `rerun` script
+binds no document, window or `<main>` listener and starts no interval except through
+`agPage.on/every/leave` (layout/shell.twig head), which are undone on `ag:unload`.
+`<main>` itself survives a swap, so a scroll listener on it piles up. Overlays that stay
+carry `data-nav-keep`; a kept element's per-page attributes are listed in `data-nav-sync`.
+Shell scripts re-scan on `ag:load`. `SiteNavTest` holds it, and fails on an unmarked script.
+
+**A tab bar says so: `data-tabs="name"` on the element holding its links** (3 Nov 2026).
+Both site-nav and console-nav then fetch that bar's links once the page is idle and keep them
+a minute, so a tab swaps from memory (950ms → ~30ms on a 150ms link; the organisation
+console was a 2.3s full reload per tab). `data-tabs-top` is for a section rail: the new
+section opens at its top rather than holding the rail in place. `/org` is swapped but never
+fetched ahead from outside it — a GET there opens the organisation's session. A page fetched
+ahead neither shows nor spends a flash or a form replay (`$ahead` in `config/container.php`).
+`TabSwitchTest` fails on a `?tab=` link marked current in a template with no `data-tabs`.
+
 ## A header can switch a feature off in a way nothing on the page can see
 
 `Permissions-Policy: camera=()` denied the camera on **every page of the site**, so the
@@ -330,8 +379,12 @@ by name, and an unknown name throws rather than painting a button blank.
 **The admin console has a second set in the same file** (owner, 4 Oct 2026): the admin
 handoff's monochrome palette (README §10) as `Accent::console()`, emitted as `--cn-*` by
 `ag_accents('console')` in the admin layout only — the two surfaces share no name. Its words
-are measured by `ConsolePaletteTest`; four the handoff draws under 4.5:1 are REPORTED in
-`Accent::consoleReported()`, never re-valued.
+are measured by `ConsolePaletteTest`, and every one clears 4.5:1 on every ground it is drawn
+on. The handoff drew `soft`, `faint`, `faint-2` and `slate` below that; they were REPORTED
+and left alone until the owner ruled (31 Oct, confirmed 5 Nov 2026) that the console must
+pass accessibility. They were re-valued to pass, `Accent::consoleReported()` is empty, and
+`AdminContrastTest` keeps the old greys from returning. A new console colour is measured
+like the rest: if it fails, darken it until it passes; do not add it to the reported list.
 
 Why PHP and not a stylesheet: the values the page receives and the values the tests measure
 must be the same values. A colour with two sources is decided by load order, which is how
@@ -611,8 +664,12 @@ does not. A limit that locks out real people fails in the direction nobody repor
 
 ### Two sign-ins, each strong where the other was weak
 
-`/account/login` and `/org/login` are separate trust domains on separate routes, and that
-separation is deliberate — `account/login.twig` refuses to offer organisation sign-in for
+(Historical since 29 Oct 2026: `/org/login` is retired and forwards to the one sign-in — see
+"One login" below. The organisation's password survives as what a payout asks for, so the
+throttle-and-lock reasoning here still governs it.)
+
+`/account/login` and `/org/login` were separate trust domains on separate routes, and that
+separation was deliberate — `account/login.twig` refused to offer organisation sign-in for
 exactly that reason. What was not deliberate is the two arriving at different answers to
 the same questions, with nothing anywhere comparing them.
 
@@ -688,6 +745,28 @@ every one. Nothing failed: the suite was green either way, because the replaceme
 The tell was the COUNT, which went 6579 → 6574 after adding five tests, and a status line
 reading `M` where `??` was expected. Read the test total after a run that adds tests, and
 make it add up.
+
+### One login, and a role is given to an address
+
+Since 29 Oct 2026 there is ONE sign-in, `/account/login`. A staff, judging or organisation role
+is **given by staff to an email address** — the address typed when the admin, judge or
+organisation user was created — and the Africa GATES account that has **verified** that address
+holds it (`Services\Account\Roles::held`, read from the role's own row on every request, so a
+role switched off or given to another address is gone on the next one). Nobody joins, links
+or adds anything; there is no roles page. A member cannot change their account's address, so
+holding it is proving it — the proof the console's magic link and the panel's code always
+asked for. The console, the panel and the organisation open **on the way in** from the account
+(`Roles::derive`, called by `AdminAuthMiddleware`, `JudgeAuthMiddleware` and `OrgAuth::user`),
+through each role's own session start. A session proved only by a code texted to a phone is
+sent an email code first. Money and configuration ask again: an emailed code before a console
+write in Finance or Configuration (`AccountReconfirmMiddleware`, keyed on
+`Permissions::sectionForPath`), and an organisation's payout asks for **the organisation's own
+password** — not retired, because an email must never move a charity's money. `/admin/login`,
+`/admin/magic`, `/judge/login` and `/org/login` are forwarding addresses only (bookmarks, old
+mail, every bounce written before), and signing out of any of them signs the person out.
+`/__setup/admin` also leaves the superadmin's account able to sign in with its password,
+because on a fresh install mail may not work yet. The product switcher at the top of the rail
+moves between them (ElevenLabs' shape). `AccountRolesTest`, seven mutations each failing it.
 
 ### A link that signs you in is a sign-in, and there were three answers to one question
 
@@ -937,6 +1016,15 @@ Twenty-four round trips per page, invisibly — the page draws and the figures a
 `Support\SchemaHas` is it; it never memoises a `false` that came from a throw, because a
 dropped connection recorded as "no such column" makes a merge skip a table, journal nothing
 for it, and report success.
+
+## Minified twins: run `php scripts/build-min.php` after editing a script
+
+`Assets::url()` serves `public/assets/min/<js|css>/<path>.<hash>.<ext>` in place of a source
+when a twin exists for the source's CURRENT content hash (`Support\MinifiedAssets`). Edit a
+script and its old twin stops matching, so the source is served as written: correct, and
+43% heavier. CSS twins are rebuilt by the hourly maintenance run in PHP; JS twins need
+esbuild, which the host does not have, so run the build where Node exists and commit
+`public/assets/min`. Never edit a twin.
 
 ## Running the tests
 

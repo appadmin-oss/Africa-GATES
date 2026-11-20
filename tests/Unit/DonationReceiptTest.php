@@ -56,7 +56,7 @@ final class DonationReceiptTest extends TestCase
         $this->mail = new class extends OtpService {
             public array $sent = [];
             public function __construct() { parent::__construct(['username' => 'u', 'password' => 'p']); }
-            public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '', string $category = '', string $hero = '', string $unsubscribeUrl = '', array $attachments = [], string $preheader = '', int $heroHeight = 0): array
+            public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '', string $category = '', string $hero = '', string $unsubscribeUrl = '', array $attachments = [], string $preheader = '', int $heroHeight = 0, string $why = ''): array
             {
                 $this->sent[] = ['to' => $to, 'subject' => $subject, 'html' => $htmlBody];
                 return ['success' => true];

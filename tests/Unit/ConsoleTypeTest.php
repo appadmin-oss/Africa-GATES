@@ -31,7 +31,8 @@ use Tests\TestCase;
 final class ConsoleTypeTest extends TestCase
 {
     /** px → the tokens.css step name suffix. */
-    private const LADDER = [10.5, 11.0, 11.5, 12.0, 12.5, 13.0, 13.5, 14.0, 15.0, 16.0, 17.0, 18.0, 22.0, 24.0, 26.0, 30.0];
+    // 28 is the v7 page h1 (docs/handoff/consoles-v7/README §2.2), added with the v7 shell.
+    private const LADDER = [10.5, 11.0, 11.5, 12.0, 12.5, 13.0, 13.5, 14.0, 15.0, 16.0, 17.0, 18.0, 22.0, 24.0, 26.0, 28.0, 30.0];
 
     private const MONO_OK = ['n', 'num', 'badge', 'v', 'kbd', 'time', 'ref', 'code'];
 

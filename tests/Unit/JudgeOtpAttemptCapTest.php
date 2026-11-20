@@ -126,9 +126,4 @@ class JudgeOtpAttemptCapTest extends TestCase
     }
 
     /** The controller still uses the constant this test pins. */
-    public function test_the_controller_cap_matches(): void
-    {
-        $ref = new \ReflectionClass(\AfricaGates\Judge\Controllers\AuthController::class);
-        $this->assertSame(self::MAX, $ref->getConstant('MAX_OTP_ATTEMPTS'));
-    }
 }

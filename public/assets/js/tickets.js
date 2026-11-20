@@ -23,7 +23,23 @@
     form.addEventListener('submit', function (e) {
       e.preventDefault();
       var body = form.elements.body;
-      if (!body || !body.value.trim()) { if (body) body.focus(); return; }
+      // An empty message was refused by moving focus and saying nothing, so a screen reader
+      // heard the box's own label and no reason. Now it is told, and the box is marked.
+      if (!body || !body.value.trim()) {
+        if (body) {
+          if (note) {
+            if (!note.id) note.id = 'stNote' + Math.random().toString(36).slice(2, 8);
+            note.textContent = note.getAttribute('data-empty') || 'Say what has gone wrong first.';
+            note.classList.add('st-note--err');
+            var by = (body.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
+            if (by.indexOf(note.id) < 0) { by.push(note.id); body.setAttribute('aria-describedby', by.join(' ')); }
+          }
+          body.setAttribute('aria-invalid', 'true');
+          body.addEventListener('input', function clear() { body.removeEventListener('input', clear); body.removeAttribute('aria-invalid'); }, { once: true });
+          body.focus();
+        }
+        return;
+      }
       var btn = form.querySelector('[type="submit"]');
       var url = kind === 'link' ? location.pathname.replace(/\/+$/, '') + '/reply' : form.getAttribute('action');
       var fd = new FormData(form);
@@ -39,7 +55,7 @@
         .then(function (d) {
           if (note) { note.textContent = d.message || ''; note.classList.toggle('st-note--err', !d.ok); }
           if (d.code === 'SIGN_IN' && d.login_url) { setTimeout(function () { location.href = d.login_url; }, 1400); return; }
-          if (d.ok) setTimeout(function () { location.reload(); }, 900);
+          if (d.ok) setTimeout(function () { if (window.agNav && window.agNav.reload) window.agNav.reload(); else location.reload(); }, 900);
         })
         .catch(function () { if (note) { note.textContent = note.getAttribute('data-offline') || 'No connection. Your words are still in the box — try again in a moment.'; note.classList.add('st-note--err'); } })
         .then(function () { if (btn) btn.removeAttribute('aria-busy'); });

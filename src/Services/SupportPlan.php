@@ -215,6 +215,45 @@ final class SupportPlan
             }
         }
 
+        // ── 3b · a signed-in member's own money, with no reference given ─────
+        //
+        // "Check the payments I've made — one of my votes did not go through and I need a
+        // refund" names no reference because the person expects us to know who they are,
+        // and when they are signed in we do. The agent's rules already said "my_transactions
+        // first" and nothing here ran it, so a model that answered "I will check your
+        // payments, hold on" had nothing in front of it to check. It is listed only when the
+        // context holds a member (my_transactions is not offered otherwise, and the filter
+        // below drops it), and it reads only that member's own rows.
+        if ($ref === null && $ctx->isMember()
+            && self::any($m, ['paid', 'payment', 'payments', 'charged', 'debited', 'bought', 'purchase',
+                              'refund', 'money back', 'my money', 'transaction', 'my order', 'my votes',
+                              'did not go through', "didn't go through", 'not go through', 'failed'])) {
+            // refund_status needs a reference, and my_transactions returns them: the model
+            // checks the refund on the payment the list shows, rather than being handed a
+            // "reference needed" that the person cannot answer any better than we can.
+            $add('my_transactions', [], 'a signed-in member asking about their own payments');
+        }
+
+        // ── 3c · "I don't have the reference" ─────────────────────────────────
+        //
+        // The reference is the thing a person whose payment went wrong is least likely to
+        // hold — it was on the page they were bounced off and in the receipt that never
+        // came. A ticket asked for it three times and then gave up. With an address in the
+        // message, or a signed-in member saying they have no reference (or that they paid,
+        // which their account address may not cover), find_payment re-checks what is stuck
+        // under that address and sends the references there.
+        $noRef = self::any($m, ["don't know the reference", 'dont know the reference', "don't have the reference",
+                                'dont have the reference', 'no reference', 'lost the reference', "can't find the reference",
+                                'cannot find the reference', "don't know the ref", "don't no the ref", 'dont no the ref',
+                                "don't have the ref", 'no ref', "didn't get a reference", 'did not get a reference',
+                                'no receipt', 'never got a receipt', "didn't get a receipt", 'did not get any receipt']);
+        $paidTalk = self::any($m, ['paid', 'payment', 'charged', 'debited', 'bought', 'purchase', 'my money', 'transfer']);
+        if ($ref === null && $email !== null && ($paidTalk || $noRef)) {
+            $add('find_payment', ['email' => $email], 'they paid, gave the address, and no reference');
+        } elseif ($ref === null && $noRef && $ctx->isMember()) {
+            $add('find_payment', ['email' => ''], 'a signed-in member who has no reference');
+        }
+
         // ── 4 · a FREE vote, which has no payment and no reference at all ────
         //
         // Most votes on this platform are free. Answering one of those with a

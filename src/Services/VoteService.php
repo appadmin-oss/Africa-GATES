@@ -46,6 +46,13 @@ class VoteService {
 
     public function castVote(string $email, string $otp, int $nomineeId, int $awardId, string $ip = '', ?string $deviceHash = null, ?string $idempotencyKey = null, ?string $voterName = null, ?string $voterPhone = null): array {
         $eh = self::voterHash($email);
+        // The inbox this address reaches (`ada+votes@` and `a.da@gmail.com` are one), for
+        // COUNTING people on the duplicates screen. Never read by the one-vote rule, which
+        // stays on $eh: changing that would change who may vote in the middle of a cycle.
+        // Optional, because an insert naming a missing column throws, and the catch below
+        // would tell a real voter they had already voted.
+        $canon = \AfricaGates\Support\SchemaHas::column('gates_votes', 'voter_canon_hash')
+            ? ['voter_canon_hash' => \AfricaGates\Support\EmailCanon::hash($email)] : [];
         $th = hash('sha256', trim($otp));
         $ipHash = $ip !== '' ? hash('sha256', $ip) : null;
         // Voter identity captured alongside the (hashed) email — stored as-is for
@@ -66,8 +73,12 @@ class VoteService {
             // key must not be handed that voter's result — treat it as a new attempt.
             $prior = DB::table('gates_votes')->where('idempotency_key', $idempotencyKey)->where('voter_email_hash', $eh)->first();
             if ($prior) {
+                if ((int) $prior->nominee_id !== $nomineeId) {
+                    return ['success' => false, 'code' => 'IDEMPOTENCY_CONFLICT',
+                            'message' => 'This voting attempt belongs to a different nominee. Start a new attempt.'];
+                }
                 return [
-                    'success' => true, 'code' => 'VOTE_CAST', 'message' => 'Vote already recorded.',
+                    'success' => true, 'code' => 'VOTE_CAST', 'message' => 'Vote already recorded.', 'replayed' => true,
                     'vote_id' => (int) $prior->id, 'category_id' => (int) $prior->category_id,
                     'new_count' => (int) DB::table('gates_nominees')->where('id', $prior->nominee_id)->value('vote_count'),
                     'new_rank' => null, 'days_left' => 0,
@@ -75,7 +86,7 @@ class VoteService {
             }
         }
 
-        $result = DB::transaction(function () use ($eh, $th, $nomineeId, $awardId, $ipHash, $deviceHash, $idempotencyKey, $voterName, $voterPhone) {
+        $result = DB::transaction(function () use ($eh, $canon, $th, $nomineeId, $awardId, $ipHash, $deviceHash, $idempotencyKey, $voterName, $voterPhone) {
             // Latest live token for this email; lock it for the duration.
             $token = DB::table('gates_otp_tokens')
                 ->where('email_hash', $eh)->where('purpose', 'vote')->where('is_used', 0)
@@ -140,9 +151,17 @@ class VoteService {
                     'voter_name'       => $voterName,
                     'voter_phone'      => $voterPhone,
                     'voted_at'         => Carbon::now()->toDateTimeString(),
-                ]);
-            } catch (\Throwable $e) {
-                return ['success' => false, 'code' => 'ALREADY_VOTED', 'message' => 'You have already voted in this category.'];
+                ] + $canon);
+            } catch (\Illuminate\Database\QueryException $e) {
+                $driverCode = (int) ($e->errorInfo[1] ?? 0);
+                if (in_array($driverCode, [1062, 19, 1555, 2067], true)
+                    && DB::table('gates_votes')->where('voter_email_hash', $eh)
+                        ->where('category_id', $nominee->category_id)->exists()) {
+                    return ['success' => false, 'code' => 'ALREADY_VOTED', 'message' => 'You have already voted in this category.'];
+                }
+                // Roll back the attempt and let the error handler report a server
+                // failure. A rejected write does not establish that a vote exists.
+                throw $e;
             }
             DB::table('gates_otp_tokens')->where('id', $token->id)->update(['is_used' => 1]);
             // Organic vote: bump both the display total AND the organic-only count

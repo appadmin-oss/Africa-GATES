@@ -35,7 +35,6 @@ class JudgesController
         // The chip is a URL (`?programme=`), so the filter works with no script and survives
         // Back; an unknown slug is no filter rather than an empty roster.
         $sel = (string) ($req->getQueryParams()['programme'] ?? '');
-        $sel = '';
         if ($sel !== '') {
             $roster = array_values(array_filter($roster, static function (array $j) use ($sel): bool {
                 foreach ($j['programmes'] as $p) { if ($p['slug'] === $sel) return true; }
@@ -43,7 +42,7 @@ class JudgesController
             }));
         }
         return $this->view->render($res, 'pages/judges.twig', [
-            'page_title'       => 'Meet the Judges — Africa GATES',
+            'page_title'       => 'Meet the judges — Africa GATES',
             'meta_description' => 'Meet the independent panel evaluating Africa GATES nominees — distinguished experts scoring documented impact, not popularity, behind the Cultural Power Index.',
             'gates_page'       => 'judges',
             'judges'           => $roster,

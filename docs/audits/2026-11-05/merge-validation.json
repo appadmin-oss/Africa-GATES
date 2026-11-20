@@ -1,0 +1,57 @@
+{
+  "remote_branch": "claude/ai-assistance-judges-features-1ka4oz",
+  "remote_integrated": "8779f5f927a6373988bca988ff426c1d88394376",
+  "remote_commits_since_previous_base": 66,
+  "conflicted_files_resolved": 14,
+  "sqlite": {
+    "tests": 685,
+    "assertions": 10542,
+    "exit": 0
+  },
+  "mysql": {
+    "tests": 685,
+    "assertions": 10532,
+    "skipped": 1,
+    "exit": 0,
+    "note": "Harness emitted a settings-table purge/restore diagnostic during table-rebuild tests; no failing assertions."
+  },
+  "php_lint": {
+    "files": 1698,
+    "errors": 0
+  },
+  "browser_event": {
+    "created": true,
+    "coverDisplayed": true,
+    "review": true,
+    "hiddenFieldValidation": true,
+    "filters": true,
+    "relatedPages": 4,
+    "productHiddenFieldValidation": true,
+    "widths": [
+      320,
+      390,
+      768,
+      1440
+    ],
+    "pageErrors": []
+  },
+  "browser_portrait": {
+    "preview": true,
+    "cancel_and_focus": true,
+    "save": true,
+    "remove": true,
+    "widths": [
+      320,
+      390,
+      768,
+      1440
+    ],
+    "pageErrors": []
+  },
+  "browser_upload_component": {
+    "format_and_size_validation": true,
+    "retry": true,
+    "reset": true
+  },
+  "scope": "Targeted integration regression checks, not a complete repository or production audit."
+}

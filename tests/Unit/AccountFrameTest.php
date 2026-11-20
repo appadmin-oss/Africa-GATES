@@ -61,7 +61,8 @@ final class AccountFrameTest extends TestCase
             ['dashboard', '/account?tab=referral', 'referral'],
             ['dashboard', '/account?tab=security', 'security'],
             ['dashboard', '/account?tab=settings', 'settings'],
-            ['points', '/account/points', 'points'],
+            ['points', '/account/points', 'wallet'],
+            ['wallet', '/account/wallet', 'wallet'],
             ['notifications', '/account/notifications', 'activity'],
             ['display', '/account/display', 'settings'],
         ];
@@ -70,8 +71,11 @@ final class AccountFrameTest extends TestCase
             $this->assertStringContainsString('<aside class="acx-rail"', $html, $uri);
             $href = htmlspecialchars(AccountRail::SECTIONS[$key][1], ENT_QUOTES);
             $this->assertMatchesRegularExpression('~<a class="acx-tab" href="' . preg_quote($href, '~') . '" aria-current="page">~', $html, "$uri marks $key");
-            $this->assertSame(1, substr_count($html, 'aria-current="page">'), "$uri: one current section");
-            foreach (AccountRail::SECTIONS as [, $h]) {
+            $this->assertSame(1, preg_match_all('~<a class="acx-tab"[^>]+aria-current="page">~', $html), "$uri: one current section");
+            foreach (AccountRail::SECTIONS as $k => [, $h]) {
+                // A conditional section is drawn only for the members it concerns (a
+                // nominee's community return); its own test asserts that both ways.
+                if (in_array($k, AccountRail::CONDITIONAL, true)) continue;
                 $this->assertStringContainsString('href="' . htmlspecialchars($h, ENT_QUOTES) . '"', $html, "$uri reaches $h");
             }
         }
@@ -81,7 +85,7 @@ final class AccountFrameTest extends TestCase
     {
         $this->assertStringContainsString('id="me-referral"', $this->get('dashboard', '/account?tab=referral'));
         $this->assertStringContainsString('id="me-security"', $this->get('dashboard', '/account?tab=security'));
-        $this->assertStringContainsString('id="profile"', $this->get('dashboard', '/account?tab=settings'));
+        $this->assertStringContainsString('id="profile"', $this->get('dashboard', '/account?tab=profile'), 'your details moved to Profile on 30 Oct 2026');
 
         $src = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Controllers/AccountController.php');
         $this->assertDoesNotMatchRegularExpression("~'/account#~", $src, 'a redirect to /account#x lands on the overview, where x is not');
@@ -94,7 +98,7 @@ final class AccountFrameTest extends TestCase
         $this->assertStringContainsString('aria-label="Quick actions"', $html);
         $this->assertStringContainsString('class="ag-list acx-rows"', $html, 'the phone\'s section list');
         foreach (AccountRail::SECTIONS as $k => [, $h]) {
-            if ($k === 'overview') continue;
+            if ($k === 'overview' || in_array($k, AccountRail::CONDITIONAL, true)) continue;
             $this->assertMatchesRegularExpression('~acx-rows.*href="' . preg_quote(htmlspecialchars($h, ENT_QUOTES), '~') . '"~s', $html, $k);
         }
     }
@@ -104,7 +108,7 @@ final class AccountFrameTest extends TestCase
         $css = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/css/components/account.css');
         $this->assertMatchesRegularExpression('~@media \(min-width:600px\)\{[^@]*\.acx\{ grid-template-columns:210px minmax\(0, 1fr\)~', $css);
         $this->assertMatchesRegularExpression('~@media \(min-width:1024px\)\{[^@]*\.acx\{ grid-template-columns:250px minmax\(0, 1fr\) \}~', $css);
-        $this->assertMatchesRegularExpression('~\.acx\{[^}]*max-width:1200px~', $css);
+        $this->assertMatchesRegularExpression('~\.acx\{[^}]*max-width:1304px~', $css);
         $this->assertDoesNotMatchRegularExpression('~max-width:720px~', $css, 'the Phase 8 single column is gone');
         foreach (['dashboard', 'points', 'notifications', 'display'] as $t) {
             $this->assertStringContainsString("{% extends 'pages/account/_frame.twig' %}",

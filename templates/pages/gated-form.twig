@@ -1,0 +1,71 @@
+{% extends 'layout/shell.twig' %}
+{#
+  /form/{token} — the single-use form an approved nominee or a newly invited judge fills in
+  once (GatedFormController::show / submit). Destroyed on 3 Oct with the old pages and not
+  rebuilt, so the "Complete my nominee form" button in every approval email — and every
+  judge's onboarding link — answered a 500. Rules carried from the inventory
+  (docs/handoff/inventory/pages--gated-form.md):
+
+    · the URL token is the capability and the form submits exactly once, so a used or
+      expired link says which, and what to do — never a bare refusal;
+    · bio and the terms are required (the controller refuses without them and comes back
+      here with the reason, keeping nothing — so the hint says it before they type);
+    · the consent line is the programme's own terms (`terms_url`), not the site's.
+  No share button: the token in this URL is the person's whole credential.
+#}
+{% set colour_tier = '2' %}
+{% set app_bar = {variant: 'child', title: purpose == 'judge' ? 'Judge profile'|trans : 'Nominee form'|trans, share: false} %}
+{% set _judge = purpose == 'judge' %}
+
+{% block head_styles %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/my-work.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="mw" data-page-kind="{{ gates_page|default('form') }}">
+  {% if status == 'done' %}
+    <section class="mw__card" aria-labelledby="gf-h">
+      <h1 class="mw__h1" id="gf-h">{{ 'Thank you'|trans }}</h1>
+      <p class="mw__p">{{ _judge ? 'Your judge profile is saved.'|trans : 'Your details are saved for the panel.'|trans }}</p>
+      <div class="mw__do"><a class="ag-btn ag-btn--secondary" href="/">{{ 'Back to Africa GATES'|trans }}</a></div>
+    </section>
+  {% elseif status == 'used' %}
+    <section class="mw__card" aria-labelledby="gf-h">
+      <h1 class="mw__h1" id="gf-h">{{ 'This form is already complete'|trans }}</h1>
+      <p class="mw__p">{{ 'Each link works once. For changes, write to the help desk.'|trans }}</p>
+      <div class="mw__do"><a class="ag-btn ag-btn--primary" href="/support">{{ 'Open the help desk'|trans }}</a></div>
+    </section>
+  {% elseif status == 'expired' %}
+    <section class="mw__card" aria-labelledby="gf-h">
+      <h1 class="mw__h1" id="gf-h">{{ 'This link has expired'|trans }}</h1>
+      <p class="mw__p">{{ 'Ask the help desk. A new link cancels the old one.'|trans }}</p>
+      <div class="mw__do"><a class="ag-btn ag-btn--primary" href="/support">{{ 'Ask for a new link'|trans }}</a></div>
+    </section>
+  {% elseif status != 'ok' %}
+    <section class="mw__card" aria-labelledby="gf-h">
+      <h1 class="mw__h1" id="gf-h">{{ 'This link is not working'|trans }}</h1>
+      <p class="mw__p">{{ 'It may be mistyped or replaced. Use the link in our latest email.'|trans }}</p>
+    </section>
+  {% else %}
+    <header class="mw__head">
+      <h1 class="mw__h1">{% if subject_name %}{{ 'Congratulations, %n%'|trans({'%n%': subject_name}) }}{% else %}{{ _judge ? 'Complete your judge profile'|trans : 'Complete your nominee form'|trans }}{% endif %}</h1>
+      <p class="mw__p">{{ _judge ? 'A few details so the programme can introduce you. This link works once.'|trans : 'A few details for the panel and the public. This link works once.'|trans }}</p>
+    </header>
+    {% if error %}<p class="mw__flash mw__flash--err" role="alert">{{ error }}</p>{% endif %}
+    <form method="post" action="/form/{{ token }}" class="mw__card mw__form">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <label class="mw__lbl" for="gf-bio">{{ 'A short bio'|trans }}</label>
+      <p class="mw__help" id="gf-bio-h">{{ 'Required. A few sentences in your own words.'|trans }}</p>
+      <textarea class="mw__in" id="gf-bio" name="bio" rows="6" maxlength="2000" required aria-describedby="gf-bio-h"></textarea>
+      <label class="mw__lbl" for="gf-exp">{{ _judge ? 'Your field of expertise'|trans : 'What you are known for'|trans }}</label>
+      <input class="mw__in" id="gf-exp" name="expertise" maxlength="200" autocomplete="organization-title">
+      <label class="mw__lbl" for="gf-phone">{{ 'Phone (optional)'|trans }}</label>
+      <input class="mw__in" id="gf-phone" name="phone" type="tel" maxlength="40" inputmode="tel" autocomplete="tel">
+      <label class="mw__lbl" for="gf-links">{{ 'A link to your work (optional)'|trans }}</label>
+      <input class="mw__in" id="gf-links" name="links" maxlength="500" inputmode="url" placeholder="https://">
+      <label class="mw__lbl"><input type="checkbox" name="accept_terms" value="1" required> {{ 'I confirm these details are accurate and I accept the'|trans }} <a href="{{ terms_url|default('/terms') }}" target="_blank" rel="noopener">{{ 'programme terms'|trans }}</a>.</label>
+      <div class="mw__do"><button type="submit" class="ag-btn ag-btn--primary">{{ 'Submit my details'|trans }}</button></div>
+    </form>
+  {% endif %}
+</div>
+{% endblock %}

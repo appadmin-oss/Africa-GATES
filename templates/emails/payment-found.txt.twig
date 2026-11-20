@@ -1,0 +1,17 @@
+{#- Plain-text part for payment-found.html.twig. -#}
+Your payment references
+
+You asked for help with a payment and did not have its reference. These are the payments made with this address in the last 60 days. Each one that had not gone through was checked again with the payment gateway just now.
+{% if added > 0 %}
+{{ added }} votes that were paid for and missing have now been added.
+{% endif %}
+{% for i in items %}- {{ i[0] }}: {{ i[1] }}
+{% endfor %}
+Check a payment’s votes: {{ action_url }}
+
+Quote a reference to support and the payment is found at once. If you did not ask for this, nobody can see these payments from this email — you can ignore it.
+
+—
+Somebody asked our support assistant to find payments made with this address.
+{{ postal_address }}
+Help: {{ site_url }}/help · Privacy: {{ site_url }}/privacy

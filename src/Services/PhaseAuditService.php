@@ -572,7 +572,12 @@ final class PhaseAuditService
 
         $out = [];
         foreach ($cycles as $c) {
-            if (!CyclePolicy::phaseFor($c, $now)->isFinished()) continue;
+            // The SCHEDULE, not the release state: under manual release (the default) an
+            // edition past its results date is still Judging until an operator releases it,
+            // and that edition is exactly what this backlog exists to list. Released or
+            // archived editions are finished on both readings.
+            if (!CyclePolicy::phaseFor($c, $now)->isFinished()
+                && !CyclePolicy::scheduledPhase($c, $now)->isFinished()) continue;
 
             try {
                 $cats = DB::table('gates_award_categories as cat')

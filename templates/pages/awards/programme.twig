@@ -31,12 +31,12 @@
 #}
 
 {% set colour_tier = '2' %}
-{% set app_bar = {variant: 'child', title: a.title, sub: a.soon ? 'Coming soon'|trans : (a.host.name|default('') ?: a.edition), back: '/awards'} %}
+{% set app_bar = {variant: 'child', title: a.title, sub: a.soon ? 'Coming soon'|trans : (a.host.name|default('') ?: a.edition), back: '/awards', share: true} %}
 {% set _ed = a.is_current ? '' : (a.cycle.year|default('')) %}
 {% set _q = _ed ? '&edition=' ~ _ed : '' %}
 {% set _fam = {'gold-ink': 'gold', 'live': 'live', 'info': 'info', 'green': 'green', 'gold': 'gold'} %}
 
-{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/awards.css') }}">{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/awards.css') }}">{% if views %}<link rel="stylesheet" href="{{ asset('/assets/css/components/views.css') }}">{% endif %}{% endblock %}
 
 {% macro host_line(a) %}
   <span class="aw-d__host">
@@ -55,6 +55,7 @@
     <span class="aw-soon__badge"><span class="aw-badge__dot" style="--ag-dot:var(--ag-gold)"></span>{{ 'Coming soon'|trans }}{% if a.edition %} · {{ a.edition }}{% endif %}</span>
     {{ m.host_line(a) }}
     <h1 class="aw-d__h1">{{ a.title }}</h1>
+    {% if views %}<div class="ag-views-row">{% include 'partials/views-badge.twig' with {v: views, csrf_token: csrf_token} only %}</div>{% endif %}
     {% if a.subtitle or a.description %}<p class="aw-soon__p">{{ a.subtitle ?: a.description }}</p>{% endif %}
     {% if a.opens_at %}
       {% set _left = a.opens_in %}
@@ -75,7 +76,7 @@
   <section class="aw-notify" id="aw-notify" aria-labelledby="aw-notify-t">
     <div class="aw-notify__head">
       <h2 class="aw-notify__t" id="aw-notify-t">{{ 'Be first to know'|trans }}</h2>
-      <p class="aw-notify__p">{{ 'We’ll email you once, on the day nominations open. Nothing is sent until you confirm the link we send.'|trans }}</p>
+      <p class="aw-notify__p">{{ 'We’ll email you once, when nominations open, after you confirm our link.'|trans }}</p>
     </div>
     {% if alert_said %}<p class="aw-notify__said" role="status">{{ alert_said }}</p>{% endif %}
     <form class="aw-notify__form" method="post" action="/awards/{{ a.slug }}/notify" novalidate data-ag-validate>
@@ -108,7 +109,7 @@
 
   <section class="aw-prep" aria-labelledby="aw-prep">
     <h2 class="aw-prep__t" id="aw-prep">{{ 'Thinking of nominating someone?'|trans }}</h2>
-    <p class="aw-prep__p">{{ 'Start gathering evidence now: links, photos, press or letters. You’ll need a reason of at least %n% characters for each category.'|trans({'%n%': constant('AfricaGates\\Services\\NominationRules::MIN_REASON')}) }}</p>
+    <p class="aw-prep__p">{{ 'Gather evidence now. Each category needs a reason of at least %n% characters.'|trans({'%n%': constant('AfricaGates\\Services\\NominationRules::MIN_REASON')}) }}</p>
     <a class="aw-prep__a" href="/nominate">{{ 'How nominating works'|trans }} <span class="ag-ico-dir" aria-hidden="true">→</span></a>
   </section>
 
@@ -127,14 +128,15 @@
     <div class="aw-d__intro">
       {{ m.host_line(a) }}
       <h1 class="aw-d__h1">{{ a.title }}</h1>
+      {% if views %}<div class="ag-views-row">{% include 'partials/views-badge.twig' with {v: views, csrf_token: csrf_token} only %}</div>{% endif %}
       {% if a.subtitle %}<p class="aw-d__sub">{{ a.subtitle }}</p>{% endif %}
     </div>
     <div class="aw-d__cover">
-      {% include 'partials/photo.twig' with {kind: 'thing', subject: 'award', src: a.cover, name: a.title, eager: true} only %}
+      {% include 'partials/photo.twig' with {identity: a.id|default(null), kind: 'thing', subject: 'award', src: a.cover, name: a.title, eager: true} only %}
     </div>
   </div>
 
-  <nav class="aw-tabs" aria-label="{{ 'Award sections'|trans }}">
+  <nav class="aw-tabs" aria-label="{{ 'Award sections'|trans }}" data-tabs="award">
     {% for k, label in tabs %}
       <a class="aw-tab" href="/awards/{{ a.slug }}{{ k == 'overview' ? (_ed ? '?edition=' ~ _ed) : '?tab=' ~ k ~ _q }}"{% if tab == k %} aria-current="page"{% endif %}>{{ label|trans }}</a>
     {% endfor %}
@@ -144,21 +146,61 @@
   {# ── AWARD DETAILS: platform-generated from the rules that decide it ───────── #}
   <article class="aw-doc" aria-label="{{ 'Award details'|trans }}">
     <p class="aw-doc__by">{{ 'Written from this award’s own rules'|trans }}{% if a.host and a.host.name %} · {{ 'hosted by %h%'|trans({'%h%': a.host.name}) }}{% endif %}{% if a.edition %} · {{ a.edition }}{% endif %}</p>
+    {% set _d = a.details %}
     {% if a.description %}
     <section class="aw-doc__s"><h2 class="aw-doc__h">{{ 'What the award celebrates'|trans }}</h2>{% for para in a.description|split("\n\n") %}<p>{{ para|nl2br }}</p>{% endfor %}</section>
     {% endif %}
+    {# The award's own sections (Support\AwardDetails, edited on the programme form), around
+       the platform's rule sentences, which stay generated from the code that enforces them. #}
+    {% if _d.eligibility %}
+    <section class="aw-doc__s"><h2 class="aw-doc__h">{{ 'Who can be nominated'|trans }}</h2>{% for para in _d.eligibility|split("\n\n") %}<p>{{ para|nl2br }}</p>{% endfor %}</section>
+    {% endif %}
+    {# Per edition, by place (EditionPrizes): the edition shown, never a prize per category. #}
+    {% if a.prizes %}
+    <section class="aw-doc__s"><h2 class="aw-doc__h">{{ 'What winners receive'|trans }}</h2>
+      <p>{{ 'For the overall winners of the edition, across every category.'|trans }}</p>
+      <dl class="aw-prizes">{% for z in a.prizes %}<div class="aw-prizes__r"><dt>{{ z.label }}</dt><dd>{{ z.text }}</dd></div>{% endfor %}</dl>
+      {% if a.prize_condition %}<p>{{ a.prize_condition.text }}{% if a.terms %} <a href="/awards/{{ a.slug }}?tab=terms">{{ 'Read the terms'|trans }}</a>{% endif %}</p>{% endif %}
+    </section>
+    {% endif %}
     <section class="aw-doc__s"><h2 class="aw-doc__h">{{ 'How nominations work'|trans }}</h2>
-      <p>{{ 'Anyone can nominate. Each nomination names between %min% and %max% categories, with a reason of at least %reason% characters for each. Evidence such as links, recordings or press is optional, up to %ev% items, and helps the judges. Nominations are checked before anything is published.'|trans({'%min%': constant('AfricaGates\\Services\\NominationRules::MIN_CATEGORIES'), '%max%': constant('AfricaGates\\Services\\NominationRules::MAX_CATEGORIES'), '%reason%': constant('AfricaGates\\Services\\NominationRules::MIN_REASON'), '%ev%': constant('AfricaGates\\Services\\NominationRules::MAX_EVIDENCE')}) }}</p>
+      <p>{{ (a.nom_rules.min == a.nom_rules.max
+            ? (a.nom_rules.max == 1 ? 'Anyone can nominate. Each nomination names the category with a reason of at least %reason% characters.' : 'Anyone can nominate. Each nomination names %max% categories, with a reason of at least %reason% characters for each.')
+            : 'Anyone can nominate. Each nomination names %min% to %max% categories, with a reason of at least %reason% characters for each.')|trans({'%min%': a.nom_rules.min, '%max%': a.nom_rules.max, '%reason%': a.nom_rules.reason}) }}
+         {{ 'Evidence is optional, up to %ev% items. Nominations are checked before publishing.'|trans({'%ev%': a.nom_rules.ev}) }}</p>
+      {% if _d.nominations_note %}{% for para in _d.nominations_note|split("\n\n") %}<p>{{ para|nl2br }}</p>{% endfor %}{% endif %}
     </section>
     <section class="aw-doc__s"><h2 class="aw-doc__h">{{ 'How the winner is decided'|trans }}</h2>
-      <p>{{ 'Verified community support counts for %c% of the final score and the judges’ marks for %j%. After voting closes, the panel scores the nominees in each category; a nominee needs complete scorecards from at least %q% judges to be eligible to win. The weights are set before voting opens.'|trans({'%c%': a.weights.community ~ '%', '%j%': a.weights.judge ~ '%', '%q%': a.quorum}) }}</p>
+      <p>{{ 'Verified community support counts %c% and judges’ marks %j%, set before voting. A winner needs full scorecards from at least %q% judges.'|trans({'%c%': a.weights.community ~ '%', '%j%': a.weights.judge ~ '%', '%q%': a.quorum}) }}</p>
+      {% if _d.judging_note %}{% for para in _d.judging_note|split("\n\n") %}<p>{{ para|nl2br }}</p>{% endfor %}{% endif %}
     </section>
     <section class="aw-doc__s"><h2 class="aw-doc__h">{{ 'Voting'|trans }}</h2>
-      <p>{{ 'Each person verified by an email code has one free vote per category.'|trans }}{% if a.paid %} {{ 'Supporters can also add contributed votes on a nominee’s page.'|trans }} {{ a.paid }}{% endif %}</p>
+      <p>{% if a.paid_only|default(false) %}{{ 'On this award, every vote is a contribution that helps fund the awards. You back a nominee from their page.'|trans }} {{ a.paid }}{% else %}{{ 'Each person verified by an email code has one free vote per category.'|trans }}{% if a.paid %} {{ 'Supporters can also add contributed votes on a nominee’s page.'|trans }} {{ a.paid }}{% endif %}{% endif %}</p>
+      {% if _d.voting_note %}{% for para in _d.voting_note|split("\n\n") %}<p>{{ para|nl2br }}</p>{% endfor %}{% endif %}
     </section>
+    {# Generated from this edition's own community-return rule (AwardsFront::detail(), the
+       voting letter's rows). Each award sets its own, so the rule is published here and not
+       on /integrity, which links to this section. #}
+    {% if a.community_return %}
+    <section class="aw-doc__s" id="community-return"><h2 class="aw-doc__h">{{ 'Community return'|trans }}</h2>
+      <dl class="aw-prizes">{% for r in a.community_return %}<div class="aw-prizes__r"><dt>{{ r[0] }}</dt><dd>{{ r[1] }}</dd></div>{% endfor %}</dl>
+    </section>
+    {% elseif a.community_return_pending %}
+    <section class="aw-doc__s" id="community-return"><h2 class="aw-doc__h">{{ 'Community return'|trans }}</h2>
+      <p>{{ 'The community return rule for this edition has not been published yet. It will be stated here before anything is earned under it.'|trans }}</p>
+    </section>
+    {% endif %}
     <section class="aw-doc__s"><h2 class="aw-doc__h">{{ 'After the results'|trans }}</h2>
-      <p>{{ 'The full standing behind every result is published with the working, and the standing that was announced is sealed: a later change to the rules cannot change a published result.'|trans }} <a href="/integrity">{{ 'How results are checked'|trans }}</a></p>
+      <p>{{ 'Every result is published with its working and sealed; later rule changes cannot alter it.'|trans }} <a href="/integrity">{{ 'How results are checked'|trans }}</a></p>
+      {% if _d.after_note %}{% for para in _d.after_note|split("\n\n") %}<p>{{ para|nl2br }}</p>{% endfor %}{% endif %}
     </section>
+    {% if _d.faq %}
+    <section class="aw-doc__s"><h2 class="aw-doc__h">{{ 'Questions people ask'|trans }}</h2>
+      {% for f in _d.faq %}
+        <details class="aw-faq"><summary class="aw-faq__q">{{ f.q }}</summary><div class="aw-faq__a">{% for para in f.a|split("\n\n") %}<p>{{ para|nl2br }}</p>{% endfor %}</div></details>
+      {% endfor %}
+    </section>
+    {% endif %}
   </article>
 
   {% elseif tab == 'terms' %}
@@ -177,7 +219,7 @@
       </ol>
     </section>
     {% endif %}
-    <p class="aw-terms__foot">{{ 'Voting or nominating in this award asks you to accept the version in force, and records which one you accepted. Integrity concerns go to the'|trans }} <a href="/integrity">{{ 'Integrity Center'|trans }}</a>.</p>
+    <p class="aw-terms__foot">{{ 'Voting or nominating accepts the version in force; we record which. Integrity concerns go to the'|trans }} <a href="/integrity">{{ 'Integrity Centre'|trans }}</a>.</p>
   </article>
 
   {% else %}
@@ -209,6 +251,23 @@
     </ol>
     {% endif %}
     {% if a.phase and a.phase.detail %}<p class="aw-ed__detail">{{ a.phase.detail }}</p>{% endif %}
+    {% if a.pool and a.pool.nominees > 0 %}
+    {# The target pool. Each nominee qualifies on their OWN target, so the figure that means
+       something is how many have reached it. The combined "595 of 1,200 votes · 605 to go" it
+       replaces named a total at which nothing happens: the pool pays as soon as one nominee
+       reaches the target, and closing that gap triggers nothing. #}
+    {% set _won = a.pool.settled ? a.pool.settled.winners|default(0) : a.pool.reached %}
+    <div class="aw-pool">
+      <p class="aw-pool__h">{{ 'Community return'|trans }}</p>
+      <p class="aw-pool__n">{{ (a.pool.settled ? 'Target: %t% votes each' : 'Target today: %t% votes each')|trans({'%t%': a.pool.target|number_format}) }}</p>
+      {% set _pct = a.pool.nominees > 0 ? (100 * _won / a.pool.nominees)|round(0, 'floor') : 0 %}
+      <span class="aw-pool__bar" role="img" aria-label="{{ '%r% of %n% nominees have reached it'|trans({'%r%': _won, '%n%': a.pool.nominees}) }}"><span style="width:{{ _pct }}%"></span></span>
+      <p class="aw-pool__s">{{ a.pool.settled
+        ? (_won > 0 ? '%r% of %n% nominees reached it and shared the pool by votes.'|trans({'%r%': _won, '%n%': a.pool.nominees}) : 'Nobody reached it, so nothing was shared.'|trans)
+        : '%r% of %n% nominees have reached it. They share the pool by votes when voting closes.'|trans({'%r%': _won, '%n%': a.pool.nominees}) }}</p>
+    </div>
+    {% endif %}
+    {% include 'partials/voting-extension.twig' with {x: a.extension|default(null), cls: 'aw-late'} only %}
     {% if a.delay %}
       <div class="aw-late" role="note">
         <b>{{ 'The results were due on %date% and have not been announced yet.'|trans({'%date%': a.delay.promised|when_zoned('j M Y')}) }}</b>
@@ -277,4 +336,4 @@
 {% endif %}
 {% endblock %}
 
-{% block foot_scripts %}<script defer src="{{ asset('/assets/js/awards.js') }}"></script>{% endblock %}
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/awards.js') }}" data-nav="rerun"></script>{% if views %}<script defer src="{{ asset('/assets/js/views.js') }}" data-nav="rerun"></script>{% endif %}{% endblock %}

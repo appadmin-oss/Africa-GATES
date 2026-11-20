@@ -65,7 +65,7 @@ final class CookieRegistry
             self::ANALYTICS => ['Analytics',
                 'Counts visits ourselves — where a visit came from and whether it led to a vote, a nomination or a ticket — so whoever shared a link can see if it worked. No IP address is kept and nothing reaches anyone else.'],
             self::MARKETING => ['Marketing',
-                'Advertising, and following you across other sites. Nothing on this site does either: no ads, no pixels, nothing sold.'],
+                'Advertising based on what you do, and following you across other sites. Nothing on this site does either: the ads here are labelled Sponsored and chosen by the page, never by you. No pixels, nothing sold.'],
         ];
 
         $out = [];
@@ -74,7 +74,13 @@ final class CookieRegistry
             // not owed a judge's or a door steward's key as if it were theirs. /cookies
             // lists those too, under their audience.
             $names = array_map(static fn (array $e): string => $e['name'], self::inCategory($key, true));
-            if ($key === self::ANALYTICS) {
+            if ($key === self::ANALYTICS && \AfricaGates\Services\GoogleAnalytics::enabled()) {
+                // Switched on by the operator (Settings → Arrivals): said here, in the
+                // sheet a visitor answers, before they answer it.
+                $desc = str_replace(' No IP address is kept and nothing reaches anyone else.', ' We keep no IP address.', $desc)
+                      . ' If you say yes, Google Analytics also measures visits for us: it sets two cookies, and Google receives your IP address and which pages you open.';
+                $who = 'Africa GATES and Google Analytics · ' . implode(', ', $names);
+            } elseif ($key === self::ANALYTICS) {
                 $who = 'Africa GATES only · stores nothing on your device';
             } elseif ($names === []) {
                 $who = 'Not used on this site';
@@ -113,7 +119,7 @@ final class CookieRegistry
      */
     public static function cookies(): array
     {
-        return [
+        return array_merge([
             [
                 'name'     => self::sessionName(),
                 'category' => self::ESSENTIAL,
@@ -144,6 +150,29 @@ final class CookieRegistry
                             . ' if you allow Preferences; otherwise until you close your browser',
                 'set_by'   => 'server',
             ],
+        ], self::googleAnalytics());
+    }
+
+    /**
+     * Google's two cookies, declared only while the operator has Google Analytics on, so the
+     * policy never lists a cookie nothing sets, nor leaves out one something does. Two
+     * years is GA4's default life, which ga.js does not change.
+     *
+     * @return list<array{name:string,category:string,purpose:string,lifetime:string,set_by:string}>
+     */
+    private static function googleAnalytics(): array
+    {
+        $id = \AfricaGates\Services\GoogleAnalytics::measurementId();
+        if ($id === null) return [];
+        return [
+            ['name' => '_ga', 'category' => self::ANALYTICS,
+             'purpose' => 'Google Analytics: a random number that tells one browser from another, so '
+                        . 'Google can count visitors. Set only after you say yes to Analytics, and '
+                        . 'deleted when you say no.',
+             'lifetime' => '2 years', 'set_by' => 'Google Analytics'],
+            ['name' => '_ga_' . substr($id, 2), 'category' => self::ANALYTICS,
+             'purpose' => 'Google Analytics: keeps the current visit together. Set and deleted with _ga.',
+             'lifetime' => '2 years', 'set_by' => 'Google Analytics'],
         ];
     }
 
@@ -183,7 +212,7 @@ final class CookieRegistry
     {
         return [
             ['key' => 'ag-a11y', 'category' => self::PREFERENCES, 'where' => 'local-or-session', 'audience' => 'everyone',
-             'purpose' => 'Your display and reading settings — text size, high contrast, the easy-read font, line spacing, underlined links, reduced motion, data saver and read-aloud — applied before the page paints so every page opens the way you set it. Kept on this device between visits if you allow Preferences; otherwise only until you close the tab. When you are signed in, the same settings are also saved to your account.'],
+             'purpose' => 'Your display and reading settings — text size, appearance (light, dark, sepia or matching your device), high contrast, the easy-read font, line spacing, underlined links, reduced motion, data saver and read-aloud — applied before the page paints so every page opens the way you set it. Kept on this device between visits if you allow Preferences; otherwise only until you close the tab. When you are signed in, the same settings are also saved to your account.'],
             // Written by celebration.js (the handoff's engine, shipped verbatim), which
             // stores unconditionally — so celebration-boot.js hands it a key only when
             // Preferences is allowed, and with no key it writes nothing.
@@ -194,6 +223,12 @@ final class CookieRegistry
             // its four defaults. A signed-in member's count is kept on their account instead.
             ['key' => 'ag-menu-use', 'category' => self::PREFERENCES, 'where' => 'local', 'audience' => 'everyone',
              'purpose' => 'Which places you open from the Menu on your phone, and roughly how often and how recently, so the four squares at the top of the Menu become the ones you use most. Kept on this device only if you allow Preferences, and only while you are not signed in; without it nothing is stored and the Menu shows its usual four.'],
+            // The Volunteer academy's progress (academy.js): which lessons were marked done.
+            ['key' => 'ag-academy', 'category' => self::PREFERENCES, 'where' => 'local-or-session', 'audience' => 'everyone',
+             'purpose' => 'Which lessons of the Volunteer academy you marked as done, so the outline shows your ticks and your progress next time. Kept on this device between visits if you allow Preferences; otherwise only until you close the tab. It holds no name and nothing you typed.'],
+            // The wallet's eye (wallet.js): a glance convenience, never a privacy control.
+            ['key' => 'ag-hide-bal', 'category' => self::PREFERENCES, 'where' => 'local-or-session', 'audience' => 'members',
+             'purpose' => 'That you chose to hide the figures in your wallet, so they stay hidden the next time you open it. Kept on this device between visits if you allow Preferences; otherwise only until you close the tab. It holds no amount — only the choice.'],
             // Gee (Phase 3): its transcript and the privacy note's dismissal.
             ['key' => 'ag-gee-chat:', 'category' => self::ESSENTIAL, 'where' => 'session', 'audience' => 'everyone',
              'purpose' => 'Your conversation with Gee, the site guide and help desk — one for each — so it survives moving between pages and an accidental reload in this tab. Gone when you close the tab. Nothing you type is kept on our server unless you pass it to a person, when it is kept with your support ticket.'],
@@ -204,6 +239,15 @@ final class CookieRegistry
             // message, so the button stays pressed. Never the vote itself — that is the server's.
             ['key' => 'ag-vote:', 'category' => self::PREFERENCES, 'where' => 'local-or-session', 'audience' => 'everyone',
              'purpose' => 'Which award categories you have voted in on this device, and the messages of support you cheered or reported, so the voting pages can show your progress and keep those buttons pressed. Your vote itself is recorded on our server, not here. Kept on this device between visits if you allow Preferences; otherwise only until you close the tab.'],
+            // The search palette's recent searches (search.js, 10 Nov 2026).
+            ['key' => 'ag-recent-q', 'category' => self::PREFERENCES, 'where' => 'local-or-session', 'audience' => 'everyone',
+             'purpose' => 'Your last six searches, offered when you open search again so you do not have to type them twice, with a button to clear them. Kept on this device between visits if you allow Preferences; otherwise only until you close the tab. Never sent to us, and an email address or phone number typed into search is never kept.'],
+            ['key' => 'ag-recent-view', 'category' => self::PREFERENCES, 'where' => 'local-or-session', 'audience' => 'everyone',
+             'purpose' => 'The last six nominee and profile pages you opened, with their names, offered in search as "Recently viewed" so you can go back to them in one tap; cleared by the same button as your recent searches. Kept on this device between visits if you allow Preferences; otherwise only until you close the tab. Never sent to us.'],
+            // The shop's basket (shop.js). Essential: a cart is part of a purchase somebody
+            // asked for. Every figure in it is re-priced by the server at checkout.
+            ['key' => 'ag-cart', 'category' => self::ESSENTIAL, 'where' => 'local', 'audience' => 'everyone',
+             'purpose' => 'What you put in your shop cart — each item, its option and how many — so the cart is still there when you move between pages or come back later. It holds no payment details, and prices are checked again on our server when you check out.'],
             ['key' => 'coi_declared_', 'category' => self::ESSENTIAL, 'where' => 'session', 'audience' => 'judges',
              'purpose' => 'For judges only: that you have made this programme\'s conflict-of-interest declaration in this tab.'],
             ['key' => 'ag-door-q:', 'category' => self::ESSENTIAL, 'where' => 'local', 'audience' => 'door staff',
@@ -212,10 +256,16 @@ final class CookieRegistry
              'purpose' => 'For administrators only: which step of a long form you were on, so a save that bounces back reopens it there.'],
             ['key' => 'cn-ux:scroll', 'category' => self::ESSENTIAL, 'where' => 'session', 'audience' => 'administrators',
              'purpose' => 'For administrators only: where you were on a console page when you pressed save, so the page comes back there instead of at the top. Kept for at most a minute.'],
-            ['key' => 'ag-copilot', 'category' => self::ESSENTIAL, 'where' => 'session', 'audience' => 'administrators',
-             'purpose' => 'For administrators only: the console assistant\'s conversation, so it survives moving between pages in one tab.'],
-            ['key' => 'ag-asst', 'category' => self::ESSENTIAL, 'where' => 'session', 'audience' => 'administrators',
-             'purpose' => 'For administrators only: the same, on the assistant\'s full page.'],
+            ['key' => 'ac2.col', 'category' => self::ESSENTIAL, 'where' => 'local', 'audience' => 'administrators',
+             'purpose' => 'For administrators only: which groups of the console\'s sidebar you opened or closed yourself, so they stay that way. It holds only the group names.'],
+            ['key' => 'ac2.views', 'category' => self::ESSENTIAL, 'where' => 'local', 'audience' => 'administrators',
+             'purpose' => 'For administrators only: the filtered views of a console list you chose to save, so they sit beside the quick views next time. It holds each view\'s name and address, and nothing about the people in it.'],
+            ['key' => 'ac2.dens', 'category' => self::ESSENTIAL, 'where' => 'local', 'audience' => 'administrators',
+             'purpose' => 'For administrators only: whether you chose comfortable or compact rows for a console list.'],
+            ['key' => 'ac2.hide', 'category' => self::ESSENTIAL, 'where' => 'local', 'audience' => 'administrators',
+             'purpose' => 'For administrators only: which columns of a console list you chose to hide.'],
+            ['key' => 'ag-asst-thread', 'category' => self::ESSENTIAL, 'where' => 'session', 'audience' => 'administrators',
+             'purpose' => 'For administrators only: which of your assistant conversations this tab is in, so the drawer and the full page continue it. It holds a number; the conversation itself is kept on our server for 90 days.'],
         ];
     }
 

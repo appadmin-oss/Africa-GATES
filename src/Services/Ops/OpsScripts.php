@@ -364,29 +364,11 @@ final class OpsScripts
 
     private static function recentErrors(): array
     {
-        $file = dirname(__DIR__, 3) . '/var/logs/error-detail.log';
-        if (!is_file($file)) return ['last_24h' => 0, 'by_request' => [], 'newest' => []];
-        $size = (int) @filesize($file);
-        $h = @fopen($file, 'rb');
-        if ($h === false) return ['last_24h' => 0];
-        if ($size > 2 * 1024 * 1024) fseek($h, $size - 2 * 1024 * 1024);
-        $raw = (string) stream_get_contents($h);
-        fclose($h);
-        $since = time() - 86400;
-        $by = []; $newest = []; $n = 0;
-        if (preg_match_all('/^\[([^\]]+)\](?: \[ref ([A-Z0-9-]+)\])?(?: \[([^\]]*)\])? ([^\n]{0,160})/m', $raw, $all, PREG_SET_ORDER)) {
-            foreach ($all as $m) {
-                $t = strtotime($m[1]);
-                if ($t === false || $t < $since) continue;
-                $n++;
-                $where = $m[3] !== '' ? $m[3] : '(no request)';
-                $by[$where] = ($by[$where] ?? 0) + 1;
-                $newest[] = ['at' => $m[1], 'ref' => $m[2] ?: null, 'where' => $where, 'what' => mb_substr(trim($m[4]), 0, 120)];
-            }
-        }
-        arsort($by);
-        return ['last_24h' => $n, 'by_request' => array_slice($by, 0, 10, true),
-                'newest' => array_slice(array_reverse($newest), 0, 5),
-                'full_entry' => '/__setup/errors?token=…&ref=XXXX-XXXX, or the support ticket that quotes it'];
+        // One parser for the log (PublicFault::recent()), shared with the console's alert
+        // and /admin/errors, so the three cannot count it differently.
+        $r = \AfricaGates\Support\PublicFault::recent(24, 5);
+        return ['last_24h' => $r['total'], 'by_request' => array_slice($r['by_where'], 0, 10, true),
+                'newest' => $r['entries'],
+                'full_entry' => '/admin/errors?ref=XXXX-XXXX, or the support ticket that quotes it'];
     }
 }

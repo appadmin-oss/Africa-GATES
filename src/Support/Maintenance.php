@@ -139,6 +139,18 @@ final class Maintenance
             $ran[] = ['queue',  $this->task('queue',  fn() => $this->drainJobs())];
             $ran[] = ['cycles', $this->task('cycles', fn() => $this->advanceCycles())];
             $ran[] = ['cache',  $this->task('cache',  fn() => $this->pruneCache())];
+            // The public layout's base stylesheets as ONE request (AssetBundle). Nothing else
+            // ever built it on a host with no shell, so every page linked ten blocking files;
+            // built here whenever the layout would otherwise fall back (missing, or a source
+            // edited since), so a deploy is bundled within a tick. 0 when it is current.
+            // Not under the test harness, which must never write into the real public/.
+            $ran[] = ['assets', $this->task('assets', fn() => defined('PHPUNIT_COMPOSER_INSTALL') || \AfricaGates\Support\AssetBundle::url() !== null ? 0
+                : (\AfricaGates\Support\AssetBundle::build()['ok'] ? 1 : self::TASK_FAILED))];
+            // And the minified twin of every stylesheet edited since (MinifiedAssets): the host
+            // has no Node, so scripts are minified where the code is built, but CSS is
+            // minified here in PHP and an edited sheet is small again within the hour.
+            $ran[] = ['assets-min', $this->task('assets-min', fn() => defined('PHPUNIT_COMPOSER_INSTALL') ? 0
+                : \AfricaGates\Support\MinifiedAssets::buildCss(dirname(__DIR__, 2) . '/public')['made'])];
             // ORDER IS LOAD-BEARING. Reconciliation re-verifies stale pending payments
             // against the gateway and confirms the genuinely-paid ones; the recovery
             // mail then tells whoever is STILL pending that they did not finish. Run
@@ -160,6 +172,19 @@ final class Maintenance
             // charity's payout left in an unknown state is exactly the thing nobody notices
             // until they ask where their money is.
             $ran[] = ['payouts',       $this->task('payouts',       fn() => $this->sweepPartnerPayouts())];
+            // Members' automatic withdrawals: requests the request path left unchecked, and
+            // transfers the webhook has not settled. Same reasoning as the line above.
+            $ran[] = ['walletpay',     $this->task('walletpay',     fn() => $this->sweepWalletPayouts())];
+            // The formal letter to every verified nominee whose award is on the public vote.
+            // Every tick, because either half (voting opening, the nominee verifying) can
+            // become true second, and a nominee who verifies on day nine is told on day nine.
+            // Claimed before it is sent, so overlapping ticks cannot double a letter.
+            $ran[] = ['votingletters', $this->task('votingletters', fn() => $this->sendVotingLetters())];
+            // Repeat nominations for one person, combined into the earliest while both wait for
+            // review, where the record plainly says they are one (NominationCombine). Every
+            // tick, so a repeat never sits in the queue as a red "Duplicate?" for a reviewer to
+            // trip over; the submission path combines most of them on arrival already.
+            $ran[] = ['combine',       $this->task('combine',       fn() => \AfricaGates\Services\NominationCombine::sweep())];
             // Stand offers nobody accepted in time. On every tick rather than daily, because
             // the place an expired offer is holding was promised to a waiting list that was
             // told it would move — and a list that only moves at 06:00 is a list that does
@@ -177,6 +202,41 @@ final class Maintenance
             // ticket alerts beside it, and each row is CLAIMED before it is sent (AwardAlert).
             $ran[] = ['award-alerts', $this->task('award-alerts',
                 fn() => \AfricaGates\Services\AwardAlert::sweep($this->mailer()))];
+            // The Supporter Spotlight's messages (SpotlightMail): yesterday's Champion of the Day
+            // once DailyChampion has announced it, last week's Mobiliser on Monday, and a first place in
+            // the top supporters. Every tick, cheap when nothing is new; each is CLAIMED first.
+            // The Champion of the Day, announced the morning after once payments have settled,
+            // and sealed (DailyChampion). Before the Spotlight's mail, which tells the champion.
+            // The shop's stock digest: once a day after 07:00, what is out and running low, to
+            // the operators (ShopStock::digest). Every tick rather than in the 06:00 window, so a
+            // webcron that misses that quarter-hour does not skip a day; the day is claimed first.
+            $ran[] = ['shop-stock-digest', $this->task('shop-stock-digest',
+                fn() => \AfricaGates\Services\ShopStock::digest($this->mailer()))];
+            $ran[] = ['daily-champion', $this->task('daily-champion',
+                fn() => \AfricaGates\Services\DailyChampion::sweep())];
+            $ran[] = ['spotlight-mail', $this->task('spotlight-mail',
+                fn() => \AfricaGates\Services\SpotlightMail::sweep($this->mailer()))];
+            // Honouring the people who voted (16 Nov 2026): on results day, every backer told
+            // what became of the nominee they backed and that they were one of the people behind
+            // them (ResultsDayMail, only for an ANNOUNCED release); and a nominee's own thank-you,
+            // once its edit window is over (NomineeThanks). Both claim each address first.
+            $ran[] = ['results-day-mail', $this->task('results-day-mail',
+                fn() => \AfricaGates\Services\ResultsDayMail::sweep($this->mailer()))];
+            $ran[] = ['nominee-thanks', $this->task('nominee-thanks',
+                fn() => \AfricaGates\Services\NomineeThanks::sweep($this->mailer()))];
+            // "Your vote is working": milestones in each live race recorded, and told to the
+            // backers who asked — at most three an edition each (NomineeMilestones).
+            $ran[] = ['nominee-milestones', $this->task('nominee-milestones',
+                fn() => \AfricaGates\Services\NomineeMilestones::sweep($this->mailer()))];
+            // A nominee's own updates, once their fifteen minutes to change them are over, to the
+            // backers who asked to hear how they are doing (NomineeUpdates). Claimed per address.
+            $ran[] = ['nominee-updates', $this->task('nominee-updates',
+                fn() => \AfricaGates\Services\NomineeUpdates::sweep($this->mailer()))];
+            // Volunteers' reminders (Volunteer\Reminders): the day before a meeting, training
+            // about to lapse. Every tick; each message is claimed before it is sent, so
+            // overlapping ticks never send one twice.
+            $ran[] = ['vol-reminders', $this->task('vol-reminders',
+                fn() => \AfricaGates\Services\Volunteer\Reminders::sweep($this->mailer()))];
             // "Get status updates" (Phase 9): a problem the status record measured starting or
             // being seen to recover. Every tick, because the tick IS what records the status
             // (SystemStatus::record()); each (incident, address) is claimed in
@@ -203,6 +263,14 @@ final class Maintenance
             // tick, because it is a batch and a list of thousands is many ticks long; when
             // the schedule is off, or nothing is due or approved, it is two queries.
             $ran[] = ['newsletter',    $this->task('newsletter', fn() => $this->newsletter()->tick())];
+            // The announcement outbox (Mail\Outbox): campaigns queued once and sent here at the
+            // account's pace, engaged readers first. AFTER mailhealth for the newsletter's
+            // reason — it holds while an incident is open — and every tick, because a pace is
+            // only kept by being asked often. Two queries when nothing is due.
+            $ran[] = ['mail-outbox',   $this->task('mail-outbox', fn() => $this->outbox())];
+            // The event teams' rules (EventPlan\Rules): every tick, because a reminder or a gate
+            // warning is only useful on the day. A rule in shadow only writes what it would do.
+            $ran[] = ['event-rules',   $this->task('event-rules', fn() => \AfricaGates\Services\EventPlan\Rules::runAll())];
             // The CACENTRE CRM's Audience: subscribers, opt-outs, bounces, enquiries and gifts,
             // pushed signed. AFTER the newsletter, so a confirmation or stop the newsletter
             // tick just wrote goes out on this one. A few queries when nothing is new, and
@@ -220,6 +288,10 @@ final class Maintenance
             // the thing that stopped.
             $ran[] = ['status', $this->task('status',
                 fn() => \AfricaGates\Services\SystemStatus::record())];
+            // The console's alert log, on the same tick: a fault that came and went while
+            // nobody had the Alerts page open still gets its raised and resolved rows.
+            $ran[] = ['alertlog', $this->task('alertlog',
+                fn() => \AfricaGates\Admin\Services\ConsoleAlertLog::sync())];
             // Every hour
             if ((int)$now->minute < 15) {
                 $ran[] = ['otp',        $this->task('otp',        fn() => $this->purgeExpiredOtp())];
@@ -259,6 +331,10 @@ final class Maintenance
                 // deadline this has. See JudgeAssist::sweep().
                 $ran[] = ['judgemaps', $this->task('judgemaps',
                     fn() => \AfricaGates\Services\JudgeAssist::sweep())];
+                // Community returns to finance, so revenue sharing takes them off the top.
+                // Hourly: a return is accrued on confirmation and a settlement is days later.
+                $ran[] = ['cfisreturns', $this->task('cfisreturns',
+                    fn() => \AfricaGates\Services\CfisReturns::push())];
                 // Refused bot questions. Machine output, but generated FROM a nominee's
                 // recorded speech, so it expires like everything else here rather than
                 // being the one table kept forever.
@@ -275,12 +351,25 @@ final class Maintenance
                 // log beside it was added to fix.
                 $ran[] = ['visits', $this->task('visits',
                     fn() => \AfricaGates\Services\VisitTracker::prune())];
+                // An ad's counted-once records: kept only as long as a view could still be
+                // reported for the page it was drawn on (Services\Ads\AdDelivery).
+                $ran[] = ['adevents', $this->task('adevents',
+                    fn() => \AfricaGates\Services\Ads\AdDelivery::prune())];
+                // Paid campaigns that have finished: what they did not spend goes back, with
+                // its VAT (Services\Ads\AdCheckout::settle). Claimed before the gateway is
+                // asked, so two runs cannot refund one campaign.
+                $ran[] = ['adrefunds', $this->task('adrefunds',
+                    fn() => \AfricaGates\Services\Ads\AdCheckout::settle(new \AfricaGates\Services\PaymentService()))];
                 // Expired Gemini file-upload handles. The provider deletes the file itself
                 // after 48 hours; this drops OUR record of it, which is the half that
                 // matters — a stale row would be handed to generateContent as a live
                 // reference and the call would fail on a file that no longer exists.
                 $ran[] = ['aifiles', $this->task('aifiles',
                     fn() => \AfricaGates\Services\GeminiFiles::prune())];
+                // The console assistant's conversations, on their own retention: each answer
+                // keeps the output of the checks it ran, and that can name people.
+                $ran[] = ['assistant', $this->task('assistant',
+                    fn() => \AfricaGates\Admin\Services\AssistantThreads::prune())];
             }
             // ── REMINDERS FOR A CEREMONY'S GUESTS OF HONOUR ──────────────────
             //
@@ -359,6 +448,9 @@ final class Maintenance
                 'support'   => $ran[] = ['support', $this->task('support', fn() => $this->answerTickets())],
                 'refunds'   => $ran[] = ['refunds', $this->task('refunds', fn() => $this->refundUnminted())],
                 'payouts'   => $ran[] = ['payouts', $this->task('payouts', fn() => $this->sweepPartnerPayouts())],
+                'walletpay' => $ran[] = ['walletpay', $this->task('walletpay', fn() => $this->sweepWalletPayouts())],
+                'votingletters' => $ran[] = ['votingletters', $this->task('votingletters', fn() => $this->sendVotingLetters())],
+                'combine'       => $ran[] = ['combine',       $this->task('combine',       fn() => \AfricaGates\Services\NominationCombine::sweep())],
                 'standoffers' => $ran[] = ['standoffers', $this->task('standoffers', fn() => $this->expireStandOffers())],
                 'digest'    => $ran[] = ['digest', $this->task('digest', fn() => $this->recordDigest())],
                 'qdisqualify' => $ran[] = ['qdisqualify', $this->task('qdisqualify', fn() => $this->enforceQuestionnaireDeadlines())],
@@ -378,6 +470,8 @@ final class Maintenance
                 // was waiting on should not have to wait an hour to find out whether it
                 // took — `/__cron/run?task=seeds` answers now.
                 'seeds'     => $ran[] = ['seeds', $this->task('seeds', fn() => \AfricaGates\Support\SeedRunner::sweep())],
+                // Addressable by name: no shell, and finance may want the returns before a run.
+                'cfisreturns' => $ran[] = ['cfisreturns', $this->task('cfisreturns', fn() => \AfricaGates\Services\CfisReturns::push())],
                 // Addressable by name: an operator watching a challenge close at midnight
                 // should not wait an hour to see the banners come down, and there is no
                 // shell here to make them come down any other way.
@@ -399,6 +493,9 @@ final class Maintenance
                 // An operator who has just approved an issue should not have to wait for the
                 // next tick to see the first batch go.
                 'newsletter' => $ran[] = ['newsletter', $this->task('newsletter', fn() => $this->newsletter()->tick())],
+                // Same reason: a campaign just started should not wait a tick for its next batch.
+                'mail-outbox' => $ran[] = ['mail-outbox', $this->task('mail-outbox', fn() => $this->outbox())],
+                'event-rules' => $ran[] = ['event-rules', $this->task('event-rules', fn() => \AfricaGates\Services\EventPlan\Rules::runAll())],
                 // Addressable by name because there is no SSH on this account: when a round
                 // opens sooner than the hourly sweep can fill it, `/__cron/run?task=judgemaps`
                 // is the only way anybody can ask for another batch.
@@ -409,6 +506,8 @@ final class Maintenance
                 // next tick, and there is no shell on this host to make them go.
                 'invite-reminders' => $ran[] = ['invite-reminders', $this->task('invite-reminders',
                     fn() => \AfricaGates\Services\InviteReminders::sweep())],
+                'vol-reminders' => $ran[] = ['vol-reminders', $this->task('vol-reminders',
+                    fn() => \AfricaGates\Services\Volunteer\Reminders::sweep($this->mailer()))],
                 'all'       => (function () use (&$ran) {
                     $ran[] = ['queue', $this->task('queue', fn() => $this->drainJobs())];
                     $ran[] = ['cycles', $this->task('cycles', fn() => $this->advanceCycles())];
@@ -704,6 +803,15 @@ final class Maintenance
             $c += $g;
         } catch (\Throwable) { /* a cache that will not prune must never stop the pass */ }
 
+        // ── AND THE COMPILED TEMPLATES A DEPLOY SUPERSEDED ──────────────────
+        // Support\TemplateLoader names a new compiled class whenever a template file
+        // changes, so every deploy leaves the previous copies behind, never read again.
+        try {
+            $t = TemplateLoader::pruneCompiled(dirname(__DIR__, 2) . '/var/cache/twig');
+            if ($t > 0) $this->log("Compiled templates pruned: $t files");
+            $c += $t;
+        } catch (\Throwable) { /* as above */ }
+
         return $c;
     }
 
@@ -822,6 +930,36 @@ final class Maintenance
      * returns an error for a transfer Paystack has not created yet, which reads exactly like
      * a failure and would mark a healthy payout dead.
      */
+    /**
+     * Members' automatic withdrawals (WalletAutoPay): check what is waiting, and ask the
+     * gateway about transfers it has not reported. A no-op while the engine is off.
+     */
+    private function sweepWalletPayouts(): int
+    {
+        try {
+            $r = \AfricaGates\Services\WalletAutoPay::sweep(new \AfricaGates\Services\PaymentService());
+            $this->log('wallet payouts: processed ' . $r['processed'] . ', checked ' . $r['checked'] . ', resolved ' . $r['changed']);
+            return $r['processed'] + $r['changed'];
+        } catch (\Throwable $e) {
+            $this->log('wallet payouts error: ' . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    private function sendVotingLetters(): int
+    {
+        try {
+            $mailer = $this->container?->get(OtpService::class) ?? OtpService::boot();
+            $r = \AfricaGates\Services\NomineeVotingNotice::sweep($mailer);
+            $this->log('voting letters: sent ' . $r['sent'] . ', failed ' . $r['failed']
+                     . ', held ' . $r['held'] . ', unreachable ' . $r['unreachable']);
+            return $r['sent'];
+        } catch (\Throwable $e) {
+            $this->log('voting letters error: ' . $e->getMessage());
+            throw $e;
+        }
+    }
+
     private function sweepPartnerPayouts(): int
     {
         try {
@@ -1051,7 +1189,10 @@ final class Maintenance
         try {
             $q = new QueueService();
             $sheets = $this->container?->get(GoogleSheetsService::class);
-            $q->on('vote.sheets_push', function (array $p) use ($sheets) { $sheets?->pushVote($p); });
+            $q->on('vote.sheets_push', function (array $p) use ($sheets) {
+                if (!$sheets) throw new \RuntimeException('Google Sheets delivery is unavailable.');
+                $sheets->pushVote($p);
+            });
             $sms = SmsService::boot();
             $q->on(SmsService::JOB_SMS, function (array $p) use ($sms) {
                 $sms->deliver('sms', (string)($p['to'] ?? ''), (string)($p['body'] ?? ''), (string)($p['template'] ?? 'generic'));
@@ -1138,6 +1279,11 @@ final class Maintenance
             $q->on(\AfricaGates\Services\ShopOrderService::JOB_RECEIPT, function (array $p) {
                 \AfricaGates\Services\ShopOrderService::receipt(
                     (int) ($p['order_id'] ?? 0), $this->container?->get(OtpService::class));
+            });
+            // The buyer's later shop emails (refund settled, refund failed) queued by the
+            // webhook, which cannot spend its gateway budget on SMTP. See ShopMail.
+            $q->on(\AfricaGates\Services\ShopMail::JOB, function (array $p) {
+                \AfricaGates\Services\ShopMail::handle($p, $this->container?->get(OtpService::class));
             });
             $q->on(\AfricaGates\Services\EventTicketMailer::JOB, function (array $p) {
                 \AfricaGates\Services\EventTicketMailer::send(
@@ -1241,6 +1387,17 @@ final class Maintenance
     }
 
     /** The newsletter sender, on this deployment's transport and site address. */
+    /** One drain of the announcement outbox. Returns how many were sent. */
+    private function outbox(): int
+    {
+        $mailer = null;
+        try {
+            $mailer = $this->container?->get(OtpService::class);
+        } catch (\Throwable) {
+        }
+        return \AfricaGates\Services\Mail\Outbox::drain($mailer instanceof OtpService ? $mailer : OtpService::boot(), SiteUrl::base())['sent'];
+    }
+
     private function newsletter(): \AfricaGates\Services\Newsletter\Newsletter
     {
         $mailer = null;

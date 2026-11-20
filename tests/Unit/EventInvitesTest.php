@@ -804,7 +804,7 @@ final class EventInvitesTest extends TestCase
 
             public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '',
                                         string $category = '', string $hero = '', string $unsubscribeUrl = '',
-                                        array $attachments = [], string $preheader = '', int $heroHeight = 0): array
+                                        array $attachments = [], string $preheader = '', int $heroHeight = 0, string $why = ''): array
             {
                 return ['success' => true];
             }
@@ -844,6 +844,24 @@ final class EventInvitesTest extends TestCase
             $r = $this->get('/admin/events/' . $this->eventId . '/invites/sample/' . $what);
             $this->assertSame(200, $r->getStatusCode(),
                 $what . ' cannot be opened on a ceremony whose list has not been built');
+        }
+    }
+
+    /**
+     * A preview is served under its own narrow policy. Under the console's — no 'unsafe-inline' —
+     * the browser dropped the letter's own <style> block, so the operator previewed a letter that
+     * looked different from the one the inbox receives.
+     */
+    public function test_both_previews_keep_the_email_s_own_styles(): void
+    {
+        $_SESSION['admin_id'] = $this->admin();
+        foreach (['preview', 'reminder'] as $what) {
+            $r = $this->get('/admin/events/' . $this->eventId . '/invites/sample/' . $what);
+            $this->assertSame(200, $r->getStatusCode(), $what);
+            $csp = $r->getHeaderLine('Content-Security-Policy');
+            $this->assertStringContainsString("style-src 'unsafe-inline'", $csp, $what . ' is served under a policy that drops the email\'s styles');
+            $this->assertStringContainsString('sandbox', $csp, 'narrower than the console, not wider: no script runs in a preview');
+            $this->assertStringNotContainsString('script-src', $csp);
         }
     }
 
@@ -935,8 +953,7 @@ final class EventInvitesTest extends TestCase
      */
     public function test_the_cover_field_can_hold_the_local_path_the_mailer_needs(): void
     {
-        $form = (string) file_get_contents(
-            dirname(__DIR__, 2) . '/templates/admin/events/form.twig');
+        $form = \Tests\Support\EventEditorSource::read();
 
         $this->assertDoesNotMatchRegularExpression(
             '/<input[^>]*type="url"[^>]*name="cover_image"/', $form,
@@ -1351,4 +1368,37 @@ final class EventInvitesTest extends TestCase
         return (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/honour.twig');
     }
 
+
+    /**
+     * The body carries its own unsubscribe link as well as the shell's, and it was the
+     * INVITEE'S: an operator checking their letter who pressed "unsubscribe" in it opted
+     * a nominee out of every mail we send them. A test copy carries only the operator's.
+     */
+    public function test_a_test_copy_carries_only_the_operators_unsubscribe_link(): void
+    {
+        $inv = EventInvites::mint($this->eventId, InviteAudience::NOMINEE,
+            ['name' => 'Ada Obi', 'email' => 'ada@example.com', 'nominee_id' => 0, 'judge_id' => 0]);
+        $event = DB::table('gates_site_events')->where('id', $this->eventId)->first();
+        $mailer = new class(['host' => 'localhost', 'port' => 25, 'username' => 'u', 'password' => 'p',
+                             'from_address' => 'no@example.com', 'from_name' => 'X'])
+            extends \AfricaGates\Services\OtpService {
+            public string $html = '';
+            public string $text = '';
+            public function smtpConfigured(): bool { return true; }
+            public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '',
+                                        string $category = '', string $hero = '', string $unsubscribeUrl = '',
+                                        array $attachments = [], string $preheader = '', int $heroHeight = 0, string $why = ''): array
+            {
+                $this->html = $htmlBody . $unsubscribeUrl;
+                $this->text = $plainBody;
+                return ['success' => true];
+            }
+        };
+        \AfricaGates\Services\InviteMailer::sendTest($inv, $event, 'ops@example.test', $mailer);
+
+        $theirs = \AfricaGates\Services\EmailOptOut::encode('ada@example.com');
+        $mine   = \AfricaGates\Services\EmailOptOut::encode('ops@example.test');
+        $this->assertStringNotContainsString($theirs, $mailer->html . $mailer->text, 'the test copy can unsubscribe the invitee');
+        $this->assertStringContainsString($mine, $mailer->html);
+    }
 }

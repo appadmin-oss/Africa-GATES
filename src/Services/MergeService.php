@@ -47,10 +47,24 @@ final class MergeService
     private const NOMINEE_OTP_PURPOSES = ['vote', 'claim', 'preflight', 'paid-vote'];
 
     /**
+     * The fields on the nominee row a merge can carry over from a merged-away entry.
+     *
+     * The survivor used to keep its own row wholesale and adopt only a profile link and a
+     * photo, and only where it had none — so a merge could not keep the better STORY,
+     * the right spelling of the name or the organisation the other entry had, and an admin
+     * had to pick the survivor by which fields it happened to hold rather than by which
+     * entry the record should live on. `$take` names, per field, the entry whose value the
+     * survivor carries. Every change is journalled, so an unmerge puts the original back.
+     */
+    public const TAKEABLE = ['name', 'tagline', 'organisation', 'country_code', 'story', 'photo_path'];
+
+    /**
      * @param int[] $mergeIds nominees to fold in (the survivor id, if included, and non-existent ids are ignored)
+     * @param bool $dryRun run the whole merge and ROLL IT BACK, returning what it would have done
+     * @param array<string,int> $take field → id of the entry whose value the survivor keeps
      * @return array{ok:bool,error?:string,merged:int,votes:int,keep_id:int}
      */
-    public static function mergeNominees(int $keepId, array $mergeIds, ?int $adminId = null): array
+    public static function mergeNominees(int $keepId, array $mergeIds, ?int $adminId = null, bool $dryRun = false, array $take = []): array
     {
         $fail = static fn(string $msg): array => ['ok' => false, 'error' => $msg, 'merged' => 0, 'votes' => 0, 'keep_id' => $keepId];
 
@@ -66,7 +80,7 @@ final class MergeService
 
         // Never fold in a nominee that is already a tombstone (it would double-merge).
         $others = DB::table('gates_nominees')->whereIn('id', $ids)
-            ->where(function ($q) { self::notMerged($q); })->get();
+            ->where(function ($q) { self::notMerged($q); })->orderBy('id')->get();
         if ($others->isEmpty()) return $fail('None of the selected nominees exist any more.');
 
         foreach ($others as $o) {
@@ -79,8 +93,15 @@ final class MergeService
         $now   = date('Y-m-d H:i:s');
         $log   = [];
 
+        $report = null;
         try {
-            DB::transaction(function () use ($keepId, $mergedIds, $keep, $others, $batch, $now, &$log) {
+            DB::transaction(function () use ($keepId, $mergedIds, $keep, $others, $batch, $now, $dryRun, $take, &$log, &$report) {
+                // Imported tallies with no ballot rows behind them travel with the votes.
+                $carry = self::carried($keepId);
+                foreach ($mergedIds as $from) {
+                    [$a, $o] = self::carried($from);
+                    $carry = [$carry[0] + $a, $carry[1] + $o];
+                }
                 foreach ($mergedIds as $from) {
                     self::reassignAll($from, $keepId, $batch, $log);
                 }
@@ -97,22 +118,39 @@ final class MergeService
                         }
                     }
                 }
-                if (empty($keep->photo_path)) {
-                    foreach ($others as $o) {
-                        if (!empty($o->photo_path)) {
-                            $adopt['photo_path'] = (string) $o->photo_path;
-                            $log[] = self::entry($batch, $keepId, (int) $o->id, 'reassign', 'gates_nominees', $keepId, 'photo_path', $keep->photo_path ?? null);
-                            break;
+                // The row fields: the admin's choice where one was made, else the survivor's
+                // own value, else the first merged entry that has one. The same default the
+                // duplicates screen ticks, so what it shows is what happens.
+                $byId = [];
+                foreach ($others as $o) $byId[(int) $o->id] = $o;
+                foreach (self::TAKEABLE as $f) {
+                    if (!self::hasCol('gates_nominees', $f)) continue;
+                    $own = trim((string) ($keep->{$f} ?? ''));
+                    $from = null;
+                    $src = (int) ($take[$f] ?? 0);
+                    if ($src > 0 && $src !== $keepId && isset($byId[$src]) && trim((string) ($byId[$src]->{$f} ?? '')) !== '') {
+                        $from = $byId[$src];
+                    } elseif ($own === '' && $src !== $keepId) {
+                        foreach ($others as $o) {
+                            if (trim((string) ($o->{$f} ?? '')) !== '') { $from = $o; break; }
                         }
                     }
+                    if ($from === null || (string) $from->{$f} === (string) ($keep->{$f} ?? '')) continue;
+                    $adopt[$f] = (string) $from->{$f};
+                    $log[] = self::entry($batch, $keepId, (int) $from->id, 'reassign', 'gates_nominees', $keepId, $f, $keep->{$f} ?? null);
                 }
                 if ($adopt) DB::table('gates_nominees')->where('id', $keepId)->update($adopt);
 
-                self::rebuildCounters($keepId);
+                self::rebuildCounters($keepId, $carry);
 
                 // Tombstone (not delete) — hidden everywhere via notMerged(), restorable via unmerge().
                 DB::table('gates_nominees')->whereIn('id', $mergedIds)
                     ->update(['merged_into' => $keepId, 'merged_at' => $now]);
+
+                if ($dryRun) {
+                    $report = self::report($keepId, $mergedIds, $log);
+                    throw new MergeRolledBack();
+                }
 
                 if ($log) {
                     foreach (array_chunk($log, 200) as $chunk) {
@@ -120,6 +158,8 @@ final class MergeService
                     }
                 }
             });
+        } catch (MergeRolledBack) {
+            return ['ok' => true, 'dry_run' => true, 'merged' => count($mergedIds), 'keep_id' => $keepId] + $report;
         } catch (\Throwable $e) {
             error_log('[MergeService] ' . $e->getMessage());
             return $fail(\AfricaGates\Admin\Support\ActionError::dbMessage($e));
@@ -133,6 +173,73 @@ final class MergeService
 
         $votes = (int) (DB::table('gates_nominees')->where('id', $keepId)->value('vote_count') ?? 0);
         return ['ok' => true, 'merged' => count($mergedIds), 'votes' => $votes, 'keep_id' => $keepId];
+    }
+
+    /**
+     * What a merge WOULD do: the real merge, run inside a transaction and rolled back.
+     *
+     * Not a second implementation of the merge, which would be a description that drifts
+     * from the thing it describes — the preview is the merge, so it cannot promise a
+     * vote total or a kept field that the real one then does differently.
+     *
+     * @param list<int> $mergeIds
+     * @param array<string,int> $take
+     * @return array<string,mixed>
+     */
+    public static function preview(int $keepId, array $mergeIds, array $take = []): array
+    {
+        return self::mergeNominees($keepId, $mergeIds, null, true, $take);
+    }
+
+    /**
+     * The live entry a merged-away nominee now lives on, or null when it was never merged
+     * (or the chain is broken). Follows a chain, because a survivor can itself be merged
+     * later; bounded, because a cycle in hand-edited data must not hang a public page.
+     */
+    public static function survivorOf(int $id): ?int
+    {
+        if (!self::hasCol('gates_nominees', 'merged_into')) return null;
+        $seen = [];
+        $cur = $id;
+        try {
+            for ($hop = 0; $hop < 10; $hop++) {
+                $next = DB::table('gates_nominees')->where('id', $cur)->value('merged_into');
+                if ($next === null || (int) $next <= 0) return $cur === $id ? null : $cur;
+                $cur = (int) $next;
+                if (isset($seen[$cur])) return null;
+                $seen[$cur] = true;
+            }
+        } catch (\Throwable) {}
+        return null;
+    }
+
+    /**
+     * Counted from inside the rolled-back transaction, so every figure is the merge's own.
+     *
+     * @param list<int> $mergedIds
+     * @param list<array<string,mixed>> $log
+     * @return array{votes:int, organic:int, moved:array<string,int>, dropped:array<string,int>, survivor:array<string,string>}
+     */
+    private static function report(int $keepId, array $mergedIds, array $log): array
+    {
+        $moved = $dropped = [];
+        foreach ($log as $e) {
+            if ($e['tbl'] === 'gates_nominees') continue;
+            if ($e['op'] === 'delete') $dropped[$e['tbl']] = ($dropped[$e['tbl']] ?? 0) + 1;
+            else $moved[$e['tbl']] = ($moved[$e['tbl']] ?? 0) + 1;
+        }
+        $row = DB::table('gates_nominees')->where('id', $keepId)->first();
+        $survivor = [];
+        foreach (self::TAKEABLE as $f) {
+            if (self::hasCol('gates_nominees', $f)) $survivor[$f] = (string) ($row->{$f} ?? '');
+        }
+        return [
+            'votes'    => (int) ($row->vote_count ?? 0),
+            'organic'  => (int) ($row->organic_vote_count ?? $row->vote_count ?? 0),
+            'moved'    => $moved,
+            'dropped'  => $dropped,
+            'survivor' => $survivor,
+        ];
     }
 
     /**
@@ -159,6 +266,9 @@ final class MergeService
 
         try {
             DB::transaction(function () use ($mergedId, $keepId, $rows, &$restored) {
+                // What the survivor carries beyond its rows, BEFORE this entry's rows go
+                // back: part of it is this entry's imported tally, which leaves with it.
+                $keepCarry = self::carried($keepId);
                 foreach ($rows as $r) {
                     if ($r->op === 'delete') {
                         // Re-insert the row that was dropped on a UNIQUE collision.
@@ -184,8 +294,12 @@ final class MergeService
 
                 DB::table('gates_nominees')->where('id', $mergedId)->update(['merged_into' => null, 'merged_at' => null]);
 
-                self::rebuildCounters($keepId);
-                self::rebuildCounters($mergedId);
+                // The merged entry's counters were never touched while it was a tombstone,
+                // so what it carries beyond its restored rows is its imported tally — and
+                // the survivor gives exactly that back, keeping its own.
+                $mergedCarry = self::carried($mergedId);
+                self::rebuildCounters($keepId, [max(0, $keepCarry[0] - $mergedCarry[0]), max(0, $keepCarry[1] - $mergedCarry[1])]);
+                self::rebuildCounters($mergedId, $mergedCarry);
 
                 DB::table('gates_merge_log')->where('merged_id', $mergedId)->delete();
             });
@@ -267,6 +381,14 @@ final class MergeService
         self::reassignPlain('gates_otp_tokens', 'nominee_id', $from, $to, $batch, $log,
                             ['purpose', self::NOMINEE_OTP_PURPOSES]);
         self::reassignPlain('gates_donations',     'intent_nominee_id', $from, $to, $batch, $log);
+        // The community return follows the contributions it came from. Moving the donations
+        // and the claim but not the ledger left the merged-away page holding the money: no
+        // member holds that page any more, so no wallet listed it and nobody could withdraw
+        // it, while audit() flagged every entry as "credited to a different nominee". The
+        // withdrawals move with the ledger they draw on; an open one is still checked
+        // against whoever holds the survivor's claim before anything is paid.
+        self::reassignPlain('gates_community_returns',  'nominee_id', $from, $to, $batch, $log);
+        self::reassignPlain('gates_return_withdrawals', 'nominee_id', $from, $to, $batch, $log);
 
         // Polymorphic references (type column = 'nominee').
         self::reassignPlain('gates_comments',    'target_id',      $from, $to, $batch, $log, ['target_type', 'nominee']);
@@ -414,26 +536,82 @@ final class MergeService
         } catch (\Throwable) {}
     }
 
-    /** Rebuild the survivor's denormalised vote counters from the reassigned gates_votes rows. */
-    private static function rebuildCounters(int $id): void
+    /**
+     * A nominee's vote counters as the LEDGER has them: SUM(weight) of its gates_votes
+     * rows, and of its standard rows for the organic count.
+     *
+     * @return array{0:int,1:int} [all, organic]
+     */
+    private static function ledger(int $id): array
+    {
+        $hasWeight = self::hasCol('gates_votes', 'weight');
+        $all = $hasWeight
+            ? (int) DB::table('gates_votes')->where('nominee_id', $id)->sum('weight')
+            : (int) DB::table('gates_votes')->where('nominee_id', $id)->count();
+        $organic = $all;
+        if (self::hasCol('gates_votes', 'vote_type')) {
+            $oq = DB::table('gates_votes')->where('nominee_id', $id)->where('vote_type', 'standard');
+            $organic = $hasWeight ? (int) $oq->sum('weight') : (int) $oq->count();
+        }
+        return [$all, $organic];
+    }
+
+    /**
+     * The part of a nominee's counters that NO vote row stands behind — an imported tally.
+     *
+     * ── WHY A MERGE CARRIES IT ────────────────────────────────────────────────────────
+     *
+     * The counters are denormalised and the ledger is the truth for every vote this
+     * platform minted, but not for every vote it HOLDS: an edition imported from before
+     * this platform kept rows carries its tallies in `vote_count` with no rows behind them
+     * (CLAUDE.md, "the measurement cliff"). The merge rebuilt the survivor from the ledger
+     * alone, so two such entries on 120 and 45 imported votes merged to 1. The preview
+     * said so, and said "undo puts them back" — true of the merged entry, whose counters a
+     * tombstone never touches, and false of the SURVIVOR: unmerge rebuilt it from the
+     * ledger too, and its own 120 were gone for good. The unledgered part of every entry
+     * now travels with the merge, and comes back off the survivor on unmerge.
+     *
+     * @return array{0:int,1:int} [all, organic]
+     */
+    private static function carried(int $id): array
+    {
+        $row = DB::table('gates_nominees')->where('id', $id)->first();
+        if (!$row) return [0, 0];
+        [$all, $organic] = self::ledger($id);
+        return [
+            max(0, (int) ($row->vote_count ?? 0) - $all),
+            self::hasCol('gates_nominees', 'organic_vote_count') ? max(0, (int) ($row->organic_vote_count ?? 0) - $organic) : 0,
+        ];
+    }
+
+    /**
+     * Votes these entries carry with no ballot rows behind them — the figure a merge
+     * preview states so an operator knows an imported tally is part of the total.
+     *
+     * @param list<int> $ids
+     */
+    public static function importedTally(array $ids): int
+    {
+        $n = 0;
+        try {
+            foreach (array_unique(array_map('intval', $ids)) as $id) $n += self::carried($id)[0];
+        } catch (\Throwable) {}
+        return $n;
+    }
+
+    /**
+     * Rebuild a nominee's denormalised vote counters: the ledger, plus the unledgered
+     * tally it carries ({@see carried()}).
+     *
+     * @param array{0:int,1:int} $carry
+     */
+    private static function rebuildCounters(int $id, array $carry = [0, 0]): void
     {
         if (!self::hasCol('gates_votes', 'nominee_id')) return;
         try {
-            $hasWeight = self::hasCol('gates_votes', 'weight');
-            $hasType   = self::hasCol('gates_votes', 'vote_type');
-
-            $all = $hasWeight
-                ? (int) DB::table('gates_votes')->where('nominee_id', $id)->sum('weight')
-                : (int) DB::table('gates_votes')->where('nominee_id', $id)->count();
-
-            $organic = $all;
-            if ($hasType) {
-                $oq = DB::table('gates_votes')->where('nominee_id', $id)->where('vote_type', 'standard');
-                $organic = $hasWeight ? (int) $oq->sum('weight') : (int) $oq->count();
-            }
-
-            $upd = ['vote_count' => $all];
-            if (self::hasCol('gates_nominees', 'organic_vote_count')) $upd['organic_vote_count'] = $organic;
+            [$all, $organic] = self::ledger($id);
+            $upd = ['vote_count' => $all + max(0, $carry[0])];
+            if (self::hasCol('gates_nominees', 'organic_vote_count')) $upd['organic_vote_count'] = $organic + max(0, $carry[1]);
             DB::table('gates_nominees')->where('id', $id)->update($upd);
         } catch (\Throwable) {}
     }
@@ -472,3 +650,6 @@ final class MergeService
         return SchemaHas::table($table);
     }
 }
+
+/** Thrown inside a preview's transaction so the merge rolls back; never escapes MergeService. */
+final class MergeRolledBack extends \RuntimeException {}

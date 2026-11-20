@@ -113,6 +113,9 @@
   </div>
 
   <aside class="cm-side" aria-label="{{ 'About the community'|trans }}">
+    {# Counts only once there is something to count: "0 threads, 0 replies" beside the empty
+       list said the same thing twice, the second time as a statistic. #}
+    {% if stats.threads > 0 %}
     <section class="cm-box" aria-labelledby="cm-pulse-h">
       <h2 class="cm-box__h" id="cm-pulse-h">{{ 'In numbers'|trans }}</h2>
       <dl class="cm-figs">
@@ -121,6 +124,7 @@
         <div><dt>{{ 'Spaces'|trans }}</dt><dd>{{ stats.spaces|number_format }}</dd></div>
       </dl>
     </section>
+    {% endif %}
     {% if trending is not empty %}
       <section class="cm-box" aria-labelledby="cm-tr-h">
         <h2 class="cm-box__h" id="cm-tr-h">{{ 'Most active'|trans }}</h2>

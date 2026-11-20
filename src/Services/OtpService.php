@@ -132,10 +132,12 @@ class OtpService
         // `.env`'s own login, tried after a different one stored in Settings — see
         // MailConfig::load(). Only where SMTP is a road at all.
         $env  = $smtp && is_array($this->smtp['smtp_env'] ?? null);
-        // Apps Script carries one-to-one mail only: MailApp's allowance is about 100
-        // recipients a day, and a newsletter spending it is a sign-in code that cannot go.
+        // Apps Script: one-to-one mail always; an announcement only while more than the
+        // reserve kept for sign-in codes is left (Mail\RoadCapacity::gasMayCarryBulk). It used
+        // to carry no announcement at all, which stranded every campaign and newsletter on a
+        // deployment where Apps Script is the road that works.
         $gasSet = array_key_exists('gas', $this->smtp) ? (bool) $this->smtp['gas'] : AppsScriptMail::configured();
-        $gas  = !$bulk && $gasSet;
+        $gas  = $gasSet && (!$bulk || \AfricaGates\Services\Mail\RoadCapacity::gasMayCarryBulk());
 
         /* ── THIS SERVER'S OWN MAIL IS NOT A FALLBACK ─────────────────────────────
          *
@@ -167,7 +169,10 @@ class OtpService
             $out = array_merge(array_values(array_diff($out, ['smtp', 'smtp-env'])),
                                array_values(array_intersect($out, ['smtp', 'smtp-env'])));
         }
-        return $out;
+        // And a road that has spent its day's allowance, or just said "quota", goes behind
+        // the roads that still have room (Mail\RoadCapacity) — never removed, so a lone road
+        // is still tried.
+        return \AfricaGates\Services\Mail\RoadCapacity::order($out);
     }
 
     /**
@@ -305,12 +310,12 @@ class OtpService
      *        attaches is generated for the message (a schedule, a receipt), and accepting a
      *        path would make it possible to attach a file somebody else's request named.
      */
-    public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '', string $category = '', string $hero = '', string $unsubscribeUrl = '', array $attachments = [], string $preheader = '', int $heroHeight = 0): array
+    public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '', string $category = '', string $hero = '', string $unsubscribeUrl = '', array $attachments = [], string $preheader = '', int $heroHeight = 0, string $why = ''): array
     {
         return $this->dispatch($to, $subject, $category, $unsubscribeUrl, $plainBody ?: strip_tags($htmlBody),
-            function (PHPMailer $m) use ($subject, $htmlBody, $plainBody, $category, $hero, $unsubscribeUrl, $attachments, $preheader, $heroHeight): void {
+            function (PHPMailer $m) use ($subject, $htmlBody, $plainBody, $category, $hero, $unsubscribeUrl, $attachments, $preheader, $heroHeight, $why): void {
                 $m->isHTML(true);
-                $m->Body    = $this->brandWrap($subject, $htmlBody, $category, $hero, $unsubscribeUrl, $preheader, $heroHeight);
+                $m->Body    = $this->brandWrap($subject, $htmlBody, $category, $hero, $unsubscribeUrl, $preheader, $heroHeight, $why);
                 $m->AltBody = $plainBody ?: strip_tags($htmlBody);
                 foreach ($attachments as $f) {
                     $name = trim((string) ($f['name'] ?? ''));
@@ -420,6 +425,9 @@ class OtpService
             $m->Subject = $subject;
             $build($m);
             $this->headers($m, $category, $unsubscribeUrl);
+            // Our own images ride inside the message, so a client that blocks linked images
+            // (Outlook, Yahoo, most work mail) still shows them (InlineImages).
+            \AfricaGates\Services\Mail\InlineImages::embed($m, $this->base());
         } catch (MailException|\Throwable $e) {
             // A message that cannot even be built (an address PHPMailer rejects) is not a
             // road problem, and no other road would fix it.
@@ -448,11 +456,14 @@ class OtpService
                 if ($road === 'smtp') self::restSmtp(false);
                 $note = $failed === [] ? null : 'via ' . $road . ' after: ' . implode(' | ', $failed);
                 $this->log?->info('[mail] sent', ['to' => $to, 'subject' => $subject, 'via' => $road]);
-                MailLog::write($to, $subject, $category, MailLog::SENT, $note, $bulk);
+                MailLog::write($to, $subject, $category, MailLog::SENT, $note, $bulk, $road);
                 return ['success' => true, 'via' => $road];
             } catch (MailException|\Throwable $e) {
                 $err = $e->getMessage();
                 $cause = MailFailure::classify($err);
+                // "Quota": this road's day is spent. Rest it, so every following message goes
+                // straight to a road with room instead of paying for a refusal first.
+                if ($cause === MailFailure::QUOTA) \AfricaGates\Services\Mail\RoadCapacity::rest($road);
                 $this->log?->error('[mail] send failed via ' . $road . ': ' . $err, ['to' => $to]);
                 if ($cause === MailFailure::RECIPIENT || $i === count($routes) - 1) {
                     $all = $failed === [] ? $err : implode(' | ', array_merge($failed, [$road . ': ' . $err]));
@@ -588,6 +599,13 @@ class OtpService
     }
 
     /**
+     * How long a vote code lives. Read by the mint, both halves of the email and the ballot's
+     * code screen, so the four cannot disagree: it was typed into three of them, and the
+     * screen a voter types the code into said nothing about it at all.
+     */
+    public const VOTE_CODE_MINUTES = 10;
+
+    /**
      * Generate and email a 6-digit voting OTP.
      * Invalidates any outstanding code for this email+purpose first
      * so there is always at most one live code per user.
@@ -618,11 +636,22 @@ class OtpService
             'award_id'   => $awardId,
             'attempts'   => 0,
             'is_used'    => 0,
-            'expires_at' => Carbon::now()->addMinutes(10)->toDateTimeString(),
+            'expires_at' => Carbon::now()->addMinutes(self::VOTE_CODE_MINUTES)->toDateTimeString(),
             'created_at' => Carbon::now()->toDateTimeString(),
         ]);
 
-        $sent = $this->sendOtpEmail($email, $code);
+        // The voter's own "what your vote unlocks" link rides in the code email they are
+        // already opening, rather than in a second message (OfferLink).
+        $offer = null;
+        try {
+            $slug = (string) (DB::table('gates_nominees as n')->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+                ->join('gates_award_cycles as y', 'y.id', '=', 'c.cycle_id')->join('gates_award_programmes as p', 'p.id', '=', 'y.programme_id')
+                ->where('n.id', $nomineeId)->where('p.is_active', 1)->value('p.slug') ?? '');
+            if ($slug !== '') $offer = $this->base() . OfferLink::path($slug, VoteService::voterHash($email));
+        } catch (\Throwable) {
+            $offer = null;
+        }
+        $sent = $this->sendOtpEmail($email, $code, $offer);
 
         // ── RECORD WHETHER THE CODE ACTUALLY LEFT THE BUILDING ───────────────
         //
@@ -667,11 +696,16 @@ class OtpService
         } catch (\Throwable) { /* see the note above: silence here only costs recoverability */ }
     }
 
-    private function sendOtpEmail(string $to, string $code): array
+    private function sendOtpEmail(string $to, string $code, ?string $offer = null): array
     {
+        $mins = self::VOTE_CODE_MINUTES;
+        $offerH = $offer !== null
+            ? '<p style="margin:16px 0 0;font-size:14px;line-height:1.6;color:' . \AfricaGates\Support\Accent::hex('ink-2') . '">After you vote: <a href="' . htmlspecialchars($offer, ENT_QUOTES, 'UTF-8') . '" style="color:' . \AfricaGates\Support\Accent::hex('ink') . ';font-weight:700">see what your votes unlock</a>.</p>'
+            : '';
+        $offerP = $offer !== null ? "\n\nAfter you vote, see what your votes unlock: " . $offer : '';
         $html = <<<HTML
 <h1 style="margin:0;font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:26px;color:#10292C;letter-spacing:-.01em">Confirm it's you</h1>
-<p style="margin:13px 0 0;font-size:15px;line-height:1.65;color:#4a5256">Enter this one-time code to verify your email and cast your vote. It expires in <strong style="color:#10292C">10 minutes</strong>.</p>
+<p style="margin:13px 0 0;font-size:15px;line-height:1.65;color:#4a5256">Enter this one-time code to verify your email and cast your vote. It expires in <strong style="color:#10292C">{$mins} minutes</strong>.</p>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0">
   <tr><td style="background:#f4f7f4;border:1px solid #d6e8d3;border-radius:14px;padding:24px;text-align:center">
     <div style="font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#92a6a7;margin-bottom:12px">Your verification code</div>
@@ -679,13 +713,14 @@ class OtpService
   </td></tr>
 </table>
 <p style="margin:0;font-size:13px;line-height:1.6;color:#92a6a7">Didn't request this? Ignore this email — no one can vote as you, and your account stays secure. One vote per email per category.</p>
+{$offerH}
 HTML;
 
         return $this->sendBranded(
             $to,
             'Africa GATES — your verification code',
             $html,
-            "Africa GATES verification code: $code\n\nExpires in 10 minutes. One vote per email per category.\n\nDidn't request this? Ignore this email.",
+            "Africa GATES verification code: $code\n\nExpires in " . self::VOTE_CODE_MINUTES . " minutes. One vote per email per category.\n\nDidn't request this? Ignore this email." . $offerP,
             'Security',
             $this->base() . '/assets/img/illustrations/illo-envelope.jpg'
         );
@@ -743,6 +778,36 @@ HTML;
      * (Outlook, Gmail app, Apple Mail, Yahoo Mail).
      */
     /**
+     * The height attribute for a hero drawn 600 wide: from the IMAGE when it is one of
+     * ours, else the caller's figure, else 260.
+     *
+     * `height` is not a hint to Outlook desktop — it is the size the image is drawn at,
+     * `height:auto` notwithstanding. Every hero was given 260, which is right for the
+     * 1200×520 illustrations and wrong for the older 1344×768 ones (and for an event cover
+     * cut to its own shape): those were drawn squashed to a 2.3:1 band in the client a
+     * large share of Nigerian offices read mail in, while every webmail scaled them
+     * correctly — so nobody checking in a browser ever saw it. Measured from the file in
+     * `public/`, never typed per image: the next illustration added at another size is
+     * then right without anybody remembering this.
+     */
+    public static function heroHeight(string $hero, int $given = 0): int
+    {
+        static $memo = [];
+        $fallback = $given > 0 ? $given : 260;
+        $path = (string) (parse_url($hero, PHP_URL_PATH) ?? '');
+        // Our own files only: the shipped illustrations and an uploaded cover. Anything
+        // else is somebody else's server, and is not fetched to measure it.
+        if ($path === '' || !preg_match('~^/(assets|uploads)/~', $path) || str_contains($path, '..')) return $fallback;
+        if (!array_key_exists($path, $memo)) {
+            $root = realpath(dirname(__DIR__, 2) . '/public') ?: '';
+            $file = realpath($root . rawurldecode($path)) ?: '';
+            $size = ($root !== '' && $file !== '' && str_starts_with($file, $root . '/') && is_file($file)) ? @getimagesize($file) : false;
+            $memo[$path] = ($size && $size[0] > 0 && $size[1] > 0) ? (int) round(600 * $size[1] / $size[0]) : 0;
+        }
+        return $memo[$path] > 0 ? $memo[$path] : $fallback;
+    }
+
+    /**
      * The house shell every branded email arrives in.
      *
      * PUBLIC, and not for a test: the admin preview has to show what the RECIPIENT gets.
@@ -753,7 +818,7 @@ HTML;
      * ── WHAT WAS ADDED, AND FOR WHICH CLIENT ─────────────────────────────────
      *
      * This carried the design and none of the scaffolding. Six of the twelve properties
-     * EmailInboxCompatTest holds were missing — from the shell EVERY transactional message
+     * EmailInboxCompatCase holds were missing — from the shell EVERY transactional message
      * on this platform goes out in, not from one template:
      *
      *   · No MSO conditional table. Outlook desktop ignores `max-width`, so the 600px card
@@ -775,199 +840,40 @@ HTML;
      *                          the subject rather than to the body's first words, which is
      *                          what a client picks up when there is nothing hidden for it.
      */
-    public function brandWrap(string $subject, string $body, string $category = '', string $hero = '', string $unsubscribeUrl = '', string $preheader = '', int $heroHeight = 0): string
+    public function brandWrap(string $subject, string $body, string $category = '', string $hero = '', string $unsubscribeUrl = '', string $preheader = '', int $heroHeight = 0, string $why = ''): string
     {
-        $year    = date('Y');
-        $base    = $this->base();
-        // THE SHELL'S COLOURS ARE THE PALETTE'S (rebuilt 3 Oct 2026 with the email
-        // templates it carries — docs/handoff/inventory/_emails.md). It typed eleven
-        // colours of its own, none in Support\Accent; mail cannot read var(), so it asks
-        // Accent for the value by name. Three levels as before: the page on `tint`, the
-        // masthead on `ground`, the card on `surface`; the footer is ink with `line-2`
-        // words and `surface` links.
-        $c = Accent::mail();
-        [$cInk, $cInk2, $cSoft, $cTint, $cGround, $cSurface, $cLine, $cLine2, $cGreen, $cGreenLight]
-            = [$c['ink'], $c['ink-2'], $c['soft'], $c['tint'], $c['ground'], $c['surface'],
-               $c['line'], $c['line-2'], $c['green'], $c['green-light']];
-        $shadow = Accent::shadows()['sh-float'];
-        // The labels are 11.5px, the §6.2 floor — they were 10 and 10.5. A tracked label is
-        // small text and owes the full 4.5:1: `soft` is 4.80 on the ground it sits on.
-        $catCell = $category !== ''
-            ? '<div style="margin-top:5px;font-size:11.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:' . $cInk . '">'
-              . htmlspecialchars($category, ENT_QUOTES) . '</div>'
-            : '';
-        // HEIGHT as well as width. Outlook desktop blocks remote images by default, and a
-        // blocked image with no height collapses the band it is the only thing in — the
-        // reader gets a hairline where the picture was. 260 is the shipped 600×260 crop;
-        // a caller with different artwork passes its own.
-        $hh = $heroHeight > 0 ? $heroHeight : 260;
-        $heroRow = $hero !== ''
-            ? '<tr><td style="padding:0;font-size:0;line-height:0"><img src="' . htmlspecialchars($hero, ENT_QUOTES)
-              . '" alt="" width="600" height="' . $hh . '" style="display:block;width:100%;max-width:600px;height:auto;border:0"></td></tr>'
-            : '';
-
-        // The line an inbox shows beside the subject. Without it every message on this
-        // platform previewed as "Africa GATES Cultural Power Index" — the words in the
-        // pre-header strip, which is the first text in the document. Padded with
-        // zero-width joiners so the client does not pull body copy in after it.
-        $pre = htmlspecialchars($preheader !== '' ? $preheader : $subject, ENT_QUOTES);
-        $preRow = '<div style="display:none;max-height:0;max-width:0;font-size:1px;line-height:1px;opacity:0;overflow:hidden;mso-hide:all">'
-                . $pre . str_repeat('&#8202;&zwnj;', 7) . '</div>';
-        // A visible way out, next to the other two footer links. The List-Unsubscribe
-        // header is what Gmail reads; this is what a person reads, and only one of those
-        // two is a promise the platform made in writing.
-        // THE REAL MARK, at a size it can actually be read at.
+        // The markup is templates/emails/_shell.twig (design_handoff_letter_email_admin,
+        // "Shell, final"), whose docblock lists what it must keep and which test keeps it.
+        // What is decided HERE is only what the template cannot know:
         //
-        // This masthead was a "G" set in a 34px tile beside the words "Africa GATES" — a
-        // lockup drawn in CSS, because the shipped artwork is green on OPAQUE white and
-        // the band was ink. The band is the paper ground now, so the mark is the real
-        // green one; Brand::LOGO_ON_TINT is that artwork with the paper turned to alpha,
-        // because the masthead's ground is close enough to white that the opaque file's box is
-        // invisible in a screenshot and obvious in an inbox. Asking Brand for it rather
-        // than typing a path is what keeps the letter and the email it arrives with
-        // showing the same logo.
-        //
-        // ── WHY IT IS 72px, AND WHY THE FILE IS 144 ──────────────────────────────
-        //
-        // The lockup is a LARGE-FORMAT mark: a hairline coastline with "Africa" set
-        // inside it over "G.A.T.E.S." tracked at 4% of the artwork's height. At 42px —
-        // the size a horizontal wordmark would want — the coastline goes sub-pixel and
-        // what arrives is a smudge. 72 is the floor at which "Africa" still reads; the
-        // tracked line below it is texture at any size a masthead can carry, and that is
-        // the artwork rather than the layout.
-        //
-        // What made it look dirty was never the size, though — it was serving the 640px
-        // master and letting the client reduce it 8x, which washes a 2.5px stroke out to
-        // a third of a pixel of coverage. `scripts/gen-mark-alpha.php` does that
-        // reduction properly, ONCE, at 2x this box. Change 72 here and change OUT_W
-        // there: the two are one decision.
-        //
-        // width AND height on the tag: Outlook desktop blocks remote images by default
-        // and a blocked image with no height collapses the band it is the only thing in.
-        // The alt is the organisation's name, styled — an unstyled alt renders as 10px
-        // serif and reads as a broken attachment rather than as a wordmark.
-        $logo = htmlspecialchars(Brand::logoUrl($base, onTint: true), ENT_QUOTES);
-        // The footer used to end "We hash every email — plain text is never stored", on
-        // every branded message this platform sends. It was not true: the newsletter list,
-        // the opt-out list and the broadcast log all hold the address, because mail cannot
-        // be sent to a hash. A footer is a statement in writing to every recipient; it now
-        // says who sent the message and where they are, which is what one owes.
-        $postal = htmlspecialchars(MailConfig::postal(), ENT_QUOTES);
-        $unsub = $unsubscribeUrl !== ''
-            ? ' · <a href="' . htmlspecialchars($unsubscribeUrl, ENT_QUOTES)
-              . '" style="color:' . $cSurface . ';text-decoration:underline">Unsubscribe</a>'
-            : '';
-        // ── THE SKELETON, AND THE THREE THINGS THAT ARE EASY TO GET WRONG IN IT ──
-        //
-        // A comment written INSIDE the heredoc ships to every recipient and is scanned by
-        // the compat tests as if it were markup — an HTML comment saying "padding on a
-        // <table>" was read as an eighth layout table with no presentation role. So the
-        // reasoning lives out here.
-        //
-        // THE CARD is width="100%" with a max-width, never width="600". Fixed at 600 it
-        // did not shrink on a phone: measured in a 390px frame, the header labels and the
-        // right edge of every paragraph were off-screen, on every branded message this
-        // platform sends. The [if mso] table hands Outlook back the fixed 600 it needs,
-        // because it is the one engine that ignores max-width.
-        //
-        // THE GUTTER is on the cell, not on the wrapper. Browsers inset it either way;
-        // Outlook's Word engine ignores CSS padding on a table element and honours it on
-        // a cell, so on the wrapper it is a gutter that silently is not there in the one
-        // client the conditional exists for. Same convention as the campaign skeleton.
-        //
-        // THE MASTHEAD puts the mark where a letterhead puts it and hangs the descriptor
-        // and the message's category off the TOP line opposite — centred, they floated
-        // against the outline's empty lower half. There used to be a separate near-white
-        // strip above it reading "Africa GATES · Cultural Power Index"; it is gone,
-        // because two light bands of almost the same value read as a printing fault and
-        // half of what it said is the wordmark directly beneath it.
-        return <<<HTML
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="format-detection" content="telephone=no, date=no, address=no, email=no, url=no">
-  <meta name="color-scheme" content="light">
-  <meta name="supported-color-schemes" content="light">
-  <title>$subject</title>
-  <style>
-    /* iOS still finds dates and addresses with format-detection set, wraps them in its
-       own anchor and restyles them blue — through the middle of a sentence. */
-    a[x-apple-data-detectors] {
-      color:inherit !important; text-decoration:none !important; font-size:inherit !important;
-      font-family:inherit !important; font-weight:inherit !important; line-height:inherit !important;
-    }
-    @media only screen and (max-width:620px) {
-      .ag-pad { padding-left:22px !important; padding-right:22px !important; }
-    }
-    /* This shell does NOT go dark, and that is a decision rather than an omission.
-       Every body it wraps is a FRAGMENT whose ink is set inline — ink headings on
-       white, per-message callouts in their own tints — so a card flipped dark
-       here would render all of it dark-on-dark in exactly the clients that honour this
-       query and nothing else.
-       What the block is for is colour-LOCKING. Outlook.com and the Windows Outlook apps
-       invert regardless of color-scheme and do it partially, which leaves a near-white
-       surface muddy grey with the ink on it untouched. Restating each surface with
-       !important is what stops that. */
-    @media (prefers-color-scheme: dark) {
-      .ag-ground { background-color:$cTint !important; }
-      .ag-head   { background-color:$cGround !important; }
-      .ag-card   { background-color:$cSurface !important; }
-      .ag-body   { background-color:$cSurface !important; color:$cInk2 !important; }
-      .ag-foot   { background-color:$cInk !important; }
-    }
-  </style>
-</head>
-<body style="margin:0;padding:0;background:$cTint;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
-  $preRow
-  <table role="presentation" class="ag-ground" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:$cTint">
-    <tr><td align="center" style="padding:28px 16px">
-      <!--[if mso]>
-      <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px"><tr><td>
-      <![endif]-->
-      <table role="presentation" class="ag-card" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;max-width:600px;background:$cSurface;border-radius:6px;overflow:hidden;border:1px solid $cLine;box-shadow:$shadow">
-
-        <!-- Masthead -->
-        <tr><td class="ag-head" style="background:$cGround;border-bottom:1px solid $cLine;padding:20px 32px">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-            <td align="left" style="vertical-align:middle">
-              <img src="$logo" width="72" height="83" alt="Africa GATES"
-                   style="display:block;width:72px;max-width:72px;height:auto;border:0;outline:none;text-decoration:none;font-family:'Playfair Display',Georgia,serif;font-size:15px;font-weight:700;color:$cGreen">
-            </td>
-            <td align="right" style="vertical-align:top;padding-top:12px">
-              <div style="font-size:11.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:$cSoft">Cultural Power Index</div>
-              $catCell
-            </td>
-          </tr></table>
-        </td></tr>
-
-        $heroRow
-
-        <!-- Body -->
-        <tr><td class="ag-pad ag-body" style="padding:34px 40px 30px;background:$cSurface;color:$cInk2;font-size:15px;line-height:1.65">
-          $body
-        </td></tr>
-
-        <!-- Footer -->
-        <tr><td class="ag-foot" style="background:$cInk;padding:24px 40px">
-          <span style="font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:14px;color:$cSurface">Africa<span style="color:$cGreenLight">GATES</span></span>
-          <div style="height:1px;background:$cInk2;margin:14px 0"></div>
-          <p style="margin:0;font-size:11.5px;line-height:1.7;color:$cLine2">
-            © $year Africa GATES, an Afrovanguard initiative · $postal<br>
-            <a href="{$base}/help" style="color:$cSurface;text-decoration:underline">Help Center</a> ·
-            <a href="{$base}/privacy" style="color:$cSurface;text-decoration:underline">Privacy</a>$unsub
-          </p>
-        </td></tr>
-
-      </table>
-      <!--[if mso]></td></tr></table><![endif]-->
-    </td></tr>
-  </table>
-</body>
-</html>
-HTML;
+        //  · the mark comes from Brand, never a typed path: Brand::MARK, the square mark the
+        //    handoff draws at 26×26 in a 40px white tile beside the name set as text (the
+        //    file is 192px, so it is sharp at 2x and better on a phone);
+        //  · the hero keeps a HEIGHT even when the caller has none: Outlook desktop blocks
+        //    remote images by default, and a blocked image with no height collapses the band
+        //    it is the only thing in — and the height is the image's own (heroHeight());
+        //  · the preheader falls back to the subject — without one, every message here
+        //    previewed as the first words of the masthead;
+        //  · the footer says who sent it and where they are (MailConfig::postal()). It used
+        //    to claim "we hash every email — plain text is never stored", which three tables
+        //    contradict; a footer is a statement in writing to every recipient.
+        return \AfricaGates\Services\Mail\EmailView::env()->render('emails/_shell.twig', [
+            'c'               => Accent::mail(),
+            'subject'         => $subject,
+            'preheader'       => $preheader !== '' ? $preheader : $subject,
+            'category'        => $category,
+            'hero'            => $hero,
+            'hero_height'     => self::heroHeight($hero, $heroHeight),
+            'body'            => $body,
+            'why'             => $why,
+            'logo'            => Brand::markUrl($this->base()),
+            'base'            => $this->base(),
+            'postal'          => MailConfig::postal(),
+            'year'            => date('Y'),
+            // A visible way out beside Help and Privacy. The List-Unsubscribe header is what
+            // Gmail reads; this is what a person reads.
+            'unsubscribe_url' => $unsubscribeUrl,
+        ]);
     }
 
     /* ── Additional transactional emails ─────────────────────── */
@@ -1036,41 +942,4 @@ HTML;
         );
     }
 
-    /**
-     * Judge assignment — sent when an admin assigns a judge to a programme.
-     */
-    public function sendJudgeAssignment(
-        string $to,
-        string $judgeName,
-        string $programme,
-        string $loginUrl,
-    ): array {
-        $html = <<<HTML
-<p>Hi <strong>{$judgeName}</strong>,</p>
-<p>You have been appointed as a judge for the <strong>{$programme}</strong> in the Africa GATES 2026 awards cycle. Your scores will form 55% of each nominee's final Cultural Power Index (CPI) score.</p>
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0;background:#f0fdf4;border-left:4px solid #22c55e;border-radius:0 8px 8px 0;padding:14px 18px">
-  <tr><td style="font-size:14px;color:#166534;line-height:1.7">
-    Programme: <strong>{$programme}</strong><br>
-    Your weight: <strong>55% of final score</strong><br>
-    Criteria: Impact · Originality · Reach · Integrity (25% each)
-  </td></tr>
-</table>
-<p>Access the judging panel using your assigned credentials. Score each nominee independently on the four criteria — you can save and update scores at any time before the panel closes.</p>
-<p style="text-align:center;margin:24px 0">
-  <a href="{$loginUrl}"
-     style="display:inline-block;padding:12px 28px;background:#10292C;color:#fff;border-radius:999px;font-weight:600;text-decoration:none;font-size:15px">
-    Access the judging panel →
-  </a>
-</p>
-<p style="font-size:13px;color:#9ca3af">Questions? Reply to this email and a programme director will assist you.</p>
-HTML;
-        return $this->sendBranded(
-            $to,
-            "You've been appointed as a judge — {$programme}",
-            $html,
-            "Hi {$judgeName},\n\nYou've been appointed as a judge for {$programme} in Africa GATES 2026.\n\nAccess the panel: {$loginUrl}\n\n— Africa GATES",
-            'Judges',
-            $this->base() . '/assets/img/illustrations/illo-shield.jpg'
-        );
-    }
 }

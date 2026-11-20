@@ -1,0 +1,777 @@
+{
+  "product": "volunteer workspace",
+  "version": 5,
+  "routeBase": "/volunteer",
+  "neverAdmin": true,
+  "roles": {
+    "active": "Volunteer · Level 2",
+    "lead": "Team lead · Level 3",
+    "new": "Volunteer · Level 1",
+    "applicant": "Applicant"
+  },
+  "root": {
+    "active": [
+      {
+        "group": null,
+        "pages": [
+          {
+            "key": "home",
+            "label": "Today",
+            "icon": "home",
+            "purpose": "What’s next for you, and how the awards you help on are doing."
+          },
+          {
+            "key": "shifts",
+            "label": "Shifts",
+            "icon": "cal",
+            "tabs": [
+              {
+                "key": "mine",
+                "label": "Mine"
+              },
+              {
+                "key": "fits",
+                "label": "Fits you"
+              },
+              {
+                "key": "all",
+                "label": "All open"
+              },
+              {
+                "key": "past",
+                "label": "Past"
+              }
+            ],
+            "purpose": "Shifts you’re on, and ones that fit your training, time and place."
+          },
+          {
+            "key": "tasks",
+            "label": "Tasks",
+            "icon": "list",
+            "tabs": [
+              {
+                "key": "mine",
+                "label": "Mine"
+              },
+              {
+                "key": "library",
+                "label": "Library"
+              },
+              {
+                "key": "done",
+                "label": "Done"
+              }
+            ],
+            "purpose": "Work you can do from anywhere. Each task says how it’s checked."
+          },
+          {
+            "key": "hours",
+            "label": "Hours",
+            "icon": "clock",
+            "tabs": [
+              {
+                "key": "summary",
+                "label": "Summary"
+              },
+              {
+                "key": "review",
+                "label": "In review"
+              },
+              {
+                "key": "log",
+                "label": "Log hours"
+              }
+            ],
+            "purpose": "Most hours log themselves from scans and accepted work. Log by hand only for work nobody saw."
+          }
+        ]
+      },
+      {
+        "group": "Where you help",
+        "pages": [
+          {
+            "key": "@award.tp4",
+            "label": "Teachers Prize · 4th",
+            "icon": "trophy",
+            "opensScope": "award.tp4"
+          },
+          {
+            "key": "@award.acag2",
+            "label": "Alimosho Awards · 2nd",
+            "icon": "trophy",
+            "opensScope": "award.acag2"
+          },
+          {
+            "key": "@event.acag",
+            "label": "Alimosho ceremony",
+            "icon": "ticket",
+            "opensScope": "event.acag"
+          }
+        ]
+      },
+      {
+        "group": "Grow",
+        "pages": [
+          {
+            "key": "training",
+            "label": "Training",
+            "icon": "book",
+            "tabs": [
+              {
+                "key": "next",
+                "label": "Next for you"
+              },
+              {
+                "key": "passed",
+                "label": "Passed"
+              }
+            ],
+            "purpose": "Short modules. Each one unlocks roles."
+          },
+          {
+            "key": "record",
+            "label": "My record",
+            "icon": "star",
+            "tabs": [
+              {
+                "key": "overview",
+                "label": "Overview"
+              },
+              {
+                "key": "badges",
+                "label": "Badges"
+              },
+              {
+                "key": "refs",
+                "label": "Reference letters"
+              }
+            ],
+            "purpose": "Your verified record. It’s yours to keep and to use for references."
+          }
+        ]
+      },
+      {
+        "group": "You",
+        "pages": [
+          {
+            "key": "requests",
+            "label": "Requests",
+            "icon": "list",
+            "tabs": [
+              {
+                "key": "open",
+                "label": "Open"
+              },
+              {
+                "key": "decided",
+                "label": "Decided"
+              }
+            ],
+            "purpose": "Ask for a swap, time off, an hours correction, a role or a travel refund. Each request says who decides and how long it usually takes."
+          },
+          {
+            "key": "settings",
+            "label": "Profile and access",
+            "icon": "gear",
+            "opens": "settings"
+          }
+        ]
+      }
+    ],
+    "lead": [
+      {
+        "group": null,
+        "pages": [
+          {
+            "key": "home",
+            "label": "Today",
+            "icon": "home",
+            "purpose": "What’s next for you, and how the awards you help on are doing."
+          },
+          {
+            "key": "shifts",
+            "label": "Shifts",
+            "icon": "cal",
+            "tabs": [
+              {
+                "key": "mine",
+                "label": "Mine"
+              },
+              {
+                "key": "fits",
+                "label": "Fits you"
+              },
+              {
+                "key": "all",
+                "label": "All open"
+              },
+              {
+                "key": "past",
+                "label": "Past"
+              }
+            ],
+            "purpose": "Shifts you’re on, and ones that fit your training, time and place."
+          },
+          {
+            "key": "tasks",
+            "label": "Tasks",
+            "icon": "list",
+            "tabs": [
+              {
+                "key": "mine",
+                "label": "Mine"
+              },
+              {
+                "key": "library",
+                "label": "Library"
+              },
+              {
+                "key": "done",
+                "label": "Done"
+              }
+            ],
+            "purpose": "Work you can do from anywhere. Each task says how it’s checked."
+          },
+          {
+            "key": "hours",
+            "label": "Hours",
+            "icon": "clock",
+            "tabs": [
+              {
+                "key": "summary",
+                "label": "Summary"
+              },
+              {
+                "key": "review",
+                "label": "In review"
+              },
+              {
+                "key": "log",
+                "label": "Log hours"
+              }
+            ],
+            "purpose": "Most hours log themselves from scans and accepted work. Log by hand only for work nobody saw."
+          }
+        ]
+      },
+      {
+        "group": "Where you help",
+        "pages": [
+          {
+            "key": "@award.tp4",
+            "label": "Teachers Prize · 4th",
+            "icon": "trophy",
+            "opensScope": "award.tp4"
+          },
+          {
+            "key": "@award.acag2",
+            "label": "Alimosho Awards · 2nd",
+            "icon": "trophy",
+            "opensScope": "award.acag2"
+          },
+          {
+            "key": "@event.acag",
+            "label": "Alimosho ceremony",
+            "icon": "ticket",
+            "opensScope": "event.acag"
+          }
+        ]
+      },
+      {
+        "group": "Your team",
+        "pages": [
+          {
+            "key": "team",
+            "label": "My team",
+            "icon": "users",
+            "tabs": [
+              {
+                "key": "roster",
+                "label": "Roster"
+              },
+              {
+                "key": "approvals",
+                "label": "To confirm"
+              },
+              {
+                "key": "requests",
+                "label": "Requests"
+              },
+              {
+                "key": "gaps",
+                "label": "Gaps"
+              }
+            ],
+            "purpose": "The people you lead: their shifts, hours to confirm and gaps to fill."
+          }
+        ]
+      },
+      {
+        "group": "Grow",
+        "pages": [
+          {
+            "key": "training",
+            "label": "Training",
+            "icon": "book",
+            "tabs": [
+              {
+                "key": "next",
+                "label": "Next for you"
+              },
+              {
+                "key": "passed",
+                "label": "Passed"
+              }
+            ],
+            "purpose": "Short modules. Each one unlocks roles."
+          },
+          {
+            "key": "record",
+            "label": "My record",
+            "icon": "star",
+            "tabs": [
+              {
+                "key": "overview",
+                "label": "Overview"
+              },
+              {
+                "key": "badges",
+                "label": "Badges"
+              },
+              {
+                "key": "refs",
+                "label": "Reference letters"
+              }
+            ],
+            "purpose": "Your verified record. It’s yours to keep and to use for references."
+          }
+        ]
+      },
+      {
+        "group": "You",
+        "pages": [
+          {
+            "key": "requests",
+            "label": "Requests",
+            "icon": "list",
+            "tabs": [
+              {
+                "key": "open",
+                "label": "Open"
+              },
+              {
+                "key": "decided",
+                "label": "Decided"
+              }
+            ],
+            "purpose": "Ask for a swap, time off, an hours correction, a role or a travel refund. Each request says who decides and how long it usually takes."
+          },
+          {
+            "key": "settings",
+            "label": "Profile and access",
+            "icon": "gear",
+            "opens": "settings"
+          }
+        ]
+      }
+    ],
+    "new": [
+      {
+        "group": null,
+        "pages": [
+          {
+            "key": "home",
+            "label": "Today",
+            "icon": "home",
+            "purpose": "What’s next for you, and how the awards you help on are doing."
+          },
+          {
+            "key": "shifts",
+            "label": "Shifts",
+            "icon": "cal",
+            "tabs": [
+              {
+                "key": "mine",
+                "label": "Mine"
+              },
+              {
+                "key": "fits",
+                "label": "Fits you"
+              },
+              {
+                "key": "all",
+                "label": "All open"
+              },
+              {
+                "key": "past",
+                "label": "Past"
+              }
+            ],
+            "purpose": "Shifts you’re on, and ones that fit your training, time and place."
+          },
+          {
+            "key": "tasks",
+            "label": "Tasks",
+            "icon": "list",
+            "tabs": [
+              {
+                "key": "mine",
+                "label": "Mine"
+              },
+              {
+                "key": "library",
+                "label": "Library"
+              },
+              {
+                "key": "done",
+                "label": "Done"
+              }
+            ],
+            "purpose": "Work you can do from anywhere. Each task says how it’s checked."
+          },
+          {
+            "key": "training",
+            "label": "Training",
+            "icon": "book",
+            "tabs": [
+              {
+                "key": "next",
+                "label": "Next for you"
+              },
+              {
+                "key": "passed",
+                "label": "Passed"
+              }
+            ],
+            "purpose": "Short modules. Each one unlocks roles."
+          }
+        ]
+      },
+      {
+        "group": "You",
+        "pages": [
+          {
+            "key": "requests",
+            "label": "Requests",
+            "icon": "list",
+            "tabs": [
+              {
+                "key": "open",
+                "label": "Open"
+              },
+              {
+                "key": "decided",
+                "label": "Decided"
+              }
+            ],
+            "purpose": "Ask for a swap, time off, an hours correction, a role or a travel refund. Each request says who decides and how long it usually takes."
+          },
+          {
+            "key": "settings",
+            "label": "Profile and access",
+            "icon": "gear",
+            "opens": "settings"
+          }
+        ]
+      }
+    ],
+    "applicant": [
+      {
+        "group": null,
+        "pages": [
+          {
+            "key": "home",
+            "label": "Application",
+            "icon": "noms",
+            "purpose": "What’s next for you, and how the awards you help on are doing."
+          },
+          {
+            "key": "training",
+            "label": "Training",
+            "icon": "book",
+            "tabs": [
+              {
+                "key": "next",
+                "label": "Next for you"
+              },
+              {
+                "key": "passed",
+                "label": "Passed"
+              }
+            ],
+            "purpose": "Short modules. Each one unlocks roles."
+          }
+        ]
+      },
+      {
+        "group": "You",
+        "pages": [
+          {
+            "key": "settings",
+            "label": "Profile and access",
+            "icon": "gear",
+            "opens": "settings"
+          }
+        ]
+      }
+    ],
+    "_whereYouHelp": "One entry per active grant. Keys \"@award.{edition}\" or \"@event.{event}\" open that scope."
+  },
+  "scopes": {
+    "award": {
+      "routes": "/volunteer/awards/{programme}/{edition}/{page}[/{tab}]",
+      "navByCapability": {
+        "nomination_check": [
+          {
+            "group": null,
+            "pages": [
+              {
+                "key": "overview",
+                "label": "Overview",
+                "icon": "home",
+                "purpose": "How this award is doing, where it is, and your part in it."
+              }
+            ]
+          },
+          {
+            "group": "Your work",
+            "pages": [
+              {
+                "key": "queue",
+                "label": "Check nominations",
+                "icon": "noms",
+                "tabs": [
+                  {
+                    "key": "check",
+                    "label": "To check"
+                  },
+                  {
+                    "key": "done",
+                    "label": "Done"
+                  },
+                  {
+                    "key": "agree",
+                    "label": "Agreement"
+                  }
+                ],
+                "purpose": "Check each nomination against the rules. A moderator makes the decision; your check is a recommendation with your name."
+              },
+              {
+                "key": "tasks",
+                "label": "Tasks",
+                "icon": "list",
+                "purpose": "Tasks on this award."
+              }
+            ]
+          },
+          {
+            "group": "Know",
+            "pages": [
+              {
+                "key": "guide",
+                "label": "Role guide",
+                "icon": "book",
+                "purpose": "The rules for your role on this award."
+              },
+              {
+                "key": "access",
+                "label": "Your access",
+                "icon": "shield",
+                "purpose": "What you can see here, what stays hidden, and when it ends."
+              }
+            ]
+          }
+        ],
+        "voter_drive": [
+          {
+            "group": null,
+            "pages": [
+              {
+                "key": "overview",
+                "label": "Overview",
+                "icon": "home",
+                "purpose": "How this award is doing, where it is, and your part in it."
+              }
+            ]
+          },
+          {
+            "group": "Your work",
+            "pages": [
+              {
+                "key": "drive",
+                "label": "Voter drive",
+                "icon": "vote",
+                "tabs": [
+                  {
+                    "key": "link",
+                    "label": "Your link"
+                  },
+                  {
+                    "key": "spots",
+                    "label": "Where to go"
+                  }
+                ],
+                "purpose": "Bring people to vote. A sign-up counts once it verifies a phone."
+              },
+              {
+                "key": "tasks",
+                "label": "Tasks",
+                "icon": "list",
+                "purpose": "Tasks on this award."
+              }
+            ]
+          },
+          {
+            "group": "Know",
+            "pages": [
+              {
+                "key": "guide",
+                "label": "Role guide",
+                "icon": "book",
+                "purpose": "The rules for your role on this award."
+              },
+              {
+                "key": "access",
+                "label": "Your access",
+                "icon": "shield",
+                "purpose": "What you can see here, what stays hidden, and when it ends."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "event": {
+      "routes": "/volunteer/events/{event}/{page}[/{tab}]",
+      "nav": [
+        {
+          "group": null,
+          "pages": [
+            {
+              "key": "today",
+              "label": "Today",
+              "icon": "home",
+              "purpose": "The night, how ready it is, and your part in it."
+            }
+          ]
+        },
+        {
+          "group": "Your work",
+          "pages": [
+            {
+              "key": "shifts",
+              "label": "Your shifts",
+              "icon": "cal",
+              "purpose": "Your shifts at this event."
+            },
+            {
+              "key": "tasks",
+              "label": "Tasks",
+              "icon": "list",
+              "purpose": "Tasks before the night."
+            }
+          ]
+        },
+        {
+          "group": "The night",
+          "pages": [
+            {
+              "key": "brief",
+              "label": "Briefing",
+              "icon": "doc",
+              "tabs": [
+                {
+                  "key": "show",
+                  "label": "Your cues"
+                },
+                {
+                  "key": "map",
+                  "label": "Map and exits"
+                },
+                {
+                  "key": "contacts",
+                  "label": "Who to call"
+                }
+              ],
+              "purpose": "What you need on the night."
+            },
+            {
+              "key": "team",
+              "label": "Who’s on",
+              "icon": "users",
+              "purpose": "Who’s on with you, and your lead."
+            }
+          ]
+        },
+        {
+          "group": "Know",
+          "pages": [
+            {
+              "key": "guide",
+              "label": "Role guide",
+              "icon": "book",
+              "purpose": "The rules for your role at this event."
+            },
+            {
+              "key": "access",
+              "label": "Your access",
+              "icon": "shield",
+              "purpose": "What you can see here, and when it ends."
+            }
+          ]
+        }
+      ]
+    },
+    "settings": {
+      "routes": "/volunteer/me/{page}",
+      "nav": [
+        {
+          "group": "You",
+          "pages": [
+            {
+              "key": "profile",
+              "label": "Profile",
+              "icon": "users",
+              "purpose": "How you appear to leads and the people you help."
+            },
+            {
+              "key": "availability",
+              "label": "Availability",
+              "icon": "cal",
+              "purpose": "When and where you can help. Shift suggestions use this."
+            },
+            {
+              "key": "notifications",
+              "label": "Notifications",
+              "icon": "bell",
+              "purpose": "What we tell you, and how."
+            }
+          ]
+        },
+        {
+          "group": "Access and privacy",
+          "pages": [
+            {
+              "key": "access",
+              "label": "Access",
+              "icon": "shield",
+              "purpose": "Every role you hold, what it lets you see, and when it ends."
+            },
+            {
+              "key": "privacy",
+              "label": "Privacy and data",
+              "icon": "lock",
+              "purpose": "What we keep about you, and how to get a copy."
+            },
+            {
+              "key": "leave",
+              "label": "Take a break or leave",
+              "icon": "flag",
+              "purpose": "Pause or step back. Your record stays yours."
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

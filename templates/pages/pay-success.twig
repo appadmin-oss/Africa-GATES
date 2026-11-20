@@ -35,14 +35,14 @@
       <div class="rc__verdict rc__verdict--ok" role="status">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
         <div class="rc__verdict-b"><p class="rc__verdict-t">{{ 'Payment confirmed'|trans }}</p>
-          <p class="rc__verdict-s">{{ 'The gateway has verified it. This page is your copy; the emailed receipt is the record.'|trans }}</p></div>
+          <p class="rc__verdict-s">{{ 'Verified by the gateway. The emailed receipt is the record.'|trans }}</p></div>
       </div>
       <h1 class="rc__h1" id="rcH">{{ _bonus > 0 ? 'Your votes are in'|trans : 'Thank you'|trans }}</h1>
       <p class="rc__p">
         {%- if _bonus > 0 -%}
           {{ (_bonus == 1 ? 'Your %n% vote is credited to this email — cast it in any open category.' : 'Your %n% votes are credited to this email — cast them across any open category.')|trans({'%n%': _bonus|number_format}) }}
         {%- else -%}
-          {{ 'We have received your contribution. A receipt is on its way to your inbox.'|trans }}
+          {{ 'Contribution received. A receipt is on its way to your inbox.'|trans }}
         {%- endif -%}
       </p>
       <dl class="rc__ref"><dt>{{ 'Reference'|trans }}</dt><dd>{{ reference }}</dd>
@@ -63,13 +63,13 @@
           <p class="rc__verdict-s">{{ 'No charge is confirmed until you receive an emailed receipt.'|trans }}</p></div>
       </div>
       <h1 class="rc__h1" id="rcH">{{ 'We’re checking your payment'|trans }}</h1>
-      <p class="rc__p">{{ 'If you completed payment, the gateway can take a moment to tell us. One re-check asks it directly and credits everything if the money arrived.'|trans }}</p>
+      <p class="rc__p">{{ 'The gateway can be slow. A re-check credits everything if the money arrived.'|trans }}</p>
       {% if reference %}<dl class="rc__ref"><dt>{{ 'Reference'|trans }}</dt><dd>{{ reference }}</dd></dl>{% endif %}
       <div class="rc__do">
         <a class="ag-btn ag-btn--primary" href="/support/assistant?topic=payment{{ reference ? '&ref=' ~ reference|url_encode ~ '&ask=1' : '' }}">{{ 'Re-check this payment'|trans }}</a>
         <a class="ag-btn ag-btn--secondary" href="/support">{{ 'Contact support'|trans }}</a>
       </div>
-      <p class="rc__fine">{{ 'Paid inside a wallet or bank app? Its own transaction number is different from ours — either one works with support.'|trans }}</p>
+      <p class="rc__fine">{{ 'Paid in a wallet or bank app? Its transaction number also works with support.'|trans }}</p>
     {% endif %}
   </section>
 </div>

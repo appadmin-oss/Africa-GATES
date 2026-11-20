@@ -1,0 +1,286 @@
+{% extends 'layout/shell.twig' %}
+{#
+  /account/ads/{id} — ONE CAMPAIGN (Services\Ads\AdCampaigns::detail())
+
+  Its state with the reason, its figures, the last fourteen days, each ad as people see it
+  with its review, and the advertiser's switch. A refused ad shows the reviewer's reason and
+  a form to fix it, prefilled, because a refusal nobody can act on is a dead end.
+
+  Since 28 Oct 2026 (owner: "improve the campaign features"), as Meta's Ads Manager does:
+  any ad can be edited while the campaign can run (it goes back to review and stops showing
+  until approved, said beside the button); the days are drawn as bars over the same table;
+  each place has its own click rate; the platform's average click rate stands beside theirs
+  once enough other campaigns exist to make it nobody's figure (AdCampaigns::benchmark());
+  and the results download as a spreadsheet.
+  Cancelling is behind a <details> rather than a script confirm: it cannot be undone, and
+  it must work with no JavaScript.
+#}
+{# Tier 2, transactional: it asks for something (a campaign, a fix, a review). #}
+{% set colour_tier = '2' %}
+{% set _review = {pending: 'In review', approved: 'Approved', rejected: 'Not approved'} %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/ads.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/ads-state.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/ad-slot.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/image-tool.css') }}">{% endblock %}
+
+{% block content %}
+{% import 'partials/image-tool.twig' as imgtool %}
+<div class="am">
+  <header class="am-head">
+    <h1 class="am-h1">{{ c.name }}</h1>
+    <p class="am-p"><span class="am-state am-state--{{ c.delivery }}">{{ c.delivery_label|trans }}</span>{% if c.delivery_note %} · {{ c.delivery_note|trans }}{% endif %}</p>
+    {# A paid campaign's money, as its receipt states it (AdCheckout). #}
+    {% if c.payment %}
+    <p class="am-note">
+      {{ 'Budget %b%'|trans({'%b%': c.budget_label}) }}{% if c.payment.days %} · {{ '%d% days'|trans({'%d%': c.payment.days}) }}{% endif %}
+      {% if c.payment.paid %} · {{ 'Paid %p%, including %v% VAT at %r%%'|trans({'%p%': c.payment.paid_label, '%v%': c.payment.vat_label, '%r%': c.payment.vat_pct}) }} · {{ 'Reference %r%'|trans({'%r%': c.payment.ref}) }}{% endif %}
+      {% if c.payment.refunded %} · {{ 'Returned to you: %a%'|trans({'%a%': c.payment.refunded_label}) }}{% endif %}
+    </p>
+    {% if c.delivery == 'unpaid' %}
+    <form method="post" action="/account/ads/{{ c.id }}/pay"><input type="hidden" name="_token" value="{{ csrf_token }}"><button type="submit" class="ag-btn ag-btn--primary ag-btn--pill">{{ 'Pay and send for review'|trans }}</button></form>
+    {% endif %}
+    {% endif %}
+    <p class="am-note">{{ c.objective_label|trans }}{% if c.trial %} · {{ 'Free trial'|trans }}{% endif %}
+      · {% for p in c.placements %}{{ rules.placements[p]|default(p)|trans }}{% if not loop.last %}, {% endif %}{% endfor %}</p>
+  </header>
+
+  <dl class="am-figs">
+    <div class="am-fig"><dt>{{ 'Views'|trans }}</dt><dd>{{ c.views|number_format }}{% if c.view_cap %} <span class="am-opt">/ {{ c.view_cap|number_format }}</span>{% endif %}</dd></div>
+    <div class="am-fig"><dt>{{ 'Clicks'|trans }}</dt><dd>{{ c.clicks|number_format }}</dd></div>
+    <div class="am-fig"><dt>{{ 'Click rate'|trans }}</dt><dd>{{ c.ctr is null ? '–' : c.ctr ~ '%' }}</dd></div>
+    {# A video ad is judged by whether it was watched (Meta's ThruPlay: the end, or fifteen
+       seconds), beside whether it was tapped. #}
+    {% if c.ads|filter(x => x.video)|length %}<div class="am-fig"><dt>{{ 'Watched through'|trans }}</dt><dd>{{ c.completes|number_format }} <span class="am-opt">/ {{ '%p% plays'|trans({'%p%': c.plays|number_format}) }}</span></dd></div>{% endif %}
+    <div class="am-fig"><dt>{{ c.trial ? 'Ends'|trans : 'Spent'|trans }}</dt><dd>{% if c.trial %}{{ c.ends_at ? c.ends_at|date('j M') : '–' }}{% else %}{{ c.spent_label }}{% if c.budget_label %} <span class="am-opt">/ {{ c.budget_label }}</span>{% endif %}{% endif %}</dd></div>
+  </dl>
+
+  {% if c.benchmark is not null %}
+  <p class="am-note am-bench">{{ 'Average click rate on Africa GATES in the last 30 days: %r%%.'|trans({'%r%': c.benchmark}) }}{% if c.ctr is not null %} {{ c.ctr >= c.benchmark ? 'Yours is at or above it.'|trans : 'An offer or a clearer image usually helps.'|trans }}{% endif %}</p>
+  {% endif %}
+
+  {# Pacing and what to try next (Services\Ads\AdAdvice, 11 Nov 2026): what Meta, Google and
+     LinkedIn put on a running campaign, read off this campaign's own measured rows and
+     withheld until there are enough of them to compare. Advice never says to spend more. #}
+  {% if c.pace %}
+  <p class="am-note am-pace">{{ 'Pacing:'|trans }} <b>{{ c.pace.label|trans }}</b> · {{ '%s%% of the budget spent in %e%% of its days.'|trans({'%s%': c.pace.spent_pct, '%e%': c.pace.elapsed_pct}) }}</p>
+  {% endif %}
+  {% if c.advice %}
+  <section class="am-box am-advice" aria-labelledby="am-adv-h">
+    <h2 class="am-h2" id="am-adv-h">{{ 'What to try next'|trans }}</h2>
+    <ul class="am-advice__l">
+      {% for a in c.advice %}<li>{{ a.text|trans }}{% if a.action == 'add' and c.can_add %} <a class="am-link" href="?add=1#ad-version">{{ 'Add a version'|trans }}</a>{% endif %}</li>{% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  <section class="am-box" aria-labelledby="am-days-h">
+    <div class="am-box__head">
+      <h2 class="am-h2" id="am-days-h">{{ c.days|length == 1 ? 'Today'|trans : 'By day'|trans }}</h2>
+      {% if c.views > 0 %}<a class="am-link" href="/account/ads/{{ c.id }}/results.csv" download>{{ 'Download results'|trans }}</a>{% endif %}
+    </div>
+    {% if not c.days %}
+    <p class="am-note">{{ 'Results appear here, day by day, from the day it starts.'|trans }}</p>
+    {% else %}
+    <table class="am-days">
+      <thead><tr><th scope="col">{{ 'Day'|trans }}</th><th scope="col">{{ 'Views'|trans }}</th><th scope="col">{{ 'Clicks'|trans }}</th></tr></thead>
+      <tbody>
+        {% for d in c.days|reverse %}
+        <tr><td>{{ d.day|date('D j M') }}</td><td><span class="am-bar" aria-hidden="true"><span style="width:{{ (d.views / c.days_max * 100)|round }}%"></span></span>{{ d.views|number_format }}</td><td>{{ d.clicks|number_format }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% if c.days|length >= 14 %}<p class="am-note">{{ 'The last 14 days. Every day since it started is in the download.'|trans }}</p>{% endif %}
+    {% endif %}
+  </section>
+
+  {% if c.places|length %}
+  <section class="am-box" aria-labelledby="am-places-h">
+    <h2 class="am-h2" id="am-places-h">{{ 'By place'|trans }}</h2>
+    <table class="am-days">
+      <thead><tr><th scope="col">{{ 'Place'|trans }}</th><th scope="col">{{ 'Views'|trans }}</th><th scope="col">{{ 'Clicks'|trans }}</th><th scope="col">{{ 'Click rate'|trans }}</th></tr></thead>
+      <tbody>
+        {% for p in c.places %}
+        <tr><td>{{ rules.placements[p.key]|default(p.key)|trans }}</td><td>{{ p.views|number_format }}</td><td>{{ p.clicks|number_format }}</td><td>{{ p.ctr is null ? '–' : p.ctr ~ '%' }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  <section aria-labelledby="am-ads-h" class="am-head">
+    <h2 class="am-h2" id="am-ads-h">{{ c.ads|length > 1 ? 'Versions'|trans : 'Ads'|trans }}</h2>
+    {# Versions (AdCampaigns::leader()): what the rotation does, in its own numbers. #}
+    {% if c.ads|length > 1 %}<p class="am-note">{{ 'Each version is shown in turn until it has %n% views. Then the one people click most, if it is clearly ahead, is shown %s%% of the time; the others keep running, so the result keeps being checked.'|trans({'%n%': rules.test_views|number_format, '%s%': rules.lead_share}) }}</p>{% endif %}
+  </section>
+  <div class="am-ads">
+    {% for a in c.ads %}
+    <div class="am-ad" id="ad-{{ a.id }}">
+      <p class="am-ad__r"><span class="am-state am-state--{{ a.review == 'approved' ? 'active' : (a.review == 'rejected' ? 'not_approved' : 'in_review') }}">{{ _review[a.review]|default(a.review)|trans }}</span>{% if c.leader == a.id %} <span class="am-lead">{{ 'Leading'|trans }}</span>{% endif %} · {{ a.views|number_format }} {{ 'views'|trans }} · {{ a.clicks|number_format }} {{ 'clicks'|trans }}{% if a.ctr is not null %} · {{ '%r%% click rate'|trans({'%r%': a.ctr}) }}{% endif %}{% if a.video %} · {{ 'Video, %s% seconds: %p% plays, %f% watched through'|trans({'%s%': a.video_seconds, '%p%': a.plays|number_format, '%f%': a.completes|number_format}) }}{% endif %}</p>
+      {% include 'partials/ad-slot.twig' with {ad: a, preview: true} only %}
+      <p class="am-note am-ad__str">{{ 'Ad strength:'|trans }} <b>{{ a.strength.label|trans }}</b>{% if a.strength.tips %} · {{ a.strength.tips|first|trans }}{% endif %}</p>
+      {% if a.review == 'rejected' %}<p class="am-err">{{ a.reason }}</p>{% endif %}
+      {% if c.editable %}
+      {% set _o = fixing == a.id ? old : a %}
+      <details class="am-edit"{% if a.review == 'rejected' or fixing == a.id %} open{% endif %}>
+      <summary class="am-edit__s">{{ a.review == 'rejected' ? 'Fix and send again'|trans : 'Edit ad'|trans }}</summary>
+      <form class="am-step" method="post" action="/account/ads/ad/{{ a.id }}" enctype="multipart/form-data" novalidate data-ag-validate>
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <div class="am-field">
+          <label class="ag-label" for="fx-h-{{ a.id }}">{{ 'Headline'|trans }}</label>
+          <input class="am-input" id="fx-h-{{ a.id }}" name="headline" type="text" required maxlength="{{ rules.headline }}" value="{{ _o.headline|default('') }}"{% if fixing == a.id and errors.headline %} aria-invalid="true"{% endif %}>
+          {% if fixing == a.id and errors.headline %}<p class="am-err" role="alert">{{ errors.headline|trans }}</p>{% endif %}
+        </div>
+        <div class="am-field">
+          <label class="ag-label" for="fx-b-{{ a.id }}">{{ 'Text'|trans }}</label>
+          <textarea class="am-input am-input--area" id="fx-b-{{ a.id }}" name="body" rows="3" required minlength="{{ rules.body_min }}" maxlength="{{ rules.body }}"{% if fixing == a.id and errors.body %} aria-invalid="true"{% endif %}>{{ _o.body|default('') }}</textarea>
+          {% if fixing == a.id and errors.body %}<p class="am-err" role="alert">{{ errors.body|trans }}</p>{% endif %}
+        </div>
+        <div class="am-field">
+          <label class="ag-label" for="fx-c-{{ a.id }}">{{ 'Button'|trans }}</label>
+          <select class="am-input" id="fx-c-{{ a.id }}" name="cta">
+            {% for k, label in rules.ctas %}<option value="{{ k }}"{% if (_o.cta_key|default(_o.cta|default('learn_more'))) == k %} selected{% endif %}>{{ label|trans }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="am-field">
+          <label class="ag-label" for="fx-u-{{ a.id }}">{{ 'Link'|trans }}</label>
+          <input class="am-input" id="fx-u-{{ a.id }}" name="url" type="text" inputmode="url" autocomplete="url" spellcheck="false" required value="{{ _o.url|default('') }}"{% if fixing == a.id and errors.url %} aria-invalid="true"{% endif %}>
+          {% if fixing == a.id and errors.url %}<p class="am-err" role="alert">{{ errors.url|trans }}</p>{% endif %}
+        </div>
+        <div class="am-field">
+          <label class="ag-label" for="fx-o-{{ a.id }}">{{ 'Offer'|trans }} <span class="am-opt">{{ '(optional)'|trans }}</span></label>
+          <input class="am-input" id="fx-o-{{ a.id }}" name="offer" type="text" maxlength="{{ rules.offer }}" value="{{ _o.offer|default('') }}"{% if fixing == a.id and errors.offer %} aria-invalid="true"{% endif %}>
+          {% if fixing == a.id and errors.offer %}<p class="am-err" role="alert">{{ errors.offer|trans }}</p>{% endif %}
+        </div>
+        <div class="am-field">
+          <label class="ag-label" for="fx-k-{{ a.id }}">{{ 'Offer code'|trans }} <span class="am-opt">{{ '(optional)'|trans }}</span></label>
+          <input class="am-input" id="fx-k-{{ a.id }}" name="offer_code" type="text" maxlength="{{ rules.code }}" value="{{ _o.offer_code|default('') }}">
+        </div>
+        {% set _osh = _o.shape|default('square') %}
+        <div class="am-field">
+          <label class="ag-label" for="fx-s-{{ a.id }}">{{ 'Shape'|trans }}</label>
+          <select class="am-input" id="fx-s-{{ a.id }}" name="shape" aria-describedby="fx-s-h-{{ a.id }}">
+            {% for k, sh in rules.shapes %}<option value="{{ k }}" data-aspect="{{ sh.aspect }}" data-min="{{ sh.min }}" data-out="{{ sh.out }}"{% if _osh == k %} selected{% endif %}>{{ sh.label|trans }}</option>{% endfor %}
+          </select>
+          <p class="ag-hint" id="fx-s-h-{{ a.id }}">{{ 'A new shape needs a new image, cut to it.'|trans }}</p>
+        </div>
+        <div class="am-field">
+          <label class="ag-label" for="fx-i-{{ a.id }}">{{ 'New image'|trans }} <span class="am-opt">{{ '(optional)'|trans }}</span></label>
+          <input class="am-input am-input--file" id="fx-i-{{ a.id }}" name="image" type="file" accept="image/jpeg,image/png,image/webp" {{ imgtool.attrs(rules.shapes[_osh].profile|default('ad')) }} data-shape-from="shape">
+          {% if fixing == a.id and errors.image %}<p class="am-err" role="alert">{{ errors.image|trans }}</p>{% endif %}
+        </div>
+        {% if rules.video.on %}
+        <div class="am-field">
+          <label class="ag-label" for="fx-v-{{ a.id }}">{{ a.video ? 'New video'|trans : 'Video'|trans }} <span class="am-opt">{{ '(optional)'|trans }}</span></label>
+          <input class="am-input am-input--file" id="fx-v-{{ a.id }}" name="video" type="file" accept="video/mp4" aria-describedby="fx-v-h-{{ a.id }}">
+          <p class="ag-hint" id="fx-v-h-{{ a.id }}">{{ 'An MP4 of %min% to %max% seconds, up to %mb%MB, in the shape above. It plays by itself without sound.'|trans({'%min%': rules.video.min, '%max%': rules.video.max, '%mb%': rules.video.mb}) }}</p>
+          {% if a.video %}<label class="am-check"><input type="checkbox" name="remove_video" value="1"> {{ 'Take the video off (the image stays)'|trans }}</label>{% endif %}
+          {% if fixing == a.id and errors.video %}<p class="am-err" role="alert">{{ errors.video|trans }}</p>{% endif %}
+        </div>
+        {% endif %}
+        {# The approvals this kind of ad carries, prefilled, so an edit neither loses one that
+           was given nor is refused for one it was never asked for (AdRules::CATEGORIES). #}
+        {% for k in ['arcon']|merge(c.needs|filter(n => n != 'arcon' and n != 'licence')) %}
+        <div class="am-field">
+          <label class="ag-label" for="fx-{{ k }}-{{ a.id }}">{{ rules.approvals[k][0]|trans }}{% if k not in c.needs %} <span class="am-opt">{{ '(optional)'|trans }}</span>{% endif %}</label>
+          <input class="am-input" id="fx-{{ k }}-{{ a.id }}" name="{{ k }}_ref" type="text" maxlength="40" value="{{ attribute(_o, k ~ '_ref')|default('') }}"{% if fixing == a.id and attribute(errors, k ~ '_ref')|default(false) %} aria-invalid="true"{% endif %}>
+          {% if fixing == a.id and attribute(errors, k ~ '_ref')|default(false) %}<p class="am-err" role="alert">{{ attribute(errors, k ~ '_ref')|trans }}</p>{% endif %}
+        </div>
+        {% endfor %}
+        <p class="am-note">{{ 'Saving sends the ad back for review. It does not show until a person approves it again.'|trans }}</p>
+        <button type="submit" class="ag-btn ag-btn--primary ag-btn--pill">{{ 'Save and send for review'|trans }}</button>
+      </form>
+      </details>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if c.can_add %}
+  {# Another version (up to rules.versions): its own words and picture, the same link and
+     button prefilled from the first, because a version usually changes one thing. #}
+  {% set _f = c.ads|first %}
+  {% set _n = new_old %}
+  <details class="am-edit am-version" id="ad-version"{% if new_errors or new_summary or adding %} open{% endif %}>
+    <summary class="am-edit__s">{{ 'Add another version'|trans }} <span class="am-opt">{{ '(%n% of %m%)'|trans({'%n%': c.ads|length + 1, '%m%': rules.versions}) }}</span></summary>
+    <p class="am-note">{{ 'Try a different picture or headline. A person checks it first, then it joins the rotation.'|trans }}</p>
+    {% if new_summary %}<p class="am-err" role="alert">{{ new_summary|trans }}</p>{% endif %}
+    <form class="am-step" method="post" action="/account/ads/{{ c.id }}/ads" enctype="multipart/form-data" novalidate data-ag-validate>
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      {% set _nsh = _n.shape|default(_f.shape|default('square')) %}
+      <div class="am-field">
+        <label class="ag-label" for="nv-s">{{ 'Shape'|trans }}</label>
+        <select class="am-input" id="nv-s" name="shape">
+          {% for k, sh in rules.shapes %}<option value="{{ k }}" data-aspect="{{ sh.aspect }}" data-min="{{ sh.min }}" data-out="{{ sh.out }}"{% if _nsh == k %} selected{% endif %}>{{ sh.label|trans }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="am-field">
+        <label class="ag-label" for="nv-i">{{ 'Image'|trans }}</label>
+        <input class="am-input am-input--file" id="nv-i" name="image" type="file" accept="image/jpeg,image/png,image/webp" required {{ imgtool.attrs(rules.shapes[_nsh].profile|default('ad')) }} data-shape-from="shape"{% if new_errors.image|default(false) %} aria-invalid="true" aria-describedby="nv-i-e"{% endif %}>
+        {% if new_errors.image|default(false) %}<p class="am-err" id="nv-i-e" role="alert">{{ new_errors.image|trans }}</p>{% endif %}
+      </div>
+      {% if rules.video.on %}
+      <div class="am-field">
+        <label class="ag-label" for="nv-v">{{ 'Video'|trans }} <span class="am-opt">{{ '(optional)'|trans }}</span></label>
+        <input class="am-input am-input--file" id="nv-v" name="video" type="file" accept="video/mp4" aria-describedby="nv-v-h">
+        <p class="ag-hint" id="nv-v-h">{{ 'An MP4 of %min% to %max% seconds, up to %mb%MB, in the shape above. It plays by itself without sound.'|trans({'%min%': rules.video.min, '%max%': rules.video.max, '%mb%': rules.video.mb}) }}</p>
+        {% if new_errors.video|default(false) %}<p class="am-err" role="alert">{{ new_errors.video|trans }}</p>{% endif %}
+      </div>
+      {% endif %}
+      <div class="am-field">
+        <label class="ag-label" for="nv-h">{{ 'Headline'|trans }}</label>
+        <input class="am-input" id="nv-h" name="headline" type="text" required maxlength="{{ rules.headline }}" value="{{ _n.headline|default('') }}"{% if new_errors.headline|default(false) %} aria-invalid="true"{% endif %}>
+        {% if new_errors.headline|default(false) %}<p class="am-err" role="alert">{{ new_errors.headline|trans }}</p>{% endif %}
+      </div>
+      <div class="am-field">
+        <label class="ag-label" for="nv-b">{{ 'Text'|trans }}</label>
+        <textarea class="am-input am-input--area" id="nv-b" name="body" rows="3" required minlength="{{ rules.body_min }}" maxlength="{{ rules.body }}"{% if new_errors.body|default(false) %} aria-invalid="true"{% endif %}>{{ _n.body|default(_f.body|default('')) }}</textarea>
+        {% if new_errors.body|default(false) %}<p class="am-err" role="alert">{{ new_errors.body|trans }}</p>{% endif %}
+      </div>
+      <div class="am-field">
+        <label class="ag-label" for="nv-c">{{ 'Button'|trans }}</label>
+        <select class="am-input" id="nv-c" name="cta">
+          {% for k, label in rules.ctas %}<option value="{{ k }}"{% if (_n.cta|default(_f.cta_key|default('learn_more'))) == k %} selected{% endif %}>{{ label|trans }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="am-field">
+        <label class="ag-label" for="nv-u">{{ 'Link'|trans }}</label>
+        <input class="am-input" id="nv-u" name="url" type="text" inputmode="url" autocomplete="url" spellcheck="false" required value="{{ _n.url|default(_f.url|default('')) }}"{% if new_errors.url|default(false) %} aria-invalid="true"{% endif %}>
+        {% if new_errors.url|default(false) %}<p class="am-err" role="alert">{{ new_errors.url|trans }}</p>{% endif %}
+      </div>
+      <div class="am-field">
+        <label class="ag-label" for="nv-o">{{ 'Offer'|trans }} <span class="am-opt">{{ '(optional)'|trans }}</span></label>
+        <input class="am-input" id="nv-o" name="offer" type="text" maxlength="{{ rules.offer }}" value="{{ _n.offer|default(_f.offer|default('')) }}"{% if new_errors.offer|default(false) %} aria-invalid="true"{% endif %}>
+        {% if new_errors.offer|default(false) %}<p class="am-err" role="alert">{{ new_errors.offer|trans }}</p>{% endif %}
+      </div>
+      <div class="am-field">
+        <label class="ag-label" for="nv-k">{{ 'Offer code'|trans }} <span class="am-opt">{{ '(optional)'|trans }}</span></label>
+        <input class="am-input" id="nv-k" name="offer_code" type="text" maxlength="{{ rules.code }}" value="{{ _n.offer_code|default(_f.offer_code|default('')) }}">
+      </div>
+      {% for k in ['arcon']|merge(c.needs|filter(n => n != 'arcon' and n != 'licence')) %}
+      <div class="am-field">
+        <label class="ag-label" for="nv-{{ k }}">{{ rules.approvals[k][0]|trans }}{% if k not in c.needs %} <span class="am-opt">{{ '(optional)'|trans }}</span>{% endif %}</label>
+        <input class="am-input" id="nv-{{ k }}" name="{{ k }}_ref" type="text" maxlength="40" value="{{ attribute(_n, k ~ '_ref')|default(attribute(_f, k ~ '_ref')|default('')) }}"{% if attribute(new_errors, k ~ '_ref')|default(false) %} aria-invalid="true"{% endif %}>
+        {% if attribute(new_errors, k ~ '_ref')|default(false) %}<p class="am-err" role="alert">{{ attribute(new_errors, k ~ '_ref')|trans }}</p>{% endif %}
+      </div>
+      {% endfor %}
+      <button type="submit" class="ag-btn ag-btn--primary ag-btn--pill">{{ 'Send this version for review'|trans }}</button>
+    </form>
+  </details>
+  {% endif %}
+
+  {% if c.delivery not in ['completed', 'cancelled'] %}
+  <div class="am-actions">
+    {% if c.status == 'submitted' %}
+    <form method="post" action="/account/ads/{{ c.id }}/pause"><input type="hidden" name="_token" value="{{ csrf_token }}"><button type="submit" class="ag-btn ag-btn--secondary ag-btn--pill">{{ 'Pause'|trans }}</button></form>
+    {% elseif c.status == 'paused' %}
+    <form method="post" action="/account/ads/{{ c.id }}/resume"><input type="hidden" name="_token" value="{{ csrf_token }}"><button type="submit" class="ag-btn ag-btn--primary ag-btn--pill">{{ 'Resume'|trans }}</button></form>
+    {% endif %}
+    <details class="am-cancel">
+      <summary>{{ 'Cancel campaign'|trans }}</summary>
+      <p class="am-note">{{ 'It stops for good and cannot be restarted.'|trans }}{% if c.trial %} {{ 'Your free trial will be used.'|trans }}{% endif %}</p>
+      <form method="post" action="/account/ads/{{ c.id }}/cancel"><input type="hidden" name="_token" value="{{ csrf_token }}"><button type="submit" class="ag-btn ag-btn--danger ag-btn--pill">{{ 'Cancel it'|trans }}</button></form>
+    </details>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block foot_scripts %}{% if c.editable %}<script defer src="{{ asset('/assets/js/image-tool.js') }}" data-nav="rerun"></script>{% endif %}{% if c.ads|filter(x => x.video)|length %}<script defer src="{{ asset('/assets/js/ads.js') }}" data-nav="rerun"></script>{% endif %}{% endblock %}

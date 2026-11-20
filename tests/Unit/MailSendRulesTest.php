@@ -362,7 +362,10 @@ final class MailSendRulesTest extends TestCase
     {
         $t = $this->transport();
         $t->sendVotingReminder('voter@africagates.org', 'Ade & Sons <Awards>', 'Sun 4 Oct, 23:59 WAT', [], self::UNSUB);
-        $m = quoted_printable_decode($t->wire[0]);
+        // The words, not the pictures: the house images travel inside the message now
+        // (InlineImages), and their base64 bytes are not text a reader sees — "OTP" can turn
+        // up in them by chance.
+        $m = quoted_printable_decode((string) preg_replace('~Content-Type: image/[^\r\n]+\r\n(?:[^\r\n]+\r\n)*\r\n[A-Za-z0-9+/=\r\n]+~', '', $t->wire[0]));
 
         $this->assertSame('Voting closes Sun 4 Oct, 23:59 WAT — Ade & Sons <Awards>', $t->subjects[0]);
         $this->assertDoesNotMatchRegularExpression('~[\x{1F300}-\x{1FAFF}\x{2300}-\x{23FF}\x{2600}-\x{27BF}]~u', $t->subjects[0] . strip_tags($m),

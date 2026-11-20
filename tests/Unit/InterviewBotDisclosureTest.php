@@ -129,7 +129,7 @@ final class InterviewBotDisclosureTest extends TestCase
 
             public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '',
                                         string $category = '', string $hero = '', string $unsubscribeUrl = '',
-                                        array $attachments = [], string $preheader = '', int $heroHeight = 0): array
+                                        array $attachments = [], string $preheader = '', int $heroHeight = 0, string $why = ''): array
             {
                 $this->sink[] = ['to' => $to, 'subject' => $subject, 'body' => $plainBody];
                 return ['success' => true];

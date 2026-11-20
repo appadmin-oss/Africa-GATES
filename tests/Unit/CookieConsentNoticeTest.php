@@ -201,4 +201,28 @@ final class CookieConsentNoticeTest extends TestCase
         $this->assertNotNull($room, 'from 600 the scroller keeps no room for the floating notice');
         $this->assertStringContainsString('scroll-padding-bottom', (string) $room);
     }
+
+    /**
+     * On a phone the notice says the short version, and no page bar may cover its answers.
+     * The full paragraph took about 40% of a 390-wide screen, and on every event page the
+     * fixed "From … · Get tickets" bar sat on top of the three answers, so a visitor could read
+     * the question and reach none of them.
+     */
+    public function test_on_a_phone_the_notice_is_short_and_no_bar_covers_its_answers(): void
+    {
+        $n = $this->notice($this->page());
+        $this->assertStringContainsString('ag-consent__phone', $n);
+        $this->assertStringContainsString('ag-consent__wide', $n, 'the full paragraph is still the notice from 600');
+        $this->assertSame(1, substr_count($n, 'action="/cookies/choice"'), 'one set of answers for both lengths');
+        // The short version keeps the posture: under `exempt` it still says counting happens unless they say no.
+        preg_match('~<p class="ag-consent__p ag-consent__phone">(.*?)</p>~s', $n, $m);
+        $this->assertNotEmpty($m, 'no phone paragraph');
+        $this->assertMatchesRegularExpression('~count visits|remember (your )?settings~', $m[1]);
+        $this->assertStringContainsString('href="/cookies"', $m[1], 'Details is reachable from the short version');
+
+        $css = ChromeRender::code('public/assets/css/components/consent.css');
+        $this->assertMatchesRegularExpression(
+            '~@media \(max-width:599px\)\{.*?body:has\(\.ag-consent\) \[data-bottom-ui\]:not\(\.ag-consent, \.ag-consent-saved, \.ag-tabbar\)\{\s*position:static~s', $css,
+            'a fixed page bar covers the answers again: every bottom bar but the tab bar must drop into the flow while the notice asks');
+    }
 }

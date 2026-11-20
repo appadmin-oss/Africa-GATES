@@ -1,0 +1,135 @@
+    <section class="af__step" :class="isOn(0) ? 'is-on' : ''">
+      <div class="af__head">
+        <h2>Event details</h2>
+        <p>The name, when it happens and where. Only the title and the start are required —
+          everything else can wait, and an event saved as a draft is not visible to anybody.</p>
+      </div>
+
+      <div class="row">
+        <label>Title <span class="af-req" title="Required">*</span>
+          <input type="text" name="title" value="{{ row.title|default('') }}" required></label>
+        <label>Slug <span class="af-opt">blank = made from the title</span>
+          <input type="text" name="slug" value="{{ row.slug|default('') }}" placeholder="auto"></label>
+
+        {# ── WHEN THE MIGRATION HAS NOT RUN ────────────────────────────────
+           The house convention on this form is to HIDE a field whose column does not
+           exist yet — an operator uploads the zip and runs /__setup/migrate as two
+           separate acts, and a form that posts an unknown column 500s in between.
+
+           Hiding it silently is the wrong half of that convention here. Every other
+           hidden field on this page is a refinement of something already visible; this
+           one is the ONLY way to link an award to a ceremony, and the whole invitation
+           run reads from it. Gone with no explanation, it does not read as "not migrated
+           yet", it reads as "that feature does not exist" — which is what it read as.
+           So the control goes, and the reason stays. #}
+        {# The DIAGNOSIS, not a fixed sentence. This block used to say "run the migration
+           once — /__setup/migrate" whatever the actual state was, which is the exact
+           instruction that cannot work when the step is recorded as applied and the table
+           is absent: the endpoint skips it forever. It went on saying it after the
+           operator had run it, repeatedly, so the feature read as one that had never been
+           built. EventInvites::linkBlocker() decides which of the two faults it is. #}
+        {% if programme_link %}
+        <div style="grid-column:1/-1;background:#fdf6e3;border:1px solid #f3b416;border-radius:11px;padding:12px 14px;font-size:13px;line-height:1.7;color:#10292C">
+          <strong style="display:block;margin-bottom:2px">Awards cannot be linked to this event yet.</strong>
+          {{ programme_link.what }} {{ programme_link.fix }}
+          {% if programme_link.rerun and row.id is defined %}
+            {# formaction, NOT a nested <form>. A <form> inside a <form> is DELETED by the
+               parser — not nested, dropped — and this button would then have run the event
+               save instead. Three of those have shipped here; the house convention is a
+               formaction on the submit button and this is it.
+
+               `?back=form` so the redirect lands where the button was pressed. Without it
+               an operator on the event form is thrown to the invitation screen, which is
+               not where they were and not what they were doing. #}
+            <div style="margin-top:10px">
+              <button class="ad-btn" type="submit"
+                      formaction="/admin/events/{{ row.id }}/invites/repair?back=form"
+                      formnovalidate>Create the awards link now</button>
+              <span style="margin-left:8px;color:var(--cn-ink-3)">Applies
+                <code>{{ programme_link.rerun }}</code> again. Safe to press twice.</span>
+            </div>
+          {% endif %}
+        </div>
+        {% endif %}
+        {% if programme_link_ready %}
+        {# CHECKBOXES, not a multi-select. A <select multiple> on a phone is a scrolling
+           list where ctrl-click is the only way to add a second item, and this is the
+           control that decides whose shortlist gets invited — so it is four visible
+           checkboxes an operator can read and tick.
+
+           A hidden empty field first, so CLEARING every box actually clears the set:
+           unchecked boxes send nothing at all, and a save with none ticked would otherwise
+           look identical to a save from a form that never had the field. #}
+        {# A fieldset with a legend, not a label over a div: these are several controls
+           answering one question, which is exactly what a group label is for — a screen
+           reader reading the fourth checkbox otherwise has no idea what the four are. #}
+        <fieldset style="grid-column:1/-1;border:0;padding:0;margin:0;min-width:0">
+          <legend style="display:block;font-weight:600;font-size:13px;color:var(--cn-ink);margin-bottom:6px;padding:0">
+            Awards presented at this event
+            <small style="display:block;font-weight:400;color:var(--cn-ink-3)">the invitation run draws its guests of honour from these — leave all unticked when the event is not a ceremony</small>
+          </legend>
+          {# An empty value first, so CLEARING every box actually clears the set: unchecked
+             boxes send nothing at all, and a save with none ticked would otherwise be
+             indistinguishable from a save posted by a form that never had the field. #}
+          <input type="hidden" name="programme_ids[]" value="">
+          <div style="display:flex;flex-wrap:wrap;gap:10px 18px">
+            {% for p in programmes %}
+              <label style="display:inline-flex;align-items:center;gap:8px;font-weight:400;font-size:14px;min-height:44px;margin:0">
+                <input type="checkbox" name="programme_ids[]" value="{{ p.id }}"
+                       {% if p.id in programme_ids %}checked{% endif %}>
+                {{ p.title }}
+              </label>
+            {% endfor %}
+          </div>
+        </fieldset>
+        {% endif %}
+      </div>
+      {# ── THE EVENT'S OWN CLOCK ─────────────────────────────────────────────
+         The zone sits WITH the times rather than in a settings screen, and it is read
+         back into the two fields beside it: an event is a room in a city at a wall-clock
+         time, and the only hour that matters is the one on the clock in that room.
+
+         `|event_input` rather than `|when_input`, so a Nairobi gala is shown and typed
+         in Nairobi. Blank means the platform's own zone, which is what every event
+         before this field had — so nothing an organiser has already saved moves. #}
+      <div class="row">
+        <label>Starts <span class="af-req" title="Required">*</span>
+          <input type="datetime-local" name="event_date" value="{{ event_input(row, row.event_date|default('')) }}" required step="1"></label>
+        <label>Ends <span class="af-opt">optional</span>
+          <input type="datetime-local" name="end_date" value="{{ event_input(row, row.end_date|default('')) }}" step="1"></label>
+      </div>
+      <label for="evTz">Timezone <span class="af-opt">the clock at the venue — leave as the default unless the event is somewhere else</span>
+        <select name="timezone" id="evTz">
+          <option value="">Platform default — {{ tz_abbr() }}</option>
+          {% for z in tz_choices %}
+            <option value="{{ z }}"{{ (row.timezone|default('')) == z ? ' selected' : '' }}>{{ z }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <div class="row">
+        <label>Town or city <span class="af-opt">optional</span>
+          <input type="text" name="location" value="{{ row.location|default('') }}" placeholder="Lagos · Nigeria"></label>
+        <label>Venue <span class="af-opt">optional</span>
+          <input type="text" name="venue" value="{{ row.venue|default('') }}" placeholder="Eko Hotel"></label>
+      </div>
+      <label>Tagline <span class="af-opt">one line, shown under the title</span>
+        <input type="text" name="tagline" value="{{ row.tagline|default('') }}" maxlength="255"></label>
+      <label>Description <span class="af-opt">optional</span>
+        <textarea name="description" rows="5">{{ row.description|default('') }}</textarea></label>
+
+      <div class="event-editor__cover">
+        <h3>Event cover</h3>
+        {% if row.cover_image|default('') %}<img src="{{ row.cover_image starts with 'http' ? row.cover_image : '/' ~ row.cover_image|trim('/') }}" alt="Current event cover" loading="lazy" width="240" height="160">{% endif %}
+        {% include 'partials/photo-upload.twig' with {id:'event-cover', name:'cover_upload', label:'Choose an event cover', min_side:300, help:'A landscape image works best. At least 300 pixels on each side.'} only %}
+        <details class="event-editor__optional"><summary>Use an existing image address</summary>
+          <label>Image URL or upload path<input type="text" name="cover_image" value="{{ row.cover_image|default('') }}" placeholder="https://… or uploads/events/…"></label>
+          <p class="af-note">A newly uploaded cover replaces this image when you save.</p>
+        </details>
+      </div>
+      <div class="row">
+        <label>Map link <span class="af-opt">optional</span>
+          <input type="url" name="map_embed" value="{{ row.map_embed|default('') }}" placeholder="https://maps.google.com/…"></label>
+        <label>External details page <span class="af-opt">optional</span>
+          <input type="text" name="rsvp_url" value="{{ row.rsvp_url|default('') }}" placeholder="/partner or https://…"></label>
+      </div>
+    </section>

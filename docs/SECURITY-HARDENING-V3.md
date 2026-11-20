@@ -34,7 +34,7 @@ RETAIN_UNSUBSCRIBED_NEWSLETTER_DAYS=90
 ```bash
 php bin/console privacy:purge            # dry-run: reports what WOULD be deleted
 php bin/console privacy:purge --commit   # actually deletes (schedule daily once configured)
-# Cron:  15 3 * * *  /usr/bin/php /path/to/bin/console privacy:purge --commit
+# Cron:  15 3 * * *  /opt/cpanel/ea-php84/root/usr/bin/php /path/to/bin/console privacy:purge --commit
 ```
 
 ### On-demand erasure (data-subject request)

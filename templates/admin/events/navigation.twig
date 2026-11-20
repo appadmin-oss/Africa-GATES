@@ -1,0 +1,6 @@
+<nav class="cn-event-nav" aria-label="Manage this event">
+  <a href="/admin/events">All events</a>
+  {% for key, item in {edit: ['', 'Event details'], tickets: ['/tickets', 'Attendees'], invites: ['/invites', 'Invitations'], codes: ['/codes', 'Discount codes'], leads: ['/leads', 'Event leads'], stands: ['/stands', 'Vendor stands']} %}
+  <a href="/admin/events/{{ event_id }}{{ item[0] }}"{% if current == key %} aria-current="page"{% endif %}>{{ item[1] }}</a>
+  {% endfor %}
+</nav>

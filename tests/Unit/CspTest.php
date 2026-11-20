@@ -63,7 +63,7 @@ class CspTest extends TestCase
     {
         // Each is a supply-chain dependency. Listing them makes the exposure
         // countable, which `https:` did not.
-        foreach (['unpkg.com', 'code.jquery.com', 'challenges.cloudflare.com'] as $host) {
+        foreach (['challenges.cloudflare.com'] as $host) {
             $this->assertStringContainsString($host, Csp::policy(), "{$host} is loaded by a template");
         }
 
@@ -73,7 +73,7 @@ class CspTest extends TestCase
         // one library added back "temporarily" from a CDN would put that whole origin's
         // output back in scope, and the policy is the only place that would show it.
         preg_match('/script-src ([^;]+);/', Csp::policy(), $ss);
-        foreach (['cdn.jsdelivr.net', 'cdn.plyr.io'] as $retired) {
+        foreach (['cdn.jsdelivr.net', 'cdn.plyr.io', 'unpkg.com', 'code.jquery.com'] as $retired) {
             $this->assertStringNotContainsString($retired, $ss[1] ?? '',
                 "{$retired} can execute script again — its assets are supposed to be vendored");
         }

@@ -156,8 +156,10 @@ class DeployFingerprintTest extends TestCase
         // served out of public/assets now, so the fix for those particular refusals is
         // that the request no longer happens at all — strictly better than permitting the
         // host. Their actual disappearance is asserted in CspHostCoverageTest.
-        foreach (['https://code.jquery.com', 'https://unpkg.com',
-                  'https://challenges.cloudflare.com'] as $host) {
+        // jQuery and unpkg were in this list too and left the policy on 5 Nov 2026: the
+        // report's jQuery and Leaflet are no longer requested at all, which answers those
+        // refusals the same way (CspHostCoverageTest::RETIRED_SINCE).
+        foreach (['https://challenges.cloudflare.com'] as $host) {
             $this->assertStringContainsString($host, $policy, "script host {$host}");
         }
         // The paid-vote form. Chrome applies form-action to the REDIRECT a submission

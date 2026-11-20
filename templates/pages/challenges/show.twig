@@ -53,7 +53,10 @@
 {% block head_styles %}
   <link rel="stylesheet" href="{{ asset('/assets/css/components/library.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/challenge.css') }}">
+  {% if views %}<link rel="stylesheet" href="{{ asset('/assets/css/components/views.css') }}">{% endif %}
 {% endblock %}
+
+{% block foot_scripts %}{% if views %}<script defer src="{{ asset('/assets/js/views.js') }}" data-nav="rerun"></script>{% endif %}{% endblock %}
 
 {% block content %}
 {% import "partials/ui.twig" as ui %}
@@ -84,6 +87,7 @@
           <span class="ch-state" data-state="{{ copy.state }}">{{ copy.state_label }}</span>
         </p>
         <h1 class="ch-hero__h" id="ch-h1">{{ c.title }}</h1>
+        {% if views %}<div class="ag-views-row">{% include 'partials/views-badge.twig' with {v: views, csrf_token: csrf_token} only %}</div>{% endif %}
         <p class="ch-hero__p">{{ copy.promise }}</p>
 
         {# WHO RUNS THE AWARD THIS COUNTS INSIDE. Resolved through the scope chain by
@@ -232,7 +236,7 @@
      Fixed by the stylesheet so it is there on first paint: a bar placed from a
      measured property is missing for anybody whose script did not run, which this
      codebase shipped once on the nomination form. #}
-  <div class="ag-actionbar ch-bar" data-bottom-ui>
+  <div class="ag-actionbar ch-bar" data-bottom-ui role="region" aria-label="{{ 'Take part'|trans }}">
     <span class="ag-actionbar__sum">
       <b>{{ copy.prize_big }} {{ copy.prize_unit }}</b>
       <span>{{ copy.bar_sub }}</span>

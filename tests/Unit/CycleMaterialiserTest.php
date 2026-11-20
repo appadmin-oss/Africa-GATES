@@ -23,6 +23,17 @@ use AfricaGates\Support\Clock;
  */
 class CycleMaterialiserTest extends TestCase
 {
+    /**
+     * This suite exercises the SCHEDULED promotion — the results date passing and the sweep
+     * crowning. That is automatic release; manual (the default) waits for an operator and
+     * is pinned by test_manual_release_waits_for_an_operator below.
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+        \AfricaGates\Support\ResultReleaseMode::save(\AfricaGates\Support\ResultReleaseMode::AUTO);
+    }
+
     private function seedCycle(int $id, string $status, array $dates): void
     {
         DB::table('gates_award_programmes')->insertOrIgnore(['id' => 1, 'slug' => 'p1', 'title' => 'P1']);
@@ -474,6 +485,34 @@ class CycleMaterialiserTest extends TestCase
      * must not write a second standing — a cycle with two seals has no announced result,
      * it has two.
      */
+    /**
+     * MANUAL RELEASE, THE DEFAULT: the date passing changes nothing a nominee can see.
+     *
+     * The sweep must neither advance nor crown an edition whose results date has gone by
+     * until somebody releases it — and the release, when it comes, is the same promotion.
+     */
+    public function test_manual_release_waits_for_an_operator(): void
+    {
+        \AfricaGates\Support\ResultReleaseMode::save(\AfricaGates\Support\ResultReleaseMode::MANUAL);
+        $this->seedCycle(54, 'judging', [
+            'voting_open'  => date('Y-m-d H:i:s', strtotime('-30 days')),
+            'voting_close' => date('Y-m-d H:i:s', strtotime('-3 days')),
+            'results_date' => date('Y-m-d H:i:s', strtotime('-1 day')),
+        ]);
+        $this->scorable(54);
+
+        (new CycleMaterialiser())->run();
+        $this->assertSame('judging', $this->storedStatus(54), 'the results date published on its own');
+        $this->assertSame(0, $this->sealedRows(54), 'and sealed a standing nobody announced');
+        $this->assertSame(0, DB::table('gates_cycle_transitions')->where('cycle_id', 54)
+            ->where('to_status', 'results')->count());
+
+        $r = (new CycleMaterialiser())->release(54, 7);
+        $this->assertTrue($r['ok'], (string) $r['message']);
+        $this->assertSame('results', $this->storedStatus(54));
+        $this->assertGreaterThan(0, $this->sealedRows(54), 'the release is the announcement, so it seals');
+    }
+
     public function test_releasing_twice_seals_once(): void
     {
         $this->seedCycle(53, 'judging', [
@@ -550,4 +589,18 @@ class CycleMaterialiserTest extends TestCase
             dirname(__DIR__, 2) . '/src/Admin/Controllers/ResultReleaseController.php');
         $this->assertStringContainsString('results.release', $ctl, 'and it is audited');
     }
+    public function test_a_stale_judging_status_cannot_release_an_extended_voting_window(): void
+    {
+        $this->seedCycle(59, 'judging', [
+            'voting_open'=>date('Y-m-d H:i:s', strtotime('-1 day')),
+            'voting_close'=>date('Y-m-d H:i:s', strtotime('+7 days')),
+        ]);
+        $this->scorable(59);
+        $r=(new CycleMaterialiser())->release(59,7);
+        $this->assertFalse($r['ok']);
+        $this->assertSame('judging',$this->storedStatus(59));
+        $this->assertSame(0,$this->sealedRows(59));
+        $this->assertSame(0,DB::table('gates_cycle_transitions')->where('cycle_id',59)->count());
+    }
+
 }

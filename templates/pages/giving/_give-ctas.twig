@@ -8,5 +8,5 @@
     {%- if recurring %}<a class="gv-btn gv-btn--line" href="{{ _base }}?step=give&amp;freq=monthly#give">{{ 'Give monthly'|trans }}</a>{% endif -%}
   {%- else -%}
     {# No provider configured: say how to give rather than drawing a button that cannot. #}
-    <p class="gv-note">{{ 'Online giving is being set up. Write to us through support and we will send you secure payment details and a receipt.'|trans }} <a href="/support">{{ 'Contact support'|trans }}</a></p>
+    <p class="gv-note">{{ 'Online giving is being set up. Support will send secure payment details and a receipt.'|trans }} <a href="/support">{{ 'Contact support'|trans }}</a></p>
   {%- endif -%}

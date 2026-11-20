@@ -19,12 +19,12 @@
   <section class="nl__card" aria-labelledby="stA">
     {% if not alert %}
       <h1 class="nl__h1" id="stA">{{ 'This link is not working'|trans }}</h1>
-      <p class="nl__p">{{ 'It may have been broken across two lines by your email app. Copy the whole link from the email into your browser, or ask again from the status page.'|trans }}</p>
+      <p class="nl__p">{{ 'Copy the full link into your browser, or ask again.'|trans }}</p>
       <a class="ag-btn ag-btn--secondary" href="/status">{{ 'Go to the status page'|trans }}</a>
     {% elseif alert.action == 'stop' %}
       {% if done or alert.stopped %}
         <h1 class="nl__h1" id="stA">{{ 'Status updates stopped'|trans }}</h1>
-        <p class="nl__p">{{ 'You will not be emailed about problems or fixes any more. The status page is always there to check.'|trans }}</p>
+        <p class="nl__p">{{ 'You won’t be emailed about problems or fixes any more.'|trans }}</p>
         <a class="ag-btn ag-btn--secondary" href="/status">{{ 'Go to the status page'|trans }}</a>
       {% else %}
         <h1 class="nl__h1" id="stA">{{ 'Stop status updates?'|trans }}</h1>
@@ -37,16 +37,16 @@
     {% else %}
       {% if done or alert.confirmed %}
         <h1 class="nl__h1" id="stA">{{ 'You will get status updates'|trans }}</h1>
-        <p class="nl__p">{{ 'We will email you when a problem our checks measure starts, and when it is fixed. Every email has a one-click stop link.'|trans }}</p>
+        <p class="nl__p">{{ 'We’ll email when a problem starts and is fixed. Each has a stop link.'|trans }}</p>
         <a class="ag-btn ag-btn--secondary" href="/status">{{ 'Go to the status page'|trans }}</a>
       {% else %}
         <h1 class="nl__h1" id="stA">{{ 'Confirm status updates'|trans }}</h1>
-        <p class="nl__p">{{ 'Press the button and we will email you when a problem starts, and when it is fixed. Nothing else.'|trans }}</p>
+        <p class="nl__p">{{ 'We’ll email you when a problem starts and is fixed. Nothing else.'|trans }}</p>
         <form class="nl__form" method="post" action="/status/alerts/{{ alert.token }}/confirm">
           <input type="hidden" name="_token" value="{{ csrf_token }}">
           <button type="submit" class="ag-btn ag-btn--primary nl__go">{{ 'Yes, email me'|trans }}</button>
         </form>
-        <p class="ag-hint">{{ 'Did not ask for this? Close the page. Nothing is sent to an address that has not been confirmed.'|trans }}</p>
+        <p class="ag-hint">{{ 'Didn’t ask for this? Close the page; unconfirmed addresses get nothing.'|trans }}</p>
       {% endif %}
     {% endif %}
   </section>

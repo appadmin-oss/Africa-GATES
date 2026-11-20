@@ -1,0 +1,29 @@
+{#- Final hours · Campaigns. Sender: NomineeBroadcast (the fixed message, when no editable
+    campaign is chosen) — `nominees:broadcast` and /__setup/broadcast; an editable campaign
+    renders through EmailCampaign and campaign.twig instead.
+    Variables: first_name, category_name, closes_human, countdown_url, countdown_alt, vote_url,
+    events_url, unsubscribe_url.
+    Design: Email Templates.dc.html → "Final hours", corrected to the live site (owner,
+    19 Oct 2026): "the last 72 hours bring in more votes than the first two weeks" and
+    "supporters with gala tickets vote more and stay longer" are figures this platform has
+    never measured, so the second ask is the live campaign's own ("Fill the room"), and the
+    lede says only what is true — they are in the final stretch, in their category. The
+    countdown is CountdownGif's 320×104, redrawn on every open, with the deadline repeated
+    as text for a client that blocks images. An announcement: Unsubscribe and
+    List-Unsubscribe. -#}
+{% extends 'emails/_layout.html.twig' %}
+{% block category %}Final hours{% endblock %}
+{% block hero %}illo-ballot-countdown{% endblock %}
+{% block why %}You’re a nominee on Africa GATES.{% endblock %}
+{% block transactional %}0{% endblock %}
+{% block subject %}Finish strong — voting closes soon{% endblock %}
+{% block preheader %}Voting closes {{ closes_human }}. Rally your supporters.{% endblock %}
+{% block body %}
+{%- import 'emails/_blocks.html.twig' as b -%}
+{{ b.countdown("Voting closes #{closes_human}", countdown_alt, countdown_url) }}
+{{ b.h1(first_name ? "Finish strong, #{first_name}" : 'Finish strong') }}
+{{ b.p('You’re in the final stretch of Africa GATES voting' ~ (category_name ? ' in ' ~ category_name : '') ~ '. Two things make the difference.') }}
+{{ b.steps([['Send your link to five people', 'Personally. A message beats a post.'], ['Fill the room', 'Encourage your supporters to get their event tickets and join us — the people who believed in you should be there to celebrate with you.']]) }}
+{{ b.button('Vote and share your link', vote_url) }}
+{{ b.link('Get event tickets', events_url) }}
+{% endblock %}

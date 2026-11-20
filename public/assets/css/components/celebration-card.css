@@ -69,10 +69,20 @@
 [dir="rtl"] .ag-cel--full.ag-cel--desktop{ --cel-at:75% 45% }
 
 .ag-cel--full .ag-cel__stage{
+  /* The burst stays on its stage, fading out at the stage's lower edge rather than raining
+     through the headline and the sentence under it: behind the words is still between the
+     letters, and on a phone the words sit directly below. */
+  -webkit-mask-image:linear-gradient(to bottom, black 82%, transparent);
+  mask-image:linear-gradient(to bottom, black 82%, transparent);
   position:relative; width:100%; height:var(--cel-stage-h);
   display:flex; align-items:center; justify-content:center;
 }
+/* The words sit ABOVE the burst. The engine's particle layers are z-index 0–2 inside a stage
+   that sets no stacking context of its own, so confetti thrown wide of the stage fell across
+   the headline and the line under it ("Nomination sent", "You're going") and read as a
+   rendering fault. The burst still crosses the card; it passes behind the words. */
 .ag-cel--full .ag-cel__text{
+  position:relative; z-index:3;
   min-width:0; display:flex; flex-direction:column;
   align-items:var(--cel-align); gap:var(--cel-tgap); text-align:var(--cel-talign);
 }
@@ -131,6 +141,7 @@
 /* ── inline: a card that replaces a form in place ───────────────────────────── */
 
 .ag-cel--inline{
+  container-type:inline-size;
   display:flex; flex-direction:column; gap:14px; padding:16px; border-radius:var(--ag-r-20);
   background:linear-gradient(135deg, var(--cel-tint) 0%, var(--ag-surface) 72%);
 }
@@ -156,7 +167,7 @@
   animation:agCelRise var(--ag-dur-3) var(--ag-ease) .5s both;
 }
 .ag-cel--inline .ag-cel__actions{
-  position:relative; z-index:4; display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  position:relative; z-index:4; display:grid; grid-template-columns:repeat(auto-fit,minmax(176px,1fr));
   gap:8px; animation:agCelRise var(--ag-dur-3) var(--ag-ease) .6s both;
 }
 .ag-cel--inline .ag-cel__btn--primary{
@@ -182,3 +193,21 @@
 }
 .ag-rm .ag-cel *{ animation:none!important }
 .ag-rm .agc-amb,.ag-rm .agc-fx{ display:none!important }
+
+/* ── narrow inline: ring above the words ─────────────────────────────────────
+   Beside an 88px ring a phone-width card left the words about 180px, so a one-line
+   sentence wrapped to three and a two-word button to two lines. Under 440px of card the
+   ring goes above, centred, and the two actions stack full width — measured on the card,
+   not the viewport, because the same card sits in a wide page and in a narrow ballot. */
+@container (max-width:440px){
+  .ag-cel__row{ flex-direction:column; text-align:center; gap:8px }
+  .ag-cel--inline .ag-cel__text{ align-items:center }
+  .ag-cel--inline .ag-cel__sub{ max-width:34ch }
+  .ag-cel--inline .ag-cel__actions{ grid-template-columns:minmax(0,1fr) }
+}
+
+/* ── the ticket stub's stamp ──────────────────────────────────────────────────
+   The engine (shipped verbatim, so not edited here) lays CONFIRMED at 44% across the stub —
+   squarely over the event's name, which is the one thing on the stub the guest reads.
+   Moved onto the code half, still at the engine's angle and timing. */
+.ag-cel__stage .agc-stage > div[aria-hidden] > span:last-child{ left:79% !important; top:74% !important }

@@ -2,16 +2,20 @@
   The registration card — every state of EventSales (see detail.twig's header). Included
   inside `.ed-card`, which carries the selected tier's colour properties.
 
-  The glow (§8.10): `@property --ev-a` turned 0→360° over 3.2s, a blurred halo (inset −10px,
-  blur 22px, .55, breathing) and a 2px conic ring (white padding-box over a conic
-  border-box). event-detail.js replays it on each pick by replacing the element — a finished
-  CSS animation does not restart when the same name is re-applied — and it settles to .35.
-  Without @property the angle does not interpolate and the ring is a static gradient border,
-  which is the specified fallback. aria-hidden and untouchable: the border, the wash and the
-  radio say everything it says, which is what makes it safe to remove under reduced motion.
+  The glow: the card's rim, after Google's AI-mode glow, in the chosen tier's one colour
+  (owner, 2 Nov 2026, superseding §8.10's two-ended ring). A comet sweeps a 1.5px ring (the
+  card's face on padding-box over the comet on border-box) that is the card's own hairline
+  everywhere but where the light is, with a tight blurred copy of the comet alone behind it
+  as the glow. Two eased laps on every pick and the first time the card is in view with a
+  tier chosen, then it fades and the card is left as drawn; paused off screen.
+  event-detail.js replays it by replacing the element — a finished CSS animation does not
+  restart when the same name is re-applied. Without @property the angle does not interpolate
+  and the sweep is a still gradient fading in and out. aria-hidden and untouchable: the
+  border, the wash and the radio say everything it says, which is what makes it safe to
+  remove under reduced motion.
 #}
 {% if st in ['open', 'waitlist'] and tiers|length %}
-  <span class="ed-glow" data-ev-glow aria-hidden="true" hidden><span class="ed-glow__halo"></span><span class="ed-glow__ring"></span></span>
+  <span class="ed-glow" data-ev-glow aria-hidden="true" hidden><span class="ed-glow__halo"></span><span class="ed-glow__ring"></span><span class="ed-glow__bloom"></span></span>
 {% endif %}
 
 {% if st == 'ended' %}
@@ -35,7 +39,7 @@
 {% elseif st == 'soldout' %}
   <span class="ed-card__k ed-card__k--stop">{{ 'Fully booked'|trans }}</span>
   <h2 class="ed-card__h">{{ 'This event is full'|trans }}</h2>
-  <p class="ed-card__p">{% if capacity %}{{ 'All %n% places have been reserved.'|trans({'%n%': capacity|number_format}) }}{% else %}{{ 'Every ticket has been reserved.'|trans }}{% endif %} {{ 'Places that come back are not held for anybody, so it is worth checking again.'|trans }}</p>
+  <p class="ed-card__p">{% if capacity %}{{ 'All %n% places have been reserved.'|trans({'%n%': capacity|number_format}) }}{% else %}{{ 'Every ticket has been reserved.'|trans }}{% endif %} {{ 'Returned places are not held, so check again.'|trans }}</p>
   {% if ev.livestream %}<a class="ed-cta" href="{{ ev.livestream }}" target="_blank" rel="noopener">{{ 'Watch the livestream'|trans }}</a>{% endif %}
   <a class="ed-cta ed-cta--line" href="/newsletter">{{ 'Hear about the next one'|trans }}</a>
 
@@ -53,7 +57,7 @@
     <label class="ed-label" for="edNotify">{{ 'Email me when tickets go on sale'|trans }}</label>
     <input class="ed-input" id="edNotify" type="email" name="email" required autocomplete="email" inputmode="email"
            value="{{ member ? member.email : '' }}" aria-describedby="edNotifyHint">
-    <p class="ed-hint" id="edNotifyHint">{{ 'We send a link to confirm first, then one email on the day. Nothing else.'|trans }}</p>
+    <p class="ed-hint" id="edNotifyHint">{{ 'A confirmation link, then one email on the day. Nothing else.'|trans }}</p>
     <button type="submit" class="ed-cta">{{ 'Notify me'|trans }}</button>
     {% if alert_said %}<p class="ed-said" role="status">{{ alert_said|trans }}</p>{% endif %}
     {% if alert_waiting > 1 %}<p class="ed-card__note">{{ '%n% people are waiting for tickets.'|trans({'%n%': alert_waiting|number_format}) }}</p>{% endif %}
@@ -90,31 +94,44 @@
         {{ 'Giving directly is separate — the appeal is on this page.'|trans }}</p>
     {% endif %}
     {% if st == 'waitlist' %}
-      <p class="ed-card__p ed-card__p--sm">{{ 'Seats come back — a failed payment, an expired hold, a cancellation. Join and you are emailed the moment one does; you will have %h% hours to take it.'|trans({'%h%': waitlist_hours}) }}</p>
+      <p class="ed-card__p ed-card__p--sm">{{ 'We email you when a seat frees up. Take it within %h% hours.'|trans({'%h%': waitlist_hours}) }}</p>
     {% endif %}
 
     {% if tiers|length %}
-    <div class="ed-tiers" role="radiogroup" aria-label="{{ 'Ticket type'|trans }}" data-ed-tiers>
+    {#
+      TICKETS AS PLAN TILES (owner, 17 Nov 2026: "not sleek", then "research, redesign, modern
+      and sleek"). Each tile is a name and a price and, at most, one line of state — the shape
+      of a plan picker (Apple, Stripe, Luma), so four tiers read at a glance instead of as four
+      paragraphs. What a ticket INCLUDES is drawn once, below the tiles, for the chosen tier
+      only (event-detail.js swaps the panel); an organiser's "A + B + C" description arrives
+      here already split into a list (EventsController::tierLines).
+    #}
+    {% set _tick = '<svg class="ed-inc__tick" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>' %}
+    <div class="ed-tiers ed-tiers--{{ tiers|length }}" role="radiogroup" aria-label="{{ 'Ticket type'|trans }}" data-ed-tiers>
       {% for t in tiers %}
       <button type="button" class="ed-tier{{ t.peak ? ' ed-tier--peak' }}" role="radio" data-ed-tier
               aria-checked="{{ _one and t.enabled ? 'true' : 'false' }}"
               tabindex="{{ (_first and t.id == _first.id) ? '0' : '-1' }}"
               {{ t.enabled ? '' : 'disabled' }} style="{{ t.style }}"
               data-id="{{ t.id }}" data-price="{{ t.price }}" data-min="{{ t.min }}" data-max="{{ t.max }}"
-              data-gone="{{ t.gone ? '1' : '0' }}" data-waiting="{{ t.waiting }}" data-tone="{{ t.tone }}">
+              data-gone="{{ t.gone ? '1' : '0' }}" data-waiting="{{ t.waiting }}" data-tone="{{ t.tone }}"
+              {% if t.perks|length or t.note %}aria-describedby="ed-inc-{{ t.id }}"{% endif %}>
         <span class="ed-tier__radio" aria-hidden="true"></span>
-        <span class="ed-tier__t">
-          <span class="ed-tier__n">{{ t.name }}</span>
-          {% if t.state != 'open' and t.why %}<span class="ed-tier__s">{{ t.why }}</span>
-            {% if t.gone and t.enabled %}<span class="ed-tier__s ed-tier__s--tint">{{ t.waiting ? 'Join the waiting list · %n% waiting'|trans({'%n%': t.waiting}) : 'Join the waiting list'|trans }}</span>{% endif %}
-          {% elseif t.left is not null and t.left <= 10 %}<span class="ed-tier__s ed-tier__s--tint">{{ 'Only %n% left'|trans({'%n%': t.left}) }}</span>
-          {% elseif t.note %}<span class="ed-tier__s">{{ t.note }}</span>{% endif %}
-          {% for p in t.perks %}<span class="ed-tier__s">{{ p }}</span>{% endfor %}
-        </span>
+        <span class="ed-tier__n">{{ t.name }}</span>
         <span class="ed-tier__p">{{ t.price_text }}</span>
+        {% if t.state != 'open' and t.why %}<span class="ed-tier__s{{ t.gone and t.enabled ? ' ed-tier__s--tint' }}">{{ t.gone and t.enabled ? (t.waiting ? 'Waiting list · %n% waiting'|trans({'%n%': t.waiting}) : 'Join the waiting list'|trans) : t.why }}</span>
+        {% elseif t.left is not null and t.left <= 10 %}<span class="ed-tier__s ed-tier__s--tint">{{ 'Only %n% left'|trans({'%n%': t.left}) }}</span>
+        {% elseif t.perks|length %}<span class="ed-tier__s">{{ t.perks|length == 1 ? '1 perk'|trans : '%n% perks'|trans({'%n%': t.perks|length}) }}</span>{% endif %}
       </button>
       {% endfor %}
     </div>
+    {% for t in tiers %}{% if t.perks|length or t.note %}
+    <div class="ed-inc" id="ed-inc-{{ t.id }}" data-ed-inc="{{ t.id }}" style="{{ t.style }}"{% if not (_one and t.enabled) %} hidden{% endif %}>
+      <p class="ed-inc__h">{{ '%name% includes'|trans({'%name%': t.name}) }}</p>
+      {% if t.note %}<p class="ed-inc__note">{{ t.note }}</p>{% endif %}
+      {% if t.perks|length %}<ul class="ed-inc__l">{% for p in t.perks %}<li class="ed-inc__i">{{ _tick|raw }}<span>{{ p }}</span></li>{% endfor %}</ul>{% endif %}
+    </div>
+    {% endif %}{% endfor %}
     {% endif %}
 
     {% if spots_left is not null and st == 'open' and spots_left <= constant('AfricaGates\\Services\\EventSales::LOW_PLACES') %}<p class="ed-card__note ed-tint">{{ spots_left == 1 ? 'Only 1 place left'|trans : 'Only %n% places left'|trans({'%n%': spots_left}) }}</p>{% endif %}
@@ -143,20 +160,20 @@
     </div>
 
     {% if paid_tiers and not gateway_ready %}
-      <p class="ed-warn" data-ed-nogate>{{ 'Card payment is not available on this site right now, so paid tickets cannot be bought here. Contact the organiser and they can register you.'|trans }}</p>
+      <p class="ed-warn" data-ed-nogate>{{ 'Paid tickets are unavailable here now. The organiser can register you.'|trans }}</p>
     {% endif %}
 
     <div class="ed-field">
       <label class="ed-label" for="edName">{{ 'Full name'|trans }}</label>
-      <input class="ed-input" id="edName" autocomplete="name" value="{{ member ? member.name : '' }}" data-ed-name>
+      <input class="ed-input" id="edName" autocomplete="name" value="{{ member ? member.name : '' }}" data-ed-name aria-required="true">
     </div>
     <div class="ed-field">
       <label class="ed-label" for="edEmail">{{ 'Email'|trans }}</label>
-      <input class="ed-input" id="edEmail" type="email" inputmode="email" autocomplete="email" value="{{ member ? member.email : '' }}" data-ed-email>
+      <input class="ed-input" id="edEmail" type="email" inputmode="email" autocomplete="email" value="{{ member ? member.email : '' }}" data-ed-email aria-required="true">
     </div>
     <div class="ed-field">
       <label class="ed-label" for="edPhone">{{ 'Phone'|trans }}</label>
-      <input class="ed-input" id="edPhone" type="tel" inputmode="tel" autocomplete="tel" value="{{ member ? member.phone : '' }}" data-ed-phone>
+      <input class="ed-input" id="edPhone" type="tel" inputmode="tel" autocomplete="tel" value="{{ member ? member.phone : '' }}" data-ed-phone aria-required="true">
     </div>
     <p class="ed-err" role="alert" data-ed-err></p>
     <button type="button" class="ed-cta ed-cta--tier" data-ag-do="ed-submit">{{ st == 'waitlist' ? 'Join the waiting list'|trans : (paid_tiers ? 'Reserve your place'|trans : 'Register — free'|trans) }}</button>

@@ -60,6 +60,10 @@ final class ThirdPartyScriptIntegrityTest extends TestCase
     private const UNPINNABLE = [
         'https://challenges.cloudflare.com/turnstile/',      // Cloudflare updates in place
         'https://pagead2.googlesyndication.com/pagead/',     // AdSense loader, same
+        // Google Analytics 4's tag (Services\GoogleAnalytics): one URL per measurement ID,
+        // rebuilt by Google in place, so there is no hash that survives its next deploy. It
+        // loads only on an explicit yes to Analytics, from layout/shell.twig.
+        'https://www.googletagmanager.com/gtag/js',
     ];
 
     /**
@@ -172,6 +176,9 @@ final class ThirdPartyScriptIntegrityTest extends TestCase
             // until the Phase 5 ballot (vote-nominee.twig) brought Turnstile back, loaded
             // only where a site key is configured. Unpinnable: Cloudflare updates it in place.
             'https://challenges.cloudflare.com/turnstile/',
+            // Google Analytics 4 (owner, 28 Oct 2026), drawn only when it is switched on and
+            // the visitor said yes. Unpinnable: Google rebuilds gtag.js in place.
+            'https://www.googletagmanager.com/gtag/js',
         ] as $expected) {
             $this->assertNotEmpty(
                 array_filter($urls, static fn(string $u): bool => str_starts_with($u, $expected)),
@@ -184,7 +191,8 @@ final class ThirdPartyScriptIntegrityTest extends TestCase
         // on the ballot is the likely one) fails here and names it in the list above —
         // which re-arms the "the regex still sees something" half of this control.
         $this->assertSame([], array_values(array_filter($urls,
-            static fn(string $u): bool => !str_starts_with($u, 'https://challenges.cloudflare.com/turnstile/'))),
+            static fn(string $u): bool => !str_starts_with($u, 'https://challenges.cloudflare.com/turnstile/')
+                && !str_starts_with($u, 'https://www.googletagmanager.com/gtag/js'))),
             'a third-party script is back in the templates — name it in the list above');
     }
 

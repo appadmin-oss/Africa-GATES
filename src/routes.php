@@ -186,8 +186,7 @@ return function(App $app) {
             } elseif ($site === '') {
                 $lines[] = 'ABORTED: APP_URL is not set. Every link in this email is absolute.';
             } elseif (($plan['queue'] ?? []) === []) {
-                $lines[] = 'No nominee resolved in a live voting cycle, so there is no real';
-                $lines[] = 'personalisation to preview. Check the counts on this page first.';
+                $lines[] = (new \AfricaGates\Services\NomineeBroadcast())->whyEmpty();
             } else {
                 // The first resolved recipient, whether or not they are sendable — a
                 // suppressed or already-sent nominee is still a valid shape to preview.
@@ -1495,7 +1494,7 @@ return function(App $app) {
         if (!$setupGuard($req)) return $res->withStatus(404);
 
         $e    = fn ($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
-        $file = dirname(__DIR__) . '/var/logs/error-detail.log';
+        $file = \AfricaGates\Support\PublicFault::logFile();
         $want = max(1, min(50, (int) ($req->getQueryParams()['n'] ?? 10)));
 
         $h = '<!doctype html><meta charset="utf-8"><title>Recent errors — Africa GATES</title>'
@@ -1717,6 +1716,18 @@ return function(App $app) {
                     $now = date('Y-m-d H:i:s');
                     $ip  = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
                     $tbl = \Illuminate\Database\Capsule\Manager::table('gates_admins');
+                    // ONE LOGIN (owner, 29 Oct 2026): the console opens from the Africa GATES
+                    // account holding this address, and there is no console sign-in. So the
+                    // recovery also leaves that ACCOUNT able to sign in with this password,
+                    // verified — on a fresh install mail may not work yet, and an emailed code
+                    // would be the only other way in.
+                    $giveAccount = static function (string $email, string $name, string $pass) use ($now): void {
+                        $users = \Illuminate\Database\Capsule\Manager::table('gates_users');
+                        $u = (clone $users)->whereRaw('LOWER(email) = ?', [$email])->first();
+                        $row = ['password_hash' => password_hash($pass, PASSWORD_DEFAULT), 'email_verified' => 1, 'status' => 'active'];
+                        if ($u) (clone $users)->where('id', $u->id)->update($row);
+                        else (clone $users)->insert($row + ['name' => $name, 'email' => $email, 'created_at' => $now]);
+                    };
                     $existing = (clone $tbl)->where('email', $email)->first();
                     if ($existing) {
                         // RESET is limited to genuine recovery: NO superadmin can sign in
@@ -1734,8 +1745,8 @@ return function(App $app) {
                         $activeSupers = (int) (clone $tbl)->where('role', 'superadmin')->where('is_active', 1)->count();
                         if ($activeSupers > 0) {
                             error_log("[setup] REFUSED password reset for {$email} from {$ip} — {$activeSupers} active superadmin(s) exist");
-                            $msg = 'A superadmin account is active, so reset here is disabled. A locked account unlocks '
-                                 . 'by itself; otherwise use the admin magic-link at /admin/magic, ask a superadmin to '
+                            $msg = 'A superadmin account is active, so reset here is disabled. Sign in at /account/login '
+                                 . 'with that superadmin’s email (a code is emailed to it), ask a superadmin to '
                                  . 'act from the console (Admins), or delete SETUP_TOKEN and run `php bin/console admin:create`.';
                         } elseif ((string) ($existing->role ?? '') !== 'superadmin') {
                             // Recovery means getting a superadmin back. Re-arming some other
@@ -1748,6 +1759,7 @@ return function(App $app) {
                                 'password_hash' => password_hash($pass, PASSWORD_BCRYPT),
                                 'is_active' => 1, 'failed_attempts' => 0, 'locked_until' => null, 'updated_at' => $now,
                             ]);
+                            $giveAccount($email, (string) ($existing->name ?? $name), $pass);
                             error_log("[setup] superadmin recovery: password reset + unlock for {$email} from {$ip}");
                             $ok = true; $msg = "Password reset and account unlocked for {$email} (role unchanged).";
                         }
@@ -1766,6 +1778,7 @@ return function(App $app) {
                                 'password_hash' => password_hash($pass, PASSWORD_BCRYPT),
                                 'is_active' => 1, 'failed_attempts' => 0, 'created_at' => $now, 'updated_at' => $now,
                             ]);
+                            $giveAccount($email, $name, $pass);
                             error_log("[setup] created first superadmin {$email} from {$ip}");
                             $ok = true; $msg = "Created superadmin {$email}.";
                         }
@@ -1777,7 +1790,7 @@ return function(App $app) {
         }
         $action = '/__setup/admin?token=' . rawurlencode($tok);
         $banner = $msg !== '' ? '<p class="' . ($ok ? 'ok' : 'err') . '">' . $e($msg) . '</p>' : '';
-        $next   = $ok ? '<p class="ok">Now sign in at <a href="/admin/login">/admin/login</a> — then DELETE the SETUP_TOKEN line from your .env.</p>' : '';
+        $next   = $ok ? '<p class="ok">Now sign in at <a href="/account/login?with=password&amp;next=%2Fadmin">/account/login</a> with this email and password — the console opens from your account. Then DELETE the SETUP_TOKEN line from your .env.</p>' : '';
         $html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Africa GATES — admin setup</title>'
             . '<style>body{font-family:system-ui,"Segoe UI",Roboto,sans-serif;background:#10292C;margin:0;padding:40px 16px}'
             . '.card{max-width:440px;margin:0 auto;background:#fff;border-radius:16px;padding:28px 26px;box-shadow:0 20px 50px -20px rgba(0,0,0,.55)}'
@@ -1850,6 +1863,29 @@ return function(App $app) {
         // filter panel's live "Show N results"; it is a literal with no placeholder
         // anywhere above it, so nothing can shadow it (RouteTableIntegrityTest).
         $g->get('/discover',       \AfricaGates\Controllers\DiscoverController::class.':index');
+        // Advertising: the rate card, the trial and the rules, public before anybody signs
+        // up (Services\Ads). The two endpoints an ad reports through: a view (ads.js, POST,
+        // the single-use token is the credential and the CSRF header rides along) and a
+        // click, counted once and sent on to the advertiser.
+        $g->get('/advertise',      \AfricaGates\Controllers\AdsController::class.':advertise');
+        $g->get('/advertise/library', \AfricaGates\Controllers\AdsController::class.':library');
+        $g->post('/ads/seen',      \AfricaGates\Controllers\AdsController::class.':seen');
+        $g->post('/ads/video',     \AfricaGates\Controllers\AdsController::class.':video');
+        // A page's engaged view (Services\PageViews): once it has been visible a few seconds.
+        $g->post('/views',         \AfricaGates\Controllers\PageViewsController::class.':engaged');
+        // "Hide" on a site notice (Services\SiteNotice): kept in the visitor's session, keyed
+        // by the notice's content, and back to the same page. A plain form, so it works with
+        // no script. Only a path on this site is gone back to.
+        $g->post('/notice/hide', function ($req, $res) {
+            $b = (array) ($req->getParsedBody() ?? []);
+            \AfricaGates\Services\SiteNotice::hide((string) ($b['id'] ?? ''));
+            $back = \AfricaGates\Services\SiteNotice::safeUrl((string) ($b['back'] ?? ''));
+            if ($back === null || !str_starts_with($back, '/')) $back = '/';
+            return $res->withHeader('Location', $back)->withStatus(303);
+        });
+        $g->post('/ads/hide',      \AfricaGates\Controllers\AdsController::class.':hide');
+        $g->post('/ads/report',    \AfricaGates\Controllers\AdsController::class.':report');
+        $g->get('/ads/go/{token:[0-9]+\.[a-z_]+\.[0-9]{8}\.[a-f0-9]{12}\.[a-f0-9]{32}}', \AfricaGates\Controllers\AdsController::class.':go');
         $g->get('/discover/count', \AfricaGates\Controllers\DiscoverController::class.':count');
         $g->get('/registry/{slug}',RegistryController::class.':profile');
         // The profile's two writes (Phase 6): the owner's About, and a member's Follow.
@@ -2032,6 +2068,7 @@ return function(App $app) {
         // TicketPdf — "Fit to page" silently rescales the QR below what a scanner resolves,
         // and nobody finds out until a queue has stopped.
         $g->get('/events/ticket/{ref:[A-Za-z0-9\-]{8,60}}/ticket.pdf', EventsController::class.':ticketPdf');
+        $g->get('/events/ticket/{ref:[A-Za-z0-9\-]{8,60}}/qr.png',     EventsController::class.':ticketQr');
         $g->get('/events/ticket/{ref:[A-Za-z0-9\-]{8,60}}/calendar.ics',
                 EventsController::class.':ticketCalendar');
         $g->get('/events/ticket/{ref:[A-Za-z0-9\-]{8,60}}', EventsController::class.':ticket');
@@ -2058,6 +2095,7 @@ return function(App $app) {
         // enumerable address would let anybody render a stranger's name over this event's
         // branding and post it. See EventFlierToken.
         $g->get('/events/{slug}/flier.png', EventsController::class.':flier');
+        $g->get('/events/{slug}/video', \AfricaGates\Controllers\ShareVideoController::class.':event');
         // The generator. A POST that returns the PNG in the same request the photo arrives
         // in, so the upload is never written to this disk — see flierMake().
         //
@@ -2198,6 +2236,11 @@ return function(App $app) {
         // The done screen (NominationFlow.dc.html step 6): a controller method now, because it
         // draws the award's own timeline and mints the share link once on the server.
         $g->get('/nominate/success', NominationController::class.':success');
+        // The nominator's answer to the review desk's "Ask for more": one link, emailed,
+        // that takes what was asked for and sends the nomination back to the queue.
+        // Two segments, so `/nominate/{slug}` below never matches it.
+        $g->get('/nominate/answer/{token:[a-f0-9]{64}}',  NominationController::class.':answerForm');
+        $g->post('/nominate/answer/{token:[a-f0-9]{64}}', NominationController::class.':answer');
         // ── ONE AWARD'S OWN NOMINATION PAGE ──────────────────────────────────
         //
         // AFTER `/nominate/success`, and the order is the whole of it: a literal
@@ -2286,6 +2329,14 @@ return function(App $app) {
         // the slug route requires a leading digit, but the ordering is what the rest of
         // this block already relies on and it should not be the one exception.
         $g->get('/vote/{program}/tallies', VoteController::class.':tallies');
+        // Before /vote/{program}/{slug}, which would otherwise answer it as a nominee.
+        $g->get('/vote/{program}/spotlight', VoteController::class.':spotlight');
+        // What your support unlocks, and the Champion of the Day announced (DailyChampion).
+        $g->get('/vote/{program}/offer', VoteController::class.':offer');
+        // A day (2026-11-16), a week (2026-W47) or the whole award (DailyChampion::kindOf).
+        $g->get('/vote/{program}/champion/{day:(?:[0-9]{4}-(?:[0-9]{2}-[0-9]{2}|W[0-9]{2})|award)}.png', VoteController::class.':championCard');
+        $g->get('/vote/{program}/champion/{day:(?:[0-9]{4}-(?:[0-9]{2}-[0-9]{2}|W[0-9]{2})|award)}', VoteController::class.':champion');
+        $g->get('/champions/{code:CD[0-9]+-[A-Fa-f0-9]{10}}', VoteController::class.':championCheck');
         // The flier routes go BEFORE /vote/{program}/{slug}: FastRoute matches in
         // declaration order for same-length paths, and `{slug}` would otherwise
         // swallow nothing here — but `{slug}/flier` is longer, so order is not
@@ -2301,6 +2352,18 @@ return function(App $app) {
         // og:image to. The 4:5 flier lost its bottom third — the vote URL and the rally
         // copy — in every preview. See FlierService::ogCard().
         $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/card.png',   FlierController::class.':card');
+        // "I backed …": the SUPPORTER's card about their own vote (Services\BackedCard).
+        $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/backed.png', VoteController::class.':backed');
+        // A milestone the nominee reached, as the card they post (Services\MilestoneCard).
+        $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/milestone/{kind:[a-z0-9]+}-{value:[0-9]+}.png', VoteController::class.':milestoneCard');
+        // A printable A4 poster with the QR code to vote, for a church, a market, a school.
+        $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/poster', VoteController::class.':poster');
+        // The nominee's voice thank-you (NomineeVoice), with byte ranges so Safari plays it.
+        $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/voice', VoteController::class.':voice');
+        // "Tell me when they reach a milestone" — only for an address that backed them.
+        $g->post('/vote/follow', VoteController::class.':follow');
+        // The 9:16 share video (ShareVideoController). Beside card.png, before /{slug}.
+        $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/video', \AfricaGates\Controllers\ShareVideoController::class.':nominee');
         // Every message of support for one nominee, paginated. Before /{slug} for the
         // same reason the flier routes are: FastRoute matches in declaration order.
         $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/messages',   VoteMessageController::class.':forNominee');
@@ -2327,7 +2390,7 @@ return function(App $app) {
         $g->get('/m/{token:[A-Za-z0-9_-]{16,32}}', VoteMessageController::class.':permalink');
         $g->get('/partner',       PartnerController::class.':form');
         $g->post('/partner',      PartnerController::class.':submit');
-        $g->get('/partner/success',fn($req,$res)=>$tv($req)->render($res,'pages/partner-success.twig',['page_title'=>'Thank You — Africa GATES','meta_description'=>'Thank you for your interest in partnering with Africa GATES. Our team will be in touch to explore how we can champion African excellence together.','gates_page'=>'partner']));
+        $g->get('/partner/success',fn($req,$res)=>$tv($req)->render($res,'pages/partner-success.twig',['page_title'=>'Thank you — Africa GATES','meta_description'=>'Thank you for your interest in partnering with Africa GATES. Our team will be in touch to explore how we can champion African excellence together.','gates_page'=>'partner']));
 
         // ── Shop (storefront + gateway checkout; static routes before {slug}) ──
         $g->get('/shop',           ShopController::class.':index');
@@ -2432,11 +2495,14 @@ return function(App $app) {
         // (PartnerController::form) and registering a second route on it makes FastRoute
         // refuse the whole route table, which takes every page on the site down rather than
         // just this one.
-        $g->get ('/org/login',  \AfricaGates\Controllers\OrgDashboardController::class.':loginPage');
-        $g->post('/org/login',  \AfricaGates\Controllers\OrgDashboardController::class.':login');
+        // Forwarding addresses only: an organisation opens from the one account sign-in.
+        $g->get ('/org/login',  \AfricaGates\Controllers\OrgDashboardController::class.':toAccount');
+        $g->post('/org/login',  \AfricaGates\Controllers\OrgDashboardController::class.':toAccount');
         $g->post('/org/logout', \AfricaGates\Controllers\OrgDashboardController::class.':logout');
         $g->get ('/org',        \AfricaGates\Controllers\OrgDashboardController::class.':dashboard');
-        $g->post('/org/payout', \AfricaGates\Controllers\OrgDashboardController::class.':requestPayout');
+        // Opened from a member's account, a payout needs the organisation's own password first.
+        $g->post('/org/payout', \AfricaGates\Controllers\OrgDashboardController::class.':requestPayout')
+            ->add(new \AfricaGates\Middleware\AccountReconfirmMiddleware('org'));
         // Appeals. The id is in the path and is checked against the SESSION's organisation in
         // the controller — a path id is a claim, not an authorisation.
         $g->post('/org/appeal',                    \AfricaGates\Controllers\OrgDashboardController::class.':saveCampaign');
@@ -2496,6 +2562,8 @@ return function(App $app) {
         // wrong charity.
         $g->get('/giving/{slug:(?!' . $reservedGiving . ')[a-z0-9][a-z0-9-]{1,118}}/{campaign:[a-z0-9][a-z0-9-]{1,118}}',
                 DonationController::class.':page');
+        $g->get('/giving/{slug:(?!' . $reservedGiving . ')[a-z0-9][a-z0-9-]{1,118}}/{campaign:[a-z0-9][a-z0-9-]{1,118}}/video',
+                \AfricaGates\Controllers\ShareVideoController::class.':campaign');
 
         // ── AND EVERY OLDER PATH, PERMANENTLY ────────────────────────────────
         //
@@ -2598,7 +2666,11 @@ return function(App $app) {
             if (!$doc) return $res->withStatus(404);
 
             $L     = \AfricaGates\Services\LegalDocument::class;
-            $url   = \AfricaGates\Support\SiteUrl::base($req) . '/' . $slug;
+            // One answer to "where does this document live" (LegalService::path()): the
+            // canonical URL, the citation and both downloads all read it, so a document under
+            // /legal/{slug} no longer cites itself at an address that 404s.
+            $path  = \AfricaGates\Services\LegalService::path($slug);
+            $url   = \AfricaGates\Support\SiteUrl::base($req) . $path;
             $today = date('Y-m-d');
             $eff   = $L::effectiveDate($doc);
 
@@ -2623,8 +2695,8 @@ return function(App $app) {
                 'doc_url'=>$url,
                 'doc_citations'=>$L::citations($doc, $url, $today),
                 'doc_file_stem'=>$L::fileStem($doc),
-                'doc_txt_url'=>'/'.$slug.'/download/txt',
-                'doc_md_url'=>'/'.$slug.'/download/md',
+                'doc_txt_url'=>$path.'/download/txt',
+                'doc_md_url'=>$path.'/download/md',
             ]);
         };
 
@@ -2641,7 +2713,7 @@ return function(App $app) {
             if (!$doc) return $res->withStatus(404);
 
             $L    = \AfricaGates\Services\LegalDocument::class;
-            $url  = \AfricaGates\Support\SiteUrl::base($req) . '/' . $slug;
+            $url  = \AfricaGates\Support\SiteUrl::base($req) . \AfricaGates\Services\LegalService::path($slug);
             $body = $fmt === 'md' ? $L::markdown($doc, $url) : $L::plainText($doc, $url);
 
             $res->getBody()->write($body);
@@ -2652,6 +2724,17 @@ return function(App $app) {
                 ->withHeader('Cache-Control', 'public, max-age=3600');
         };
 
+        // The legal directory: every document, grouped by who it is for, each with the one
+        // question it answers (LegalService::directory()). Before it there was no page that
+        // listed them, so a reader had to know a document's name to find it.
+        $g->get('/legal', function($req,$res) use ($tv){
+            return $tv($req)->render($res, 'pages/legal-index.twig', [
+                'page_title' => 'Legal — Africa GATES',
+                'meta_description' => 'Every Africa GATES policy in one place: terms, privacy, cookies, refunds, advertising and trading terms.',
+                'gates_page' => 'legal',
+                'groups' => \AfricaGates\Services\LegalService::directory(),
+            ]);
+        });
         $g->get('/privacy', fn($req,$res)=>$legalRender($req,$res,'privacy'));
         $g->get('/terms',   fn($req,$res)=>$legalRender($req,$res,'terms'));
         // Downloads. Declared BEFORE the {slug} routes below, because Slim's default
@@ -2898,6 +2981,9 @@ return function(App $app) {
                 'community_pct'    => (int) round($w['community'] * 100),
                 'judge_pct'        => (int) round($w['judge'] * 100),
                 'paid_cap_pct'     => (int) ($eff['max_paid_weight_pct'] ?? 50),
+                // The cap's floor, from the constant that enforces it: "up to 50% of other
+                // support" alone is false for a nominee with none, who may still hold ten.
+                'bonus_floor'      => \AfricaGates\Services\BonusVoteService::MIN_BONUS_CAP,
                 // What a contribution does to the community half, from the one resolver the
                 // ballot and the award page use — never a typed claim (AUDIT 2026-10-05 #10).
                 'paid_sentence'    => \AfricaGates\Services\PaidVoteCopy::sentence(),
@@ -2905,17 +2991,17 @@ return function(App $app) {
                 'fraud_block'      => (int) ($eff['fraud_block'] ?? 80),
                 'fraud_flag'       => (int) ($eff['fraud_flag'] ?? 60),
                 'fraud_monitor'    => (int) ($eff['fraud_monitor'] ?? 30),
-                'return_pct'       => $ret['pct'],
                 'return_on'        => $ret['on'],
                 // WHY it is off, not just that it is. The section prints a different
                 // note for "the share is 0%" than for "this site sells no votes", and
                 // a template deriving that itself would be a second reader of a
                 // setting the service already resolves.
                 'return_off_reason'=> $ret['off_reason'],
-                'return_threshold' => $ret['threshold'],
-                'return_cap_pct'   => $ret['cap_pct'],
-                'return_cap_votes' => $ret['cap_votes'],
-                'return_people'    => $ret['min_supporters'],
+                // The house rule in one sentence, whatever its model, or that none is running.
+                'return_sentence'  => $ret['sentence'],
+                // The withdrawal terms, from the resolver the withdrawals use — never typed
+                // into the page. No edition's rule: each award publishes its own.
+                'return_terms'     => \AfricaGates\Services\CommunityReturnWithdrawals::terms($eff),
             ];
         };
 
@@ -3058,6 +3144,21 @@ return function(App $app) {
                 'kind' => $kind, 'size' => $size, 'layout' => $layout,
                 'kinds' => $kinds, 'award' => $award,
                 'flow_page' => true,
+            ]);
+        });
+
+        // ── /offline — what the service worker shows when a page cannot be reached ──
+        // (public/sw.js, 10 Nov 2026). Fetched ONCE by the worker as a signed-out visitor and
+        // kept, so it carries nobody's details: no header, no tab bar, no notice, no Gee.
+        // Not a page anybody navigates to, so it is noindex and in no nav.
+        $g->get('/offline', function ($req, $res) use ($tv) {
+            return $tv($req)->render($res->withHeader('Cache-Control', 'no-store'), 'pages/offline.twig', [
+                'page_title'  => 'You’re offline — Africa GATES',
+                'meta_robots' => 'noindex, nofollow',
+                'seo_head'    => false,
+                'hide_chrome' => true,
+                'flow_page'   => true,
+                'consent_off' => true,
             ]);
         });
 
@@ -3402,6 +3503,10 @@ return function(App $app) {
         $g->post('/my-work/{token:[a-f0-9]{32}}/interview/phase',   \AfricaGates\Controllers\MyWorkController::class.':interviewPhase');
         $g->post('/my-work/{token:[a-f0-9]{32}}/interview/amend',   \AfricaGates\Controllers\MyWorkController::class.':interviewAmend');
         $g->post('/my-work/{token:[a-f0-9]{32}}/interview/outcome', \AfricaGates\Controllers\MyWorkController::class.':interviewOutcome');
+        // The interviewer's upload buttons: a file arriving and "I can't share this" each leave
+        // a notice on the transcript, and `react` runs the one interviewer turn that answers it.
+        $g->post('/my-work/{token:[a-f0-9]{32}}/interview/react',   \AfricaGates\Controllers\MyWorkController::class.':interviewReact');
+        $g->post('/my-work/{token:[a-f0-9]{32}}/interview/decline', \AfricaGates\Controllers\MyWorkController::class.':interviewDecline');
         // Voice, both directions. `speak` returns MP3 bytes and is addressed by TURN INDEX,
         // never by text, so it cannot be used to have the platform's ElevenLabs account read
         // out a stranger's paragraph; `listen` transcribes a recording and hands the words
@@ -3470,6 +3575,11 @@ return function(App $app) {
         $g->get('/email/unsubscribe',  EmailPrefsController::class . ':show');
         $g->post('/email/unsubscribe', EmailPrefsController::class . ':stop');
 
+        // A link pressed in an announcement (Mail\MailTraction): counted, then forwarded at
+        // once. The token is signed, so this is not an open redirect; the unsubscribe link
+        // above never comes through here.
+        $g->get('/m/c/{token:[A-Za-z0-9_.-]+}', \AfricaGates\Controllers\MailClickController::class . ':go');
+
         // The newsletter's way in, and its yes. /newsletter is a plain form that posts —
         // the only signup that existed was a script bound to a form no template renders.
         // /email/confirm is GET-shows, POST-confirms, for the same scanner reason as
@@ -3478,6 +3588,13 @@ return function(App $app) {
         $g->post('/newsletter',         \AfricaGates\Controllers\NewsletterController::class . ':join');
         $g->get('/email/confirm',  \AfricaGates\Controllers\NewsletterController::class . ':confirmShow');
         $g->post('/email/confirm', \AfricaGates\Controllers\NewsletterController::class . ':confirm');
+
+        // The way off the Supporter Spotlight: GET shows, POST hides, for the same mail-scanner
+        // reason as the confirmation above. See SpotlightController.
+        $g->get('/spotlight/hide',  \AfricaGates\Controllers\SpotlightController::class . ':show');
+        // Anybody checking a supporter's certificate of community recognition (SupporterRecord).
+        $g->get('/certificates/{code:[0-9]+-[0-9]+-[a-f0-9]{12}}', \AfricaGates\Controllers\AccountController::class . ':certificateCheck');
+        $g->post('/spotlight/hide', \AfricaGates\Controllers\SpotlightController::class . ':hide');
 
         // SEO: robots.txt + sitemap.xml
         $g->get('/robots.txt', function($req, $res) {
@@ -3641,6 +3758,8 @@ return function(App $app) {
             $a->post('/support/reply',      SupportController::class.':ticketReply');
             // Gee — the page-aware AI guide
             $a->post('/guide',              GuideController::class.':chat');
+            // A thumb on one of Gee's answers. No words travel — see GeeRatings.
+            $a->post('/guide/rate',         GuideController::class.':rate');
             // Inbound Make.com agent bridge — bearer-authenticated, 404 until configured.
             $a->post('/agent/gee',          GuideController::class.':agent');
             // ── LIVE INTERVIEW CAPTURE (the browser extension) ───────────────
@@ -3687,9 +3806,10 @@ return function(App $app) {
 
     // ═══ JUDGES ═══════════════════════════════════════════════════════
     $app->group('/judge', function (RouteCollectorProxy $j) {
-        $j->get('/login',              JudgeAuthController::class.':loginForm');
-        $j->post('/login/request',     JudgeAuthController::class.':loginRequest');
-        $j->post('/login/verify',      JudgeAuthController::class.':loginVerify');
+        // Forwarding addresses only: the panel opens from the one account sign-in.
+        $j->get('/login',              JudgeAuthController::class.':toAccount');
+        $j->post('/login/request',     JudgeAuthController::class.':toAccount');
+        $j->post('/login/verify',      JudgeAuthController::class.':toAccount');
         $j->get('/logout',             JudgeAuthController::class.':logout');
         $j->post('/logout',            JudgeAuthController::class.':logout');
 
@@ -3776,6 +3896,12 @@ return function(App $app) {
         $a->get('/logout',        AccountController::class.':logout');
         $a->post('/logout',       AccountController::class.':logout');
         // Mint this member's referral code. POST, because it creates something.
+        // A nominee's own details (NomineeDetails): their contact, photographs, evidence and
+        // bio, on their account for good. The nominator's reason is shown and never editable.
+        $a->get('/nomination[/{id:[0-9]+}]',  \AfricaGates\Controllers\NomineeProfileController::class . ':page');
+        $a->post('/nomination/{id:[0-9]+}',   \AfricaGates\Controllers\NomineeProfileController::class . ':save');
+        $a->get('/nomination/pending/{nid:[0-9]+}',  \AfricaGates\Controllers\NomineeProfileController::class . ':pending');
+        $a->post('/nomination/pending/{nid:[0-9]+}', \AfricaGates\Controllers\NomineeProfileController::class . ':save');
         $a->post('/referral', AccountController::class . ':referral');
         // Ask to be paid what the referrals earned. Creates a request; an admin settles it
         // against a real transfer reference — see ReferralPayout.
@@ -3785,6 +3911,9 @@ return function(App $app) {
         $a->post('/bank', AccountController::class . ':bank');
         $a->post('/redeem',       AccountController::class.':redeem');
         $a->post('/profile',      AccountController::class.':profileUpdate');
+        $a->post('/photo', \AfricaGates\Controllers\AccountPhotoController::class . ':upload');
+        $a->post('/photo/delete', \AfricaGates\Controllers\AccountPhotoController::class . ':remove');
+        $a->post('/password',     AccountController::class.':passwordUpdate');
         // Display & reading, saved to the member so it follows them between devices
         // (REFERENCE §7.5). JSON, from a11y.js; the member is the session's, never a param.
         $a->post('/display',      \AfricaGates\Controllers\DisplayReadingController::class.':save');
@@ -3802,8 +3931,47 @@ return function(App $app) {
         $a->get('/interests',          AccountController::class.':interests');
         $a->post('/interests',         AccountController::class.':interestsSave');
         $a->get('/notifications',      AccountController::class.':notifications');
+        $a->get('/supporting',         AccountController::class.':supporting');
+        $a->get('/supporting/certificate/{cycle:[0-9]+}', AccountController::class.':certificate');
         $a->post('/notifications/read', AccountController::class.':notificationsRead');
         $a->get('/points',             AccountController::class.':points');
+        // One account, one login, roles given (owner, 29 Oct 2026; plan §7.1). No roles page
+        // and nothing to join: the switcher posts here, and a console opened from the account
+        // confirms again before money or configuration.
+        $a->post('/switch',            \AfricaGates\Controllers\AccountSwitchController::class.':switch');
+        $a->get('/confirm',            \AfricaGates\Controllers\AccountSwitchController::class.':confirmPage');
+        $a->post('/confirm',           \AfricaGates\Controllers\AccountSwitchController::class.':confirm');
+        // The Ads Manager (Services\Ads): campaigns, the builder, one campaign, its switch,
+        // and fixing a refused ad. `/ads/new` and `/ads/ad/…` are literals registered before
+        // the `{id}` placeholder they would otherwise be matched by.
+        $a->get('/ads',                     \AfricaGates\Controllers\AdsController::class.':index');
+        $a->post('/ads',                    \AfricaGates\Controllers\AdsController::class.':store');
+        $a->post('/ads/check',              \AfricaGates\Controllers\AdsController::class.':check');
+        $a->get('/ads/new',                 \AfricaGates\Controllers\AdsController::class.':create');
+        $a->post('/ads/ad/{id:[0-9]+}',     \AfricaGates\Controllers\AdsController::class.':resubmit');
+        $a->get('/ads/{id:[0-9]+}',         \AfricaGates\Controllers\AdsController::class.':show');
+        // A campaign's results by day and place, for the advertiser's own spreadsheet.
+        $a->get('/ads/{id:[0-9]+}/results.csv', \AfricaGates\Controllers\AdsController::class.':export');
+        $a->post('/ads/{id:[0-9]+}/{action:pause|resume|cancel}', \AfricaGates\Controllers\AdsController::class.':status');
+        // Another version of a campaign's ad (up to AdRules::ADS_PER_SET), for review.
+        $a->post('/ads/{id:[0-9]+}/ads', \AfricaGates\Controllers\AdsController::class.':addVersion');
+        // A paid campaign: pay for it (again, if a checkout was left), and the gateway's return.
+        $a->post('/ads/{id:[0-9]+}/pay', \AfricaGates\Controllers\AdsController::class.':pay');
+        $a->get('/ads/{id:[0-9]+}/paid', \AfricaGates\Controllers\AdsController::class.':paid');
+        // The wallet: one balance across every pocket (MemberWallet), each movement's receipt,
+        // and the three-step withdrawal. The JSON is what an open wallet polls, so money that
+        // arrives while it is on screen says so. Every one reads the member from the session.
+        $a->get('/wallet',             AccountController::class.':wallet');
+        $a->get('/wallet.json',        AccountController::class.':walletJson');
+        $a->get('/wallet/history',     AccountController::class.':walletHistory');
+        $a->get('/wallet/history.csv', AccountController::class.':walletHistoryCsv');
+        $a->get('/wallet/history.pdf', AccountController::class.':walletHistoryPdf');
+        $a->get('/wallet/tx/{key:(?:cr|crw|rc|rp|pt|wv)-[0-9]+}', AccountController::class.':walletTx');
+        $a->get('/wallet/tx/{key:(?:cr|crw|rc|rp|pt|wv)-[0-9]+}.{ext:png|pdf}', AccountController::class.':walletTxFile');
+        $a->get('/wallet/withdraw',    AccountController::class.':walletWithdraw');
+        $a->get('/wallet/resolve.json', AccountController::class.':walletResolve');
+        $a->post('/wallet/withdraw/review', AccountController::class.':walletWithdrawReview');
+        $a->post('/wallet/withdraw',   AccountController::class.':walletWithdrawConfirm');
         $a->get('/display',            AccountController::class.':display');
         // The seasonal greeting (HOLIDAY-THEMES): "not this year" for one theme, and the
         // member's own switch for all of them.
@@ -3812,14 +3980,73 @@ return function(App $app) {
         $a->get('[/]',            AccountController::class.':dashboard');
     })->add(new UserAuthMiddleware());
 
+    // ═══ VOLUNTEERS (consoles v7 handoff §6; docs/architecture/CONSOLES-V7-REVIEW.md, V1) ═══
+    // A member area behind the member session: a volunteer is a member actor and never an admin
+    // one (§0.4). Literals are registered before the placeholders they would match.
+    // The application page is open to somebody signed out, because its first job is telling
+    // them to make an account (owner, 30 Oct 2026) — the group's middleware would bounce them to
+    // a sign-in screen that never says why. The page itself asks for the account.
+    // The link approval emails a nominee. Open signed-out: its first job is the sign-in.
+    $app->get('/nominee/start/{token:[a-f0-9]{40}}', \AfricaGates\Controllers\NomineeProfileController::class . ':start');
+    $app->get('/volunteer/apply', \AfricaGates\Controllers\VolunteerController::class . ':applyForm');
+    // The Volunteer academy: open signed-out so a coordinator can share it (owner, 31 Oct 2026).
+    $app->get('/volunteer/academy', \AfricaGates\Controllers\VolunteerController::class . ':academy');
+    $app->group('/volunteer', function (RouteCollectorProxy $v) {
+        $c = \AfricaGates\Controllers\VolunteerController::class;
+        $v->post('/apply',                        $c . ':apply');
+        $v->post('/act',                          $c . ':act');
+        $v->get('/me/export.json',                $c . ':export');
+        $v->get('/me[/{page:[a-z]+}]',            $c . ':me');
+        $v->get('/training/take/{slug:[a-z0-9-]+}', $c . ':module');
+        $v->get('/contacts[/{rest:.*}]',          $c . ':contacts');
+        $v->get('/meetings/{id:[0-9]+}.ics',      $c . ':meetingIcs');
+        $v->get('/meetings/{id:[0-9]+}',          $c . ':meeting');
+        $v->get('/requests/{id:[0-9]+}',          $c . ':request');
+        $v->get('/{kind:cycle|event}/{id:[0-9]+}[/{page:[a-z]+}[/{tab:[a-z]+}]]', $c . ':place');
+        $v->get('/{page:tasks|meetings|hours|training|record|team|requests}[/{tab:[a-z]+}]', $c . ':root');
+        $v->get('[/]',                            $c . ':root');
+    })->add(new UserAuthMiddleware());
+
+    // ═══ EVENT LEADS (consoles v7 §5) ═══
+    // A member area behind the account sign-in, like /volunteer: a lead is a member account
+    // holding an `event.lead` grant, never a staff admin (owner, 29 Oct 2026 — organisations
+    // adopting the platform bring leads who are not our staff). /admin/lead forwards here.
+    // Each page is its own literal route, so the route table can name every one; a request
+    // opens as ?r= on Requests and a view as ?tab=.
+    $app->group('/lead', function (RouteCollectorProxy $l) {
+        $c = \AfricaGates\Controllers\LeadController::class;
+        $l->post('/act', $c . ':act');
+        foreach (['inbox', 'requests', 'yours', 'deadlines', 'risks', 'approvals', 'analytics', 'people'] as $leadPage) {
+            $l->get('/' . $leadPage, $c . ':root')->setArgument('page', $leadPage);
+        }
+        $l->get('/event/{id:[0-9]+}', $c . ':event');
+        // Every page the event's menu draws, read from the menu itself (EventPages::NAV), plus
+        // the first build's addresses that forward on (ALIASES). This was a typed list, and
+        // "Team & roles" was added to the menu and never to it: the link answered 404 for
+        // every lead who pressed it. LeadEventRoutesTest holds the two together.
+        $leadPages = array_keys(\AfricaGates\Services\EventPlan\EventPages::ALIASES);
+        foreach (\AfricaGates\Services\EventPlan\EventPages::NAV as [, $pages]) $leadPages = array_merge($leadPages, array_keys($pages));
+        foreach (array_unique(array_diff($leadPages, ['today'])) as $leadPage) {
+            $l->get('/event/{id:[0-9]+}/' . $leadPage, $c . ':event')->setArgument('page', $leadPage);
+        }
+        $l->get('', $c . ':root');
+    })->add(new UserAuthMiddleware());
+    // Its old addresses under /admin forward here, permanently, query and all. Outside the admin
+    // group on purpose: the admin gate would bounce a lead who is not staff before the forward.
+    $app->get('/admin/lead[/{rest:.*}]', function ($req, $res, array $args) {
+        $q = $req->getUri()->getQuery();
+        return $res->withHeader('Location', '/lead' . (($args['rest'] ?? '') !== '' ? '/' . $args['rest'] : '') . ($q !== '' ? '?' . $q : ''))->withStatus(301);
+    });
+
     // ═══ ADMIN ═══════════════════════════════════════════════════════
     $app->group('/admin', function (RouteCollectorProxy $a) {
         // Unauthenticated
-        $a->get('/login',           AdminAuthController::class.':loginForm');
-        $a->post('/login/submit',   AdminAuthController::class.':loginSubmit');
-        $a->get('/magic',           AdminAuthController::class.':magicForm');
-        $a->post('/magic/request',  AdminAuthController::class.':magicRequest');
-        $a->get('/magic/consume',   AdminAuthController::class.':magicConsume');
+        // Forwarding addresses only: the console opens from the one account sign-in.
+        $a->get('/login',           AdminAuthController::class.':toAccount');
+        $a->post('/login/submit',   AdminAuthController::class.':toAccount');
+        $a->get('/magic',           AdminAuthController::class.':toAccount');
+        $a->post('/magic/request',  AdminAuthController::class.':toAccount');
+        $a->get('/magic/consume',   AdminAuthController::class.':toAccount');
         $a->get('/logout',          AdminAuthController::class.':logout');
         $a->post('/logout',         AdminAuthController::class.':logout');
 
@@ -3977,9 +4204,17 @@ return function(App $app) {
         $a->get('/nominations',     AdminNominationsController::class.':index');
         // Review DESK — high-volume queue walker ({id} below is digit-constrained, no conflict)
         $a->post('/nominations/ai-filter', AdminNominationsController::class.':aiFilter');
-        $a->get('/nominations/review', AdminNominationsController::class.':desk');
+        // The review list (v2) is "Nominations" in the rail; the one-at-a-time desk is
+        // its own page. `/review/next` stays the desk's fragment, which it has always fetched.
+        $a->get('/nominations/review', AdminNominationsController::class.':queue');
+        $a->get('/nominations/review/count', AdminNominationsController::class.':queueCount');
+        $a->get('/nominations/review/export.csv', AdminNominationsController::class.':queueExport');
+        $a->post('/nominations/review/bulk', AdminNominationsController::class.':bulk');
+        $a->post('/nominations/review/presence', AdminNominationsController::class.':presence');
+        $a->get('/nominations/desk', AdminNominationsController::class.':desk');
         $a->get('/nominations/review/next', AdminNominationsController::class.':deskFragment');
         $a->get('/nominations/{id:[0-9]+}',           AdminNominationsController::class.':review');
+        $a->post('/nominations/{id:[0-9]+}/note', AdminNominationsController::class.':note');
         $a->post('/nominations/{id:[0-9]+}/suggest-reason', AdminNominationsController::class.':suggestReason');
         $a->post('/nominations/{id:[0-9]+}/ai-insight', AdminNominationsController::class.':aiInsight');
         $a->post('/nominations/{id:[0-9]+}/regenerate-form', AdminNominationsController::class.':regenerateForm');
@@ -4023,9 +4258,18 @@ return function(App $app) {
         $a->get('/support/{ref:[A-Za-z0-9\-]+}',     \AfricaGates\Admin\Controllers\SupportController::class.':show');
         $a->post('/support/{ref:[A-Za-z0-9\-]+}/reply', \AfricaGates\Admin\Controllers\SupportController::class.':reply');
         $a->post('/support/{ref:[A-Za-z0-9\-]+}/status/{to}', \AfricaGates\Admin\Controllers\SupportController::class.':status');
+        // The calendar — every stored deadline, event day and draw (AdminConsole v2).
+        $a->get('/calendar',        \AfricaGates\Admin\Controllers\CalendarController::class.':index');
+        // Contacts — everybody who took part, one row per person (AdminConsole v2).
+        $a->get('/contacts',        \AfricaGates\Admin\Controllers\ContactsController::class.':index');
         // AI assistant — console copilot (all roles; superadmin unlimited)
         $a->get('/assistant',       \AfricaGates\Admin\Controllers\AssistantController::class.':index');
         $a->post('/assistant/chat', \AfricaGates\Admin\Controllers\AssistantController::class.':chat');
+        // The assistant's conversations, kept per administrator (Admin\Services\AssistantThreads).
+        $a->get('/assistant/threads/feed', \AfricaGates\Admin\Controllers\AssistantController::class.':threads');
+        $a->get('/assistant/threads/{id:[0-9]+}', \AfricaGates\Admin\Controllers\AssistantController::class.':thread');
+        $a->post('/assistant/threads/{id:[0-9]+}/delete', \AfricaGates\Admin\Controllers\AssistantController::class.':deleteThread');
+        $a->post('/assistant/messages/{id:[0-9]+}/rate', \AfricaGates\Admin\Controllers\AssistantController::class.':rate');
         $a->get('/assistant/scripts', \AfricaGates\Admin\Controllers\AssistantController::class.':scripts');
         $a->post('/assistant/scripts/{key:[a-z_]+}', \AfricaGates\Admin\Controllers\AssistantController::class.':runScript');
 
@@ -4060,7 +4304,16 @@ return function(App $app) {
                  AdminProgrammesController::class.':sponsorDelete')
             ->add(new RoleMiddleware('superadmin'));
         $a->get('/programmes/{id:[0-9]+}/cycle',     AdminProgrammesController::class.':cycleEdit')->add(new RoleMiddleware('superadmin'));
+        $a->get('/programmes/{id:[0-9]+}/cycle/voting-letter', AdminProgrammesController::class.':votingLetterPreview')->add(new RoleMiddleware('superadmin'));
+        $a->post('/programmes/{id:[0-9]+}/cycle/voting-letter/send', AdminProgrammesController::class.':votingLetterSend')->add(new RoleMiddleware('superadmin'));
+        $a->post('/programmes/{id:[0-9]+}/cycle/voting-letter/correct', AdminProgrammesController::class.':votingLetterCorrect')->add(new RoleMiddleware('superadmin'));
+        // The voting letter's words, per edition: the editor, and its autosave/publish/restore.
+        $a->get('/programmes/{id:[0-9]+}/cycle/letter',  AdminProgrammesController::class.':letterEditor')->add(new RoleMiddleware('superadmin'));
+        $a->post('/programmes/{id:[0-9]+}/cycle/letter', AdminProgrammesController::class.':letterSave')->add(new RoleMiddleware('superadmin'));
         $a->post('/programmes/{id:[0-9]+}/cycle',    AdminProgrammesController::class.':cycleSave')->add(new RoleMiddleware('superadmin'));
+        $a->post('/programmes/{id:[0-9]+}/cycle/prizes', AdminProgrammesController::class.':prizesSave')->add(new RoleMiddleware('superadmin'));
+        // Extend voting ON THE RECORD (VotingExtension): a reason, a snapshot, a paid cutoff.
+        $a->post('/programmes/{id:[0-9]+}/cycle/extend', AdminProgrammesController::class.':cycleExtend')->add(new RoleMiddleware('superadmin'));
         // Opening next year's edition is its OWN action. The cycle form posts the current
         // cycle's id, so "change the year and save" renames this year's edition and takes
         // its nominees, votes and scores with it — creating one is a different intention.
@@ -4187,10 +4440,40 @@ return function(App $app) {
         $a->get('/products/{id:[0-9]+}',         AdminProductsController::class.':form');
         $a->post('/products/{id:[0-9]+}',        AdminProductsController::class.':save');
         $a->post('/products/{id:[0-9]+}/delete', AdminProductsController::class.':delete');
+        // Archive (a product that has been ordered is never deleted) and duplicate (phase 7).
+        $a->post('/products/{id:[0-9]+}/archive',   AdminProductsController::class.':archive');
+        $a->post('/products/{id:[0-9]+}/duplicate', AdminProductsController::class.':duplicate');
         // Running the shop, as distinct from editing the catalogue: orders that get shipped,
         // discount codes, and what delivery costs per region.
         $a->get('/shop/orders',        AdminShopController::class.':orders');
         $a->post('/shop/orders/fulfil',AdminShopController::class.':fulfil');
+        // One order, and the two acts that move money on it (shop upgrade phase 1).
+        $a->get('/shop/orders/{id:[0-9]+}',         AdminShopController::class.':order');
+        $a->post('/shop/orders/{id:[0-9]+}/refund', AdminShopController::class.':refund');
+        $a->post('/shop/orders/{id:[0-9]+}/cancel', AdminShopController::class.':cancel');
+        // Bulk moves and prints, the printable pick list / packing slips, staff notes (phase 3).
+        $a->post('/shop/orders/bulk',               AdminShopController::class.':bulk');
+        $a->get('/shop/orders/print',               AdminShopController::class.':printable');
+        $a->post('/shop/orders/{id:[0-9]+}/note',   AdminShopController::class.':note');
+        // Collection points and the pickup flow (phase 4).
+        $a->post('/shop/orders/{id:[0-9]+}/ready',  AdminShopController::class.':ready');
+        $a->post('/shop/orders/{id:[0-9]+}/collect',AdminShopController::class.':collect');
+        $a->get('/shop/pickup',                     AdminShopController::class.':pickupPoints');
+        $a->post('/shop/pickup',                    AdminShopController::class.':savePickupPoint');
+        // The till: in-person sales and the cash drawer (phase 5).
+        $a->get('/shop/till',          \AfricaGates\Admin\Controllers\ShopTillController::class.':index');
+        $a->post('/shop/till/open',    \AfricaGates\Admin\Controllers\ShopTillController::class.':open');
+        $a->post('/shop/till/sale',    \AfricaGates\Admin\Controllers\ShopTillController::class.':sale');
+        $a->post('/shop/till/close',   \AfricaGates\Admin\Controllers\ShopTillController::class.':close');
+        // The shop's today dashboard, reports and CSV (phase 6).
+        $a->get('/shop/today',         \AfricaGates\Admin\Controllers\ShopReportsController::class.':dashboard');
+        $a->get('/shop/reports',       \AfricaGates\Admin\Controllers\ShopReportsController::class.':reports');
+        $a->get('/shop/reports.csv',   \AfricaGates\Admin\Controllers\ShopReportsController::class.':csv');
+        // Stock: running low, the stock-take, adjustments, and each product's ledger (phase 2).
+        $a->get('/shop/stock',          \AfricaGates\Admin\Controllers\ShopStockController::class.':index');
+        $a->post('/shop/stock/count',   \AfricaGates\Admin\Controllers\ShopStockController::class.':count');
+        $a->post('/shop/stock/adjust',  \AfricaGates\Admin\Controllers\ShopStockController::class.':adjust');
+        $a->get('/shop/products/{id:[0-9]+}/stock', \AfricaGates\Admin\Controllers\ShopStockController::class.':history');
         $a->get('/shop/codes',         AdminShopController::class.':codes');
         $a->post('/shop/codes',        AdminShopController::class.':saveCode');
         $a->post('/shop/codes/{id:[0-9]+}/delete', AdminShopController::class.':deleteCode');
@@ -4198,7 +4481,18 @@ return function(App $app) {
         $a->post('/shop/shipping',     AdminShopController::class.':saveShipping');
 
         $a->get('/nominees',        AdminNomineesController::class.':index');
+        $a->get('/nominees/export.csv', AdminNomineesController::class.':export');
+        $a->post('/nominees/bulk',  AdminNomineesController::class.':bulk');
+        // Before `/nominees/{id}/{action}`, which would otherwise take POST …/edit and 404.
+        $a->get('/nominees/{id:[0-9]+}/edit',  AdminNomineesController::class.':edit');
+        $a->post('/nominees/{id:[0-9]+}/edit', AdminNomineesController::class.':update');
         $a->get('/nominees/duplicate-scan', AdminNomineesController::class.':duplicateScan');
+        // Duplicates and net counts: people, not entries — nominees across the whole
+        // edition, voters by inbox. A sub-page of Nominees, linked from it.
+        $a->get('/nominees/duplicates',        \AfricaGates\Admin\Controllers\DuplicatesController::class.':index');
+        $a->post('/nominees/duplicates/rule',  \AfricaGates\Admin\Controllers\DuplicatesController::class.':rule');
+        $a->post('/nominees/duplicates/ai',    \AfricaGates\Admin\Controllers\DuplicatesController::class.':ai');
+        $a->post('/nominees/duplicates/merge', \AfricaGates\Admin\Controllers\DuplicatesController::class.':merge');
         $a->post('/nominees/merge', AdminNomineesController::class.':merge');
         $a->post('/nominees/not-duplicate', AdminNomineesController::class.':notDuplicate');
         $a->post('/nominees/unmerge', AdminNomineesController::class.':unmerge');
@@ -4229,6 +4523,7 @@ return function(App $app) {
         $a->get('/events/{id:[0-9]+}',           AdminEventsController::class.':form');
         $a->post('/events/{id:[0-9]+}',          AdminEventsController::class.':save');
         $a->post('/events/{id:[0-9]+}/delete',   AdminEventsController::class.':delete');
+        $a->post('/events/{id:[0-9]+}/duplicate', AdminEventsController::class.':duplicate');
         // Tickets, attendees and the door. Its own screen because an organiser reading a
         // door list on the morning of an event is doing a different job from one editing a
         // description, and check-in is the only thing they want on that page.
@@ -4275,6 +4570,9 @@ return function(App $app) {
         // Door passes: minted and revoked on the event's own tickets screen, because a door
         // belongs to an event and the person who needs one is already on that page an hour
         // before the gates open. See EventScanPass.
+        $a->get('/events/leads',                    AdminEventsController::class.':allLeads');
+        $a->get('/events/{id:[0-9]+}/leads',        AdminEventsController::class.':leads');
+        $a->post('/events/{id:[0-9]+}/leads',       AdminEventsController::class.':leadsAct');
         $a->post('/events/{id:[0-9]+}/door',        AdminEventsController::class.':issueDoorPass');
         $a->post('/events/{id:[0-9]+}/door/revoke', AdminEventsController::class.':revokeDoorPass');
         // Refunds that did not land. On the tickets screen and not on finance, because a
@@ -4336,6 +4634,12 @@ return function(App $app) {
         // Its own section in Permissions::MATRIX (superadmin + admin), deliberately
         // narrower than /admin/data; the controller re-checks rather than trusting the nav.
         $a->get('/finance',                      AdminFinanceController::class.':index');
+        // Ads: every campaign, and posting one from the console (Services\Ads\AdStaff).
+        $a->get('/ads',                          \AfricaGates\Admin\Controllers\AdsController::class.':index');
+        $a->post('/ads',                         \AfricaGates\Admin\Controllers\AdsController::class.':store');
+        $a->get('/ads/{id:[0-9]+}',              \AfricaGates\Admin\Controllers\AdsController::class.':show');
+        $a->post('/ads/{id:[0-9]+}/extend',      \AfricaGates\Admin\Controllers\AdsController::class.':extend');
+        $a->post('/ads/{id:[0-9]+}/{action:pause|resume|end}', \AfricaGates\Admin\Controllers\AdsController::class.':status');
 
         // ── REFERRAL PAYOUTS ──────────────────────────────────────────────
         //
@@ -4345,6 +4649,24 @@ return function(App $app) {
         $a->get('/payouts',                      \AfricaGates\Admin\Controllers\PayoutsController::class.':index');
         $a->post('/payouts/{id:[0-9]+}/pay',     \AfricaGates\Admin\Controllers\PayoutsController::class.':pay');
         $a->post('/payouts/{id:[0-9]+}/reject',  \AfricaGates\Admin\Controllers\PayoutsController::class.':reject');
+        // Release a request the automatic checks held, to be paid by transfer.
+        $a->post('/payouts/{id:[0-9]+}/send',    \AfricaGates\Admin\Controllers\PayoutsController::class.':send');
+        // An ORGANISATION's request for money that reached our account rather than theirs
+        // (OrgPayout::heldForOrg). Settled by hand with the transfer reference, or refused.
+        $a->post('/payouts/org/{id:[0-9]+}/pay',    \AfricaGates\Admin\Controllers\PayoutsController::class.':orgPay');
+        $a->post('/payouts/org/{id:[0-9]+}/refuse', \AfricaGates\Admin\Controllers\PayoutsController::class.':orgRefuse');
+        // ── COMMUNITY RETURN ──────────────────────────────────────────────
+        //
+        // An edition's return rules and milestone confirmation, and the nominees'
+        // withdrawals queue. See CommunityReturnController.
+        $a->get('/community-return',                                   \AfricaGates\Admin\Controllers\CommunityReturnController::class.':index');
+        $a->post('/community-return/{cycle:[0-9]+}/rules',             \AfricaGates\Admin\Controllers\CommunityReturnController::class.':saveRules');
+        $a->post('/community-return/{cycle:[0-9]+}/confirm',           \AfricaGates\Admin\Controllers\CommunityReturnController::class.':confirm');
+        $a->post('/community-return/{cycle:[0-9]+}/settle',            \AfricaGates\Admin\Controllers\CommunityReturnController::class.':settle');
+        $a->post('/community-return/withdrawals/{id:[0-9]+}/approve',  \AfricaGates\Admin\Controllers\CommunityReturnController::class.':approve');
+        $a->post('/community-return/withdrawals/{id:[0-9]+}/pay',      \AfricaGates\Admin\Controllers\CommunityReturnController::class.':pay');
+        $a->post('/community-return/withdrawals/{id:[0-9]+}/reject',   \AfricaGates\Admin\Controllers\CommunityReturnController::class.':reject');
+        $a->post('/community-return/withdrawals/{id:[0-9]+}/send',     \AfricaGates\Admin\Controllers\CommunityReturnController::class.':send');
         $a->get('/finance/export',               AdminFinanceController::class.':export');
         // Re-verify stale pending payments against the gateway. POST because it makes
         // outbound calls and, in apply mode, moves money — a GET would let a prefetch
@@ -4377,9 +4699,11 @@ return function(App $app) {
 
 
         // Member account actions (manual points adjustment — audited, admin+ gated in-controller).
+        $a->get('/users', \AfricaGates\Admin\Controllers\UsersController::class.':index');
         $a->post('/users/{id:[0-9]+}/points',    \AfricaGates\Admin\Controllers\UsersController::class.':adjustPoints');
 
         // Generic data explorer — every collected dataset (paginated + detail pages + CSV).
+        $a->get('/data/users/{id:[0-9]+}', \AfricaGates\Admin\Controllers\UsersController::class.':show');
         $a->get('/data',                         AdminDataController::class.':index');
         // Rates, ratios and funnels. The data explorer above shows rows; this shows
         // what the rows are doing over time, which is a different question.
@@ -4464,6 +4788,7 @@ return function(App $app) {
             $s->post('/{id:[0-9]+}/approve', \AfricaGates\Admin\Controllers\CampaignsController::class.':approve');
             $s->post('/{id:[0-9]+}/test',    \AfricaGates\Admin\Controllers\CampaignsController::class.':test');
             $s->post('/{id:[0-9]+}/send',    \AfricaGates\Admin\Controllers\CampaignsController::class.':send');
+            $s->post('/{id:[0-9]+}/stop',    \AfricaGates\Admin\Controllers\CampaignsController::class.':stop');
         });
 
         // ── JUDGING INTERVIEWS ────────────────────────────────────────
@@ -4645,7 +4970,19 @@ return function(App $app) {
         // Derived on read from the platform's own records (Admin\Services\ConsoleAlerts):
         // an email outage, a stalled schedule, chargebacks on a clock, schema behind the
         // code. The top bar's alert pill and Home's "needs a person" read the same list.
+        // The staff side of the volunteer workspace (consoles v7 §6; review slice V1). Its own
+        // `volunteers` section in Permissions: superadmin and admin (owner, 31 Oct 2026).
+        $a->get('/volunteers',  \AfricaGates\Admin\Controllers\VolunteersController::class.':index');
+        $a->post('/volunteers', \AfricaGates\Admin\Controllers\VolunteersController::class.':act');
+        // Where staff decide what leads and volunteers asked for (§2.6). Mapped to `finance`.
+        $a->get('/requests',  \AfricaGates\Admin\Controllers\RequestsController::class.':index');
+        $a->post('/requests', \AfricaGates\Admin\Controllers\RequestsController::class.':act');
         $a->get('/alerts', \AfricaGates\Admin\Controllers\AlertsController::class.':index');
+        // Errors visitors saw (the `faults` alert's page). Unmapped in Permissions, so the guard
+        // holds it to superadmin: an entry carries file paths and stack frames.
+        $a->get('/errors', \AfricaGates\Admin\Controllers\ErrorsController::class.':index');
+        // "Assign to me" — the alert's owner and its timeline (AdminConsole v2).
+        $a->post('/alerts/{key:[a-z_]+}/assign', \AfricaGates\Admin\Controllers\AlertsController::class.':assign');
 
         // ── THE ADMIN'S OWN CONSOLE: PINNED VIEWS AND THE SIDEBAR ─────────────────
         //
@@ -4774,7 +5111,10 @@ return function(App $app) {
             $s->post('/{id:[0-9]+}/delete', AdminWebhooksController::class.':delete');
             $s->post('/{id:[0-9]+}/test',   AdminWebhooksController::class.':test');
         })->add(new RoleMiddleware('superadmin'));
-    // Auth runs first (outermost), then the per-section RBAC guard.
-    })->add(new SectionGuardMiddleware())
+    // Auth runs first (outermost), then the per-section RBAC guard, then — for a console
+    // opened from the member's account — a fresh code before a write in Finance or
+    // Configuration (AccountReconfirmMiddleware).
+    })->add(new \AfricaGates\Middleware\AccountReconfirmMiddleware('console'))
+      ->add(new SectionGuardMiddleware())
       ->add(new AdminAuthMiddleware($app->getContainer()->get(\AfricaGates\Admin\Services\AuthService::class)));
 };

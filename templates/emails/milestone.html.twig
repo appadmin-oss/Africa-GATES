@@ -1,0 +1,21 @@
+{#- Vote milestone (to the nominee) · Voting. Sender: MilestoneService (an announcement — Unsubscribe).
+    Variables: first_name, votes (formatted), full_name, closes (or ''), page_url, unsubscribe_url,
+    by_people (the edition's basis counts separate supporters — CpiService::basis()).
+    Design: Email Templates.dc.html → "Milestone", corrected to the live site (owner, 19 Oct
+    2026): a milestone counts VOTES, and one person may cast many, so the design's
+    "{n} people stood up for you" and "every vote is someone" would say the one thing the
+    community half's 70% exists to keep apart (VoterReach counts people separately). -#}
+{% extends 'emails/_layout.html.twig' %}
+{% block category %}Voting{% endblock %}
+{% block hero %}illo-medallion{% endblock %}
+{% block why %}You’re a nominee on Africa GATES. You can turn these emails off below.{% endblock %}
+{% block transactional %}0{% endblock %}
+{% block subject %}You reached {{ votes }} votes — Africa GATES{% endblock %}
+{% block preheader %}{{ first_name }}, your supporters have cast {{ votes }} votes for you.{{ closes ? ' Voting closes ' ~ closes ~ '.' : '' }}{% endblock %}
+{% block body %}
+{%- import 'emails/_blocks.html.twig' as b -%}
+{{ b.stat(votes, "votes for #{full_name}") }}
+{{ b.h1("#{votes} votes, and counting") }}
+{{ b.p("Your supporters have cast #{votes} votes for you." ~ (closes ? " Voting closes #{closes}." : '') ~ (by_people ? ' The number of separate people backing you counts as well as the votes, so the people who know your work are the ones to ask.' : '')) }}
+{{ b.button('Share your page', page_url) }}
+{% endblock %}

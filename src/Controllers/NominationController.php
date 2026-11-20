@@ -131,9 +131,15 @@ class NominationController {
                                     static fn (array $k): bool => in_array($k['kind'], $accepts, true))),
             'name_hints'       => array_map(static fn (array $k): array => [
                                     'label' => $k['name_label'], 'hint' => $k['name_hint']], \AfricaGates\Support\NomineeKind::ALL),
-            'rules'            => self::ruleBundle(),
+            'rules'            => self::ruleBundle(count($prog['categories'] ?? [])),
+            // Open, and nothing to nominate FOR: the categories are not published yet.
+            // Drawn as the closed state with that reason, never as a form whose third step
+            // cannot be finished.
+            'no_categories'    => empty($prog['categories']),
             'relations'        => \AfricaGates\Services\NominationRules::RELATIONS,
+            'age_ranges'       => \AfricaGates\Services\NominationRules::AGE_RANGES,
             'countries'        => self::countries(),
+            'regions'          => \AfricaGates\Support\Regions::MAP,
             'member'           => $member,
             'live'             => self::happening((int) ($prog['id'] ?? 0)),
             'old'              => $extra['old'] ?? [],
@@ -345,13 +351,13 @@ class NominationController {
      *
      * @return array<string,int|string>
      */
-    private static function ruleBundle(): array
+    private static function ruleBundle(int $available = PHP_INT_MAX): array
     {
         $R = \AfricaGates\Services\NominationRules::class;
 
         return [
-            'min_categories' => $R::MIN_CATEGORIES,
-            'max_categories' => $R::MAX_CATEGORIES,
+            'min_categories' => $R::minCategories($available),
+            'max_categories' => $R::maxCategories($available),
             'min_reason'     => $R::MIN_REASON,
             'max_reason'     => $R::MAX_REASON,
             'max_evidence'   => $R::MAX_EVIDENCE,
@@ -446,7 +452,14 @@ class NominationController {
         // The limit is the operator's (Settings → Nominations), from the one resolver both
         // doors read, and the sentence says the number actually in force.
         $daily = \AfricaGates\Services\NominationRules::dailyLimit();
-        if(!$this->rateLimit->check($fp,'nominate',$daily,86400)) return $rerender("You've reached today's nomination limit ({$daily} per day). Please try again tomorrow.",429);
+        $limited = "You've reached today's nomination limit ({$daily} per day). Please try again tomorrow.";
+        // A PEEK here, and the claim just before the insert. It used to be claimed first,
+        // so every REFUSED post spent one: somebody whose form came back three times for a
+        // missing state had used three of today's nominations without making one, and was
+        // locked out for a day by typos. Only a nomination that passes every check spends
+        // one now — and it spends it through check()'s single guarded update, so concurrent
+        // posts still cannot slip past the cap.
+        if ($this->rateLimit->hits($fp, 'nominate', 86400) >= $daily) return $rerender($limited, 429);
         // ── THE FIELDS THIS DOOR ASKS FOR ───────────────────────────────────
         //
         // `reason` and `nominee_name` are NOT in this list any more, and that is the
@@ -464,8 +477,8 @@ class NominationController {
         // A signed-in member is the nominator — "Signed in as" (NominationFlow.dc.html
         // step 5) — so their name, address and number come from the ACCOUNT, never from
         // fields a stranger could edit to file in somebody else's name. A guest types the
-        // three. The location and age fields the old form demanded are not in the design
-        // and are not asked; the columns stay, written blank, for the rows that have them.
+        // three. Location and age are asked of both (below): the eligibility rule counts
+        // nominator locations, so they are not optional detail.
         $member = \AfricaGates\Services\UserAccountService::memberForForms();
         if ($member) {
             $b['nominator_name']  = $member['name'];
@@ -490,6 +503,29 @@ class NominationController {
         // required box the server never read (GAPS §3.2) — a consent nothing checks is a
         // sentence, not a consent.
         if (empty($b['consent'])) return $rerender('Please confirm the nomination is genuine and that you accept the award terms.');
+
+        // ── WHERE THE NOMINEE IS, AND WHO IS NOMINATING FROM WHERE ──────────────
+        //
+        // The redesign dropped these and nothing failed: the columns were written blank.
+        // But "a nominee must be backed from N different locations before approval"
+        // (Settings → Nominations, AwardService::nomineeEligibility) counts DISTINCT
+        // nominator country + state — so every nomination from this door counted as no
+        // location at all, and the rule could never be met by a real field. Asked again,
+        // and canonicalised against Support\Regions so one state spelled two ways is one
+        // location. The API door is unchanged: partners post what they hold.
+        $cc = strtoupper(trim((string) ($b['country_code'] ?? '')));
+        $ns = \AfricaGates\Services\NominationRules::region($cc, $b['nominee_state'] ?? '');
+        if ($ns === null) return $rerender("Please choose the nominee's state or region.");
+        $b['nominee_state'] = $ns;
+        $age = \AfricaGates\Services\NominationRules::ageRange($b['nominator_age_range'] ?? null);
+        if ($age === null) return $rerender('Please choose your age range.');
+        $b['nominator_age_range'] = $age;
+        $ncc = strtoupper(trim((string) ($b['nominator_country'] ?? '')));
+        if (!isset(\AfricaGates\Support\Regions::MAP[$ncc])) return $rerender('Please choose the country you live in.');
+        $b['nominator_country'] = $ncc;
+        $nst = \AfricaGates\Services\NominationRules::region($ncc, $b['nominator_state'] ?? '');
+        if ($nst === null) return $rerender('Please choose your state or region.');
+        $b['nominator_state'] = $nst;
         // Nominee contact: EMAIL OR PHONE — at least one is required; anything the
         // nominator actually typed must validate (never silently dropped).
         $neRaw = strtolower(trim((string)($b['nominee_email'] ?? '')));
@@ -517,10 +553,16 @@ class NominationController {
         // category has closed") and must reach them verbatim — a generic error on a
         // nomination form is how somebody gives up on entering. Anything that is not
         // ours becomes a next step and a reference. See Support\PublicFault.
+        // Everything this door checks has passed. AwardService still refuses some (a
+        // closed category, a duplicate device); those are rare and stay counted, because
+        // telling them apart here would mean validating twice.
+        if (!$this->rateLimit->check($fp, 'nominate', $daily, 86400)) return $rerender($limited, 429);
         try{ $nominationId = $this->awards->submitNomination($b,$ip); }
         catch(\RuntimeException $e){ return $rerender(\AfricaGates\Support\PublicFault::line($e,
             'We could not record that nomination. Nothing was saved, so trying once more is safe.',
             'nomination submit')); }
+        // Credited to the announcement that brought them, if one did (Mail\MailTraction).
+        \AfricaGates\Services\Mail\MailTraction::converted('nominate', (string) $nominationId);
 
         // ── SUPPORTING FILES ────────────────────────────────────────────────
         //
@@ -536,12 +578,15 @@ class NominationController {
         $stored = [];
         foreach (self::uploadedEvidence($req) as $file) {
             try {
+                // Fingerprinted BEFORE the upload service re-encodes it, or two uploads of
+                // one photograph would never match.
+                $sha = \AfricaGates\Services\NominationSignals::uploadHash($file);
                 $up = (new \AfricaGates\Admin\Services\UploadService())->uploadDocument(
                     $file, 'nominations', (int) ceil(\AfricaGates\Services\NominationRules::MAX_FILE_BYTES / 1048576), null, 'public'
                 );
                 \AfricaGates\Services\AwardService::recordEvidenceFile(
                     (int) $nominationId, (string) $up['path'] ?? (string) $up['url'],
-                    $file->getClientFilename(), $file->getClientMediaType(), $file->getSize()
+                    $file->getClientFilename(), $file->getClientMediaType(), $file->getSize(), $sha
                 );
                 $stored[] = (string) $up['url'];
             } catch (\Throwable $e) {
@@ -604,6 +649,78 @@ class NominationController {
      * (NominationLinkService): somebody opening it starts their own nomination of the same
      * person, in their own name — "rally more nominations".
      */
+    /**
+     * The page a nominator reaches from the "Ask for more" email (NominationAsk). It shows
+     * what the reviewer asked for and takes links and files — the same kinds, caps and
+     * checks as the nomination form — then sends the nomination back to the queue.
+     *
+     * A spent, expired or unknown link answers 200 with one plain sentence and a way to
+     * get help, never a 404: whoever follows an old link is exactly the person owed an
+     * explanation.
+     */
+    public function answerForm(Request $req, Response $res, array $args): Response
+    {
+        $nom = \AfricaGates\Services\NominationAsk::find((string) ($args['token'] ?? ''));
+        return $this->answerPage($res, $nom, (string) ($args['token'] ?? ''), $_SESSION['nom_answer_done'] ?? null);
+    }
+
+    public function answer(Request $req, Response $res, array $args): Response
+    {
+        $token = (string) ($args['token'] ?? '');
+        $nom = \AfricaGates\Services\NominationAsk::find($token);
+        if ($nom === null) return $this->answerPage($res, null, $token, null);
+
+        $R = \AfricaGates\Services\NominationRules::class;
+        $b = (array) $req->getParsedBody();
+        $links = array_values(array_filter(array_map('strval', (array) ($b['links'] ?? [])), static fn (string $u): bool => trim($u) !== ''));
+        $files = self::uploadedEvidence($req);
+        if (count($links) + count($files) > $R::MAX_EVIDENCE) {
+            return $this->answerPage($res, $nom, $token, null, 'You can add up to ' . $R::MAX_EVIDENCE . ' pieces at once.');
+        }
+        foreach ($links as $u) {
+            if (!$R::isHttpUrl(trim($u))) return $this->answerPage($res, $nom, $token, null, 'Each link has to start with https:// or http://.');
+        }
+
+        $stored = [];
+        foreach ($files as $file) {
+            try {
+                $sha = \AfricaGates\Services\NominationSignals::uploadHash($file);
+                $up = (new \AfricaGates\Admin\Services\UploadService())->uploadDocument(
+                    $file, 'nominations', (int) ceil($R::MAX_FILE_BYTES / 1048576), null, 'public'
+                );
+                $stored[] = ['path' => (string) ($up['path'] ?? $up['url']), 'label' => $file->getClientFilename(),
+                             'mime' => $file->getClientMediaType(), 'bytes' => $file->getSize(), 'sha256' => $sha];
+            } catch (\Throwable $e) {
+                return $this->answerPage($res, $nom, $token, null, 'That file could not be added: ' . $e->getMessage());
+            }
+        }
+        if ($links === [] && $stored === []) {
+            return $this->answerPage($res, $nom, $token, null, 'Add a link or a file first.');
+        }
+
+        $kept = \AfricaGates\Services\NominationAsk::answer($nom, $links, $stored);
+        if ($kept === 0) return $this->answerPage($res, $nom, $token, null, 'Nothing could be saved just now. Please try again.');
+        $_SESSION['nom_answer_done'] = (string) $nom->nominee_name;
+        return $res->withHeader('Location', '/nominate/answer/' . $token)->withStatus(303);
+    }
+
+    private function answerPage(Response $res, ?object $nom, string $token, ?string $done, string $error = ''): Response
+    {
+        unset($_SESSION['nom_answer_done']);
+        return $this->view->render($res, 'pages/nominate-answer.twig', [
+            'page_title'  => 'Add to your nomination — Africa GATES',
+            'meta_robots' => 'noindex',
+            'state'       => $done !== null ? 'done' : ($nom ? 'form' : 'gone'),
+            'nominee'     => $done ?? (string) ($nom->nominee_name ?? ''),
+            'asked'       => (string) ($nom->asked_message ?? ''),
+            'closes_on'   => $nom ? \AfricaGates\Services\NominationAsk::closesOn($nom) : '',
+            'action'      => '/nominate/answer/' . $token,
+            'error'       => $error,
+            'max_links'   => \AfricaGates\Services\NominationAsk::MAX_LINKS,
+            'max_file_mb' => (int) round(\AfricaGates\Services\NominationRules::MAX_FILE_BYTES / 1048576),
+        ]);
+    }
+
     public function success(Request $req, Response $res): Response
     {
         $d = $_SESSION['nom_done'] ?? null;

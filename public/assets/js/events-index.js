@@ -20,7 +20,9 @@
 (function () {
   'use strict';
 
-  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // The site's own reduce-motion switch (html.ag-rm, a11y.js) as well as the system's.
+  var reduce = document.documentElement.classList.contains('ag-rm') ||
+    !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
   // ── the spotlight ─────────────────────────────────────────────────────────
   var spot = document.querySelector('[data-ei-spot]');
@@ -116,6 +118,7 @@
 
   // ── Place submits its form ────────────────────────────────────────────────
   Array.prototype.forEach.call(document.querySelectorAll('[data-ei-autosubmit]'), function (s) {
+    if (window.AGA11y && window.AGA11y.autoSubmit) { window.AGA11y.autoSubmit(s, s.form); return; }
     s.addEventListener('change', function () {
       if (s.form && s.form.requestSubmit) s.form.requestSubmit(); else if (s.form) s.form.submit();
     });

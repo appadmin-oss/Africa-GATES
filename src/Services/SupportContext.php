@@ -97,6 +97,13 @@ final class SupportContext
          * nothing about WHO is asking can arrive through it.
          */
         private readonly ?PaymentService $payments = null,
+        /**
+         * Whether the person has just said yes to an action the assistant proposed. Decided in
+         * CODE by {@see SupportAgentService::confirmsProposal()} from their own words and the
+         * assistant's previous turn, never by the model: a model that could set its own consent
+         * would ask, and answer, in one breath.
+         */
+        private readonly bool $consented = false,
     ) {}
 
     /**
@@ -145,7 +152,14 @@ final class SupportContext
     public function withPayments(PaymentService $payments): self
     {
         return new self($this->viewerId, $this->viewerEmail, $this->isAdmin, $this->search,
-                        $this->limits, $this->clientKey, $payments);
+                        $this->limits, $this->clientKey, $payments, $this->consented);
+    }
+
+    /** A copy that carries the person's yes to the action proposed in the turn before. */
+    public function withConsent(bool $consented): self
+    {
+        return new self($this->viewerId, $this->viewerEmail, $this->isAdmin, $this->search,
+                        $this->limits, $this->clientKey, $this->payments, $consented);
     }
 
     public function isMember(): bool { return $this->viewerId !== null && $this->viewerId > 0; }
@@ -232,6 +246,13 @@ final class SupportContext
                             . "payment page or the bank showed them; if they are signed in and have not given one, use "
                             . "my_transactions first and try their most recent unconfirmed payment.",
              'args' => ['reference' => 'the payment reference']],
+            ['name' => 'find_payment',
+             'description' => "Find somebody's payments WITHOUT a reference, from the email address they paid with. Use it "
+                            . "the moment they say they do not have or cannot find the reference — never ask for the "
+                            . "reference a second time. It re-checks every unconfirmed payment under that address with "
+                            . "the gateway (adding any votes that were paid for) and emails the references to that "
+                            . "address. Works for people who are not signed in.",
+             'args' => ['email' => 'the email address they paid with']],
             ['name' => 'resend_receipt',
              'description' => "Send the receipt for a confirmed payment again. Use when the votes ARE there but the email never "
                             . "arrived. It always goes to the address on the payment, which cannot be changed here.",
@@ -394,6 +415,15 @@ final class SupportContext
             $t[] = ['name' => 'my_transactions',
                     'description' => "The signed-in person's own payments: vote purchases and donations, with status and date. Use for “where is my payment”, “did my votes arrive”, “I was charged twice”.",
                     'args' => []];
+            $t[] = ['name' => 'request_refund',
+                    'description' => "File a refund request for one of the signed-in person's OWN payments, for a person on "
+                                   . "the team to decide. Check refund_status first: a payment whose votes could not be "
+                                   . "counted is refunded automatically, and needs no request. Then PROPOSE it in one "
+                                   . "sentence naming the reference and the amount, and ask them to confirm. Call this "
+                                   . "only after they say yes; called before that, it returns the proposal to put to them. "
+                                   . "It never moves money and you must never say a refund is approved.",
+                    'args' => ['reference' => 'the AFG- reference from my_transactions',
+                               'reason' => 'what went wrong, in a sentence, in their words']];
             $t[] = ['name' => 'my_votes',
                     'description' => "The signed-in person's own cast votes: which nominee, how many, when.",
                     'args' => []];
@@ -545,10 +575,12 @@ final class SupportContext
                 'help_search'      => $this->helpSearch((string) ($args['query'] ?? '')),
                 'pricing'          => $this->pricing(),
                 'my_transactions'  => $this->myTransactions(),
+                'request_refund'   => $this->requestRefund((string) ($args['reference'] ?? ''), (string) ($args['reason'] ?? '')),
                 'my_votes'         => $this->myVotes(),
                 'lookup_reference' => $this->lookupReference((string) ($args['reference'] ?? '')),
                 'fix_payment'      => $this->fixPayment((string) ($args['reference'] ?? '')),
                 'resend_receipt'   => $this->resendReceipt((string) ($args['reference'] ?? '')),
+                'find_payment'     => $this->findPayment((string) ($args['email'] ?? '')),
                 'check_reference'  => $this->checkReference((string) ($args['reference'] ?? '')),
                 'free_vote_help'   => $this->freeVoteHelp(),
                 'refund_status'    => RefundService::statusFor((string) ($args['reference'] ?? '')),
@@ -657,7 +689,7 @@ final class SupportContext
 
         return [
             'cycles'    => $cycles,
-            'nominees'  => (int) DB::table('gates_nominees')->where('status', 'approved')->count(),
+            'nominees'  => (int) MergeService::notMerged(DB::table('gates_nominees')->where('status', 'approved'))->count(),
             'votes'     => (int) (DB::table('gates_votes')->sum('weight') ?? 0),
             'today'     => date('Y-m-d H:i') . ' ' . date_default_timezone_get(),
         ];
@@ -804,7 +836,7 @@ final class SupportContext
             ->get(['payment_ref', 'amount_naira', 'tier', 'bonus_votes', 'votes_used',
                    'status', 'refunded_at', 'created_at'])
             ->map(fn($r) => [
-                'kind'      => 'vote purchase / donation',
+                'kind'      => ($r->tier ?? '') === 'paid-vote' ? 'vote purchase' : 'donation',
                 'reference' => (string) $r->payment_ref,
                 'amount'    => self::CURRENCY . number_format((float) $r->amount_naira),
                 'votes'     => (int) $r->bonus_votes,
@@ -812,6 +844,11 @@ final class SupportContext
                 'status'    => (string) $r->status,
                 'refunded'  => $r->refunded_at !== null,
                 'when'      => (string) $r->created_at,
+                // The two counters say different things — bonus_votes is what was ORDERED,
+                // votes_used what was DELIVERED, 0 until the mint — and a model handed both
+                // bare reads "votes: 10" as "your 10 votes arrived". So each row states its
+                // own condition, and the next step where there is one.
+                'state'     => self::paymentState($r),
             ])->all();
 
         $orders = DB::table('gates_orders')
@@ -829,6 +866,86 @@ final class SupportContext
             ])->all();
 
         return ['donations' => $donations, 'orders' => $orders];
+    }
+
+    /** One payment's condition, in a sentence the assistant can repeat without interpreting. */
+    private static function paymentState(object $r): string
+    {
+        $ordered   = (int) ($r->bonus_votes ?? 0);
+        $delivered = (int) ($r->votes_used ?? 0);
+        if (($r->refunded_at ?? null) !== null) return 'refunded — the money has been sent back';
+        $status = (string) ($r->status ?? '');
+        if ($status === 'failed')  return 'payment failed — nothing was taken, or it will be reversed by the bank';
+        if ($status !== 'confirmed') return 'payment not confirmed yet — run fix_payment on this reference to re-check it with the gateway';
+        if (($r->tier ?? '') !== 'paid-vote') return 'confirmed';
+        if ($ordered > 0 && $delivered >= $ordered) return "confirmed — all {$ordered} votes delivered";
+        if ($ordered > 0 && $delivered === 0) return "confirmed but the {$ordered} votes were NOT delivered — run fix_payment on this reference, then refund_status";
+        return "confirmed — {$delivered} of {$ordered} votes delivered";
+    }
+
+    /**
+     * A refund REQUEST for one of the member's own payments — filed for a person to decide.
+     *
+     * ── WHY IT ASKS FIRST, AND WHY THE ASKING IS CHECKED IN CODE ─────────────
+     *
+     * Filing something in somebody's name is an action, not a lookup, and the rule for
+     * actions is that the person agrees to the specific thing first: this reference, this
+     * amount. So without consent the tool returns the proposal for the model to put to them,
+     * and the consent itself comes from {@see SupportAgentService::confirmsProposal()} reading
+     * their reply. A request is all it is: the money decision stays with RefundService and
+     * a person, which is where an irreversible payout belongs.
+     *
+     * @return array<string,mixed>
+     */
+    private function requestRefund(string $reference, string $reason): array
+    {
+        if (!$this->isMember()) {
+            return ['ok' => false, 'say' => 'Only a signed-in member can request a refund here. Offer sign-in, or '
+                  . 'pass it to the team with the payment reference.'];
+        }
+        $ref   = PaymentLookup::canonical(trim($reference));
+        $email = strtolower(trim((string) $this->viewerEmail));
+        if ($ref === '' || $email === '') return ['ok' => false, 'say' => 'Which payment? Use a reference from my_transactions.'];
+
+        $d = DB::table('gates_donations')->where('payment_ref', $ref)
+            ->whereRaw('LOWER(donor_email) = ?', [$email])->first(['payment_ref', 'amount_naira', 'status', 'refunded_at']);
+        if (!$d) {
+            // Never says whose it is: a reference must not be a way to learn who paid.
+            return ['ok' => false, 'say' => 'That reference is not one of the payments on this account. Check it '
+                  . 'against my_transactions.'];
+        }
+        $amount = self::CURRENCY . number_format((float) $d->amount_naira);
+        if ($d->refunded_at !== null) {
+            return ['ok' => true, 'outcome' => 'ALREADY_REFUNDED', 'reference' => $ref,
+                    'say' => "{$ref} ({$amount}) has already been refunded. Nothing to request."];
+        }
+
+        if (!$this->consented) {
+            return ['ok' => true, 'outcome' => 'NEEDS_CONFIRMATION', 'reference' => $ref, 'amount' => $amount,
+                    'say' => "Not filed yet. Ask them, in one sentence: shall I file a refund request for {$ref} "
+                           . "({$amount})? A person on the team reviews it and replies by email. Only after they "
+                           . 'say yes, call request_refund again.'];
+        }
+
+        $subject = 'Refund request — ' . $ref;
+        $open = DB::table('gates_support_tickets')->where('subject', $subject)
+            ->where(fn ($q) => $q->where('user_id', $this->viewerId)->orWhereRaw('LOWER(email) = ?', [$email]))
+            ->whereNotIn('status', ['resolved', 'closed'])->value('reference');
+        if ($open) {
+            return ['ok' => true, 'outcome' => 'ALREADY_REQUESTED', 'reference' => $ref, 'ticket' => (string) $open,
+                    'say' => "A refund request for {$ref} is already open as {$open}. The team replies by email."];
+        }
+
+        $body = "Refund requested through the assistant.\n\nPayment: {$ref} ({$amount}), status {$d->status}.\n"
+              . 'Reason given: ' . (trim($reason) !== '' ? mb_substr(trim($reason), 0, 600) : '(none given)');
+        $ticket = (new SupportTicketService())->openForMember((int) $this->viewerId, $email, '', $subject, $body);
+        if ($ticket === null) {
+            return ['ok' => false, 'outcome' => 'FAILED', 'say' => 'The request could not be saved just now. Say so, '
+                  . 'and pass it to the team with the reference.'];
+        }
+        return ['ok' => true, 'outcome' => 'REQUESTED', 'reference' => $ref, 'ticket' => $ticket,
+                'say' => "Refund request filed for {$ref} ({$amount}) as {$ticket}. A person on the team reviews it "
+                       . 'and replies by email. It is a request, not an approval — say exactly that.'];
     }
 
     /**
@@ -1338,8 +1455,123 @@ final class SupportContext
             'asked'   => array_values((array) ($r['asked'] ?? [])),
             // The service already phrases this for a person. The model should
             // relay it rather than reword it into a claim of its own.
-            'say'     => $r['message'],
+            // Except NOT_FOUND: the reconciler's sentence ("not on this account … a different
+            // email address") is for its email-scoped callers, and this lookup is not scoped,
+            // so it blamed an address for a reference that simply does not exist.
+            'say'     => $r['code'] === 'NOT_FOUND'
+                ? "We have no payment with the reference {$ref}. Check it against your payment email or SMS — one wrong character is the usual cause."
+                : $r['message'],
         ];
+    }
+
+
+    /**
+     * "I paid, and I do not know the reference."
+     *
+     * ── WHY THIS EXISTS ──────────────────────────────────────────────────────
+     *
+     * Every repair here was keyed on the reference, and the reference is the one thing a
+     * person whose payment went wrong is least likely to have: it is on the page they were
+     * bounced away from and in the receipt that never came. A real ticket went round three
+     * times — "please provide the AFG- reference", "I don't know the reference", "please
+     * check your confirmation" — and ended with the assistant handing it to the team, about
+     * a payment the platform could have found and repaired from the address alone.
+     *
+     * ── WHAT IT TELLS, AND TO WHOM ───────────────────────────────────────────
+     *
+     * The repair is unscoped and discloses nothing, exactly as {@see fixPayment()} argues, so
+     * it runs for any address. What the payments ARE is about a person, so it is shown in the
+     * chat only for the member's own address or one this browser typed
+     * ({@see \AfricaGates\Support\TypedEmails::owns()}); for anything else the references go
+     * to that inbox and the chat says only that they were sent — the same sentence whether or
+     * not the address ever paid, so this is not a way to ask "did X pay us?".
+     *
+     * @return array<string,mixed>
+     */
+    private function findPayment(string $email): array
+    {
+        $e = mb_strtolower(trim($email));
+        if ($e === '' && $this->isMember()) $e = mb_strtolower(trim((string) $this->viewerEmail));
+        if ($e === '' || !filter_var($e, FILTER_VALIDATE_EMAIL)) {
+            return ['ok' => false, 'say' => 'Which email address did you pay with? I can find the payment from that.'];
+        }
+        if (!$this->spendRepair()) {
+            return ['ok' => false, 'outcome' => 'RATE_LIMITED',
+                    'say' => 'That has been checked several times in the last hour. Give it a few minutes, and the team has it if it still has not landed.'];
+        }
+
+        try {
+            $rows = DB::table('gates_donations')
+                ->whereRaw('LOWER(donor_email) = ?', [$e])
+                ->where('created_at', '>=', date('Y-m-d H:i:s', time() - 60 * 86400))
+                ->orderByDesc('id')->limit(10)
+                ->get(['id', 'payment_ref', 'amount_naira', 'tier', 'bonus_votes', 'votes_used', 'status', 'refunded_at', 'created_at']);
+        } catch (\Throwable $ex) {
+            error_log('[support] find_payment failed: ' . $ex->getMessage());
+            return ['ok' => false, 'outcome' => 'UNAVAILABLE', 'say' => 'I could not check that just now. The team has it.'];
+        }
+
+        // Re-check what is still unconfirmed and recent — the stuck payment this is for.
+        $added = 0; $rechecked = 0;
+        $reconciler = new PaymentReconciler($this->payments ?? new PaymentService());
+        foreach ($rows as $r) {
+            if ((string) $r->status === 'confirmed' || (string) $r->status === 'failed' || $r->refunded_at !== null) continue;
+            if (strtotime((string) $r->created_at) < time() - 14 * 86400 || $rechecked >= 3) continue;
+            try {
+                $res = $reconciler->reclaim((string) $r->payment_ref, null);
+                $rechecked++;
+                $added += (int) ($res['minted'] ?? 0);
+            } catch (\Throwable $ex) {
+                error_log('[support] find_payment reclaim failed: ' . $ex->getMessage());
+            }
+        }
+        // Read again: a repair may have confirmed a row.
+        $list = [];
+        foreach ($rows as $r) {
+            $fresh = DB::table('gates_donations')->where('id', $r->id)
+                ->first(['payment_ref', 'amount_naira', 'tier', 'bonus_votes', 'votes_used', 'status', 'refunded_at', 'created_at']) ?? $r;
+            $list[] = [
+                'kind'      => ($fresh->tier ?? '') === 'paid-vote' ? 'vote purchase' : 'donation',
+                'reference' => (string) $fresh->payment_ref,
+                'amount'    => self::CURRENCY . number_format((float) $fresh->amount_naira),
+                'when'      => (string) $fresh->created_at,
+                'state'     => self::paymentState($fresh),
+            ];
+        }
+
+        $theirs = \AfricaGates\Support\TypedEmails::owns($e, $this->viewerEmail);
+        $mailed = false;
+        if ($list !== [] && !$theirs) {
+            // Per ADDRESS as well as per connection: nobody's inbox is filled by somebody else asking.
+            $okToMail = $this->limits === null
+                || $this->limits->check(hash('sha256', $e), 'support_find_payment_mail', 2, 3600);
+            if ($okToMail) {
+                try {
+                    $res = \AfricaGates\Services\Mail\Emails::send(OtpService::boot(), $e, 'payment-found', [
+                        'items' => array_map(static fn (array $p): array => [$p['reference'], $p['kind'] . ' · ' . $p['amount'] . ' · ' . substr($p['when'], 0, 16) . ' — ' . $p['state']], $list),
+                        'added' => $added,
+                        'action_url' => rtrim(\AfricaGates\Support\SiteUrl::base(), '/') . '/vote/verify',
+                    ]);
+                    $mailed = !empty($res['ok']);
+                } catch (\Throwable $ex) {
+                    error_log('[support] find_payment mail failed: ' . $ex->getMessage());
+                }
+            }
+        }
+
+        if ($theirs) {
+            return ['ok' => true, 'outcome' => $list === [] ? 'NONE' : 'FOUND', 'payments' => $list,
+                    'rechecked' => $rechecked, 'votes_added' => $added,
+                    'say' => $list === []
+                        ? 'There is no payment in the last 60 days under that address. If you paid with a different email, tell me that one; a bank debit with no payment here usually reverses by itself within a few days.'
+                        : ($added > 0 ? "I re-checked your payment with the gateway and added {$added} votes that had not been counted."
+                                      : 'Here are your recent payments and where each one stands.')];
+        }
+        // The same words whether or not the address ever paid: this must not answer "did X pay?".
+        return ['ok' => true, 'outcome' => 'SENT_IF_FOUND', 'rechecked' => $rechecked > 0,
+                'say' => 'If that address made a payment in the last 60 days, it has been re-checked with the gateway — any votes '
+                       . 'that were paid for and missing are added now — and its reference has been emailed there. Check that '
+                       . 'inbox (and spam) in a few minutes. Nothing arrives if no payment was made with that address.'];
     }
 
     /**
@@ -1961,7 +2193,8 @@ final class SupportContext
      * arrive constantly, and both have honest answers the assistant could not
      * reach. A total CAN fall: fraudulent votes are removed and a refunded paid
      * vote is taken back along with the money. And a nominee can show more visible
-     * support while ranking lower, because paid votes are excluded from the score.
+     * support while ranking lower, because a paid vote adds to the tally but not to the
+     * count of people (PaidVoteCopy).
      *
      * Both facts defend the integrity system. Without the numbers the model either
      * refused the question or, worse, guessed at a mechanism.
@@ -1996,11 +2229,15 @@ final class SupportContext
             'organic_votes' => $organic,
             'paid_support'  => max(0, $total - $organic),
             'url'      => \AfricaGates\Support\NomineeUrl::ballot((int) $n->id, ''),
+            // What a contributed vote does is read from the rule (PaidVoteCopy), never typed: this
+            // said "only the free ones count towards the score", which is a retired basis's
+            // answer — under the current one a contributed vote counts in the tally share and
+            // never in the supporter share, so more votes can still rank lower.
             'say' => 'Total visible support is ' . number_format($total) . ', of which '
-                   . number_format($organic) . ' are free verified votes. Only the free ones count towards the '
-                   . 'score that decides rank — so a nominee can show more support and still rank lower, and a '
-                   . 'total CAN fall when fraudulent votes are removed or a paid vote is refunded. Both of those '
-                   . 'are the integrity system working. Give them the nominee link so they see it live.',
+                   . number_format($organic) . ' are free verified votes. '
+                   . \AfricaGates\Services\PaidVoteCopy::sentence() . ' So a nominee can show more votes and '
+                   . 'still rank lower, and a total CAN fall when fraudulent votes are removed or a paid vote is '
+                   . 'refunded. Both are the integrity system working. Give them the nominee link so they see it live.',
         ];
     }
 
@@ -2178,14 +2415,17 @@ final class SupportContext
             'rules' => [
                 'checkout_closes_before_voting_by_minutes' => $cutoffMins,
                 'late_delivery_window_after_close_hours'   => $graceHours,
-                'free_voting_runs_to_the_close'            => true,
+                // False when free voting is switched off: there is nothing left open to point at.
+                'free_voting_runs_to_the_close'            => !PaidVoteService::freeVotingDisabled(),
             ],
             // Written for the model to relay, because each of these is a sentence
             // that has to be exactly right or it reads as an excuse.
             'say' => [
                 'refused_at_checkout' => "Card payment for a category stops {$cutoffMins} minutes before voting "
-                                       . "closes, so a payment already under way has time to finish. Free voting "
-                                       . "is still open until the close — that is the thing to point them at.",
+                                       . "closes, so a payment already under way has time to finish."
+                                       . (PaidVoteService::freeVotingDisabled()
+                                           ? " Every vote on this award is a contribution, so there is no other way to vote after that point; say so kindly."
+                                           : " Free voting is still open until the close — that is the thing to point them at."),
                 'paid_just_before'    => "A payment STARTED before voting closed still delivers its votes, even if "
                                        . "the bank confirms it up to {$graceHours} hours late. It is judged on when "
                                        . "they paid, not on when the confirmation reached us. Do not tell somebody "

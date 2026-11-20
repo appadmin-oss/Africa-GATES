@@ -497,6 +497,10 @@ final class ChallengesController
         if ($r['ok']) $this->audit?->record($this->adminId(), 'challenge.disqualify',
             'challenge_entry', (int) ($args['entry'] ?? 0),
             ['reason' => mb_substr(trim((string) ($b['reason'] ?? '')), 0, 300)]);
+        if ($r['ok']) \AfricaGates\Services\ChallengeAftercare::after((int) ($args['id'] ?? 0),
+            !empty($r['promoted']) ? [(int) $r['promoted']] : [], [(int) ($args['entry'] ?? 0)]);
+        if ($r['ok'] && !empty($r['promoted'])) $_SESSION['flash_ok'] = 'Removed. Everybody behind them moved up, and the '
+            . 'place that opened went to the next person waiting for one.';
 
         return $this->back($res, '/admin/challenges/' . (int) ($args['id'] ?? 0) . '/queues');
     }
@@ -513,21 +517,13 @@ final class ChallengesController
         $ref = trim((string) ($b['ref'] ?? ''));
         $id  = (int) ($args['id'] ?? 0);
 
-        if ($ref === '') {
-            $_SESSION['flash_error'] = 'Put the transfer reference in. "Paid" with nothing to '
-                . 'look up is not a record anybody can check.';
-
-            return $this->back($res, '/admin/challenges/' . $id . '/queues');
-        }
-
-        DB::table('gates_challenge_entries')->where('id', (int) ($args['entry'] ?? 0))
-            ->update(['payout_status' => E::PAY_PAID, 'payout_ref' => mb_substr($ref, 0, 120),
-                      'payout_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')]);
-
-        $this->audit?->record($this->adminId(), 'challenge.payout', 'challenge_entry',
+        // The service holds every condition (this challenge, a place, not disqualified, not
+        // already paid, still at the target) — this used to update the entry by id alone.
+        $r = CS::markPaid($id, (int) ($args['entry'] ?? 0), $ref, $this->adminId());
+        if ($r['ok']) $this->audit?->record($this->adminId(), 'challenge.payout', 'challenge_entry',
             (int) ($args['entry'] ?? 0), ['ref' => mb_substr($ref, 0, 120)]);
 
-        $_SESSION['flash_ok'] = 'Marked paid.';
+        $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = $r['message'];
 
         return $this->back($res, '/admin/challenges/' . $id . '/queues');
     }
@@ -537,12 +533,18 @@ final class ChallengesController
         $id = (int) ($args['id'] ?? 0);
         $r  = CS::draw($id);
 
-        $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = $r['ok']
-            ? 'Drawn. The seed is stored and the same seed always gives the same winners.'
-            : 'That is not a draw challenge.';
+        $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = match ($r['code'] ?? '') {
+            'DRAWN'         => 'Drawn. The seed is stored and the same seed always gives the same winners.',
+            'ALREADY_DRAWN' => 'This was drawn already. A draw is made once; nothing was changed.',
+            'NOT_ENDED'     => 'Entries are still open. Draw once the challenge has closed, so the pool is final.',
+            default         => 'That is not a draw challenge.',
+        };
 
-        if ($r['ok']) $this->audit?->record($this->adminId(), 'challenge.draw', 'challenge', $id,
-            ['seed' => (string) ($r['seed'] ?? ''), 'winners' => count($r['winners'] ?? [])]);
+        if (($r['code'] ?? '') === 'DRAWN') {
+            $this->audit?->record($this->adminId(), 'challenge.draw', 'challenge', $id,
+                ['seed' => (string) ($r['seed'] ?? ''), 'winners' => count($r['winners'] ?? [])]);
+            \AfricaGates\Services\ChallengeAftercare::after($id, array_map('intval', $r['winners'] ?? []), [], true);
+        }
 
         return $this->back($res, '/admin/challenges/' . $id . '/queues');
     }

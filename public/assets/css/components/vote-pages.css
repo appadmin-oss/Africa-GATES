@@ -17,8 +17,7 @@
 .vmi__who{ display:flex; align-items:center; gap:8px; font-size:var(--ag-fs-13); color:var(--ag-soft) }
 .vmi__tag{ font-size:var(--ag-fs-12); color:var(--ag-soft) }
 .vmi__acts{ display:flex; align-items:center; gap:4px }
-.vmi__act,
-.vmi__act:hover{
+.vmi__act{
   display:inline-flex; align-items:center; gap:6px; min-height:44px; padding:0 10px; border:0; background:transparent;
   color:var(--ag-ink-2); font:inherit; font-size:var(--ag-fs-13); font-weight:600; text-decoration:none; cursor:pointer;
 }
@@ -30,8 +29,7 @@
    No DC draws them; they take the ballot's vocabulary — the nominee's avatar and name as the
    head, white cards on the ground, one primary action back to the ballot. */
 .vs{ max-width:720px; margin:0 auto; padding:12px 16px 40px; display:flex; flex-direction:column; gap:18px }
-.vs-back,
-.vs-back:hover{ align-self:flex-start; display:none; align-items:center; gap:6px; min-height:44px; color:var(--ag-green); font-weight:600; font-size:var(--ag-fs-14-5); text-decoration:none }
+.vs-back{ align-self:flex-start; display:none; align-items:center; gap:6px; min-height:44px; color:var(--ag-green); font-weight:600; font-size:var(--ag-fs-14-5); text-decoration:none }
 .vs-head{ display:flex; gap:14px; align-items:center }
 .vs-head__av{ position:relative; flex:none; width:64px; height:64px; border-radius:50%; overflow:hidden; background:var(--ag-tint) }
 .vs-head__av .ag-photo{ position:absolute; inset:0 }
@@ -69,6 +67,28 @@
 .fl-copy__k{ margin:0 0 4px; font-size:var(--ag-fs-12-5); font-weight:700; color:var(--ag-soft) }
 .fl-copy__t{ margin:0; font-size:var(--ag-fs-17); line-height:1.5 }
 .fl-acts{ display:flex; gap:8px; flex-wrap:wrap }
+/* The share-kit chooser: size, style, ground, colour — each a link (FlierController::page). */
+.fl-pick{ display:flex; flex-direction:column; gap:10px }
+.fl-pick__k{ margin:6px 0 0; font-size:var(--ag-fs-14); font-weight:700; color:var(--ag-soft) }
+.fl-pick ul{ margin:0; padding:0; list-style:none }
+.fl-pick__sizes{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px }
+.fl-pick__size{ display:flex; flex-direction:column; gap:2px; min-height:56px; box-sizing:border-box; padding:10px 14px; border:1px solid var(--ag-line-2); border-radius:var(--ag-r-12); background:var(--ag-surface); color:var(--ag-ink); text-decoration:none }
+.fl-pick__l{ font-size:var(--ag-fs-15); font-weight:700 }
+.fl-pick__h{ font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
+.fl-pick__row{ display:flex; flex-wrap:wrap; gap:8px; align-items:center }
+.fl-pick__chip{ display:inline-flex; align-items:center; min-height:44px; box-sizing:border-box; padding:0 18px; border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill); background:var(--ag-surface); color:var(--ag-ink); font-size:var(--ag-fs-15); font-weight:700; text-decoration:none }
+.fl-pick__size[aria-current], .fl-pick__chip[aria-current]{ border:2px solid var(--ag-ink) }
+.fl-pick__sw{ display:block; width:44px; height:44px; box-sizing:border-box; border-radius:50%; border:13px solid var(--ag-line-2); background:var(--ag-surface); box-shadow:0 0 0 1px var(--ag-line-2) }
+.fl-pick__sw[aria-current]{ box-shadow:0 0 0 3px var(--ag-surface), 0 0 0 5px var(--ag-ink) }
+/* Rings, not fills: a swatch names a colour the CARD will use, so it is a mark beside a
+   choice rather than a colour field on this page (ColourBudgetTest, ColourFields). */
+.fl-pick__sw--gold{ border-color:var(--ag-gold) }
+.fl-pick__sw--green{ border-color:var(--ag-green) }
+.fl-pick__sw--info{ border-color:var(--ag-info) }
+.fl-pick__sw--live{ border-color:var(--ag-live) }
+.fl-pick__sw--stone{ border-color:var(--ag-ink-2) }
+.fl-img--status{ max-width:360px }
+.fl-img--link{ border-radius:12px }
 .fl-status{ margin:0; font-size:var(--ag-fs-14); font-weight:600 }
 .fl-status:empty{ display:none }
 @media (min-width:600px){
@@ -81,3 +101,18 @@
 @media (min-width:900px){
   .fl-grid{ grid-template-columns:minmax(0,420px) minmax(0,1fr) }
 }
+
+/* The share kit's second half (ShareKit): the message to send, the ways to send it, and the QR
+   code for print. The QR sits on white with its full quiet zone — the specification, not a
+   margin (Support\Qr). */
+.fl-kit{ display:flex; flex-direction:column; gap:14px; margin-top:28px; padding-top:22px; border-top:1px solid var(--ag-line) }
+.fl-kit__h{ margin:0; font-size:var(--ag-fs-17); font-weight:700 }
+.fl-kit__grid{ display:grid; grid-template-columns:minmax(0,1fr); gap:18px; align-items:start }
+.fl-kit__text{ box-sizing:border-box; width:100%; padding:12px 14px; border:1px solid var(--ag-line-2); border-radius:var(--ag-r-12); background:var(--ag-surface); color:var(--ag-ink); font:inherit; font-size:var(--ag-fs-16); line-height:1.5; resize:none }
+.fl-kit__go{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px }
+.fl-kit__qr{ margin:0; display:flex; flex-direction:column; align-items:flex-start; gap:6px }
+.fl-kit__qr-i{ display:block; width:168px; padding:0; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-12) }
+.fl-kit__qr-i svg{ display:block; width:100%; height:auto }
+.fl-kit__more{ align-self:flex-start; display:inline-flex; align-items:center; gap:6px; min-height:44px; color:var(--ag-green); font-weight:600; font-size:var(--ag-fs-14); text-decoration:none }
+@media (min-width:600px){ .fl-kit__grid{ grid-template-columns:minmax(0,1fr) 168px } }
+@media (hover:hover){ .fl-kit__more:hover{ color:var(--ag-green-deep); text-decoration:underline; text-underline-offset:3px } }

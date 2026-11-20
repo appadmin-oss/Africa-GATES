@@ -87,7 +87,7 @@
 .pl-left__av,
 .pl-compose__av{
   flex:none; width:40px; height:40px; border-radius:50%;
-  background:var(--ag-ink); color:var(--ag-green-light);
+  background:var(--ag-tint); color:var(--ag-ink);
   display:flex; align-items:center; justify-content:center;
   font-weight:700; font-size:var(--ag-fs-13);
 }
@@ -317,7 +317,11 @@ video.pl-post__media{ width:100% }
   margin:0; padding:var(--ag-sp-32) var(--ag-sp-16); display:flex; flex-direction:column;
   gap:var(--ag-sp-12); align-items:flex-start; color:var(--ag-ink-2); font-size:var(--ag-fs-15); line-height:1.5;
 }
-.pl-empty p{ margin:0 }
+.pl-empty p{ margin:0; max-width:42ch }
+.pl-empty:has(.pl-empty__t){ align-items:center; text-align:center; padding-block:var(--ag-sp-56) }
+.pl-empty:has(.pl-empty__t) .pl-go{ align-self:center }
+.pl-empty__ic{ display:grid; place-items:center; width:56px; height:56px; border-radius:var(--ag-r-16); background:var(--ag-green-wash); color:var(--ag-green-deep) }
+.pl-empty__t{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-20); color:var(--ag-ink) }
 
 /* ── Alerts and saved ──────────────────────────────────────────────────────── */
 .pl-alerts__head{
@@ -357,7 +361,7 @@ video.pl-post__media{ width:100% }
   display:flex; align-items:center; gap:10px; height:46px; margin:0; padding:0 16px;
   background:var(--ag-ground); border-radius:var(--ag-r-pill); color:var(--ag-soft);
 }
-.pl-search input{ flex:1; min-width:0; border:0; outline:0; background:transparent; font:inherit; font-size:var(--ag-fs-15); color:var(--ag-ink) }
+.pl-search input{ flex:1; min-width:0; align-self:stretch; border:0; outline:0; background:transparent; font:inherit; font-size:var(--ag-fs-15); color:var(--ag-ink) }
 .pl-search input::placeholder{ color:var(--ag-soft) }
 .pl-search:focus-within{ outline:3px solid var(--ag-green); outline-offset:2px }
 .pl-box{
@@ -373,14 +377,14 @@ video.pl-post__media{ width:100% }
 .pl-box__av{ flex:none; width:40px; height:40px; border-radius:50%; overflow:hidden }
 .pl-box__av .ag-photo{ width:100%; height:100% }
 .pl-box__ini{
-  flex:none; width:40px; height:40px; border-radius:var(--ag-r-12); background:var(--ag-ink); color:var(--ag-ground);
+  flex:none; width:40px; height:40px; border-radius:var(--ag-r-12); background:var(--ag-tint); color:var(--ag-ink);
   display:flex; align-items:center; justify-content:center; font-weight:700; font-size:var(--ag-fs-14);
 }
 .pl-box__pb{ flex:1; min-width:0; display:flex; flex-direction:column; gap:1px }
 .pl-box__pb b{ font-weight:600; font-size:var(--ag-fs-14); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 .pl-follow{
   flex:none; display:inline-flex; align-items:center; min-height:44px; padding:0 14px;
-  border-radius:var(--ag-r-pill); border:1px solid var(--ag-ink); background:var(--ag-ink); color:var(--ag-surface);
+  border-radius:var(--ag-r-pill); border:1px solid var(--ag-green); background:var(--ag-green); color:var(--ag-surface);
   font:inherit; font-weight:700; font-size:var(--ag-fs-13); text-decoration:none; cursor:pointer;
 }
 .pl-follow[aria-pressed="true"]{ background:var(--ag-surface); color:var(--ag-ink); border-color:var(--ag-line-2) }
@@ -404,3 +408,10 @@ video.pl-post__media{ width:100% }
 /* The DC's page is the bar white, not the ground: the column and boxes sit on it. */
 body:has(.pl) .ag-main{ background:var(--ag-bar) }
 .pl-left__post .pl-left__l{ flex:none }
+
+/* Hover — a pointer only, so a tap on a phone does not leave the state stuck. Filled
+   green deepens; an outline gains a light tint; a card gains its edge and a lift. */
+@media (hover:hover){
+  .pl-tabs__t:hover{ color:var(--ag-ink) }
+  .pl-left__join:hover{ background:var(--ag-tint); color:var(--ag-ink) }
+}

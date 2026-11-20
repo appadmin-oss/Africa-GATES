@@ -49,9 +49,9 @@
       <tbody>
         {% for l in current.links %}
         <tr>
-          <td style="color:var(--cn-grey-500);font-variant-numeric:tabular-nums">{{ loop.index }}</td>
+          <td style="color:var(--cn-soft);font-variant-numeric:tabular-nums">{{ loop.index }}</td>
           <td><a href="{{ l.href }}" style="color:var(--cn-ink);font-weight:600">{{ l.label }} →</a>
-            <br><span style="font-size:12px;color:var(--cn-grey-500)"><code>{{ l.href }}</code></span></td>
+            <br><span style="font-size:12px;color:var(--cn-soft)"><code>{{ l.href }}</code></span></td>
         </tr>
         {% endfor %}
       </tbody>
@@ -79,7 +79,7 @@
 
     {# ── the judge ─────────────────────────────────────────────────────────── #}
     <h3 style="margin:0 0 6px;font-size:14px">Sign in as the test judge</h3>
-    <p style="margin:0 0 10px;font-size:13px;line-height:1.65;color:var(--cn-grey-500)">
+    <p style="margin:0 0 10px;font-size:13px;line-height:1.65;color:var(--cn-soft)">
       The real sign-in screen, the real code, the real fifteen-minute expiry — it just is not
       emailed, because <code>{{ doors.judge_email }}</code> is at a domain no mail server
       will ever accept.
@@ -106,22 +106,22 @@
     {# ── the interviewee ───────────────────────────────────────────────────── #}
     <h3 style="margin:0 0 6px;font-size:14px;padding-top:16px;border-top:1px solid var(--cn-line-card)">The interviewee's own page</h3>
     {% if doors.interview %}
-      <p style="margin:0 0 6px;font-size:13px;line-height:1.65;color:var(--cn-grey-500)">
+      <p style="margin:0 0 6px;font-size:13px;line-height:1.65;color:var(--cn-soft)">
         Consent, the appointment, and rescheduling — what <strong>{{ doors.interview.label }}</strong>
         opens{% if doors.interview.when %}, for the sitting on {{ doors.interview.when }}{% endif %}.
       </p>
       <a href="{{ doors.interview.href }}" target="_blank" rel="noopener"
          style="color:var(--cn-ink);font-weight:600;font-size:13px">Open it →</a>
-      <div><code style="font-size:12px;color:var(--cn-grey-500)">{{ doors.interview.href }}</code></div>
+      <div><code style="font-size:12px;color:var(--cn-soft)">{{ doors.interview.href }}</code></div>
     {% else %}
-      <p style="margin:0;font-size:13px;color:var(--cn-grey-500)">
+      <p style="margin:0;font-size:13px;color:var(--cn-soft)">
         No sitting is scheduled. Rebuild the sandbox — it opens one three days out.
       </p>
     {% endif %}
 
     {# ── the nominee ───────────────────────────────────────────────────────── #}
     <h3 style="margin:22px 0 6px;font-size:14px;padding-top:16px;border-top:1px solid var(--cn-line-card)">The questionnaire, as the nominee sees it</h3>
-    <p style="margin:0 0 10px;font-size:13px;line-height:1.65;color:var(--cn-grey-500)">
+    <p style="margin:0 0 10px;font-size:13px;line-height:1.65;color:var(--cn-soft)">
       One in each state, because they are three different experiences: a submitted one is
       read-only, a draft is the form mid-flight, and an untouched one is what a nominee meets
       on the first open. Walking one tells you nothing about the other two.
@@ -130,11 +130,11 @@
       <div style="padding:7px 0;border-bottom:1px solid var(--cn-line-card)">
         <a href="{{ q.href }}" target="_blank" rel="noopener"
            style="color:var(--cn-ink);font-weight:600;font-size:13px">{{ q.label }}</a>
-        <span style="font-size:12px;color:var(--cn-grey-500);margin-left:8px">{{ q.state }}</span>
-        <div><code style="font-size:12px;color:var(--cn-grey-500)">{{ q.href }}</code></div>
+        <span style="font-size:12px;color:var(--cn-soft);margin-left:8px">{{ q.state }}</span>
+        <div><code style="font-size:12px;color:var(--cn-soft)">{{ q.href }}</code></div>
       </div>
     {% else %}
-      <p style="margin:0;font-size:13px;color:var(--cn-grey-500)">None yet — build the sandbox.</p>
+      <p style="margin:0;font-size:13px;color:var(--cn-soft)">None yet — build the sandbox.</p>
     {% endfor %}
   </div>
 </div>
@@ -160,7 +160,7 @@
   </form>
   </div>
   <div class="ad-card__body">
-    <p style="margin:0;font-size:13px;color:var(--cn-grey-600)">
+    <p style="margin:0;font-size:13px;color:var(--cn-ink-3)">
       Takes a moment. When it is done this page lists every screen the sandbox makes
       reachable, so you can click straight through instead of hunting for the rows.
     </p>

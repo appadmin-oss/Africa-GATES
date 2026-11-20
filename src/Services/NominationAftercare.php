@@ -76,6 +76,16 @@ final class NominationAftercare
         $nomEmail = strtolower(trim((string) ($data['nominee_email'] ?? '')));
         $byName   = Name::title((string) ($data['nominator_name'] ?? ''));
         $byEmail  = strtolower(trim((string) ($data['nominator_email'] ?? '')));
+        // Each category's title, so a reason in the brief and the Sheets row says which
+        // category it argues for (NominationRules::reasonText).
+        $catTitles = [];
+        $pickedIds = array_keys(\AfricaGates\Services\NominationRules::categories($data));
+        if ($pickedIds !== []) {
+            try {
+                $catTitles = array_map('strval', \Illuminate\Database\Capsule\Manager::table('gates_award_categories')
+                    ->whereIn('id', $pickedIds)->pluck('title', 'id')->all());
+            } catch (\Throwable) {}
+        }
         /* ── THE AWARD'S REAL NAME, LOOKED UP WHEN IT IS NOT HANDED OVER ───────
            This fell back to `'Programme #' . $id`, and that string is not a label —
            it goes into the confirmation EMAIL, the SMS and the success page. A
@@ -129,9 +139,16 @@ final class NominationAftercare
         $catName = self::listOf($catNames);
         $catLine = $catName !== '' ? ($progName . ' · ' . $catName) : $progName;
 
+        // The nominee's own "yes, that's me, and I agree" — NomineeConfirmation, which had
+        // no caller: its link was minted by nothing, the email below went out with an empty
+        // `confirm_url`, and so no nomination could ever reach `verified` and no challenge
+        // could pay. The link travels in the messages the nominee already gets, never a
+        // second one; '' where there is nobody to ask or the window is spent.
+        $confirmUrl = '';
+        try { $confirmUrl = NomineeConfirmation::linkFor($nominationId); } catch (\Throwable) {}
         self::email($data, $mailer, $files, $baseUrl, $reference,
-                    $nomName, $nomEmail, $byName, $byEmail, $catLine, $watchUrl);
-        self::text($data, $reference, $nomName, $nomEmail, $catLine, $watchUrl);
+                    $nomName, $nomEmail, $byName, $byEmail, $catLine, $watchUrl, $catTitles, $nominationId, $confirmUrl);
+        self::text($data, $reference, $nomName, $nomEmail, $catLine, $watchUrl, $confirmUrl);
 
         // Advisory AI triage (score / summary / duplicates) for the review desk.
         try { NominationTriageService::enqueue($nominationId); } catch (\Throwable) {}
@@ -167,7 +184,7 @@ final class NominationAftercare
                 'programme_id'    => (int) ($data['programme_id'] ?? 0),
                 'nominee_name'    => $nomName,
                 'country_code'    => strtoupper((string) ($data['country_code'] ?? '')),
-                'reason'          => trim((string) ($data['reason'] ?? '')),
+                'reason'          => \AfricaGates\Services\NominationRules::reasonText($data, $catTitles),
                 'nominator_name'  => $byName,
                 'nominator_email' => $byEmail,
                 'reference'       => $reference,
@@ -243,7 +260,7 @@ final class NominationAftercare
     private static function email(
         array $data, ?OtpService $mailer, array $files, string $baseUrl, string $reference,
         string $nomName, string $nomEmail, string $byName, string $byEmail,
-        string $catLine, string $watchUrl,
+        string $catLine, string $watchUrl, array $catTitles = [], int $nominationId = 0, string $confirmUrl = '',
     ): void {
         if ($mailer === null) return;
 
@@ -281,7 +298,7 @@ final class NominationAftercare
             . '<table style="border-collapse:collapse;margin:6px 0 16px">' . $tbl . '</table>'
             . '<p style="margin:0 0 5px;color:#6b7674;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Reason</p>'
             . '<div style="background:#f6f7f6;border-radius:10px;padding:12px 14px;font-size:14px;line-height:1.6;color:#10292c;white-space:pre-wrap">'
-            . $esc(trim((string) ($data['reason'] ?? ''))) . '</div>'
+            . $esc(\AfricaGates\Services\NominationRules::reasonText($data, $catTitles)) . '</div>'
             . ($evidence ? '<p style="font-size:13px;margin-top:12px">Supporting document: ' . $esc($evidence) . '</p>' : '')
             . ($photo ? '<p style="font-size:13px">Photo: ' . $esc($photo) . '</p>' : '')
             . '<p style="margin-top:16px"><a href="' . $esc($base . '/admin/nominations') . '" style="color:#237b22;font-weight:600">Review in the admin console &rarr;</a></p>';
@@ -290,31 +307,75 @@ final class NominationAftercare
                                  $adminHtml, strip_tags($adminHtml), 'Nominations');
         } catch (\Throwable) {}
 
-        // ── 2 · the nominator ────────────────────────────────────────────────
+        // ── 2 and 3 · the nominator and the nominee: the handoff's emails ─────
+        //
+        // What they promise is read from what makes it true: the review time is the
+        // setting the acknowledgement mail is sent against (NominationFeedbackService::
+        // slaHours()), the voting date is the cycle's own, and a nominator who asked to
+        // stay private is never named to the nominee (nominator_private).
+        $cycle = null;
+        try {
+            if (!empty($data['cycle_id'])) {
+                $cycle = DB::table('gates_award_cycles')->where('id', (int) $data['cycle_id'])->first(['voting_open']);
+            }
+        } catch (\Throwable) {}
+        $votingOpens = '';
+        if ($cycle && !empty($cycle->voting_open)) {
+            try { $votingOpens = \Illuminate\Support\Carbon::parse((string) $cycle->voting_open)->format('j F Y'); } catch (\Throwable) {}
+        }
+        $progOnly = trim((string) ($data['programme_title'] ?? '')) ?: (string) explode(' · ', $catLine)[0];
+        $nomFirst = \AfricaGates\Services\DoorWelcome::firstName($nomName) ?: $nomName;
+        $nomPhone = trim((string) ($data['nominee_phone'] ?? ''));
+
         if ($byEmail !== '' && filter_var($byEmail, FILTER_VALIDATE_EMAIL)) {
-            $byHtml = '<p>Hi ' . $esc($byName) . ',</p>'
-                . '<p>Thank you for nominating <strong>' . $esc($nomName) . '</strong> for <strong>' . $esc($catLine)
-                . '</strong>. We&rsquo;ve logged your entry (reference <strong>' . $esc($reference)
-                . '</strong>), and our panel reviews every profile before it joins the cycle.</p>'
-                . '<p><a href="' . $esc($watchUrl) . '" style="display:inline-block;background:#237b22;color:#fff;text-decoration:none;font-weight:600;padding:12px 22px;border-radius:999px">View your entry &amp; watch the cycle &rarr;</a></p>'
-                . '<p style="color:#6b7674;font-size:13.5px">We&rsquo;ll email you the moment the profile goes live and voting opens.</p>';
             try {
-                $mailer->sendBranded($byEmail, 'Your nomination is in — ' . $nomName,
-                                     $byHtml, strip_tags($byHtml), 'Nominations');
+                \AfricaGates\Services\Mail\Emails::send($mailer, $byEmail, 'nom-in', [
+                    'programme'          => $progOnly,
+                    'nominee'            => $nomName,
+                    'nominee_first_name' => $nomFirst,
+                    'category'           => (string) (explode(' · ', $catLine, 2)[1] ?? $catLine),
+                    'reference'          => $reference,
+                    'decide_by'          => \Illuminate\Support\Carbon::now()
+                        ->addHours(\AfricaGates\Services\NominationFeedbackService::slaHours())->format('l j F'),
+                    'nominee_contacted'  => $nomEmail !== '' || $nomPhone !== '',
+                    'voting_opens'       => $votingOpens,
+                    'watch_url'          => $watchUrl,
+                    'site_url'           => $base,
+                ]);
             } catch (\Throwable) {}
         }
 
-        // ── 3 · the nominee, only when an email was given ────────────────────
         if ($nomEmail !== '' && filter_var($nomEmail, FILTER_VALIDATE_EMAIL)) {
-            $nomHtml = '<p>Hello ' . $esc($nomName) . ',</p>'
-                . '<p>Wonderful news &mdash; you&rsquo;ve been nominated for <strong>' . $esc($catLine)
-                . '</strong> on Africa GATES, the continental Cultural Power Index.</p>'
-                . '<p>Our panel verifies every profile before it joins the cycle. Once it&rsquo;s live, the community can vote and your Cultural Power Index begins to build.</p>'
-                . '<p><a href="' . $esc($watchUrl) . '" style="display:inline-block;background:#237b22;color:#fff;text-decoration:none;font-weight:600;padding:12px 22px;border-radius:999px">Watch the cycle &rarr;</a> &nbsp; <a href="'
-                . $esc($base . '/register') . '" style="color:#237b22;font-weight:600">Claim &amp; verify your profile</a></p>';
-            try {
-                $mailer->sendBranded($nomEmail, "You've been nominated — Africa GATES",
-                                     $nomHtml, strip_tags($nomHtml), 'Nominations');
+            // ── NOTHING THE NOMINATOR TYPED, UNTIL A PERSON HAS READ IT ──────────
+            //
+            // This goes out the moment the public form is submitted, to whatever address the
+            // nominator typed, under the Africa GATES masthead and signature. Quoting their
+            // reason (or naming them) here relays a stranger's text through our brand before
+            // anyone has looked at it: "pay the ₦20,000 processing fee at … to receive your
+            // award" would arrive looking like ours, which is exactly the forgery the voting
+            // letter tells nominees to report. Nothing they wrote is sent to the nominee
+            // from here; NominationAftercareTest holds that.
+            //
+            // ── AND IT ASKS FOR WHAT THIS NOMINATION LACKS ───────────────────────
+            //
+            // The nominee knows the work best, so they are asked now, while it can still decide
+            // the review, for exactly what the row is missing (evidence first, then the places
+            // the award needs, then the blanks), with a link to the same page approval later
+            // hands them (NomineeDetails::early). Computed from the stored row, never quoted.
+            // A repeat folded into a nomination they were sent a link for today is not mailed.
+            $early = NomineeDetails::forEmail($nominationId);
+            if (!$early['skip']) try {
+                \AfricaGates\Services\Mail\Emails::send($mailer, $nomEmail, 'nominated', [
+                    'programme'  => $progOnly,
+                    'first_name' => $nomFirst,
+                    'quote'      => '',
+                    'quote_by'   => '',
+                    'confirm_url' => $confirmUrl,
+                    'confirm_days' => NomineeConfirmation::TTL_DAYS,
+                    'watch_url'  => $watchUrl,
+                    'help_url'   => $base . '/support',
+                    'site_url'   => $base,
+                ] + $early);
             } catch (\Throwable) {}
         }
     }
@@ -328,7 +389,7 @@ final class NominationAftercare
      */
     private static function text(
         array $data, string $reference, string $nomName, string $nomEmail,
-        string $catLine, string $watchUrl,
+        string $catLine, string $watchUrl, string $confirmUrl = '',
     ): void {
         try {
             $sms = SmsService::boot();
@@ -339,7 +400,8 @@ final class NominationAftercare
             if ($nomPhone !== null) {
                 $plan = SmsService::channelPlan($nomEmail ?: null, $nomPhone, $sms);
                 $msg  = 'Africa GATES: ' . $nomName . ', you have been nominated for ' . $catLine
-                      . ' (ref ' . $reference . '). Our panel reviews every profile before it goes live. ' . $watchUrl;
+                      . ' (ref ' . $reference . '). Our panel reviews every profile before it goes live. '
+                      . ($confirmUrl !== '' ? 'Confirm it is you and you agree: ' . $confirmUrl . ' ' : '') . $watchUrl;
                 if (in_array('sms', $plan, true))      $sms->sendSms($nomPhone, $msg, 'nomination_nominee');
                 if (in_array('whatsapp', $plan, true)) $sms->sendWhatsApp($nomPhone, $msg, 'nomination_nominee');
             }

@@ -110,6 +110,9 @@ final class SupportAgentService implements SupportAnswerer
         }
         $history = array_slice($history, -self::MAX_HISTORY);
         $facts   = [];
+        // "Yes" to the action proposed in the turn before — decided here, in code, from the
+        // person's own words. See SupportContext::requestRefund().
+        if (self::confirmsProposal($message, $history)) $ctx = $ctx->withConsent(true);
 
         // An error-page reference, quoted back. Answered before any planner or search,
         // because both read it as a PAYMENT reference: the Help Centre matched the word
@@ -137,7 +140,7 @@ final class SupportAgentService implements SupportAnswerer
             // nothing, let me speak to a human" got an apology and their message
             // was read by nobody, ever. Falling through to the shared tail below
             // is what fixes that.
-            foreach (SupportPlan::steps($message, $ctx, $only) as $step) {
+            foreach (SupportPlan::steps(self::planningText($message, $history, $ctx), $ctx, $only) as $step) {
                 $key = $step['tool'] . ':' . json_encode($step['args']);
                 if (isset($facts[$key])) continue;
                 $result = $ctx->run($step['tool'], $step['args']);
@@ -202,7 +205,7 @@ final class SupportAgentService implements SupportAnswerer
         // The rules can still choose. Reaching for them here means a provider
         // outage costs fluency and nothing else — the repair still runs.
         if ($facts === []) {
-            foreach (SupportPlan::steps($message, $ctx, $only) as $step) {
+            foreach (SupportPlan::steps(self::planningText($message, $history, $ctx), $ctx, $only) as $step) {
                 $key = $step['tool'] . ':' . json_encode($step['args']);
                 if (isset($facts[$key])) continue;
                 $result = $ctx->run($step['tool'], $step['args']);
@@ -233,7 +236,14 @@ final class SupportAgentService implements SupportAnswerer
                             array $facts, bool $escalate): array
     {
         $ticketRef = null;
-        if ($escalate && $this->tickets !== null && $this->shouldEscalate($message, $history, $facts)) {
+        // A refund request the person agreed to IS their ticket. Escalating on top of it would
+        // open a second ticket about the same payment, each with its own reference to quote.
+        foreach ($facts as $f) {
+            if (($f['tool'] ?? '') === 'request_refund' && in_array($f['data']['outcome'] ?? '', ['REQUESTED', 'ALREADY_REQUESTED'], true)) {
+                $ticketRef = (string) ($f['data']['ticket'] ?? '') ?: null;
+            }
+        }
+        if ($ticketRef === null && $escalate && $this->tickets !== null && $this->shouldEscalate($message, $history, $facts)) {
             $ticketRef = $this->tickets->open($message, $history, $ctx, $this->trace);
             if ($ticketRef !== null) {
                 $reply .= "\n\nI have passed this to the team — your reference is **{$ticketRef}**. "
@@ -436,13 +446,28 @@ final class SupportAgentService implements SupportAnswerer
     - Most votes are free and have no reference. "I voted but it is not showing", with no
       mention of paying, is free_vote_help — do not ask for a reference that does not exist.
     - Somebody signed in who says their votes are missing: my_transactions first.
+    - Ask for a reference AT MOST ONCE. If they say they do not have it, cannot find it or
+      never got one, stop asking: ask which email address they paid with and call
+      find_payment — it re-checks the stuck payment with the gateway and emails them the
+      reference. Signed in with nothing in my_transactions: they paid with another address,
+      so ask for that one.
     - Somebody reporting that something is broken or slow: platform_health first, and say
       plainly if it is a known problem on our side.
     - "How does X work" or "why did Y happen": help_article first, and give its link.
     - Never invent a reference, an amount, a date or a count. If you need one and do not
       have it, ask for it in one short sentence.
+    - Never say you WILL check, look into, review or get back about something — and never
+      "hold on", "one moment" or "bear with me". The person sees nothing happen while you
+      wait, and nothing does: this turn ends when you stop writing. Call the tool now, then
+      say what it found. If no tool can answer it, say plainly what you could not check and
+      the one thing you need from them.
     - Two tools is usually enough; a problem with several parts may take five. Never call the
       same tool with the same arguments twice.
+    - A refund for a signed-in person's own payment: refund_status first (a payment whose
+      votes could not be counted is refunded automatically). If nothing is under way, PROPOSE
+      a refund request in one sentence — the reference and the amount — and ask them to
+      confirm. Call request_refund only after they say yes. It is a request a person decides:
+      never say a refund is approved.
     - If they ask for a person, say you will pass it on — the platform does that, you do not
       need a tool for it.
     - When the next step is a page on this site — a ballot, the nomination form, an event,
@@ -459,7 +484,8 @@ final class SupportAgentService implements SupportAnswerer
       their address — give the minutes left and that it lifts by itself; /account/forgot for a
       forgotten password.
     - "I paid but…" / "I was charged twice" / "wrong nominee" / "wrong amount": the reference
-      (check_reference for a bank's or wallet's number), then my_transactions or lookup_reference,
+      (check_reference for a bank's or wallet's number) — or, with no reference, find_payment on
+      the address they paid with — then my_transactions or lookup_reference,
       then fix_payment if votes are missing; refund_status before ever saying a refund needs
       arranging. A wrong nominee or a change of mind is a person's decision — collect the
       reference and what they wanted, and pass it on.
@@ -515,6 +541,79 @@ final class SupportAgentService implements SupportAnswerer
      * often a third of a result — and capped. The model reads "absent" correctly; it does
      * not need to be told forty times that a field has no value.
      */
+    /**
+     * Is this message a yes to an action the assistant proposed in its previous turn?
+     *
+     * Both halves are required, and both are read in code: the person's message must be a
+     * short affirmative with no "no"/"don't"/"wait" in it, and the assistant's last turn must
+     * have proposed something to file. A model cannot grant its own consent this way, and a
+     * stray "ok" in the middle of an unrelated conversation consents to nothing.
+     *
+     * @param list<array{role?:string,content?:string,text?:string}> $history
+     */
+    public static function confirmsProposal(string $message, array $history): bool
+    {
+        $m = mb_strtolower(trim($message));
+        if ($m === '' || mb_strlen($m) > 80) return false;
+        if (preg_match('/\b(no|not|don\'t|dont|do not|wait|stop|cancel|never mind|hold off)\b/u', $m)) return false;
+        if (!preg_match('/^(yes|yeah|yep|yup|ok|okay|sure|please|please do|go ahead|do it|file it|proceed|confirm|confirmed|abeg|na so)\b/u', $m)) return false;
+        foreach (array_reverse($history) as $h) {
+            if (!is_array($h) || ($h['role'] ?? '') !== 'assistant') continue;
+            $last = mb_strtolower((string) ($h['content'] ?? $h['text'] ?? ''));
+            return str_contains($last, 'refund request') && str_contains($last, '?');
+        }
+        return false;
+    }
+
+    /** Sent back, as the platform and not the person, when a reply promised instead of acting. */
+    private const PROMISE_CHECK = 'PLATFORM CHECK, not the user: your reply said you would check or look into '
+        . 'something, but you called no tool, and this turn ends when you stop writing — the person would be left '
+        . 'waiting for a check that never happens. Call the tool now and answer from what it returns. If no tool '
+        . 'can answer it, say plainly what you could not check and the one thing you need from them. Do not write '
+        . '"hold on", "let me check" or "I will".';
+
+    /**
+     * Does this reply announce an action instead of taking it?
+     *
+     * "I will check your payments, please hold on" is the shape: a future-tense lookup, or
+     * a request to wait, with nothing behind it. A CONDITIONAL offer is not a promise —
+     * "send me the reference and I will check it" asks for the one thing the tools need —
+     * so a sentence that makes the action depend on the person is excluded, sentence by
+     * sentence, rather than the whole reply being judged by one clause.
+     */
+    public static function promisesInsteadOfActing(string $text): bool
+    {
+        if ($text === '') return false;
+        $wait   = '/\b(hold on|one moment|just a moment|a moment while|bear with me|please wait|give me a (moment|minute|second)|shortly|get back to you)\b/iu';
+        $future = '/\b(i will|i\'ll|i am going to|i\'m going to|let me|allow me to|i shall)\s+(now\s+|quickly\s+|just\s+|go\s+and\s+)?'
+                . '(check|look|review|verify|investigate|confirm|find|pull|see|dig|search|re-?check|examine|go through)\b/iu';
+        $ifYou  = '/\b(if|once|when|as soon as)\s+you\b|\b(send|share|tell)\s+me\b|\bgive\s+me\s+(the|your)\b/iu';
+        foreach (preg_split('/(?<=[.!?])\s+|\n+/u', $text) ?: [] as $sentence) {
+            if (preg_match($ifYou, $sentence)) continue;
+            if (preg_match($wait, $sentence) || preg_match($future, $sentence)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * What to plan from. "Hurry" and "when will you finish?" carry no problem of their own —
+     * the problem is in the turn before — so a follow-up with nothing to plan on is planned
+     * from the person's last two messages as well. A message that does carry a problem is
+     * planned on its own, so an old topic cannot hijack a new one.
+     */
+    public static function planningText(string $message, array $history, SupportContext $ctx): string
+    {
+        if (SupportPlan::canAct($message, $ctx)) return $message;
+        $mine = [];
+        foreach (array_reverse($history) as $h) {
+            if (!is_array($h) || ($h['role'] ?? '') === 'assistant') continue;
+            $t = trim((string) ($h['content'] ?? $h['text'] ?? ''));
+            if ($t !== '') $mine[] = $t;
+            if (count($mine) === 2) break;
+        }
+        return $mine === [] ? $message : trim(implode("\n", array_reverse($mine)) . "\n" . $message);
+    }
+
     public static function compact(mixed $v): string
     {
         $strip = static function ($x) use (&$strip) {
@@ -588,7 +687,7 @@ final class SupportAgentService implements SupportAnswerer
         // tools stay available for anything the rules did not foresee.
         $facts = [];
         if ($prefetch) {
-            foreach (SupportPlan::steps($message, $ctx, $only) as $step) {
+            foreach (SupportPlan::steps(self::planningText($message, $history, $ctx), $ctx, $only) as $step) {
                 $key = $step['tool'] . ':' . json_encode($step['args']);
                 if (isset($facts[$key])) continue;
                 $facts[$key] = $ctx->run($step['tool'], $step['args']);
@@ -614,11 +713,33 @@ final class SupportAgentService implements SupportAnswerer
         }
         $messages[] = ['role' => 'user', 'content' => AiGateway::fence(AiPrivacy::minimise($message)['text'])];
 
-        $reply = null;
-        for ($round = 1; $round <= self::MAX_ROUNDS; $round++) {
+        // ── A PROMISE IS NOT AN ANSWER ───────────────────────────────────────
+        //
+        // The loop used to end on the first reply that called no tool, whatever it said. A
+        // model that wrote "I will check your payments — please hold on" had therefore
+        // finished: the turn closed, nothing was checked, and the person was left watching a
+        // widget that had told them to wait for something that was never going to happen.
+        // Asked "hurry", it promised again; asked "you are not doing anything", it promised a
+        // third time and the conversation ended in a ticket. A harness must check the
+        // outcome rather than trust the model's own stop signal, so a reply that announces
+        // an action instead of taking it is sent back ONCE, told so, with the tools still
+        // offered. A second promise is discarded and the tools' own words stand in for it.
+        $reply  = null;
+        $nudged = false;
+        for ($round = 1; $round <= self::MAX_ROUNDS + 1; $round++) {
             $reply = $this->agentCall($messages, $tools, $cap);
             if ($reply === null) break;
-            if (!$reply->hasTools()) break;
+            if (!$reply->hasTools()) {
+                if (!$nudged && self::promisesInsteadOfActing(trim($reply->text))) {
+                    $nudged = true;
+                    error_log('[support] agent promised an action without taking it; sending it back');
+                    $messages[] = ['role' => 'assistant', 'content' => trim($reply->text)];
+                    $messages[] = ['role' => 'user', 'content' => self::PROMISE_CHECK];
+                    $reply = null;
+                    continue;
+                }
+                break;
+            }
 
             $messages[] = $reply->asMessage();
             foreach ($reply->toolCalls as $call) {
@@ -629,6 +750,10 @@ final class SupportAgentService implements SupportAnswerer
         }
 
         $text = $reply !== null ? trim($reply->text) : '';
+        if ($text !== '' && self::promisesInsteadOfActing($text)) {
+            error_log('[support] agent promised again after being told; discarding the promise');
+            $text = '';
+        }
 
         // ── the critic, as on the two-step road ──────────────────────────────
         // A reference or an amount the tools never returned was invented. One more turn,
@@ -803,6 +928,7 @@ final class SupportAgentService implements SupportAnswerer
         $say = [
             'fix_payment' => 'your payment with the gateway', 'lookup_reference' => 'your payment',
             'check_reference' => 'that reference', 'my_transactions' => 'your payments',
+            'find_payment' => 'payments under that address',
             'refund_status' => 'refunds', 'vote_proof' => 'the votes on the tally',
             'gateway_status' => 'the payment gateways', 'delivery_health' => 'vote delivery',
             'platform_health' => 'the platform', 'check_email_domain' => 'that email address',

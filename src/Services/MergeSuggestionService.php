@@ -87,7 +87,7 @@ final class MergeSuggestionService
      * buckets were passed over, so "no duplicates found" cannot quietly mean "gave
      * up on 400 names that all look the same".
      */
-    private const BUCKET_CAP = 400;
+    public const BUCKET_CAP = 400;
 
     /** Honorifics dropped before tokenising. */
     private const HONORIFICS = ['dr', 'prof', 'professor', 'chief', 'hon', 'honorable', 'honourable',
@@ -646,6 +646,43 @@ final class MergeSuggestionService
         ] + (isset($g['category']) ? ['category' => $g['category']] : []);
     }
 
+    // ── the same rule, for the edition-wide people count ─────────────────────
+    //
+    // `Admin\Services\NomineePeople` counts PEOPLE across a whole edition with the pair
+    // test this scan uses inside one category. It calls these rather than carrying a
+    // copy, because two matchers that "agree" are how the merge screen and the people
+    // count come to disagree about whether two entries are one person.
+
+    /** The blocking keys a name is bucketed under. A pair sharing none is never compared. */
+    public static function nameKeys(string $name): array
+    {
+        return self::blockKeys($name);
+    }
+
+    /** One pair's score, country corroboration applied: the number every group is built from. */
+    public static function pairScore(string $a, string $b, ?string $countryA = null, ?string $countryB = null): float
+    {
+        $score = self::nameScore($a, $b);
+        if ($score <= 0.0) return 0.0;
+        return self::applyCountry($score, (object) ['country_code' => $countryA], (object) ['country_code' => $countryB]);
+    }
+
+    /** The plain-English reason for one pair's score. */
+    public static function explain(float $score, bool $crossCountry = false): string
+    {
+        return self::describe($score, 2, $crossCountry);
+    }
+
+    /**
+     * The recommended survivor among members shaped as {@see hydrate()} builds them.
+     *
+     * @param list<array{id:int,votes:int,has_photo:bool,linked:bool,status:string}> $members
+     */
+    public static function survivor(array $members): int
+    {
+        return self::recommendSurvivor($members);
+    }
+
     // ── "not the same person", remembered ────────────────────────────────────
 
     /** The sorted pair key a dismissal is stored under. */
@@ -736,18 +773,31 @@ final class MergeSuggestionService
      */
     public static function findLiveMatch(int $categoryId, string $name): int
     {
+        return self::liveMatches($categoryId, $name)[0] ?? 0;
+    }
+
+    /**
+     * Every live nominee in the category with exactly this normalised name, oldest
+     * first. More than one means the category already holds two people of that name,
+     * and a caller attaching by name must not pick between them silently.
+     *
+     * @return list<int>
+     */
+    public static function liveMatches(int $categoryId, string $name): array
+    {
         $target = self::norm($name);
-        if ($target === '') return 0;
+        if ($target === '') return [];
+        $out = [];
         try {
             $q = DB::table('gates_nominees')
                 ->where('category_id', $categoryId)
                 ->whereIn('status', ['pending', 'approved', 'winner', 'runner_up']);
             MergeService::notMerged($q);
             foreach ($q->orderBy('id')->limit(self::SCAN_CAP)->get(['id', 'name']) as $row) {
-                if (self::norm((string) $row->name) === $target) return (int) $row->id;
+                if (self::norm((string) $row->name) === $target) $out[] = (int) $row->id;
             }
         } catch (\Throwable) {}
-        return 0;
+        return $out;
     }
 
     /**

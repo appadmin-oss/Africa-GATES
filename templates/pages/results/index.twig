@@ -18,16 +18,16 @@
 #}
 
 {% set colour_tier = '1' %}
-{% set app_bar = {variant: 'root', title: 'Results'|trans} %}
+{% set app_bar = {variant: 'root', title: 'Results'|trans, heading: false} %}
 {% set _v = view %}
 
-{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/results.css') }}">{% include 'partials/seo-head.twig' %}{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/results.css') }}">{% endblock %}
 
 {% block content %}
 <div class="rs">
   <div class="rs-top rs-top--index rs-top--root">
     <h1 class="rs-h1 rs-h1--index">{{ 'Where every award stands'|trans }}</h1>
-    <p class="rs-lede">{{ 'Counting, with the judges, or decided — and for every decided award, the full standing with community support and the judges’ marks shown separately.'|trans }}</p>
+    <p class="rs-lede">{{ 'Community support and the judges’ marks, shown separately.'|trans }}</p>
   </div>
 
   {% if delayed|length %}

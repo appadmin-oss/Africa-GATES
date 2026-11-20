@@ -44,10 +44,9 @@ class CspHostCoverageTest extends TestCase
      * imagination — these are the URLs a visitor's browser actually asked for.
      */
     private const REFUSED_IN_PRODUCTION = [
-        ['https://code.jquery.com/jquery-3.7.1.slim.min.js', 'script-src'],
-        ['https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', 'script-src'],
         ['https://challenges.cloudflare.com/turnstile/v0/api.js', 'script-src'],
-        ['https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', 'style-src-elem'],
+        // jQuery and Leaflet from this incident moved to RETIRED_SINCE on 5 Nov 2026:
+        // nothing loads either any more, and unpkg and code.jquery.com left the policy.
     ];
 
     /**
@@ -76,6 +75,10 @@ class CspHostCoverageTest extends TestCase
         ['https://unpkg.com/swiper@8/swiper-bundle.min.css', 'style-src-elem'],
         ['https://cdn.jsdelivr.net/npm/@splidejs/splide@4.1.4/dist/css/splide.min.css', 'style-src-elem'],
         ['https://cdn.plyr.io/3.7.8/plyr.css', 'style-src-elem'],
+        // From the ballot-page incident itself, retired 5 Nov 2026 with their hosts.
+        ['https://code.jquery.com/jquery-3.7.1.slim.min.js', 'script-src'],
+        ['https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', 'script-src'],
+        ['https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', 'style-src-elem'],
     ];
 
     /** Directive value as a list of sources, following CSP's fallback chain. */
@@ -129,8 +132,8 @@ class CspHostCoverageTest extends TestCase
         $back = [];
         foreach (self::RETIRED_SINCE as [$url, $directive]) {
             $host = (string) parse_url($url, PHP_URL_HOST);
-            // unpkg is still used by Leaflet, so a host-level check would false-positive.
-            // Compare the whole URL's presence in the templates instead.
+            // Compared by the whole URL's presence in the templates, so a host shared by a
+            // retired and a live resource cannot false-positive.
             if (in_array($host, $referenced, true) && $this->templatesMention($url)) {
                 $back[] = $url;
             }
@@ -398,10 +401,19 @@ class CspHostCoverageTest extends TestCase
         // cross-origin round trip for code that never ran. Asserted absent so it cannot
         // come back on the same "compatibility shim" reasoning.
         $this->assertArrayNotHasKey('code.jquery.com', $scripts);
-        $this->assertArrayHasKey('fonts.googleapis.com', $styles);
-        // Was ≥ 2 for each; today the only external stylesheet host is Google Fonts,
-        // loaded by layout/shell.twig, and no script host remains (see above).
-        $this->assertGreaterThanOrEqual(1, count($styles));
+        // Google Fonts was the last external stylesheet host and is gone too (5 Nov 2026:
+        // the easy-read face, the judges' console and the door are served from here).
+        $this->assertArrayNotHasKey('fonts.googleapis.com', $styles);
+        $this->assertSame([], $styles, 'a stylesheet is fetched from another origin again');
+
+        // So the templates no longer give this control anything real to find, and it plants
+        // its own: the scan must name both hosts, in both attribute orders, or every
+        // assertion above is a scan that matches nothing and passes for ever.
+        $planted = ['fixture.twig' => '<link href="https://fonts.example/a.css" rel="stylesheet">'
+                  . '<link rel="stylesheet" href="https://styles.example/b.css">'
+                  . '<script src="https://scripts.example/c.js"></script>'];
+        $this->assertSame(['fonts.example', 'styles.example'], array_keys($this->referencedHosts('style', $planted)));
+        $this->assertSame(['scripts.example'], array_keys($this->referencedHosts('script', $planted)));
     }
 
     public function test_a_host_not_in_the_allowlist_is_actually_refused(): void
@@ -419,7 +431,8 @@ class CspHostCoverageTest extends TestCase
      *
      * @return array<string,string> host => first file it was seen in
      */
-    private function referencedHosts(string $kind): array
+    /** @param array<string,string>|null $files injectable, so the scan can be shown to find a planted host */
+    private function referencedHosts(string $kind, ?array $files = null): array
     {
         $patterns = $kind === 'script'
             ? ['~<script\b[^>]*\bsrc\s*=\s*["\'](https://[^"\']+)~i']
@@ -427,7 +440,7 @@ class CspHostCoverageTest extends TestCase
                '~<link\b[^>]*\brel\s*=\s*["\']stylesheet["\'][^>]*\bhref\s*=\s*["\'](https://[^"\']+)~i'];
 
         $out = [];
-        foreach ($this->sourceFiles() as $rel => $raw) {
+        foreach ($files ?? $this->sourceFiles() as $rel => $raw) {
             foreach ($patterns as $re) {
                 if (!preg_match_all($re, $raw, $m)) continue;
                 foreach ($m[1] as $url) {

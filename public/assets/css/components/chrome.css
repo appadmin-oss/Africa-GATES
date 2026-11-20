@@ -90,8 +90,7 @@
    "GATES" is 11.5px, not the DC's 9.5: §6.2 puts nothing on the public site under
    11.5, the owner applied that ladder with no exception (GAPS Q4), and REFERENCE
    outranks a DC (§0). Its .26em tracking is the DC's. */
-.ag-logo,
-.ag-logo:hover{
+.ag-logo{
   display:flex; align-items:center; gap:10px;
   margin-inline-end:18px;
   color:var(--ag-ink); text-decoration:none;
@@ -131,8 +130,7 @@
   border:1px solid var(--ag-line); border-radius:var(--ag-r-pill);
   background:var(--ag-surface);
 }
-.ag-tools__b,
-.ag-tools__b:hover{
+.ag-tools__b{
   display:flex; align-items:center; justify-content:center; gap:6px;
   height:34px; padding:0;
   border:0; border-radius:var(--ag-r-pill);
@@ -146,16 +144,18 @@
 .ag-tools__lang{ padding:0 12px; font-weight:600; font-size:var(--ag-fs-13-5) }
 .ag-tools__div{ flex:none; width:1px; height:18px; background:var(--ag-line) }
 
-/* Signed in: the 40px ink avatar. Signed out: an OUTLINED ink pill — never green. */
-.ag-head__av,
-.ag-head__av:hover{
+/* Signed in: the 40px avatar, light (colour pass: no dark avatars). Signed out: an
+   OUTLINED ink pill — never green. */
+.ag-head__av{
   flex:none; display:flex; align-items:center; justify-content:center;
   width:40px; height:40px; border-radius:50%;
-  background:var(--ag-ink); color:var(--ag-ground);
+  background:var(--ag-tint); color:var(--ag-ink);
   font-weight:700; font-size:var(--ag-fs-13); text-decoration:none;
 }
-.ag-head__signin,
-.ag-head__signin:hover{
+/* The account's photo, when it has one, fills the same circle. */
+.ag-head__av, .ag-appbar__av{ overflow:hidden }
+.ag-head__av-img, .ag-appbar__av-img{ display:block; width:100%; height:100%; object-fit:cover }
+.ag-head__signin{
   flex:none; display:flex; align-items:center;
   height:40px; padding:0 18px;
   border:1px solid var(--ag-ink); border-radius:var(--ag-r-pill);
@@ -178,8 +178,7 @@
   max-width:1180px; margin:0 auto; padding:26px 40px 30px;
   display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:4px;
 }
-.ag-mega__item,
-.ag-mega__item:hover{
+.ag-mega__item{
   display:flex; align-items:flex-start; gap:14px;
   padding:12px; border-radius:var(--ag-r-14);
   color:var(--ag-ink); text-decoration:none;
@@ -221,8 +220,7 @@
   width:210px; padding:6px; border-radius:var(--ag-r-16);
   display:flex; flex-direction:column;
 }
-.ag-pop__lang,
-.ag-pop__lang:hover{
+.ag-pop__lang{
   display:flex; align-items:center; justify-content:space-between;
   height:40px; padding:0 12px; border-radius:var(--ag-r-10);
   background:transparent; color:var(--ag-ink);
@@ -286,8 +284,7 @@
 .ag-ss__body{ flex:1; min-height:0; overflow:auto; padding:8px 10px 12px }
 .ag-ss__grp{ display:flex; flex-direction:column; gap:2px; padding:6px 0 }
 .ag-ss__gh{ padding:6px 10px; font-size:var(--ag-fs-12-5); font-weight:700; color:var(--ag-soft) }
-.ag-ss__opt,
-.ag-ss__opt:hover{
+.ag-ss__opt{
   display:flex; align-items:center; gap:12px;
   padding:9px 10px; border-radius:var(--ag-r-12);
   color:var(--ag-ink); text-decoration:none;
@@ -302,12 +299,21 @@
 }
 .ag-ss__tile--people{ border-radius:50% }
 .ag-ss__tile--pages,
-.ag-ss__tile--more{ background:var(--ag-ink); color:var(--ag-surface) }
+.ag-ss__tile--more{ background:var(--ag-green-wash); color:var(--ag-green) }
 .ag-ss__txt{ flex:1; min-width:0; display:flex; flex-direction:column; gap:1px }
 .ag-ss__t{ font-weight:600; font-size:var(--ag-fs-14-5) }
 .ag-ss__m{ font-size:var(--ag-fs-12-5); color:var(--ag-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 .ag-ss__k{ flex:none; font-size:var(--ag-fs-12); color:var(--ag-soft) }
 .ag-ss__msg{ margin:0; padding:24px 10px; text-align:center; font-size:var(--ag-fs-14-5); color:var(--ag-ink-2) }
+/* "Showing results for …" above the results, and recent searches' Clear (search.js). */
+.ag-ss__msg--fix{ padding:8px 10px; text-align:start; font-size:var(--ag-fs-13-5) }
+.ag-ss__orig, .ag-ss__clear{
+  min-height:24px; padding:0; border:0; background:transparent; color:var(--ag-green);
+  font:inherit; font-weight:600; text-decoration:underline; cursor:pointer;
+}
+.ag-ss__recentbar{ margin:0; padding:4px 10px 0; text-align:end }
+.ag-ss__recentbar[hidden]{ display:none }
+.ag-ss__clear{ font-size:var(--ag-fs-12-5) }
 .ag-ss__keys{
   flex:none; display:flex; gap:16px;
   padding:10px 18px; border-top:1px solid var(--ag-line);
@@ -372,8 +378,7 @@
 .ag-appbar--root  .ag-appbar__row{ grid-template-columns:88px minmax(0, 1fr) 88px }
 .ag-appbar--child .ag-appbar__row{ grid-template-columns:44px minmax(0, 1fr) auto; height:56px }
 
-.ag-appbar__icon,
-.ag-appbar__icon:hover{
+.ag-appbar__icon{
   flex:none; width:44px; height:44px; padding:0;
   display:flex; align-items:center; justify-content:center;
   border:0; border-radius:50%;
@@ -403,7 +408,7 @@
 .ag-appbar__av{
   width:34px; height:34px; border-radius:50%;
   display:flex; align-items:center; justify-content:center;
-  background:var(--ag-ink); color:var(--ag-ground);
+  background:var(--ag-tint); color:var(--ag-ink);
   font-weight:700; font-size:var(--ag-fs-12);
 }
 
@@ -424,8 +429,7 @@
    the start rail, no large title (the page's <h1> is in the hero). The DC's 30px mark and
    15px "Africa"; its 9px "GATES" stays 11.5, as in the header above. */
 .ag-appbar--brand .ag-appbar__row{ grid-template-columns:minmax(0, 1fr) 88px; padding-inline-start:16px }
-.ag-appbar__logo,
-.ag-appbar__logo:hover{ margin-inline-end:0; gap:9px; min-height:44px }
+.ag-appbar__logo{ margin-inline-end:0; gap:9px; min-height:44px }
 .ag-appbar__logo .ag-logo__mark{ width:30px; height:30px }
 .ag-appbar__logo .ag-logo__africa{ font-size:var(--ag-fs-15) }
 
@@ -449,14 +453,12 @@
 }
 [dir="rtl"] .ag-langask__row{ padding:8px 14px 8px 8px }
 .ag-langask__q{ flex:1 1 160px; margin:0; font-size:var(--ag-fs-14-5); font-weight:600; line-height:1.4 }
-.ag-langask__yes,
-.ag-langask__yes:hover{
+.ag-langask__yes{
   display:inline-flex; align-items:center; height:44px; padding:0 18px;
-  border-radius:var(--ag-r-pill); background:var(--ag-ink); color:var(--ag-surface);
+  border-radius:var(--ag-r-pill); background:var(--ag-green); color:var(--ag-surface);
   font-size:var(--ag-fs-14-5); font-weight:700; text-decoration:none;
 }
-.ag-langask__no,
-.ag-langask__no:hover{
+.ag-langask__no{
   display:inline-flex; align-items:center; height:44px; padding:0 6px;
   color:var(--ag-ink); font-size:var(--ag-fs-14-5); font-weight:600;
   text-decoration:underline; text-underline-offset:3px;
@@ -473,8 +475,7 @@
   background:var(--ag-bar);
   border-top:1px solid var(--ag-line-2);
 }
-.ag-tabbar__t,
-.ag-tabbar__t:hover{
+.ag-tabbar__t{
   display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
   min-height:52px; padding:0;
   border:0; background:transparent; color:var(--ag-soft);
@@ -490,8 +491,7 @@
   display:flex; flex-direction:column; gap:18px;
   padding:6px 16px 16px;
 }
-.ag-qs__me,
-.ag-qs__me:hover{
+.ag-qs__me{
   display:flex; align-items:center; gap:14px;
   padding:14px; border-radius:var(--ag-r-18);
   background:var(--ag-surface); color:var(--ag-ink); text-decoration:none;
@@ -499,7 +499,7 @@
 .ag-qs__av{
   flex:none; width:44px; height:44px; border-radius:50%;
   display:flex; align-items:center; justify-content:center;
-  background:var(--ag-ink); color:var(--ag-ground);
+  background:var(--ag-tint); color:var(--ag-ink);
   font-weight:700; font-size:var(--ag-fs-15);
 }
 .ag-qs__who{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px }
@@ -521,7 +521,7 @@
 .ag-qs__done{
   height:52px; width:100%;
   border:0; border-radius:var(--ag-r-16);
-  background:var(--ag-ink); color:var(--ag-surface);
+  background:var(--ag-green); color:var(--ag-surface);
   font-weight:700; font-size:var(--ag-fs-15-5); cursor:pointer;
 }
 
@@ -534,6 +534,27 @@
 .ag-dr__h{ font-weight:700; font-size:var(--ag-fs-15) }
 .ag-dr__seg .ag-seg__opt{ height:44px }
 .ag-dr__size{ font-weight:700; line-height:1 }
+/* Appearance: a label above its control, and each option a swatch of the scheme it picks
+   over its word. The swatch is painted from the scheme's OWN values (`ag-pv-*`, scoped in
+   Accent::css()), so Dark shows dark on a light page and Light shows light on a dark one. */
+.ag-dr__sub{ margin-top:4px; font-size:var(--ag-fs-13-5); font-weight:600; color:var(--ag-soft) }
+.ag-dr__seg--scheme .ag-seg__opt{ height:auto; min-height:64px; padding:8px 2px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px }
+.ag-dr__scheme{ font-size:var(--ag-fs-13-5); font-weight:600 }
+.ag-dr__pv{
+  position:relative; display:block; width:28px; height:28px; border-radius:50%; overflow:hidden;
+  background:var(--ag-ground); box-shadow:inset 0 0 0 1px var(--ag-line-2);
+}
+/* The scheme's ink and its green, as two marks on its ground: what reading in it looks like. */
+.ag-dr__pv::before{ content:''; position:absolute; inset:8px 7px auto; height:3px; border-radius:2px; background:var(--ag-ink) }
+.ag-dr__pv::after{ content:''; position:absolute; inset:auto 9px 8px; height:5px; border-radius:3px; background:var(--ag-green) }
+.ag-dr__pv--split{ display:flex; background:none }
+.ag-dr__pv--split::before, .ag-dr__pv--split::after{ display:none }
+/* Device: each half is its own scheme, with its own ink mark. */
+.ag-dr__pv--split > span{ position:relative; flex:1; background:var(--ag-ground) }
+.ag-dr__pv--split > span::before{ content:''; position:absolute; top:12px; inset-inline:3px; height:3px; border-radius:2px; background:var(--ag-ink) }
+/* A swatch is a PICTURE of a scheme, so forced colours must not repaint it: left to the
+   system, Light and Sepia became empty circles in Windows High Contrast. */
+@media (forced-colors: active){ .ag-dr__pv, .ag-dr__pv *{ forced-color-adjust:none } .ag-dr__pv{ box-shadow:0 0 0 1px CanvasText } }
 .ag-dr__size--0{ font-size:var(--ag-fs-15) }
 .ag-dr__size--1{ font-size:var(--ag-fs-19) }
 .ag-dr__size--2{ font-size:var(--ag-fs-23) }
@@ -609,8 +630,27 @@
    values, and at 600px the signed-out bar measured 679px wide — the Sign in pill cut off
    by the shell. Below 720 the wordmark's words step aside (the mark and its accessible
    name stay) and the bar takes the phone gutter. A deviation, listed in PHASE-2.md. */
+/* The two plain links (Help, Advertise) beside the panels. Below 760px the bar has no room
+   for both, so Advertise steps out; the footer carries it on every page. */
+.ag-head__link{ text-decoration:none }
+@media (min-width:600px) and (max-width:759px){
+  .ag-head__link + .ag-head__link{ display:none }
+}
 @media (min-width:600px) and (max-width:719px){
   .ag-logo__word{ display:none }
-  .ag-logo, .ag-logo:hover{ margin-inline-end:8px }
+  .ag-logo{ margin-inline-end:8px }
   .ag-head__bar{ padding:0 16px }
+}
+
+/* Hover — a pointer only, so a tap on a phone does not leave the state stuck. Filled
+   green deepens; an outline gains a light tint; a card gains its edge and a lift. */
+@media (hover:hover){
+  .ag-head__top:hover{ background:var(--ag-ground) }
+  .ag-head__signin:hover{ background:var(--ag-tint); color:var(--ag-ink) }
+}
+
+/* Windows high contrast: a selected state drawn only as a fill, tint or shadow vanishes
+   under forced colours, so it is redrawn in the system's selection colours (components.css). */
+@media (forced-colors:active){
+  .ag-pop__lang[aria-checked="true"]{ forced-color-adjust:none; background:Highlight; color:HighlightText }
 }

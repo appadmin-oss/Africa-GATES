@@ -161,7 +161,7 @@
                     </table>
                   </td>
                   <td valign="middle" align="right">
-                    <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:11.5px; font-weight:700; letter-spacing:1.6px; color:{{ c.line }}; text-transform:uppercase;">Newsletter</p>
+                    <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:11.5px; font-weight:700; color:{{ c.line }};">Newsletter</p>
                   </td>
                 </tr>
               </table>
@@ -174,7 +174,7 @@
     <!-- HEADLINE -->
     <tr>
       <td class="agw-px" style="padding:36px 40px 0 40px;">
-        <p class="agw-muted" style="margin:0 0 10px 0; font-family:Helvetica, Arial, sans-serif; font-weight:700; font-size:11.5px; letter-spacing:1.2px; color:{{ c.soft }}; text-transform:uppercase;">{{ dateline }}</p>
+        <p class="agw-muted" style="margin:0 0 10px 0; font-family:Helvetica, Arial, sans-serif; font-weight:700; font-size:11.5px; color:{{ c.soft }};">{{ dateline }}</p>
         <h1 class="agw-headline agw-text" style="margin:0; font-family:Helvetica, Arial, sans-serif; font-weight:700; font-size:28px; line-height:34px; color:{{ c.ink }}; letter-spacing:-0.3px;">{{ headline }}</h1>
         {% if greeting %}
           <p class="agw-body-t" style="margin:12px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:16px; line-height:25px; color:{{ c['ink-2'] }};">{{ greeting }}</p>
@@ -186,13 +186,13 @@
       <!-- SECTION -->
       <tr>
         <td class="agw-px" style="padding:30px 40px 0 40px;">
-          <p style="margin:0 0 4px 0; font-family:Helvetica, Arial, sans-serif; font-weight:700; font-size:11.5px; letter-spacing:1.2px; color:{{ c.green }}; text-transform:uppercase;">{{ s.title }}</p>
+          <p style="margin:0 0 4px 0; font-family:Helvetica, Arial, sans-serif; font-weight:700; font-size:11.5px; color:{{ c.green }};">{{ s.title }}</p>
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
             {% for it in s.items %}
               <tr>
                 <td class="agw-rule" style="padding:14px 0; border-bottom:1px solid {{ c.line }};">
                   <p class="agw-text" style="margin:0 0 3px 0; font-family:Helvetica, Arial, sans-serif; font-size:16px; line-height:22px; font-weight:700; color:{{ c.ink }};">
-                    {{ it.title }}{% if it.new %}&nbsp;&nbsp;<span style="font-size:11.5px; letter-spacing:1px; font-weight:700; color:{{ c.green }}; text-transform:uppercase;">New</span>{% endif %}
+                    {{ it.title }}{% if it.new %}&nbsp;&nbsp;<span style="font-size:11.5px; font-weight:700; color:{{ c.green }};">New</span>{% endif %}
                   </p>
                   <p class="agw-body-t" style="margin:0 0 6px 0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:21px; color:{{ c['ink-2'] }};">{{ it.line }}</p>
                   <a href="{{ it.href }}" target="_blank" style="font-family:Helvetica, Arial, sans-serif; font-size:13px; font-weight:700; color:{{ c.green }}; text-decoration:none;">{{ it.cta }} &nbsp;&rarr;</a>
@@ -233,7 +233,7 @@
         <p style="margin:0 0 14px 0; font-family:Helvetica, Arial, sans-serif; font-size:12px; line-height:18px; color:{{ c.soft }};">
           {% if since %}You are receiving this because you confirmed a subscription on {{ since }}.{% else %}You are receiving this because you subscribed to the Africa GATES newsletter.{% endif %}
         </p>
-        <p style="margin:0 0 6px 0; font-family:Helvetica, Arial, sans-serif; font-size:11.5px; letter-spacing:1.2px; color:{{ c.green }}; font-weight:700; text-transform:uppercase;">Africa G.A.T.E.S.</p>
+        <p style="margin:0 0 6px 0; font-family:Helvetica, Arial, sans-serif; font-size:11.5px; color:{{ c.green }}; font-weight:700;">Africa G.A.T.E.S.</p>
         <p style="margin:0 0 14px 0; font-family:Helvetica, Arial, sans-serif; font-size:11.5px; color:{{ c.soft }};">
           {{ postal_address }}
         </p>

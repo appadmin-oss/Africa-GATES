@@ -25,7 +25,22 @@ final class ConsoleSurface
         'templates/admin/layout.twig',
         'templates/admin/dashboard.twig',
         'templates/admin/alerts.twig',
+        'templates/admin/contacts.twig',
+        'templates/admin/assistant.twig',
+        'templates/admin/partials/assistant-composer.twig',
         'templates/admin/partials/nav-icons.twig',
+        'templates/admin/nominations/queue.twig',
+        'templates/admin/nominations/_queue_peek.twig',
+        'templates/admin/nominations/_queue_filter.twig',
+        // The v7 shell and the volunteer workspace (consoles v7 handoff; review slices K4, V1).
+        'templates/shell/layout.twig',
+        'templates/shell/sections.twig',
+        'templates/volunteer/page.twig',
+        'templates/volunteer/apply.twig',
+        'templates/volunteer/academy.twig',
+        // The event lead console (a member area since 29 Oct 2026) and the staff Requests page.
+        'templates/lead/page.twig',
+        'templates/admin/requests.twig',
     ];
 
     /** @return array<string,string> rel => absolute */

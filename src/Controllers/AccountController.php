@@ -104,12 +104,17 @@ class AccountController
         return $raw;
     }
 
-    /** Consume the stored post-login destination, defaulting to the dashboard. */
-    private function nextTarget(): string
+    /**
+     * Consume the stored post-login destination. With none, the sign-in lands where this
+     * account last worked (Account\Roles::landing) — never on a page asking which role; and a
+     * destination inside a console the account holds opens that console on the way.
+     */
+    private function nextTarget(bool $open = true): string
     {
         $t = $this->safeNext($_SESSION['login_next'] ?? null);
         unset($_SESSION['login_next']);
-        return $t ?? '/account';
+        $u = $open ? $this->accounts->current() : null;
+        return $u ? \AfricaGates\Services\Account\Roles::landing($u, $t) : ($t ?? '/account');
     }
 
     /**
@@ -117,23 +122,34 @@ class AccountController
      * the member what they can actually do (vote, nominate, community, points)
      * instead of leaving them at a dead end. Best-effort, never blocks login.
      */
+    /**
+     * How an email greets somebody: their first name, a title not mistaken for one
+     * (DoorWelcome::firstName — "Chief Bola Ige" is Bola, not Chief), or "there".
+     */
+    private static function firstName(string $name): string
+    {
+        $f = \AfricaGates\Services\DoorWelcome::firstName($name);
+        return $f !== '' ? $f : 'there';
+    }
+
     private function sendWelcome(Request $req, object $user): void
     {
         if (!$this->otp) return;
         $base = \AfricaGates\Support\SiteUrl::base($req);
-        $esc  = static fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
-        $btn  = static fn(string $href, string $label) => '<a href="' . $href . '" style="display:inline-block;background:#237b22;color:#fff;text-decoration:none;font-weight:600;padding:10px 18px;border-radius:999px;margin:0 6px 8px 0">' . $label . '</a>';
-        $html = '<p>Hi ' . $esc($user->name) . ',</p>'
-            . '<p>Your Africa GATES account is verified — welcome. Here&rsquo;s what your membership unlocks right now:</p>'
-            . '<ul style="margin:0 0 14px;padding-left:18px;line-height:1.8;color:#10292c;font-size:14px">'
-            . '<li><strong>Vote</strong> for the nominees shaping African culture — one verified vote per category.</li>'
-            . '<li><strong>Nominate</strong> someone extraordinary, and share a link so others can second them.</li>'
-            . '<li><strong>Earn voting points</strong> from shop purchases, tickets and donations, then redeem them at the ballot.</li>'
-            . '<li><strong>Join the community</strong> — threads, polls and the people behind the platform.</li>'
-            . '</ul>'
-            . '<p>' . $btn($esc($base . '/vote'), 'Explore the ballot →') . $btn($esc($base . '/nominate'), 'Nominate someone') . $btn($esc($base . '/community'), 'Join the community') . '</p>'
-            . '<p style="color:#6b7674;font-size:13px">Your dashboard at <a href="' . $esc($base . '/account') . '" style="color:#237b22;font-weight:600">' . $esc($base ?: '') . '/account</a> tracks your votes, nominations, points and share links.</p>';
-        try { $this->otp->sendBranded((string) $user->email, 'Welcome to Africa GATES — your account is live', $html, strip_tags($html), 'Membership'); } catch (\Throwable) {}
+        // What the account offers is stated by the rules that run (handoff email "Welcome",
+        // corrected to the live site): one free vote per category where the edition has
+        // free voting at all, and the contribution price where it does not.
+        $free = !\AfricaGates\Services\PaidVoteService::freeVotingDisabled();
+        $price = \AfricaGates\Services\PaidVoteService::enabled() ? \AfricaGates\Services\PaidVoteService::pricePerVote() : 0;
+        try {
+            \AfricaGates\Services\Mail\Emails::send($this->otp, (string) $user->email, 'welcome', [
+                'first_name'  => self::firstName((string) $user->name),
+                'account_url' => $base . '/account',
+                'free_voting' => $free,
+                'vote_price'  => $price > 0 ? '₦' . number_format($price) : '',
+                'site_url'    => $base,
+            ]);
+        } catch (\Throwable) {}
     }
 
     // ── Register ────────────────────────────────────────────────────────────
@@ -217,10 +233,18 @@ class AccountController
      * names the winner and the award and says nothing in their voice. With nothing decided
      * there is no panel at all — an empty dark half is not a design, it is a gap.
      */
-    private function art(): ?array
+    /**
+     * The desktop art panel's slides: the four newest DECIDED awards (SignIn.dc.html's
+     * "rotating voices", owner's handoff 13 Oct 2026). Real people and real results only —
+     * nobody here has given us words to put in their mouth, so a slide names the winner
+     * and the award and quotes no one. An empty list draws no panel.
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function art(): array
     {
-        try { $d = \AfricaGates\Services\HomeFront::decided(); } catch (\Throwable) { return null; }
-        return $d[0] ?? null;
+        try { $d = \AfricaGates\Services\HomeFront::decided(); } catch (\Throwable) { return []; }
+        return array_slice(array_values($d), 0, 4);
     }
 
     public function registerSubmit(Request $req, Response $res): Response
@@ -341,6 +365,7 @@ class AccountController
         ]);
         if ($user) {
             $this->accounts->startSession($user, $this->ip($req));
+            \AfricaGates\Services\Account\Roles::proved($byPhone ? 'phone' : 'email');
             if ($byPhone) {
                 $sent = $this->sendVerification($req, (int) $user->id, $email, (string) $user->name);
                 $_SESSION['flash_notice'] = $sent
@@ -415,7 +440,7 @@ class AccountController
         $user = $r['user'];
         if (!$user) {
             return $this->backToOrgForm($res, $b,
-                'The account was created but could not be signed in. Try signing in at /org/login.');
+                'The account was created but could not be signed in. Try signing in at /account/login.');
         }
         (new \AfricaGates\Services\OrgAuth($this->rateLimit))->signIn($user);
 
@@ -436,6 +461,7 @@ class AccountController
             $user = $this->accounts->verifyEmailToken($token);
             if ($user) {
                 $this->accounts->startSession($user, $this->ip($req));
+                \AfricaGates\Services\Account\Roles::proved('email');
                 $_SESSION['flash_ok'] = 'Your email is verified — welcome to Africa GATES.';
                 \AfricaGates\Services\WebhookService::dispatch('member.verified', [
                     'member_id'  => (int) $user->id,
@@ -519,16 +545,14 @@ class AccountController
         if ($raw === null) return false;
         $base = \AfricaGates\Support\SiteUrl::base($req);
         $link = $base . '/account/verify?token=' . urlencode($raw);
-        $nm   = htmlspecialchars($name !== '' ? $name : 'there', ENT_QUOTES, 'UTF-8');
-        $html = "<p>Hello <strong>{$nm}</strong>,</p>"
-            . "<p>Welcome to Africa GATES. Confirm your email to activate your account — this link expires in 24 hours.</p>"
-            . "<p style=\"text-align:center;margin:26px 0\"><a href=\"{$link}\" style=\"display:inline-block;padding:13px 30px;background:#10292C;color:#fff;border-radius:999px;font-weight:700;text-decoration:none\">Verify my email &rarr;</a></p>"
-            . "<p style=\"font-size:13px;color:#92a6a7;word-break:break-all\">If the button doesn't work, paste this into your browser:<br>{$link}</p>"
-            . "<p style=\"font-size:13px;color:#92a6a7\">Didn't create an account? Ignore this email.</p>";
         try {
-            $r = $this->otp->sendBranded($email, 'Confirm your Africa GATES email', $html,
-                "Confirm your email to activate your Africa GATES account:\n{$link}\n\nThis link expires in 24 hours.",
-                'Accounts', $base . '/assets/img/illustrations/illo-envelope.jpg');
+            $r = \AfricaGates\Services\Mail\Emails::send($this->otp, $email, 'confirm', [
+                'first_name'  => $name !== '' ? self::firstName($name) : 'there',
+                'email'       => $email,
+                'confirm_url' => $link,
+                'hours'       => UserAccountService::VERIFY_TTL_HOURS,
+                'site_url'    => $base,
+            ]);
             return (bool) ($r['success'] ?? false);
         } catch (\Throwable $e) {
             return false;
@@ -596,16 +620,14 @@ class AccountController
             if ($raw !== null) {
                 $base = \AfricaGates\Support\SiteUrl::base($req);
                 $link = $base . '/account/reset?token=' . urlencode($raw);
-                $nm   = htmlspecialchars((string) $user->name, ENT_QUOTES, 'UTF-8');
-                $html = "<p>Hello <strong>{$nm}</strong>,</p>"
-                    . "<p>Use the button below to set a new Africa GATES password. The link works once and expires in an hour.</p>"
-                    . "<p style=\"text-align:center;margin:26px 0\"><a href=\"{$link}\" style=\"display:inline-block;padding:13px 30px;background:#10292C;color:#fff;border-radius:999px;font-weight:700;text-decoration:none\">Set a new password &rarr;</a></p>"
-                    . "<p style=\"font-size:13px;color:#92a6a7;word-break:break-all\">If the button doesn\u{2019}t work, paste this into your browser:<br>{$link}</p>"
-                    . "<p style=\"font-size:13px;color:#92a6a7\">Didn\u{2019}t ask for this? Ignore this email — your password has not changed.</p>";
+                $mins = UserAccountService::RESET_TTL_MINUTES;
                 try {
-                    $this->otp->sendBranded($user->email, 'Set a new Africa GATES password', $html,
-                        "Set a new password:\n{$link}\n\nValid once, for one hour. Didn\u{2019}t ask for this? Ignore this email.",
-                        'Accounts');
+                    \AfricaGates\Services\Mail\Emails::send($this->otp, (string) $user->email, 'reset', [
+                        'reset_url' => $link,
+                        // Said the way a person says it, from the constant that expires it.
+                        'ttl'       => $mins % 60 === 0 ? ($mins === 60 ? 'an hour' : intdiv($mins, 60) . ' hours') : $mins . ' minutes',
+                        'site_url'  => $base,
+                    ]);
                 } catch (\Throwable) {
                     // Deliberately swallowed: a mailer failure must not be reportable as a
                     // different outcome from "no such account", or the difference IS the
@@ -685,6 +707,7 @@ class AccountController
         // Signed in straight away. Making somebody who has just proved they own the inbox
         // AND chosen a password type it again is a step that protects nothing.
         $this->accounts->startSession($user, $this->ip($req));
+        \AfricaGates\Services\Account\Roles::proved('email');
         $_SESSION['flash_ok'] = 'Your password is set. You are signed in.';
         return $res->withHeader('Location', $this->nextTarget())->withStatus(302);
     }
@@ -837,17 +860,26 @@ class AccountController
         if (!$this->accounts->isVerified($user)) $this->accounts->markVerified((int) $user->id);
 
         $this->accounts->startSession($user, $ip);
+        \AfricaGates\Services\Account\Roles::proved('passkey');
         return $this->json($res, ['ok' => true, 'next' => $this->nextTarget()]);
     }
 
     // ── Login (password) ────────────────────────────────────────────────────
     public function loginForm(Request $req, Response $res): Response
     {
-        if (!empty($_SESSION['user_id'])) return $res->withHeader('Location', $this->nextTarget())->withStatus(302);
+        // Already signed in: go where asked, but a GET never opens a console — that is the
+        // account menu's POST (/account/switch), or the console's own "Continue as" button.
+        if (!empty($_SESSION['user_id'])) {
+            // An old console, panel or organisation sign-in link forwards here with `next`; the
+            // page they were going to is where they go, and its own gate opens the role.
+            $asked = $this->safeNext($req->getQueryParams()['next'] ?? null);
+            return $res->withHeader('Location', $asked ?? $this->nextTarget(false))->withStatus(302);
+        }
         // Remember where the visitor was headed (e.g. a gate redirected them here)
         // so every sign-in path — password, code, or email verify — can return them.
         $next = $this->safeNext($req->getQueryParams()['next'] ?? null);
-        if ($next !== null) $_SESSION['login_next'] = $next;
+        // Not on a prefetch: hovering another sign-in link must not change where this one returns.
+        if ($next !== null && !\AfricaGates\Support\Speculative::is($req)) $_SESSION['login_next'] = $next;
         $q = $req->getQueryParams();
         $channels = $this->phoneChannels();
         $phoneOk  = $channels['sms'] || $channels['whatsapp'];
@@ -965,6 +997,7 @@ class AccountController
             return $res->withHeader('Location', '/account/verify')->withStatus(302);
         }
         $this->accounts->startSession($user, $ip);
+        \AfricaGates\Services\Account\Roles::proved('password');
         return $res->withHeader('Location', $this->nextTarget())->withStatus(302);
     }
 
@@ -1145,12 +1178,13 @@ class AccountController
         $sendFailed = false;
         if ($channel === 'email') {
             if ($this->otp) {
-                $nm = htmlspecialchars($user ? (string) $user->name : 'there', ENT_QUOTES, 'UTF-8');
-                $html = "<p>Hello <strong>{$nm}</strong>,</p><p>Your Africa GATES code is below — it expires in {$ttl} minutes.</p>"
-                    . "<div style=\"font:700 34px/1 'JetBrains Mono',monospace;letter-spacing:.3em;color:#10292C;margin:18px 0\">{$code}</div>"
-                    . "<p style=\"font-size:13px;color:#92a6a7\">Didn't request this? Ignore this email.</p>";
                 try {
-                    $r = $this->otp->sendBranded($value, 'Your Africa GATES sign-in code', $html, "Your sign-in code is {$code} (valid {$ttl} minutes).", 'Accounts');
+                    $r = \AfricaGates\Services\Mail\Emails::send($this->otp, $value, 'otp', [
+                        'code'        => $code,
+                        'minutes'     => $ttl,
+                        'valid_until' => \AfricaGates\Support\DisplayTime::showZoned(Carbon::now()->addMinutes($ttl), 'H:i'),
+                        'site_url'    => \AfricaGates\Support\SiteUrl::base($req),
+                    ]);
                     $sendFailed = !($r['success'] ?? false);
                 } catch (\Throwable) { $sendFailed = true; }
             } else {
@@ -1279,6 +1313,12 @@ class AccountController
         }
         unset($_SESSION['user_login_email'], $_SESSION['user_login_phone'], $_SESSION['user_login_via'], $_SESSION['user_login_country']);
         $this->accounts->startSession($user, $this->ip($req));
+        // How it was proved decides which consoles open without asking again (Account\Roles).
+        \AfricaGates\Services\Account\Roles::proved($via === 'phone' ? 'phone' : 'email');
+        // A code proves the inbox or the phone and nothing more, so an automatic withdrawal
+        // to an account this member has never been paid at waits for a person after one
+        // (WalletRisk::takeover()).
+        \AfricaGates\Services\UserAccountService::markCodeSignIn((int) $user->id);
         return $res->withHeader('Location', $this->nextTarget())->withStatus(302);
     }
 
@@ -1302,8 +1342,12 @@ class AccountController
 
         \AfricaGates\Services\ReferralService::codeFor($id);
 
-        // Back to the dashboard, anchored on the panel, so the answer is on screen rather
-        // than at the top of a long page.
+        // Back where it was asked from when that is an event page (its "Get my link"), else
+        // the dashboard, anchored on the panel. Only an /events/ path: never an open redirect.
+        $next = (string) (((array) $req->getParsedBody())['next'] ?? '');
+        if (preg_match('~^/events/[A-Za-z0-9_-]+$~', $next)) {
+            return $res->withHeader('Location', $next . '#h-earn')->withStatus(303);
+        }
         return $res->withHeader('Location', '/account?tab=referral#me-referral')->withStatus(303);
     }
 
@@ -1328,17 +1372,11 @@ class AccountController
             return $res->withHeader('Location', '/account/login')->withStatus(302);
         }
 
-        $b = (array) $req->getParsedBody();
-        $r = \AfricaGates\Services\ReferralPayout::request(
-            $id,
-            (string) ($b['bank'] ?? ''),
-            (string) ($b['account_name'] ?? ''),
-            (string) ($b['account_number'] ?? '')
-        );
-
-        $_SESSION[$r['ok'] ? 'flash' : 'flash_error'] = $r['message'];
-
-        return $res->withHeader('Location', '/account?tab=referral#me-referral')->withStatus(303);
+        // Retired: a referral withdrawal goes through the wallet (MemberWallet::withdraw), which
+        // records the bank change, tells the member, keeps the bank code and runs the checks.
+        // This posted straight to ReferralPayout::request() and did none of that. A page still
+        // holding the old form is sent to the wallet, never to an unchecked request.
+        return $res->withHeader('Location', '/account/wallet/withdraw?pocket=ref')->withStatus(303);
     }
 
     /**
@@ -1389,6 +1427,10 @@ class AccountController
         $bal = PointsService::balance((int) $user->id);
         $alerts = (new \AfricaGates\Services\AlertService())->forMember((int) $user->id, (string) $user->email);
 
+        // The community-return tab became a pocket of the Wallet; its address still lands.
+        if (($req->getQueryParams()['tab'] ?? '') === 'return') {
+            return $res->withHeader('Location', '/account/wallet')->withStatus(301);
+        }
         $tab = \AfricaGates\Services\AccountRail::valid((string) ($req->getQueryParams()['tab'] ?? 'overview'));
 
         return $this->view->render($res, 'pages/account/dashboard.twig', $this->railFor($user, $tab) + [
@@ -1397,10 +1439,18 @@ class AccountController
             'user'           => array_diff_key((array) $user, ['password_hash' => 1, 'last_login_ip' => 1]),
             'interests'      => \AfricaGates\Services\MemberInterests::of((int) $user->id),
             'interest_options' => \AfricaGates\Services\MemberInterests::options(),
+            // Events this member leads (a member role since 29 Oct 2026): the way into /lead.
+            // The profile and the roles this account holds, for the Profile tab and the overview
+            // card (owner, 30 Oct 2026: "people need to be able to set up their profile").
+            'profile_done'   => \AfricaGates\Services\MemberActivityService::completeness($user),
+            'my_roles'       => $this->roles($user),
+            'events_led'     => \AfricaGates\Services\EventPlan\Plan::ready() ? count(\AfricaGates\Services\EventPlan\Plan::leadEvents((int) $user->id)) : 0,
             'unread'         => count(array_filter($alerts, static fn ($x) => $x['unread'])),
             'points'         => $bal,
             'points_enabled' => PointsService::enabled(),
             'redeemable'     => PointsService::votesForPoints($bal),
+            // The overview's balance card is the wallet's headline, from the same reader.
+            'wallet'         => $tab === 'overview' ? \AfricaGates\Services\MemberWallet::summary((int) $user->id) : null,
             // Has this member ever done ANYTHING? It decides between the sections and a
             // first-run list of next steps — six empty panels is the worst possible welcome.
             'is_new'         => $ledger === [] && $orders === [] && $tickets === []
@@ -1427,9 +1477,12 @@ class AccountController
             'payout_open'    => \AfricaGates\Services\ReferralPayout::openFor((int) $user->id),
             'payout_can'     => $pa['ok'],
             'payout_amount'  => $pa['amount'],
+            'payout_fee'     => (int) ($pa['fee'] ?? 0),
             'payout_why'     => $pa['reason'],
             'payout_history' => \AfricaGates\Services\ReferralPayout::historyFor((int) $user->id, 8),
             'payout_bank'    => \AfricaGates\Services\ReferralPayout::bankFor((int) $user->id),
+            // ── THE COMMUNITY RETURN (a nominee's wallet) ──
+            // Read only on its own tab: it walks every claimed page's ledger and checks.
             // A stand vendor's stall, where a trader already looks (VendorAccount). Null for
             // everybody else, and the section is not drawn.
             'vendor'         => \AfricaGates\Services\VendorAccount::panel($user),
@@ -1439,6 +1492,9 @@ class AccountController
             'passkeys'       => \AfricaGates\Services\Passkeys::listFor((int) $user->id),
             'verify_ttl_hours' => UserAccountService::VERIFY_TTL_HOURS,
             'name_pattern'   => UserAccountService::NAME_PATTERN,
+            // The overview's invitation to advertise: only while the free trial is unused.
+            'ad_trial'       => $tab === 'overview' && !\AfricaGates\Services\Ads\AdCampaigns::trialUsed((int) $user->id)
+                ? ['views' => \AfricaGates\Services\Ads\AdRules::TRIAL_VIEWS, 'days' => \AfricaGates\Services\Ads\AdRules::TRIAL_DAYS] : null,
             // Whether a password is set, never the hash: the form asks for the current one
             // only when there is one to ask for.
             'has_password'   => !empty($user->password_hash),
@@ -1484,6 +1540,35 @@ class AccountController
      *
      * @return array<string,mixed>
      */
+    /**
+     * The roles this account holds or can ask for, each with where it stands and where it opens:
+     * nominee (NomineeDetails), volunteer (Volunteers), event lead (EventPlan\Plan).
+     *
+     * @return list<array{key:string,label:string,state:string,tone:string,href:string,cta:string}>
+     */
+    private function roles(object $user): array
+    {
+        $out = [];
+        foreach (\AfricaGates\Services\NomineeDetails::forUser((int) $user->id) as $d) {
+            $left = count(array_filter(\AfricaGates\Services\NomineeDetails::checklist($d), static fn ($v) => !$v));
+            $out[] = ['key' => 'nominee', 'd' => 'M6 4h12v4a6 6 0 0 1-12 0zM9 20h6M12 14v6M6 6H3v1a4 4 0 0 0 4 4M18 6h3v1a4 4 0 0 1-4 4', 'icon' => 'gold',
+                      'pct' => (int) round(100 * (count(\AfricaGates\Services\NomineeDetails::STEPS) - $left) / count(\AfricaGates\Services\NomineeDetails::STEPS)),
+                      'label' => 'Nominee' . ($d->category ? ': ' . $d->category : ''), 'state' => $left ? $left . ' ' . ($left === 1 ? 'step' : 'steps') . ' to finish' : 'Profile complete',
+                      'tone' => $left ? 'warn' : 'ok', 'href' => \AfricaGates\Services\NomineeDetails::href($d), 'cta' => $left ? 'Finish' : 'Review'];
+        }
+        $v = \AfricaGates\Services\Volunteer\Volunteers::of((int) $user->id);
+        $vs = $v ? (string) $v->status : '';
+        $vol = match (true) {
+            in_array($vs, ['active', 'paused'], true) => ['key' => 'volunteer', 'label' => 'Volunteer', 'state' => $vs === 'paused' ? 'On a break' : 'Active', 'tone' => 'ok', 'href' => '/volunteer', 'cta' => 'Open'],
+            $vs === 'applicant' => ['key' => 'volunteer', 'label' => 'Volunteer', 'state' => 'Application being checked', 'tone' => 'info', 'href' => '/volunteer', 'cta' => 'See it'],
+            default => ['key' => 'volunteer', 'label' => 'Volunteer', 'state' => 'Help on award nights and bring people to vote', 'tone' => 'mute', 'href' => '/volunteer/apply', 'cta' => 'Apply'],
+        };
+        $out[] = $vol + ['d' => 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8', 'icon' => 'green'];
+        $led = \AfricaGates\Services\EventPlan\Plan::ready() ? count(\AfricaGates\Services\EventPlan\Plan::leadEvents((int) $user->id)) : 0;
+        if ($led) $out[] = ['key' => 'lead', 'd' => 'M4 7h16v4a2 2 0 0 0 0 4v4H4v-4a2 2 0 0 0 0-4z', 'icon' => 'info', 'label' => 'Event lead', 'state' => $led . ' ' . ($led === 1 ? 'event' : 'events'), 'tone' => 'ok', 'href' => '/lead', 'cta' => 'Open'];
+        return $out;
+    }
+
     private function railFor(object $user, string $tab): array
     {
         $r = \AfricaGates\Services\AccountRail::countsFor($user, $this->community);
@@ -1556,6 +1641,57 @@ class AccountController
         ]);
     }
 
+    /**
+     * GET /account/supporting — "My support" (SupporterRecord): everybody this member has
+     * backed, edition by edition, how each turned out, the "I backed" card for each, the
+     * badges it earned, and a certificate where an edition earned one.
+     */
+    public function supporting(Request $req, Response $res): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        $rec = \AfricaGates\Services\SupporterRecord::forMember((int) $user->id, (string) $user->email);
+
+        return $this->view->render($res, 'pages/account/supporting.twig', $this->railFor($user, 'supporting') + [
+            'page_title' => 'My support — Africa GATES', 'gates_page' => 'account', 'record' => $rec,
+        ]);
+    }
+
+    /**
+     * GET /account/supporting/certificate/{cycle} — the member's certificate of community
+     * recognition for one edition, to print. Only where the edition earned one; anything else
+     * goes back to the record rather than printing a certificate for nothing.
+     */
+    public function certificate(Request $req, Response $res, array $args): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        $c = \AfricaGates\Services\SupporterRecord::certificateFor((int) $user->id, (int) ($args['cycle'] ?? 0));
+        if ($c === null) return $res->withHeader('Location', '/account/supporting')->withStatus(302);
+        $check = \AfricaGates\Support\SiteUrl::base($req) . '/certificates/' . $c['code'];
+
+        return $this->view->render($res, 'pages/account/certificate.twig', [
+            'page_title' => 'Certificate of community recognition — Africa GATES', 'c' => $c,
+            'check' => $check, 'qr' => \AfricaGates\Support\Qr::svgBytes($check, 4),
+        ])->withHeader('X-Robots-Tag', 'noindex');
+    }
+
+    /**
+     * GET /certificates/{code} — anybody checking a certificate: genuine, and what it says, or
+     * not one we issued. The code is a signature over the member and the edition, so it cannot
+     * be guessed; and the answer is worked out again now, so a certificate whose edition was
+     * withdrawn (or whose holder closed their account) stops checking out.
+     */
+    public function certificateCheck(Request $req, Response $res, array $args): Response
+    {
+        $ids = \AfricaGates\Services\SupporterRecord::verify((string) ($args['code'] ?? ''));
+        $c = $ids ? \AfricaGates\Services\SupporterRecord::certificateFor($ids[0], $ids[1]) : null;
+
+        return $this->view->render($res->withStatus($c ? 200 : 404), 'pages/certificate-check.twig', [
+            'page_title' => 'Check a certificate — Africa GATES', 'c' => $c,
+        ]);
+    }
+
     /** POST /account/notifications/read — everything up to now, read. A form, no script. */
     public function notificationsRead(Request $req, Response $res): Response
     {
@@ -1570,9 +1706,12 @@ class AccountController
     {
         $user = $this->accounts->current();
         if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        // A volunteer's verified hours land here even if they never opened the workspace since.
+        try { if ($vol = \AfricaGates\Services\Volunteer\Volunteers::of((int) $user->id)) \AfricaGates\Services\Volunteer\Rewards::sync($vol); } catch (\Throwable) {}
         $bal = PointsService::balance((int) $user->id);
 
-        return $this->view->render($res, 'pages/account/points.twig', $this->railFor($user, 'points') + [
+        return $this->view->render($res, 'pages/account/points.twig', $this->railFor($user, 'wallet') + [
+            'app_bar' => ['variant' => 'child', 'title' => 'Voting points', 'back' => '/account/wallet', 'share' => false],
             'page_title' => 'Points — Africa GATES', 'gates_page' => 'account',
             'points'          => $bal,
             'points_enabled'  => PointsService::enabled(),
@@ -1580,6 +1719,398 @@ class AccountController
             'redeemable'      => PointsService::votesForPoints($bal),
             'ledger'          => PointsService::ledger((int) $user->id, 200),
         ]);
+    }
+
+    // ══ THE WALLET — one balance across every pocket, OPay's shape ════════════════
+
+    /**
+     * GET /account/wallet — the balance, the pockets behind it, and every movement.
+     *
+     * For every member, not only nominees: referral commission is a pocket too, and a
+     * member with nothing yet is shown how money arrives rather than a blank page.
+     */
+    public function wallet(Request $req, Response $res): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        $id = (int) $user->id;
+        $W  = \AfricaGates\Services\MemberWallet::class;
+
+        // The old filter links now belong to the full history.
+        $show = (string) ($req->getQueryParams()['show'] ?? '');
+        if (in_array($show, ['in', 'out', 'pending'], true)) {
+            return $res->withHeader('Location', '/account/wallet/history?month=all&f=' . $show)->withStatus(302);
+        }
+        $all = $W::transactions($id, 4);
+
+        return $this->view->render($res, 'pages/account/wallet.twig', $this->railFor($user, 'wallet') + [
+            'page_title' => 'Wallet — Africa GATES', 'gates_page' => 'account',
+            'w'        => $W::summary($id),
+            // The last four; the rest are on /account/wallet/history.
+            'days'     => $this->walletDays($all),
+            'fee_text' => \AfricaGates\Services\WalletFee::describe(),
+            'points_on' => PointsService::enabled(),
+            // A community return can also pay for votes (WalletVotes), wherever it is available.
+            'votes_from_wallet' => \AfricaGates\Services\WalletVotes::sources($id) !== [],
+            'has_code' => (\AfricaGates\Services\ReferralService::stats($id)['code'] ?? null) !== null,
+            // The moment the page was drawn: wallet.js asks for anything newer than this.
+            'since'    => \Illuminate\Support\Carbon::now()->toDateTimeString(),
+        ]);
+    }
+
+    /**
+     * GET /account/wallet/history — every movement, searchable, by month, type and chip.
+     * GET /account/wallet/history.csv and .pdf — the same rows as a file, the member's own.
+     *
+     * All three read WalletHistory with the same query string, so a statement downloaded
+     * from a filtered page is that page's rows. The member is the session's; there is no id.
+     */
+    public function walletHistory(Request $req, Response $res): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        [$all, $p, $r] = $this->walletHistoryRows((int) $user->id, $req->getQueryParams());
+        $H = \AfricaGates\Services\WalletHistory::class;
+        return $this->view->render($res, 'pages/account/wallet-history.twig', $this->railFor($user, 'wallet') + [
+            'page_title' => 'Transaction history — Africa GATES', 'gates_page' => 'account',
+            'p' => $p, 'r' => $r, 'days' => $this->walletDays($r['rows']),
+            'months' => $H::months($all, $p['month']), 'types' => $H::TYPES, 'chips' => $H::CHIPS,
+            'month_label' => $H::monthLabel($p['month']),
+            'has_any' => $all !== [],
+            'file_qs' => $this->walletHistoryQs($p),
+        ]);
+    }
+
+    public function walletHistoryCsv(Request $req, Response $res): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        [, $p, $r] = $this->walletHistoryRows((int) $user->id, $req->getQueryParams());
+        $res->getBody()->write(\AfricaGates\Services\WalletHistory::csv($r['all']));
+        return $res->withHeader('Content-Type', 'text/csv; charset=utf-8')
+            ->withHeader('Content-Disposition', 'attachment; filename="africa-gates-wallet-' . $p['month'] . '.csv"')
+            ->withHeader('Cache-Control', 'private, no-store');
+    }
+
+    public function walletHistoryPdf(Request $req, Response $res): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        [, $p, $r] = $this->walletHistoryRows((int) $user->id, $req->getQueryParams());
+        $res->getBody()->write(\AfricaGates\Services\WalletStatementPdf::render((string) ($user->name ?? 'Member'),
+            $r['all'], $p, $r['in_kobo'], $r['out_kobo']));
+        return $res->withHeader('Content-Type', 'application/pdf')
+            ->withHeader('Content-Disposition', 'attachment; filename="africa-gates-statement-' . $p['month'] . '.pdf"')
+            ->withHeader('Cache-Control', 'private, no-store');
+    }
+
+    /** @return array{0:list<array<string,mixed>>, 1:array<string,mixed>, 2:array<string,mixed>} */
+    private function walletHistoryRows(int $userId, array $query): array
+    {
+        $H = \AfricaGates\Services\WalletHistory::class;
+        $all = \AfricaGates\Services\MemberWallet::transactions($userId, 2000);
+        $p = $H::params($query, $all);
+        return [$all, $p, $H::query($all, $p)];
+    }
+
+    /** The filter as a query string, for the file links and "Show more"; defaults left out. */
+    private function walletHistoryQs(array $p): string
+    {
+        $q = [];
+        foreach (['q' => '', 'month' => null, 'type' => 'all', 'f' => 'all'] as $k => $default) {
+            if ($p[$k] !== $default) $q[$k] = $p[$k];
+        }
+        return http_build_query($q);
+    }
+
+    /**
+     * GET /account/wallet.json — the live figures, and credits since a moment.
+     *
+     * Polled by an open wallet page so money that arrives while it is open says so. The
+     * member is the session's; there is no id here to change.
+     */
+    public function walletJson(Request $req, Response $res): Response
+    {
+        $user = $this->accounts->current();
+        $out = ['ok' => false];
+        if ($user) {
+            $id    = (int) $user->id;
+            $since = (string) ($req->getQueryParams()['since'] ?? '');
+            if (!preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $since)) $since = \Illuminate\Support\Carbon::now()->toDateTimeString();
+            $s = \AfricaGates\Services\MemberWallet::summary($id);
+            $credits = array_map(static fn ($t) => ['title' => $t['title'], 'amount_kobo' => $t['amount_kobo'], 'unit' => $t['unit'] ?? 'naira',
+                'status_label' => $t['status_label'], 'href' => '/account/wallet/tx/' . $t['key']],
+                \AfricaGates\Services\MemberWallet::creditsSince($id, $since));
+            $out = ['ok' => true, 'available_kobo' => $s['available_kobo'], 'coming_kobo' => $s['coming_kobo'],
+                    'review_kobo' => $s['review_kobo'], 'points' => $s['points'], 'credits' => array_slice($credits, 0, 5),
+                    'now' => \Illuminate\Support\Carbon::now()->toDateTimeString()];
+        }
+        $res->getBody()->write((string) json_encode($out));
+        return $res->withHeader('Content-Type', 'application/json')->withHeader('Cache-Control', 'no-store')
+                   ->withStatus($user ? 200 : 401);
+    }
+
+    /** GET /account/wallet/tx/{key} — one movement's receipt. Only ever this member's own. */
+    public function walletTx(Request $req, Response $res, array $args): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        $t = \AfricaGates\Services\MemberWallet::transaction((int) $user->id, (string) ($args['key'] ?? ''));
+        if ($t === null) {
+            $_SESSION['flash_error'] = 'That transaction is not in your wallet.';
+            return $res->withHeader('Location', '/account/wallet')->withStatus(302);
+        }
+        return $this->view->render($res, 'pages/account/wallet-tx.twig', $this->railFor($user, 'wallet') + [
+            'page_title' => 'Transaction — Africa GATES', 'gates_page' => 'account',
+            'app_bar' => ['variant' => 'child', 'title' => 'Receipt', 'back' => '/account/wallet', 'share' => false],
+            't' => $t, 'fresh' => ($req->getQueryParams()['new'] ?? '') === '1',
+            // The page draws the same card as the file, from the same masked facts.
+            'rc' => \AfricaGates\Services\WalletReceipt::facts($t, (string) ($user->name ?? '')),
+            'issuable' => \AfricaGates\Services\WalletReceipt::issuable($t),
+            'support_host' => (string) (parse_url(\AfricaGates\Support\SiteUrl::base(), PHP_URL_HOST) ?: ''),
+        ]);
+    }
+
+    /**
+     * GET /account/wallet/tx/{key}.png and .pdf — the receipt as a file (WalletReceipt).
+     *
+     * Owner only (the session's member, looked up by key inside their own history), and only
+     * for money that has moved: anything still in progress has its page and no file.
+     */
+    public function walletTxFile(Request $req, Response $res, array $args): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        $key = (string) ($args['key'] ?? '');
+        $t = \AfricaGates\Services\MemberWallet::transaction((int) $user->id, $key);
+        if ($t === null || !\AfricaGates\Services\WalletReceipt::issuable($t)) {
+            $res->getBody()->write('No receipt file for this transaction.');
+            return $res->withStatus(404)->withHeader('Content-Type', 'text/plain; charset=utf-8');
+        }
+        $R = new \AfricaGates\Services\WalletReceipt();
+        $f = $R::facts($t, (string) ($user->name ?? ''));
+        $host = (string) (parse_url(\AfricaGates\Support\SiteUrl::base(), PHP_URL_HOST) ?: '');
+        $gen = date('j M Y, g:i a');
+        $png = ($args['ext'] ?? '') === 'png';
+        $res->getBody()->write($png ? $R->png($f, $host, $gen) : $R->pdf($f, $host, $gen));
+        $name = 'Africa-GATES-receipt-' . strtoupper($key) . ($png ? '.png' : '.pdf');
+        return $res->withHeader('Content-Type', $png ? 'image/png' : 'application/pdf')
+            ->withHeader('Content-Disposition', ($png ? 'inline' : 'attachment') . '; filename="' . $name . '"')
+            ->withHeader('Cache-Control', 'private, no-store')
+            ->withHeader('X-Robots-Tag', 'noindex');
+    }
+
+    /**
+     * GET /account/wallet/withdraw — step one: which pocket, how much, to which account.
+     * POST /account/wallet/withdraw/review — step two: the figures, the fee, the rules.
+     * POST /account/wallet/withdraw — the request, then its receipt.
+     *
+     * Three steps because a transfer is the one act in a wallet a person must see the whole
+     * of before it happens — the amount, the fee taken from it and where it is going — and a
+     * single form shows the fee only after it has been charged.
+     */
+    public function walletWithdraw(Request $req, Response $res): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        $id = (int) $user->id;
+        $W  = \AfricaGates\Services\MemberWallet::class;
+        $pockets = $W::pockets($id);
+        $key = (string) ($req->getQueryParams()['pocket'] ?? '');
+        $pocket = $W::pocket($id, $key);
+        // One pocket that can be withdrawn from is the obvious choice; skip the question.
+        if ($pocket === null) {
+            $ready = array_values(array_filter($pockets, static fn ($p) => $p['can']));
+            if (count($ready) === 1) $pocket = $ready[0];
+        }
+        $old = $_SESSION['wallet_wd_old'] ?? null;
+        unset($_SESSION['wallet_wd_old']);
+
+        return $this->view->render($res, 'pages/account/wallet-withdraw.twig', $this->railFor($user, 'wallet') + [
+            'page_title' => 'Withdraw — Africa GATES', 'gates_page' => 'account',
+            'app_bar' => ['variant' => 'child', 'title' => 'Withdraw', 'back' => '/account/wallet', 'share' => false],
+            'step' => 'form', 'pockets' => $pockets, 'pocket' => $pocket,
+            // The saved payout account is offered as its own choice; the new-account
+            // fields start empty, so a saved number is never edited by accident.
+            'saved' => \AfricaGates\Services\ReferralPayout::bankFor($id),
+            'bank' => is_array($old) ? $old + ['amount' => '', 'bank_code' => '', 'mode' => ''] : ['amount' => '', 'bank_code' => '', 'mode' => ''],
+            // The bank is CHOSEN from Paystack's list where there is one: an automatic
+            // transfer is built from the bank's code, never from a name somebody typed.
+            'banks'     => \AfricaGates\Services\WalletAutoPay::banks(),
+            'auto_on'   => \AfricaGates\Services\WalletAutoPay::enabled(),
+            'fee_bands' => \AfricaGates\Services\WalletFee::bands(),
+            'fee_text'  => \AfricaGates\Services\WalletFee::describe(),
+            'terms'     => \AfricaGates\Services\CommunityReturnWithdrawals::terms(),
+        ]);
+    }
+
+    public function walletWithdrawReview(Request $req, Response $res): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        $id = (int) $user->id;
+        $W  = \AfricaGates\Services\MemberWallet::class;
+        $b  = (array) $req->getParsedBody();
+        $key = (string) ($b['pocket'] ?? '');
+        // "Saved" means the account on file, read here — not whatever the form carried
+        // beside the radio, which a stale page or a hand-edited post could change.
+        $mode = (string) ($b['acct'] ?? 'new');
+        $saved = \AfricaGates\Services\ReferralPayout::bankFor($id);
+        if ($mode === 'saved' && $saved['account_number'] !== '') {
+            $b['bank'] = $saved['bank']; $b['bank_code'] = $saved['bank_code'];
+            $b['account_name'] = $saved['account_name']; $b['account_number'] = $saved['account_number'];
+        } else {
+            $mode = 'new';
+        }
+        $code = preg_replace('/[^0-9A-Za-z]/', '', (string) ($b['bank_code'] ?? '')) ?? '';
+        $bank = ['bank' => (string) ($b['bank'] ?? ''), 'account_name' => (string) ($b['account_name'] ?? ''),
+                 'account_number' => (string) ($b['account_number'] ?? ''), 'bank_code' => $code];
+        // A bank chosen from the list is named by the list, not by the form.
+        if ($code !== '') {
+            foreach (\AfricaGates\Services\WalletAutoPay::banks() as $bk) {
+                if ($bk['code'] === $code) { $bank['bank'] = $bk['name']; break; }
+            }
+        }
+        $typed = trim((string) ($b['amount'] ?? ''));
+        $amount = $typed === '' ? null : $W::parseNaira($typed);
+        $back = function (string $why) use ($res, $bank, $typed, $key, $mode): Response {
+            $_SESSION['flash_error'] = $why;
+            $_SESSION['wallet_wd_old'] = ($mode === 'new' ? $bank : []) + ['amount' => $typed, 'mode' => $mode];
+            return $res->withHeader('Location', '/account/wallet/withdraw?pocket=' . rawurlencode($key))->withStatus(303);
+        };
+
+        // ── WHO THE BANK SAYS THIS IS, BEFORE ANYTHING IS CONFIRMED ──────────
+        //
+        // The step every Nigerian banking app has: the account name, from the bank, on the
+        // confirm screen. A mistyped digit shows up as a stranger's name here rather than
+        // as money sent to them. The automatic checks ask the bank again at send time; this
+        // is for the person's eyes. Nobody to ask is not a reason to stop them.
+        $resolved = '';
+        $ps = new \AfricaGates\Services\PaymentService();
+        // The same budget as the live lookup. This path asks the bank the same question
+        // — number in, the holder's NAME out — and counted nothing, so a script posting
+        // the confirm form turned the wallet into an unmetered register of who owns
+        // which account. Over the budget it simply does not ask: the name is a courtesy,
+        // and the send-time checks ask the bank again anyway.
+        if ($code !== '' && $ps->isEnabled('paystack') && $this->mayResolve((int) $user->id, $req)) {
+            $r = $ps->resolveAccount($bank['account_number'], $code);
+            if (!$r['ok'] && $r['reachable']) {
+                return $back('Your bank did not recognise that account number. Check it and try again.');
+            }
+            $resolved = $r['ok'] ? $r['name'] : '';
+            // The bank's name fills an empty name field: the DC asks for the number and
+            // shows the name, and the request still records a name either way.
+            if ($resolved !== '' && trim($bank['account_name']) === '') $bank['account_name'] = $resolved;
+        }
+
+        $q = $typed !== '' && $amount === null
+            ? ['ok' => false, 'reason' => 'Type the amount in naira, like 2500.']
+            : $W::quote($id, $key, $amount, $bank);
+        if (!$q['ok']) return $back($q['reason']);
+
+        return $this->view->render($res, 'pages/account/wallet-withdraw.twig', $this->railFor($user, 'wallet') + [
+            'page_title' => 'Check and confirm — Africa GATES', 'gates_page' => 'account',
+            'app_bar' => ['variant' => 'child', 'title' => 'Check and confirm', 'back' => '/account/wallet/withdraw?pocket=' . rawurlencode($key), 'share' => false],
+            'step' => 'review', 'pocket' => $W::pocket($id, $key), 'q' => $q + ['bank_code' => $code],
+            'resolved' => $resolved,
+            'auto_on' => \AfricaGates\Services\WalletAutoPay::enabled($ps) && $code !== '',
+            'terms' => \AfricaGates\Services\CommunityReturnWithdrawals::terms(),
+        ]);
+    }
+
+    public function walletWithdrawConfirm(Request $req, Response $res): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        $W = \AfricaGates\Services\MemberWallet::class;
+        $b = (array) $req->getParsedBody();
+        $key = (string) ($b['pocket'] ?? '');
+        $bank = ['bank' => (string) ($b['bank'] ?? ''), 'account_name' => (string) ($b['account_name'] ?? ''),
+                 'account_number' => (string) ($b['account_number'] ?? ''), 'bank_code' => (string) ($b['bank_code'] ?? '')];
+        $amount = ($b['amount_kobo'] ?? '') === '' ? null : max(0, (int) $b['amount_kobo']);
+        // The bank code and its name come off a hidden field, so they are checked against
+        // the bank list here rather than trusted: a reviewer reads the NAME, an automatic
+        // transfer is built from the CODE, and a posted pair that disagrees would show one
+        // bank to the person and pay another. A code not on the list is dropped — the request
+        // then goes to a person, which is what a request without a code always did.
+        if ($bank['bank_code'] !== '') {
+            $listed = array_values(array_filter(\AfricaGates\Services\WalletAutoPay::banks(),
+                static fn ($x) => (string) ($x['code'] ?? '') === $bank['bank_code']));
+            if ($listed) $bank['bank'] = (string) $listed[0]['name'];
+            else $bank['bank_code'] = '';
+        }
+
+        $r = $W::withdraw((int) $user->id, $key, $amount, $bank, ($b['accept'] ?? '') === '1');
+        if (!$r['ok']) {
+            $_SESSION['flash_error'] = $r['message'];
+            $_SESSION['wallet_wd_old'] = $bank + ['amount' => $amount === null ? '' : (string) ($amount / 100)];
+            return $res->withHeader('Location', '/account/wallet/withdraw?pocket=' . rawurlencode($key))->withStatus(303);
+        }
+        return $res->withHeader('Location', '/account/wallet/tx/' . $r['key'] . '?new=1')->withStatus(303);
+    }
+
+    /**
+     * One budget for asking a bank whose account a number is, wherever it is asked from:
+     * per member, and per connection so a farm of fresh accounts meets it too.
+     */
+    private function mayResolve(int $userId, Request $req): bool
+    {
+        if ($this->rateLimit === null) return true;
+        $ip = (string) ($req->getServerParams()['REMOTE_ADDR'] ?? '');
+        return $this->rateLimit->check('u:' . $userId, 'wallet_resolve', 20, 3600)
+            && $this->rateLimit->check(hash('sha256', $ip), 'wallet_resolve_ip', 40, 3600);
+    }
+
+    /**
+     * GET /account/wallet/resolve.json — the name a bank holds for an account number.
+     *
+     * For the withdraw form's "Name from your bank" line. Signed-in members only, and
+     * counted per member and per connection: a resolver is a directory of who banks where,
+     * and an open one would be a free lookup against Paystack on our key.
+     */
+    public function walletResolve(Request $req, Response $res): Response
+    {
+        $user = $this->accounts->current();
+        $out = ['ok' => false, 'name' => ''];
+        $status = 401;
+        if ($user) {
+            $status = 200;
+            $q = $req->getQueryParams();
+            $num = preg_replace('/\D+/', '', (string) ($q['account_number'] ?? '')) ?? '';
+            $code = preg_replace('/[^0-9A-Za-z]/', '', (string) ($q['bank_code'] ?? '')) ?? '';
+            if (!$this->mayResolve((int) $user->id, $req)) {
+                $status = 429;
+            } elseif (strlen($num) === 10 && $code !== '') {
+                $ps = new \AfricaGates\Services\PaymentService();
+                if ($ps->isEnabled('paystack')) {
+                    $r = $ps->resolveAccount($num, $code);
+                    if ($r['ok']) $out = ['ok' => true, 'name' => $r['name']];
+                }
+            }
+        }
+        $res->getBody()->write((string) json_encode($out));
+        return $res->withHeader('Content-Type', 'application/json')->withHeader('Cache-Control', 'no-store')->withStatus($status);
+    }
+
+    /**
+     * Transactions grouped under Today, Yesterday and dates, the way a banking app lists them.
+     *
+     * @param  list<array<string,mixed>> $tx
+     * @return list<array{label:string, items:list<array<string,mixed>>}>
+     */
+    private function walletDays(array $tx): array
+    {
+        $today = date('Y-m-d');
+        $yest  = date('Y-m-d', strtotime('-1 day'));
+        $days = [];
+        foreach ($tx as $t) {
+            $d = substr((string) $t['at'], 0, 10);
+            $label = $d === $today ? 'Today' : ($d === $yest ? 'Yesterday'
+                : (($ts = strtotime($d)) ? date(date('Y', $ts) === date('Y') ? 'j M' : 'j M Y', $ts) : $d));
+            $days[$label] ??= ['label' => $label, 'items' => []];
+            $days[$label]['items'][] = $t;
+        }
+        return array_values($days);
     }
 
     /**
@@ -1657,33 +2188,40 @@ class AccountController
         $r = $this->accounts->updateProfile((int) $user->id, (string) ($b['name'] ?? ''), (string) ($b['phone'] ?? ''));
         if (!$r['ok']) {
             $_SESSION['flash_error'] = $r['error'];
-            return $res->withHeader('Location', '/account?tab=settings#profile')->withStatus(302);
+            return $res->withHeader('Location', '/account?tab=profile#profile')->withStatus(302);
         }
         // "What you do" and "Where you're based" — the profile basics joining asked for.
         if (array_key_exists('headline', $b) || array_key_exists('based_in', $b)) {
             $a = $this->accounts->saveAbout((int) $user->id, (string) ($b['headline'] ?? ''), (string) ($b['based_in'] ?? ''));
             if (!$a['ok']) {
                 $_SESSION['flash_error'] = $a['error'];
-                return $res->withHeader('Location', '/account?tab=settings#profile')->withStatus(302);
+                return $res->withHeader('Location', '/account?tab=profile#profile')->withStatus(302);
             }
         }
 
         // Optional password change — require the current password when one is already set.
         $newPw = (string) ($b['new_password'] ?? '');
         if ($newPw !== '') {
-            if (strlen($newPw) < 8) {
-                $_SESSION['flash_error'] = 'New password must be at least 8 characters.';
-                return $res->withHeader('Location', '/account')->withStatus(302);
+            $changed = $this->accounts->changePassword((int) $user->id, $newPw, (string) ($b['current_password'] ?? ''));
+            if (!$changed['ok']) {
+                $_SESSION['flash_error'] = $changed['error'];
+                return $res->withHeader('Location', '/account?tab=profile#profile')->withStatus(302);
             }
-            if (!empty($user->password_hash) && !password_verify((string) ($b['current_password'] ?? ''), (string) $user->password_hash)) {
-                $_SESSION['flash_error'] = 'Your current password is incorrect.';
-                return $res->withHeader('Location', '/account')->withStatus(302);
-            }
-            $this->accounts->setPassword((int) $user->id, $newPw);
         }
 
         $_SESSION['flash_ok'] = 'Your account was updated.';
-        return $res->withHeader('Location', '/account')->withStatus(302);
+        return $res->withHeader('Location', '/account?tab=profile#profile')->withStatus(302);
+    }
+
+    /** Security updates never rewrite profile fields from an older browser tab. */
+    public function passwordUpdate(Request $req, Response $res): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        $b = (array) $req->getParsedBody();
+        $changed = $this->accounts->changePassword((int) $user->id, (string) ($b['new_password'] ?? ''), (string) ($b['current_password'] ?? ''));
+        $_SESSION[$changed['ok'] ? 'flash_ok' : 'flash_error'] = $changed['ok'] ? 'Your password was updated.' : $changed['error'];
+        return $res->withHeader('Location', '/account?tab=security#password')->withStatus(302);
     }
 
     public function logout(Request $req, Response $res): Response

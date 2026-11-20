@@ -299,7 +299,11 @@
           {{ verified.clean }} were genuinely abandoned. Checked {{ verified.at }}.
         {% else %}
           Checked {{ verified.at }} — the gateway has no successful payment for any of the
-          {{ verified.clean }} stuck orders. Those buyers were not charged; the checkouts were abandoned.
+          {{ verified.clean + verified.failed|default(0) }} stuck orders. Those buyers were not charged.
+        {% endif %}
+        {% if verified.failed|default(0) > 0 %}
+          {# Said, because the count the operator came here about moves because of it. #}
+          <br>{{ verified.failed }} the gateway reports as failed {{ verified.failed == 1 ? 'is' : 'are' }} now marked failed, and no longer counted as pending.
         {% endif %}
       </div>
 
@@ -411,7 +415,7 @@
    a child template, so while this sat below {% endblock %} the whole page was a
    SyntaxError — /admin/payments rendered a 500, not a triage screen. The
    confirmation it holds was dead for the same reason. #}
-<script nonce="{{ csp_nonce }}">
+<script nonce="{{ csp_nonce }}" data-nav="rerun">
   // Confirming orders moves money. One deliberate pause before it happens.
   document.getElementById('pt-repair')?.addEventListener('submit', function (e) {
     if (!window.confirm('Confirm these orders and deliver what is owed?')) e.preventDefault();

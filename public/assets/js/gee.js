@@ -109,22 +109,59 @@
     });
   }
 
+  /* Paragraphs, **bold**, `code`, and bullet or numbered lists — the shapes a written
+     answer actually takes. A how-to read as one run of sentences hid its steps; drawn as
+     a list, somebody on a phone can find step three again after switching apps. */
+  var BULLET = /^\s*[-*•]\s+/, NUMBER = /^\s*\d{1,2}[.)]\s+/;
+
   function format(text) {
     return String(text || '').trim().split(/\n{2,}/).map(function (block) {
-      var html = esc(block).replace(/\n/g, '<br>');
-      html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-      html = html.replace(MD_LINK, function (_m, label, path) { return '<a href="' + path + '">' + label + '</a>'; });
-      html = html.replace(HELP_RE, function (_m, lead, path) {
-        /* A path is not a label. "Read the rest in /help/paid-but-no-votes" is how the
-           written answers end, and HelpCentre::writtenAnswer() words it to read as a
-           sentence once this turns the path into "the Help Centre answer". */
-        return lead + '<a href="' + path + '">' + esc(M('help-link') || path) + '</a>';
-      });
-      html = html.replace(ROUTE_RE, function (_m, lead, path) {
-        return lead + '<a href="' + path + '">' + esc(ROUTES[path] || path) + '</a>';
-      });
-      return '<p>' + html + '</p>';
+      var lines = block.split('\n').filter(function (l) { return l.trim() !== ''; });
+      if (!lines.length) return '';
+      var bul = lines.filter(function (l) { return BULLET.test(l); }).length;
+      var num = lines.filter(function (l) { return NUMBER.test(l); }).length;
+      function items(list, re) {
+        return list.map(function (l) { return '<li>' + inline(l.replace(re, '')) + '</li>'; }).join('');
+      }
+      if (bul === lines.length) return '<ul>' + items(lines, BULLET) + '</ul>';
+      if (num === lines.length) return '<ol>' + items(lines, NUMBER) + '</ol>';
+      // "Three things:" and then its list.
+      if (lines.length > 1 && bul === lines.length - 1 && !BULLET.test(lines[0])) {
+        return '<p>' + inline(lines[0]) + '</p><ul>' + items(lines.slice(1), BULLET) + '</ul>';
+      }
+      if (lines.length > 1 && num === lines.length - 1 && !NUMBER.test(lines[0])) {
+        return '<p>' + inline(lines[0]) + '</p><ol>' + items(lines.slice(1), NUMBER) + '</ol>';
+      }
+      return '<p>' + lines.map(inline).join('<br>') + '</p>';
     }).join('');
+  }
+
+  /* One line. Escaped FIRST; `code` is held aside before anything else runs, so a path or
+     a mark inside backticks is shown as typed and never becomes a link. The holders are
+     private-use characters, which esc() leaves alone and no reply contains. */
+  function inline(line) {
+    var codes = [];
+    var html = esc(line).replace(/`([^`\n]{1,200})`/g, function (_m, c) {
+      codes.push('<code>' + c + '</code>');
+      return '\uE000' + (codes.length - 1) + '\uE001';
+    });
+    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(MD_LINK, function (_m, label, path) { return '<a href="' + path + '">' + label + '</a>'; });
+    html = html.replace(HELP_RE, function (_m, lead, path) {
+      /* A path is not a label. "Read the rest in /help/paid-but-no-votes" is how the
+         written answers end, and HelpCentre::writtenAnswer() words it to read as a
+         sentence once this turns the path into "the Help Centre answer". */
+      return lead + '<a href="' + path + '">' + esc(M('help-link') || path) + '</a>';
+    });
+    html = html.replace(ROUTE_RE, function (_m, lead, path) {
+      return lead + '<a href="' + path + '">' + esc(ROUTES[path] || path) + '</a>';
+    });
+    return html.replace(/\uE000(\d+)\uE001/g, function (_m, i) { return codes[+i] || ''; });
+  }
+
+  /* The words of an answer without its marks, for Copy. */
+  function plain(text) {
+    return String(text || '').replace(MD_LINK, '$1 ($2)').replace(/\*\*|`/g, '').trim();
   }
 
   function el(tag, cls, text) {
@@ -209,10 +246,14 @@
     input.placeholder = M('input-' + mode);
     input.setAttribute('aria-label', M('input-' + mode));
     input.maxLength = mode === 'support' ? 1500 : 1000;
+    if (typeof count === 'function') count();
+    qa('[data-gee-to]').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-gee-to') === mode ? 'true' : 'false'); });
     /* The privacy note: second under the header in guide (§7.7), last of the empty
        state in the desk (§8.22). Moved, not copied — one note, one dismissal. */
-    var empty = q('[data-gee-empty="support"]');
-    if (mode === 'support' && empty) empty.appendChild(note);
+    /* Both modes now: a plain line at the end of the greeting, read after it, never a box
+       above it (the simplified panel, 9 Nov 2026). */
+    var empty = q('[data-gee-empty="' + mode + '"]');
+    if (empty) empty.appendChild(note);
     else log.insertBefore(note, log.firstChild);
     if (changed) paint();
   }
@@ -246,7 +287,8 @@
       case 'bot':    thread.appendChild(bubble(false, m.text, true));
                      if (m.checked && m.checked.length) thread.appendChild(checked(m.checked));
                      if (m.actions && m.actions.length) thread.appendChild(actions(m.actions));
-                     if (m.links && m.links.length) thread.appendChild(links(m.links)); break;
+                     if (m.links && m.links.length) thread.appendChild(links(m.links));
+                     if (m.source !== undefined) thread.appendChild(tools(m, m.text)); break;
       case 'work':   drawWork(m); break;
       case 'yes':    thread.appendChild(bubble(false, m.text)); break;
       case 'hand':   thread.appendChild(handCard(m)); break;
@@ -262,13 +304,19 @@
   }
 
   /* 5 · Help-link chips: the Help Centre answers the server sent with the reply. */
+  /* A quiet list under its own small heading, not a row of bold pills: the pills read as
+     buttons Gee was pressing for the reader, and two of them outweighed the answer above. */
   function links(arts) {
-    var box = el('div', 'gee__links');
+    var box = el('nav', 'gee__links');
+    box.setAttribute('aria-label', M('related'));
+    box.appendChild(el('span', 'gee__links-h', M('related')));
     arts.slice(0, 3).forEach(function (a) {
       if (!a || !a.url || !/^\/help\/[a-z0-9-]+$/.test(String(a.url))) return;
-      var l = el('a', 'gee__link', (a.title || '') + ' ');
+      var l = el('a', 'gee__link');
       l.href = a.url;
-      l.appendChild(el('span', null, '↗')).setAttribute('aria-hidden', 'true');
+      l.appendChild(el('span', 'gee__link-t', String(a.title || '')));
+      var go = svg(['m9 6 6 6-6 6'], 14, '2'); go.setAttribute('class', 'gee__link-go ag-ico-dir');
+      l.appendChild(go);
       box.appendChild(l);
     });
     return box;
@@ -296,6 +344,65 @@
       box.appendChild(l);
     });
     return box;
+  }
+
+  /* 7 · Under an answer: Copy, and a thumb each way. A thumb sends the mode, where the
+     answer came from and this page's path — never the words (GeeRatings, and the privacy
+     note, which says what is typed stays in this tab). "Not helpful" is the moment a
+     person is worth offering, so it offers one, in the same place the thumb was pressed.
+     The choice is kept on the message, so a reload does not ask again. Only an answer
+     the server actually gave carries a source; an error line has nothing to rate. */
+  function tools(m, words) {
+    var box = el('div', 'gee__tools');
+    var row = el('div', 'gee__tools-row');
+    box.appendChild(row);
+    var copy = toolBtn(['M9 9h11v11H9z', 'M5 15H4V4h11v1'], M('copy'));
+    copy.addEventListener('click', function () {
+      var done = function () { copy.setAttribute('data-done', ''); copy.setAttribute('aria-label', M('copied'));
+        setTimeout(function () { copy.removeAttribute('data-done'); copy.setAttribute('aria-label', M('copy')); }, 1600); };
+      try { navigator.clipboard.writeText(plain(words)).then(done, function () {}); } catch (e) {}
+    });
+    row.appendChild(copy);
+    var up = toolBtn(['M7 10v11', 'M7 10l4-7.5a2 2 0 0 1 3.2 2.2L13 10h6.1a2 2 0 0 1 2 2.4l-1.6 6.8A2 2 0 0 1 17.6 21H7', 'M3 10h4v11H3z'], M('rate-up'));
+    var down = toolBtn(['M17 14V3', 'M17 14l-4 7.5a2 2 0 0 1-3.2-2.2L11 14H4.9a2 2 0 0 1-2-2.4l1.6-6.8A2 2 0 0 1 6.4 3H17', 'M21 14h-4V3h4z'], M('rate-down'));
+    [up, down].forEach(function (b) { b.setAttribute('aria-pressed', 'false'); row.appendChild(b); });
+    var said = el('span', 'gee__tools-said');
+    said.setAttribute('role', 'status');
+    row.appendChild(said);
+    /* After "Not helpful": one plain line and one clear way on, under the buttons. */
+    var sorry = el('div', 'gee__sorry');
+    sorry.hidden = true;
+    sorry.appendChild(el('span', 'gee__sorry-t', M('rate-sorry')));
+    var p = el('button', 'gee__sorry-b', M('person'));
+    p.type = 'button';
+    p.addEventListener('click', function () { openHandoff(true); });
+    sorry.appendChild(p);
+    box.appendChild(sorry);
+    function show() {
+      up.setAttribute('aria-pressed', m.rated === 1 ? 'true' : 'false');
+      down.setAttribute('aria-pressed', m.rated === 0 ? 'true' : 'false');
+      up.disabled = down.disabled = m.rated === 0 || m.rated === 1;
+      said.textContent = m.rated === 1 ? M('rated') : '';
+      sorry.hidden = m.rated !== 0;
+    }
+    function rate(v) {
+      if (m.rated === 0 || m.rated === 1) return;
+      m.rated = v; save(); show();
+      post('/api/guide/rate', { mode: state.mode, source: m.source || '', helpful: v === 1, path: PATH }, true)
+        .catch(function () {});
+    }
+    up.addEventListener('click', function () { rate(1); });
+    down.addEventListener('click', function () { rate(0); });
+    show();
+    return box;
+  }
+  function toolBtn(paths, label) {
+    var b = el('button', 'gee__tool');
+    b.type = 'button';
+    b.setAttribute('aria-label', label);
+    b.title = label;
+    b.appendChild(svg(paths, 15, '1.9'));
+    return b;
   }
 
   function scrollDown() { log.scrollTop = log.scrollHeight; }
@@ -373,7 +480,23 @@
     state.busy = on;
     syncSend();
   }
-  function syncSend() { sendBtn.disabled = state.busy || input.value.trim() === ''; }
+  function syncSend() { sendBtn.disabled = state.busy || input.value.trim() === ''; grow(); count(); }
+
+  /* ── The composer grows with what is written, to five lines, then scrolls ──────────── */
+  var countEl = q('[data-gee-count]');
+  function grow() {
+    input.style.height = 'auto';
+    var max = parseFloat(getComputedStyle(input).maxHeight) || 132;
+    input.style.height = Math.min(input.scrollHeight, max) + 'px';
+    input.style.overflowY = input.scrollHeight > max ? 'auto' : 'hidden';
+  }
+  /* The limit, said in the last hundred characters rather than found when typing stops. */
+  function count() {
+    if (!countEl) return;
+    var left = input.maxLength - input.value.length;
+    countEl.hidden = !(input.maxLength > 0 && left <= 100);
+    countEl.textContent = left <= 0 ? M('count-none') : M('count-left', { n: left });
+  }
 
   function post(url, body, json) {
     return fetch(url, {
@@ -391,9 +514,12 @@
   function send(text) {
     text = String(text || '').trim();
     if (!text || state.busy) return;
+    // A pasted reference is the repair, asked for by name — not a question for the planner.
+    if (/^AFG-[A-Za-z0-9_\-]{4,116}$/i.test(text)) { input.value = ''; syncSend(); runCheck(text); return; }
     var prior = priorTurns();
     push({ kind: 'me', text: text });
     input.value = '';
+    syncSend();
     error('');
     busy(true);
     var dots = typing();
@@ -408,7 +534,7 @@
       var d = res.d;
       if (d.work) { finishWork(startWork(d.work.reference || state.ref, null), d); return; }
       push({ kind: 'bot', text: d.reply || M('snag'), links: d.articles || [], actions: d.actions || [],
-             checked: d.checked || [] });
+             checked: d.checked || [], source: d.ok === false ? undefined : String(d.source || '') });
       /* A ticket the agent opened INSIDE this reply. The reply carried it and the widget
          used to drop it, so somebody told "I've passed this to the team" saw no card, no
          reference and no "we reply by email" — the hand-off card is how they get those. */
@@ -419,7 +545,13 @@
     }).catch(function () {
       dots.remove();
       push({ kind: 'bot', text: M('no-server') });
-    }).then(function () { busy(false); if (isOpen()) input.focus(); });
+    }).then(function () {
+      busy(false);
+      /* Back to the box where a keyboard is attached. On a touch screen that raised the
+         on-screen keyboard over the answer the moment it arrived; there the reader taps
+         the box when they have something to say. */
+      if (isOpen() && window.matchMedia('(pointer: fine)').matches) input.focus();
+    });
   }
 
   /* ══ The repair: Check now / Check / "Check a payment" ═════════════════════ */
@@ -437,8 +569,8 @@
       .then(function () { busy(false); });
   }
 
-  function stepLabel(key, ref, provider) {
-    if (key === 'order') return M('step-order', { ref: ref });
+  function stepLabel(key, ref, provider, st) {
+    if (key === 'order') return st === 'failed' ? M('step-order-none', { ref: ref }) : M('step-order', { ref: ref });
     if (key === 'provider') return M('step-provider', { provider: provider || M('the-provider') });
     return M('step-votes');
   }
@@ -452,8 +584,8 @@
     var no = svg(['M10 5v6M10 14.5v.5'], 10, '3'); no.setAttribute('viewBox', '0 0 20 20'); no.setAttribute('class', 'gee__ring-no');
     ring.appendChild(ok); ring.appendChild(no);
     row.appendChild(ring);
-    row.appendChild(document.createTextNode(stepLabel(key, ref, provider)));
-    if (st === 'failed') row.appendChild(el('span', 'ag-sr', ' — ' + M('step-failed')));
+    row.appendChild(document.createTextNode(stepLabel(key, ref, provider, st)));
+    if (st === 'failed' && key !== 'order') row.appendChild(el('span', 'ag-sr', ' — ' + M('step-failed')));
     return row;
   }
 
@@ -474,7 +606,8 @@
   function finishWork(card, d) {
     card.remove();
     var w = d && d.work;
-    var entry = { kind: 'work', work: w || null, reply: (d && d.reply) || M('snag'), answered: null };
+    var entry = { kind: 'work', work: w || null, reply: (d && d.reply) || M('snag'), answered: null,
+                  source: d && d.reply ? String(d.source || 'support') : undefined };
     push(entry);
     unread();
   }
@@ -493,6 +626,7 @@
       return;
     }
     thread.appendChild(bubble(false, m.reply, true));
+    if (m.source !== undefined) thread.appendChild(tools(m, m.reply));
   }
 
   function resultCard(w) {
@@ -727,8 +861,31 @@
 
   function isOpen() { return layer.hasAttribute('data-open'); }
 
+  /* ── The full-screen sheet follows the VISUAL viewport ─────────────────────────────
+     The same query as gee.css's full-screen block. iOS Safari leaves the layout viewport
+     full height when the on-screen keyboard opens, so a fixed sheet kept its height and
+     the composer sat behind the keys. While the sheet is open its height and top follow
+     visualViewport; closed, or on a desktop panel, the properties are removed and the
+     stylesheet's own sizes stand. */
+  var SHEET_MQ = window.matchMedia('(max-width:599.98px), (max-height:499.98px) and (pointer:coarse)');
+  var vv = window.visualViewport;
+  function fit() {
+    if (!vv || !isOpen() || !SHEET_MQ.matches) {
+      layer.style.removeProperty('--gee-vv-h');
+      layer.style.removeProperty('--gee-vv-top');
+      return;
+    }
+    layer.style.setProperty('--gee-vv-h', Math.round(vv.height) + 'px');
+    layer.style.setProperty('--gee-vv-top', Math.round(vv.offsetTop) + 'px');
+    /* The keyboard took the bottom of the conversation; keep the latest turn in view. */
+    if (document.activeElement === input && !isEmpty()) scrollDown();
+  }
+  if (vv) { vv.addEventListener('resize', fit); vv.addEventListener('scroll', fit); }
+
   function open(opts) {
     opts = opts || {};
+    // Hidden on this page (Pulse, the support desk): nothing opens it here.
+    if (root.hasAttribute('data-gee-away')) return;
     if (opts.mode) setMode(opts.mode);
     if (!isOpen()) {
       var trigger = opts.trigger || fab;
@@ -750,6 +907,11 @@
        so the sheet's own first focus (the header) stands; with a question handed over
        (`q`) the composer is where the reader is going next either way. */
     if (opts.q || window.matchMedia('(pointer: fine)').matches) setTimeout(function () { input.focus(); }, 0);
+    /* Opened by touch with nothing to type yet: the panel itself takes focus, so screen
+       readers land in the dialog and no focus ring is drawn round a header button nobody
+       pointed at. */
+    else setTimeout(function () { panel.focus({ preventScroll: true }); }, 0);
+    fit();
   }
 
   function close() {
@@ -766,6 +928,7 @@
   if (window.MutationObserver) {
     new MutationObserver(function () {
       if (!isOpen()) { fab.setAttribute('aria-expanded', 'false'); closer = null; }
+      fit();
     }).observe(layer, { attributes: true, attributeFilter: ['data-open'] });
   }
 
@@ -831,10 +994,28 @@
   q('[data-gee-close]').addEventListener('click', close);
   q('[data-gee-reset]').addEventListener('click', newConversation);
   q('[data-gee-note-x]').addEventListener('click', dismissNote);
+  /* The Chat / Help desk switch at the foot. Each half keeps its own conversation
+     (state.history is per mode), so switching back finds it where it was left. */
+  qa('[data-gee-to]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      setMode(b.getAttribute('data-gee-to'));
+      if (state.mode === 'support') loadDesk();
+      if (isEmpty()) log.scrollTop = 0; else scrollDown();
+      if (window.matchMedia('(pointer: fine)').matches) input.focus();
+    });
+  });
   qa('[data-gee-person]').forEach(function (b) { b.addEventListener('click', function () { openHandoff(true); }); });
 
   form.addEventListener('submit', function (e) { e.preventDefault(); send(input.value); });
   input.addEventListener('input', syncSend);
+  /* Enter sends, as the keyboard's own Send key says (enterkeyhint); Shift+Enter is a new
+     line. Never while an input method is composing a character — Enter there picks the
+     character, and sending half a word is the bug every chat box ships once. */
+  input.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' || e.shiftKey || e.isComposing || e.keyCode === 229) return;
+    e.preventDefault();
+    send(input.value);
+  });
 
   qa('[data-gee-ask]').forEach(function (b) {
     b.addEventListener('click', function () {
@@ -909,6 +1090,13 @@
   restore('support');
   /* A page may default to the help desk's face (the Help Centre: data-gee-default). */
   setMode(root.getAttribute('data-gee-default') === 'support' ? 'support' : 'guide');
+  // A page swapped in place (site-nav.js) brings its own default; a conversation somebody
+  // has open is theirs, so it is only applied while the panel is closed.
+  document.addEventListener('ag:load', function () {
+    // Swapped onto a page where Gee is away: an open panel would be left open and invisible.
+    if (root.hasAttribute('data-gee-away') && isOpen()) close();
+    if (!isOpen()) setMode(root.getAttribute('data-gee-default') === 'support' ? 'support' : 'guide');
+  });
   paint();
   syncSend();
   fab.hidden = false;
@@ -918,21 +1106,71 @@
      On a phone it sits on the right edge, which is where a row keeps its Vote button and
      a form its total; fixed there, it covered one of them on every screen. It returns on
      the first scroll back up and when the scrolling stops, and never leaves while it has
-     the keyboard's focus, so it is always one gesture away and never lost. */
+     the keyboard's focus, so it is always one gesture away and never lost.
+
+     AND IT NEVER SITS ON A CONTROL. Hiding on scroll answered the moving page and not the
+     page at rest: on the homepage the launcher lay over the right end of "Recognise with
+     Africa GATES" the moment the page opened, before anybody scrolled. No fixed place is
+     clear on every page — a phone's content runs edge to edge — so it asks the page: once
+     the scrolling settles (and on load and resize) it looks under its own resting box, and
+     while a link, a button or a field is there it stays tucked, coming back as soon as the
+     spot is clear. The Help Centre's "Ask Gee" is a way in that is never tucked. */
+  var CONTROL = 'a[href], button, input, select, textarea, summary, label, [role="button"], [role="link"], [tabindex]:not([tabindex="-1"])';
+  function overControl() {
+    if (fab.hidden) return false;
+    var x = fab.offsetLeft, y = fab.offsetTop, w = fab.offsetWidth, h = fab.offsetHeight;
+    if (!w || !h) return false;
+    var xs = [x + 3, x + w / 2, x + w - 3], ys = [y + 3, y + h / 2, y + h - 3];
+    for (var i = 0; i < xs.length; i++) for (var j = 0; j < ys.length; j++) {
+      var under = document.elementsFromPoint(xs[i], ys[j]);
+      for (var k = 0; k < under.length; k++) {
+        var el = under[k];
+        if (el === fab || fab.contains(el) || root.contains(el)) continue;
+        // A ballot is one form read top to bottom; the tab parked over its text sat on the
+        // nominee's own words and the code boxes alike, so the whole card counts.
+        if (el.closest && el.closest(CONTROL + ', [data-ballot]')) return true;
+      }
+    }
+    return false;
+  }
   function tuckOnScroll() {
+    var phone = window.matchMedia ? window.matchMedia('(max-width: 599px)') : null;
     var main = document.querySelector('.ag-main') || document.scrollingElement;
     var scroller = main === document.scrollingElement ? window : main;
-    var lastY = main.scrollTop, settle = 0;
+    var lastY = main.scrollTop, settle = 0, reading = false, blocked = false;
+    function paintTuck() {
+      if ((reading || blocked) && document.activeElement !== fab) fab.setAttribute('data-tuck', '');
+      else fab.removeAttribute('data-tuck');
+    }
+    function look() { blocked = overControl(); paintTuck(); }
     scroller.addEventListener('scroll', function () {
       var y = main.scrollTop, dy = y - lastY;
       lastY = y;
       if (Math.abs(dy) < 4) return;
-      if (dy > 0 && y > 80 && document.activeElement !== fab) fab.setAttribute('data-tuck', '');
-      else fab.removeAttribute('data-tuck');
+      reading = dy > 0 && y > 80;
+      paintTuck();
       clearTimeout(settle);
-      settle = setTimeout(function () { fab.removeAttribute('data-tuck'); }, 900);
+      // On a phone it stays tucked once somebody is reading down the page, until they scroll
+      // back up: coming back at every pause put it over a row's button again mid-read.
+      settle = setTimeout(function () {
+        if (!(phone && phone.matches && y > 80)) reading = false;
+        look();
+      }, 900);
     }, { passive: true });
     fab.addEventListener('focus', function () { fab.removeAttribute('data-tuck'); });
+    var again = 0;
+    window.addEventListener('resize', function () {
+      if (!window.requestAnimationFrame) return look();
+      cancelAnimationFrame(again); again = requestAnimationFrame(look);
+    });
+    // After the first layout and again once images have landed (a hero moves everything).
+    if (window.requestAnimationFrame) requestAnimationFrame(look); else look();
+    document.addEventListener('ag:load', function () { reading = false; look(); });
+    if (document.readyState !== 'complete') window.addEventListener('load', look);
+    // And once more after the page's own entrance animations: a celebration's buttons rise
+    // into place over ~1.3s, so the first look found nothing under the tab and it parked
+    // over "Share" for good.
+    setTimeout(look, 1600);
   }
   tuckOnScroll();
 })();

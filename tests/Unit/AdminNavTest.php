@@ -50,13 +50,15 @@ final class AdminNavTest extends TestCase
     private const BEFORE = [
         '/admin/dashboard' => 'overview', '/admin/assistant' => 'overview', '/admin/handbook' => null,
         '/admin/profiles' => 'moderation', '/admin/nominations' => 'moderation',
-        '/admin/nominations/review' => 'moderation', '/admin/nominees' => 'moderation',
+        '/admin/nominations/review' => 'moderation', '/admin/nominations/desk' => 'moderation', '/admin/nominees' => 'moderation',
+        '/admin/nominees/duplicates' => 'moderation',   // new 21 Oct 2026, under its parent's gate
         '/admin/moderation' => 'moderation', '/admin/interviews' => 'moderation',
         '/admin/questionnaires' => 'moderation', '/admin/questionnaires/invitations' => 'moderation',
         '/admin/campaigns' => null, '/admin/support' => null,
         '/admin/programmes' => 'programmes', '/admin/shortlists' => 'programmes', '/admin/challenges' => null,
         '/admin/awards-page' => 'programmes',
         '/admin/events' => 'content', '/admin/stand-presets' => 'content', '/admin/posts' => 'content',
+        '/admin/events/leads' => 'content',   // new 3 Nov 2026, under its parent's gate
         '/admin/legacy' => 'content', '/admin/opportunities' => 'content', '/admin/media' => 'content',
         '/admin/products' => 'content', '/admin/shop/orders' => 'content', '/admin/forms' => 'content',
         '/admin/partners' => 'content', '/admin/legal' => 'content',
@@ -65,11 +67,20 @@ final class AdminNavTest extends TestCase
         '/admin/payments/disputes' => 'finance', '/admin/refunds' => 'finance', '/admin/vote-delivery' => 'finance',
         '/admin/vote-recovery' => null,
         '/admin/integrity' => null, '/admin/judging-audit' => null, '/admin/result-release' => null,
-        '/admin/audit' => null, '/admin/data' => 'data', '/admin/analytics' => 'data', '/admin/registrations' => 'data',
+        '/admin/users' => 'data', '/admin/audit' => null, '/admin/data' => 'data', '/admin/analytics' => 'data', '/admin/registrations' => 'data',
         '/admin/admins' => 'configuration', '/admin/settings' => 'configuration', '/admin/webhooks' => 'configuration',
         '/admin/ai-prompts' => null, '/admin/attendee' => 'configuration', '/admin/sandbox' => 'configuration',
         '/admin/judges' => 'configuration', '/admin/rubric' => 'configuration',
         '/admin/settings/providers' => 'configuration', '/admin/settings/mail' => 'configuration',
+        // Routed and gated before, and only NAMED in the tree on 20 Oct 2026 (NavCoverageTest),
+        // so these are the guard's gates as they already stood — naming a page grants nothing.
+        '/admin/judges/schedule' => 'configuration', '/admin/recognitions' => null,
+        '/admin/campaigns/newsletter' => null, '/admin/campaigns/greetings' => null,
+        '/admin/shop/codes' => 'content', '/admin/shop/shipping' => 'content',
+        // Shop upgrade (18 Nov 2026): new pages under the shop's existing gate, no role gains or loses access.
+        '/admin/shop/stock' => 'content', '/admin/shop/orders/print' => 'content',
+        '/admin/shop/pickup' => 'content', '/admin/shop/till' => 'content',
+        '/admin/shop/today' => 'content', '/admin/shop/reports' => 'content', '/admin/assistant/scripts' => 'overview',
     ];
 
     /** The owner-approved widening (GAPS §8d), and the one new page. */
@@ -77,9 +88,42 @@ final class AdminNavTest extends TestCase
         '/admin/settings/providers' => 'health',
         '/admin/settings/mail'      => 'health',
         '/admin/alerts'             => 'health',
+        // New with the two-stage community return (17 Oct 2026). Left UNMAPPED — superadmin
+        // only — exactly like Payouts beside it: it confirms milestones that release money and
+        // settles withdrawals, and widening that to `finance` is the owner's decision, not a
+        // side effect of adding the page.
+        '/admin/community-return'   => null,
+        // New with AdminConsole v2 (20 Oct 2026). Home's own gate: every entry on it is
+        // filtered by the page it links to, so the page shows a role nothing it cannot open.
+        '/admin/calendar'           => 'overview',
+        // New with AdminConsole v2 (26 Oct 2026). Held with the money: it totals giving per person.
+        '/admin/contacts'           => 'finance',
+        // New with the volunteer workspace (28 Oct 2026, consoles v7 §6). Left UNMAPPED —
+        // superadmin only — like Payouts and Community return: it holds applicants' dates of
+        // birth and referees' phones, and who else coordinates volunteers is the owner's call.
+        // Mapped on 31 Oct 2026 to its own section, superadmin + admin — the owner's call,
+        // made because admins could not give anybody a team lead role.
+        '/admin/volunteers'         => 'volunteers',
+        // /admin/lead left the console on 29 Oct 2026: a lead is a member account at /lead.
+        // Deciding requests (§2.6) is held with the money: only superadmin and admin decide.
+        '/admin/requests'           => 'finance',
+        // New 4 Nov 2026: ads posted from the console. With the money (superadmin + admin),
+        // as the owner asked that admins can post: a direct sale records income.
+        '/admin/ads'                => 'finance',
+        // New 11 Nov 2026: errors visitors saw, under Alerts. Left UNMAPPED — superadmin only —
+        // because each entry carries file paths and stack frames; who else reads those is the
+        // owner's call.
+        '/admin/errors'             => null,
     ];
 
     private const ROLES = ['superadmin', 'admin', 'editor', 'moderator', 'viewer'];
+
+    /**
+     * Pages retired from the console, and where their address now forwards. "All
+     * nominations" was a second list of the same nominations the review list already
+     * shows by status (21 Oct 2026); its address answers 301 to the review list.
+     */
+    private const RETIRED = ['/admin/nominations' => '/admin/nominations/review'];
 
     public function test_no_page_moved_across_a_permission_boundary_but_the_three_health_pages(): void
     {
@@ -98,8 +142,12 @@ final class AdminNavTest extends TestCase
         }
         $this->assertSame([], $drift, "an access change rode along inside the navigation:\n  " . implode("\n  ", $drift));
 
-        // And every page the old console had is still named somewhere.
-        $missing = array_diff(array_keys(self::BEFORE), array_values($now));
+        // And every page the old console had is still named somewhere — unless it was
+        // retired on purpose, which is a forwarding address, never a silent disappearance.
+        $missing = array_diff(array_keys(self::BEFORE), array_values($now), array_keys(self::RETIRED));
+        foreach (self::RETIRED as $href => $to) {
+            $this->assertNotContains($href, array_values($now), "$href is retired and is in the nav again");
+        }
         $this->assertSame([], array_values($missing), 'pages vanished from the console');
     }
 
@@ -129,15 +177,17 @@ final class AdminNavTest extends TestCase
         $got = [];
         foreach (AdminNav::groups() as $g) $got[$g['label']] = array_column($g['items'], 'label');
 
+        // AdminConsole v2's rail (README §10b), in its order and words. Its Workspace group
+        // Inbox and Check-in are pages not built yet; each joins this list the day it is
+        // routed (Calendar sits above the groups; Contacts joined 26 Oct 2026).
         $this->assertSame([
-            'Daily work' => ['Review queue', 'Payment issues', 'Alerts', 'Support tickets'],
-            // Hosts (not built, owner) and Editions (stage 2) are recorded as deviations.
-            'Programmes' => ['Awards', 'Events & stands', 'Challenges'],
-            'Entries'    => ['Nominations', 'Nominees', 'Profiles', 'Interviews'],
-            'Money'      => ['Revenue', 'Payouts', 'Ledger', 'Refunds & disputes', 'Vote delivery', 'Vendor rules'],
-            'Publishing' => ['Blog', 'Media', 'Awards page', 'Opportunities', 'Forms', 'Shop', 'Legal', 'Legacy vault'],
-            'Monitoring' => ['Integrations', 'Email health', 'Audit log', 'Integrity', 'Analytics', 'All data'],
-            'Settings'   => ['People & roles', 'Judges & rubric', 'Site & keys', 'Webhooks', 'AI & interview bot', 'Test data'],
+            'Awards'       => ['Programmes', 'Nominations', 'Shortlists', 'Judges', 'Result release'],
+            'Engage'       => ['Events', 'Challenges', 'Giving', 'Forms'],
+            'People & audience' => ['Members', 'Contacts', 'Broadcasts'],
+            'Money'        => ['Payments', 'Refunds', 'Payouts', 'Finance', 'Shop orders', 'Ads'],
+            'Content'      => ['Posts', 'Media', 'Moderation'],
+            'Insights'     => ['Analytics'],
+            'Organisation' => ['Team', 'Alerts', 'Handbook', 'Audit log', 'Integrations', 'Settings'],
         ], $got);
         $this->assertSame('Home', AdminNav::home()['label']);
     }
@@ -175,7 +225,7 @@ final class AdminNavTest extends TestCase
     public function test_every_icon_the_nav_names_is_in_the_sprite(): void
     {
         $sprite = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/admin/partials/nav-icons.twig');
-        $icons = ['home', 'sidebar', 'search', 'assistant', 'shortlists'];   // the shell's own
+        $icons = ['home', 'sidebar', 'search', 'assistant', 'list', 'spark', 'more', 'plus', 'bell'];   // the shell's own
         foreach (AdminNav::railItems() as $i) $icons[] = $i['icon'];
         foreach (AdminNav::elsewhere() as $e) $icons[] = $e['icon'];
         foreach (HomeBoard::shortcuts('superadmin') as $t) $icons[] = $t['icon'];
@@ -248,17 +298,19 @@ final class AdminNavTest extends TestCase
     {
         $labels = static function (string $role): array {
             $out = [];
-            foreach (AdminNav::forRole($role)['groups'] as $g) foreach ($g['items'] as $i) $out[] = $i['label'];
+            foreach (AdminNav::forRole($role)['groups'] as $g) foreach ($g['items'] as $i) {
+                $out[] = $i['label'];
+                foreach ($i['children'] as $c) $out[] = $c['label'];
+            }
             return $out;
         };
-        $this->assertContains('Site & keys', $labels('superadmin'));
-        $this->assertNotContains('Site & keys', $labels('admin'), 'an admin was offered configuration');
-        $this->assertNotContains('Revenue', $labels('moderator'), 'a moderator was offered money');
+        $this->assertContains('Settings', $labels('superadmin'));
+        $this->assertNotContains('Settings', $labels('admin'), 'an admin was offered configuration');
+        $this->assertNotContains('Finance', $labels('moderator'), 'a moderator was offered money');
         $this->assertNotContains('Integrations', $labels('editor'), 'an editor was offered health');
         $this->assertContains('Integrations', $labels('viewer'), 'the viewer lost the owner-approved health pages');
         $this->assertContains('Email health', $labels('admin'));
-        // A viewer sees no Settings group and (Hosts not being built) no Hosts.
-        $this->assertNotContains('Settings', array_column(AdminNav::forRole('viewer')['groups'], 'label'));
+        $this->assertNotContains('Settings', $labels('viewer'));
     }
 
     // ══ where a request is ═══════════════════════════════════════════════════
@@ -266,14 +318,17 @@ final class AdminNavTest extends TestCase
     public function test_a_request_finds_its_page_by_path_before_its_key(): void
     {
         $this->assertSame('review', AdminNav::current('/admin/nominations/review')['item']['page']);
-        $this->assertSame('nominations', AdminNav::current('/admin/nominations/42')['item']['page']);
+        $n = AdminNav::current('/admin/nominations/42');
+        $this->assertSame('review', $n['item']['page']);
+        // A nomination's own page sits under the review list, now the only list of them.
+        $this->assertSame('review', $n['page']['page']);
         // The integrations check passes `admin_page: settings`; the path wins.
         $this->assertSame('providers', AdminNav::current('/admin/settings/providers', 'settings')['item']['page']);
-        $this->assertSame('mail-health', AdminNav::current('/admin/settings/mail/x')['item']['page']);
+        $this->assertSame('mail-health', AdminNav::current('/admin/settings/mail/x')['page']['page']);
         // A child lights its parent in the rail and itself in the strip.
-        $c = AdminNav::current('/admin/shortlists');
-        $this->assertSame('programmes', $c['item']['page']);
-        $this->assertSame('shortlists', $c['page']['page']);
+        $c = AdminNav::current('/admin/rubric');
+        $this->assertSame('judges', $c['item']['page']);
+        $this->assertSame('rubric', $c['page']['page']);
         $this->assertSame('dashboard', AdminNav::current('/admin')['item']['page']);
         $this->assertNull(AdminNav::current('/admin/nowhere')['item']);
     }
@@ -281,7 +336,7 @@ final class AdminNavTest extends TestCase
     public function test_the_also_here_strip_is_the_item_and_its_children_and_never_one_link(): void
     {
         $strip = AdminNav::related('superadmin', '/admin/events');
-        $this->assertSame(['events', 'stand_presets', 'registrations'], array_column($strip, 'page'));
+        $this->assertSame(['events', 'event_leads', 'stand_presets', 'registrations'], array_column($strip, 'page'));
         $this->assertTrue($strip[0]['on']);
         $this->assertSame([], AdminNav::related('superadmin', '/admin/challenges'), 'a lone page drew a strip');
         // A moderator on Interviews: the questionnaires are theirs.

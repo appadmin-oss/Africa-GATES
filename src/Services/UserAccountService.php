@@ -215,6 +215,8 @@ final class UserAccountService
         $_SESSION['user_id']    = (int) $u->id;
         $_SESSION['user_name']  = $u->name;
         $_SESSION['user_email'] = $u->email;
+        // The account's photo, for the avatar in the header (session-only, like the name).
+        $_SESSION['user_photo'] = NomineePhoto::forUser((int) $u->id);
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
         DB::table('gates_users')->where('id', $u->id)->update([
             'last_login_at' => Carbon::now()->toDateTimeString(),
@@ -224,7 +226,9 @@ final class UserAccountService
 
     public function logout(): void
     {
-        unset($_SESSION['user_id'], $_SESSION['user_name'], $_SESSION['user_email']);
+        // Roles opened from this account (Account\Roles) close with it.
+        \AfricaGates\Services\Account\Roles::signOutOpened();
+        unset($_SESSION['user_id'], $_SESSION['user_name'], $_SESSION['user_email'], $_SESSION['user_photo']);
     }
 
     public function current(): ?object
@@ -269,13 +273,36 @@ final class UserAccountService
         // adds one — but a number that IS given must be one: a code may be sent to it.
         if ($phone !== '' && strlen((string) preg_replace('/\D+/', '', $phone)) < 7) return ['ok' => false, 'error' => 'Please enter a valid phone number.'];
         $row = ['name' => mb_substr($name, 0, 160), 'phone' => $phone !== '' ? mb_substr($phone, 0, 40) : null];
+        // A changed NAME is recorded: the bank's account name is checked against it before a
+        // withdrawal is sent without a person, so editing it to match a stranger's account is
+        // a takeover signal like new bank details (WalletRisk::takeover()).
+        $before = DB::table('gates_users')->where('id', $userId)->first();
+        $was = (string) ($before->name ?? '');
+        if (trim($was) !== trim($row['name'])) {
+            $row += \AfricaGates\Support\OptionalColumn::filter('gates_users',
+                ['name_changed_at' => Carbon::now()->toDateTimeString()], ['name_changed_at']);
+        }
         // The normalised copy moves with it, or the sign-in by phone would go on finding the
         // number the member has just replaced.
         $row += \AfricaGates\Support\OptionalColumn::filter('gates_users',
             ['phone_e164' => $phone !== '' ? \AfricaGates\Support\Phone::normalize($phone, 'NG') : null], ['phone_e164']);
         DB::table('gates_users')->where('id', $userId)->update($row);
         if ((int) ($_SESSION['user_id'] ?? 0) === $userId) $_SESSION['user_name'] = $name;
+        // A changed name or phone is told to the member, the text going to the number on
+        // file BEFORE this change (AccountChangeNotice explains why).
+        if ($before) AccountChangeNotice::profile($userId, $before, $row['name'], $phone);
         return ['ok' => true];
+    }
+
+    /** When this member last signed in with a one-time code (see WalletRisk::takeover()). */
+    public static function markCodeSignIn(int $userId): void
+    {
+        if ($userId < 1) return;
+        try {
+            $row = \AfricaGates\Support\OptionalColumn::filter('gates_users',
+                ['otp_signin_at' => Carbon::now()->toDateTimeString()], ['otp_signin_at']);
+            if ($row) DB::table('gates_users')->where('id', $userId)->update($row);
+        } catch (\Throwable) { /* a missing stamp must never cost somebody their sign-in */ }
     }
 
     public function setPassword(int $userId, string $password): bool
@@ -283,6 +310,18 @@ final class UserAccountService
         if (strlen($password) < 8) return false;
         DB::table('gates_users')->where('id', $userId)->update(['password_hash' => password_hash($password, PASSWORD_BCRYPT)]);
         return true;
+    }
+
+    /** Validate and change only the password; shared by security and legacy profile clients. */
+    public function changePassword(int $userId, string $newPassword, string $currentPassword = ''): array
+    {
+        if (strlen($newPassword) < 8) return ['ok' => false, 'error' => 'New password must be at least 8 characters.'];
+        $user = DB::table('gates_users')->select('id', 'password_hash')->where('id', $userId)->first();
+        if (!$user) return ['ok' => false, 'error' => 'Account not found.'];
+        if (!empty($user->password_hash) && !password_verify($currentPassword, (string) $user->password_hash)) {
+            return ['ok' => false, 'error' => 'Your current password is incorrect.'];
+        }
+        return ['ok' => $this->setPassword($userId, $newPassword)];
     }
 
     /* ── Email verification ──────────────────────────────────────────────────
@@ -415,7 +454,8 @@ final class UserAccountService
     // account; a verification link only proves an address. They are not the same risk and
     // must not share a window.
     public const RESET_PURPOSE = 'user_pwreset';
-    private const RESET_TTL_MINUTES = 60;
+    /** How long a reset link lives. Public because the email that carries it says so. */
+    public const RESET_TTL_MINUTES = 60;
 
     /**
      * Mint a single-use reset token, invalidating any earlier unused one. Returns the RAW

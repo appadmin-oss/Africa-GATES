@@ -53,7 +53,7 @@
   <div class="nh__top"><h1 class="nh__h1">{{ 'Nominate'|trans }}</h1></div>
 
   {% if share_expired %}
-    <p class="nh__say" role="alert">{{ 'That nomination link has expired or no longer points at an open award. You can still nominate below.'|trans }}</p>
+    <p class="nh__say" role="alert">{{ 'That nomination link is no longer active. You can still nominate below.'|trans }}</p>
   {% endif %}
 
   {% if programmes|length or name %}
@@ -97,7 +97,7 @@
             {% for p in programmes %}
               {% set _days = p.phase.seconds_left ? (p.phase.seconds_left // 86400) : null %}
               <a class="nh-card" href="/nominate/{{ p.slug }}{{ _q }}">
-                <span class="nh-card__media">{% include 'partials/photo.twig' with {kind: 'thing', subject: 'award', name: p.title} only %}</span>
+                <span class="nh-card__media">{% include 'partials/photo.twig' with {identity: p.id|default(null), kind: 'thing', subject: 'award', name: p.title} only %}</span>
                 <span class="nh-card__b">
                   <b class="nh-card__t">{{ p.title }}</b>
                   <span class="nh-card__l">{{ p.edition_line }}</span>
@@ -142,7 +142,7 @@
       {% if not programmes|length %}
         <div class="ag-empty nh__empty">
           <p class="ag-empty__t">{{ 'No award is taking nominations right now.'|trans }}</p>
-          <p>{{ 'Each award opens its nominations on its own dates — the list above says when.'|trans }}</p>
+          <p>{{ 'Each award sets its own nomination dates.'|trans }}</p>
           <a class="ag-btn ag-btn--secondary ag-btn--pill" href="/awards">{{ 'See every award'|trans }}</a>
         </div>
       {% endif %}
@@ -182,7 +182,7 @@
 
 {% block bottom_bar %}
   {% if programmes|length %}
-    <div class="nh-cta" data-bottom-ui><a class="nh-cta__go" href="{{ _start }}">{{ _startLabel }}</a></div>
+    <div class="nh-cta" data-bottom-ui role="region" aria-label="{{ 'Start a nomination'|trans }}"><a class="nh-cta__go" href="{{ _start }}">{{ _startLabel }}</a></div>
   {% endif %}
   {{ parent() }}
 {% endblock %}

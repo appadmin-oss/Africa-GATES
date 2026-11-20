@@ -140,6 +140,47 @@ final class GuideController
     }
 
     /**
+     * POST /api/guide/rate — {mode, source, helpful, path}. A visitor's thumb on one answer.
+     *
+     * No words travel: the question and the answer stay in the visitor's tab, as the privacy
+     * note says (Services\GeeRatings). Thirty an hour per connection, quietly: a refused
+     * rating answers `ok:false` and the thumb still shows as pressed, because nothing about a
+     * rating is worth an error in front of somebody who has just been helped.
+     */
+    public function rate(Request $req, Response $res): Response
+    {
+        $ip = (string) ($req->getServerParams()['REMOTE_ADDR'] ?? '');
+        if ($this->rateLimit && !$this->rateLimit->check(hash('sha256', $ip . '|gee-rate'), 'gee_rate', 30, 3600)) {
+            return $this->json($res, ['ok' => false], 429);
+        }
+        $b = (array) $req->getParsedBody();
+        $helpful = $b['helpful'] ?? null;
+        if (!in_array($helpful, [true, false, 1, 0, '1', '0'], true)) return $this->json($res, ['ok' => false], 422);
+        $ok = \AfricaGates\Services\GeeRatings::record((string) ($b['mode'] ?? ''), (string) ($b['source'] ?? ''),
+            in_array($helpful, [true, 1, '1'], true), (string) ($b['path'] ?? ''));
+        return $this->json($res, ['ok' => $ok]);
+    }
+
+    /**
+     * What the suggested articles are matched against.
+     *
+     * "Hurry" and "when will you finish?" have no topic, so matching them alone fell to the
+     * last-resort set — a refund conversation was offered "why the nominee with the most
+     * votes may not win". A message of three words or fewer is matched together with the
+     * person's previous message, which is where its topic is.
+     */
+    private static function topic(string $message, array $history): string
+    {
+        if (count(preg_split('/\s+/u', trim($message)) ?: []) > 3) return $message;
+        foreach (array_reverse($history) as $h) {
+            if (!is_array($h) || ($h['role'] ?? '') === 'assistant') continue;
+            $t = trim((string) ($h['content'] ?? $h['text'] ?? ''));
+            if ($t !== '' && $t !== $message) return mb_substr($t, 0, 400) . ' ' . $message;
+        }
+        return $message;
+    }
+
+    /**
      * One support turn, answered by the real support agent.
      *
      * ── WHY THIS RUNS BEFORE THE MAKE BRIDGE ─────────────────────────────────
@@ -175,7 +216,7 @@ final class GuideController
                 'reply'    => \AfricaGates\Support\ReplyLinks::clean((string) $out['reply']),
                 'source'   => $out['source'],
                 'support'  => true,
-                'articles' => HelpCentre::previews($message, [], 3, lastResort: true),
+                'articles' => HelpCentre::previews(self::topic($message, $history), [], 3, lastResort: true),
             ];
         }
 
@@ -210,7 +251,7 @@ final class GuideController
             'ticket'    => $r['ticket'],
             'escalated' => $r['escalated'],
             'actions'   => $r['actions'] ?? [],
-            'articles'  => HelpCentre::previews($message,
+            'articles'  => HelpCentre::previews(self::topic($message, $history),
                 SupportAgentService::citedSlugs($r['results'] ?? []), 3, lastResort: true),
         ];
     }

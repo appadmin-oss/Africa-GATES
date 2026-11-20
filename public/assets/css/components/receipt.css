@@ -93,3 +93,6 @@
 /* ── the share link (nomination) ─────────────────────────────────────────── */
 .rc__share-row{ display:flex; gap:var(--ag-sp-8) }
 .rc__share-row .ag-field{ flex:1; min-width:0 }
+
+/* The supporter's "I backed" card, as it will look posted (Services\BackedCard). */
+.rc__card-img{ display:block; width:100%; height:auto; aspect-ratio:1200 / 630; border-radius:var(--ag-r-10); background:var(--ag-ground) }

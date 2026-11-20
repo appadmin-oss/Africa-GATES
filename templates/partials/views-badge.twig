@@ -1,0 +1,72 @@
+{#
+  "SEEN BY" — how many people have read this page, and the way in to promoting on it
+  (Services\PageViews; owner, 11 Nov 2026, by voice note: "have the numbers of views shown …
+  put an icon there … where you click it you can see promote your business, promote your
+  event"; "make it smart", "UX-optimized").
+
+  REDESIGNED 11 Nov 2026 (owner: "the views UI/UX is not senior level"). The first cut was a
+  44px outlined pill that read as a button competing with the page's own action, opening a
+  sales pitch. A view count is METADATA — YouTube, LinkedIn and X all set it as a quiet line
+  under the title — so it is one now: an eye, the count, "Trending" when it is, and a small
+  "Promote" that says what pressing it does. The panel leads with the number itself (the
+  exact figure, fourteen days as a sparkline, this week against last) and only then offers
+  the promotion, with how a view is counted at the foot.
+
+  Two parts:
+    · the BEACON MARKER, always: views.js counts an engaged view from it (visible for
+      `after` seconds). A page below the threshold still gathers its views; it simply does
+      not show them yet.
+    · the CHIP, once there is a number worth showing: an eye and a count, the way every feed
+      writes one ("1.2k views"), with "Trending" when this week clearly beats last week.
+      Pressing it opens a small panel — the exact figure and this week's, what an ad here
+      would reach in the market's own numbers, and the way to act on it ("Promote this
+      event", "Promote your business"). A <details>: a real button to a keyboard and a
+      screen reader, and it works with no script; views.js only closes it on Escape or a
+      tap elsewhere, as every menu does.
+
+  Args (with … only):
+    v           PageViews::forPage(): {token, after, badge: {…} | null}, or null
+    csrf_token  the page's token (`only` hides the global); read at send time by views.js
+#}
+{% if v %}
+<span hidden data-pv="{{ v.token }}" data-pv-after="{{ v.after }}" data-csrf="{{ csrf_token|default('') }}"></span>
+{% set b = v.badge %}
+{% if b %}
+<details class="ag-views{{ b.staff_only ? ' ag-views--staff' : '' }}">
+  <summary class="ag-views__s" aria-label="{{ (b.trending ? 'Trending. %n% views. See the numbers and promote on Africa GATES' : '%n% views. See the numbers and promote on Africa GATES')|trans({'%n%': b.full}) }}">
+    <svg class="ag-views__i" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+    <span class="ag-views__n">{{ '%n% views'|trans({'%n%': b.short}) }}</span>
+    {% if b.trending %}<span class="ag-views__t"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8M15 7h6v6"/></svg>{{ 'Trending'|trans }}</span>{% endif %}
+    <span class="ag-views__sep" aria-hidden="true">·</span><span class="ag-views__go">{{ 'Promote'|trans }}<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span>
+  </summary>
+  <div class="ag-views__pop">
+    <div class="ag-views__stat">
+      <p class="ag-views__big">{{ b.full }}</p>
+      <p class="ag-views__lbl">{{ 'people have viewed this page'|trans }}</p>
+      {% if b.spark %}
+        <svg class="ag-views__spark" viewBox="0 0 140 40" preserveAspectRatio="none" aria-hidden="true"><path class="ag-views__area" d="{{ b.spark.area }}"/><polyline class="ag-views__line" points="{{ b.spark.line }}" fill="none"/></svg>
+        <p class="ag-views__axis" aria-hidden="true"><span>{{ '14 days ago'|trans }}</span><span>{{ 'Today'|trans }}</span></p>
+      {% endif %}
+      <p class="ag-views__wk">
+        <b>{{ b.week_full }}</b> {{ 'this week'|trans }}
+        {%- if b.change is not null %} <span class="ag-views__chg{{ b.change >= 0 ? ' is-up' : ' is-down' }}">{{ b.change >= 0 ? '↑' : '↓' }} {{ b.change|abs }}%</span> {{ 'on last week'|trans }}{% endif %}
+      </p>
+    </div>
+    {% if b.staff_only %}<p class="ag-views__staff"><b>{{ 'Only staff see this yet.'|trans }}</b> {{ 'Visitors see the count from %n% views (Settings, Visits). Your own visits are not counted.'|trans({'%n%': b.min|number_format}) }}</p>{% endif %}
+    <div class="ag-views__sell">
+      <p class="ag-views__h">{{ b.event ? 'Bring more people to this event'|trans : 'Reach people like them'|trans }}</p>
+      <p class="ag-views__p">
+        {%- if b.daily %}{{ 'About %d% people read Africa GATES every day.'|trans({'%d%': b.daily|number_format}) }} {% endif -%}
+        {{- 'Every ad is checked by a person and labelled.'|trans -}}
+        {%- if b.from %} {{ 'From ₦%p% per 1,000 views.'|trans({'%p%': b.from|number_format}) }}{% endif -%}
+      </p>
+      <div class="ag-views__acts">
+        {% if b.event %}<a class="ag-btn ag-btn--primary ag-btn--pill ag-views__a" href="{{ b.event.href }}">{{ 'Promote this event'|trans }}</a>{% endif %}
+        <a class="ag-btn {{ b.event ? 'ag-btn--secondary' : 'ag-btn--primary' }} ag-btn--pill ag-views__a" href="/advertise">{{ 'Promote your business'|trans }}</a>
+      </div>
+    </div>
+    <p class="ag-views__how">{{ 'A view is one person who stayed on the page, counted once a day. Bots and quick bounces never count.'|trans }}</p>
+  </div>
+</details>
+{% endif %}
+{% endif %}

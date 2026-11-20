@@ -58,6 +58,8 @@ final class AnalyticsController
             // that is not counted off a domain table — nothing else here can say what
             // happened BEFORE somebody arrived.
             'arrivals'   => AnalyticsService::arrivals($days, 12),
+            // The visit's idle limit, as the page explains it: read from the tracker, not typed.
+            'arrivals_idle_minutes' => intdiv(\AfricaGates\Services\VisitTracker::IDLE_SECONDS, 60),
             'audience'   => AnalyticsService::audience($days),
             'voting'     => AnalyticsService::voting($days),
             'retention'  => AnalyticsService::retention(8),
@@ -70,6 +72,8 @@ final class AnalyticsController
             // gates_events: written on four paths since the day it was added, read by
             // nothing until this line. See AnalyticsService::platformEvents().
             'events'     => AnalyticsService::platformEvents($days),
+            // Discover searches that found nothing, after typo correction (SearchMisses).
+            'search_misses' => \AfricaGates\Services\SearchMisses::top($days, 20),
         ]);
     }
 }

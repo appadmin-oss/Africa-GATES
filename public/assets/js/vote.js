@@ -22,10 +22,24 @@
 
    ── LIVE TALLIES ───────────────────────────────────────────────────────────────
    /vote/{slug}/tallies (cached server-side for 5s) every 10s while the tab is visible,
-   patching numbers the page already rendered — never re-deriving ranks here.
+   patching numbers the page already rendered — never re-deriving ranks here. The gap
+   ("14 behind #2") is patched with them: it used to stay as drawn while the votes and
+   the rank beside it moved, so a row could say #1 and "14 behind #1" at once.
+
+   ── FIND, MOVEMENT, YOUR PICK (owner, 16 Nov 2026: "brainstorm … short UX-optimised
+      feature … beautiful") ─────────────────────────────────────────────────────────
+   Most people arrive to back ONE nominee. So: a box that finds them across every
+   category in place; on a return visit, what moved since ("Up 2 · +48 votes since your
+   last visit"), from a snapshot this device keeps under `ag-vote:seen:{programmeId}`;
+   and under the nominee this device backed, the gap to the place above and a button to
+   share their link — the one next step that closes it without spending anything.
+   Every word is the template's (data-w-*), translated there.
    ══════════════════════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
+  // Page-wide listeners and timers go through agPage (layout/shell.twig), which site-nav.js
+  // undoes when this page is swapped away; elsewhere they are plain (SiteNavTest).
+  var pg = window.agPage || { on: function (t, y, f, o) { t.addEventListener(y, f, o); }, every: function (f, ms) { return setInterval(f, ms); }, leave: function () {} };
 
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
@@ -67,6 +81,173 @@
     }
   }
 
+  /* ── All, or one category ─────────────────────────────────────────────────
+     The page draws every view and shows one: All (the whole edition ranked by
+     votes, the race the award is decided on) or a single category. The chips are
+     links (?cat=, or the bare URL for All) so each view has an address and works
+     with no script; here they switch in place, keep the address in step, and keep
+     the chosen chip in sight in the sideways chip row. */
+  function views(root) {
+    var panes = $$('[data-view]', root);
+    if (panes.length < 2) return;
+    var links = $$('[data-view-link]', root), row = $('.vp-chips', root), wrap = $('.vp-race-wrap', root);
+    var show = function (id) {
+      panes.forEach(function (p) { p.hidden = p.getAttribute('data-view') !== id; });
+      links.forEach(function (a) {
+        if (a.getAttribute('data-view-link') === id) a.setAttribute('aria-current', 'true');
+        else a.removeAttribute('aria-current');
+      });
+      var chip = row && $('[data-view-link="' + id + '"]', row);
+      if (chip && row.scrollWidth > row.clientWidth) {
+        var x = Math.max(0, chip.offsetLeft - (row.clientWidth - chip.offsetWidth) / 2);
+        try { row.scrollTo({ left: x, behavior: 'smooth' }); } catch (e) { row.scrollLeft = x; }
+      }
+      /* Somebody scrolled down a long list and switched: start the new one at
+         its top rather than somewhere in its middle. */
+      if (wrap && wrap.getBoundingClientRect().top < 0) wrap.scrollIntoView({ block: 'start' });
+    };
+    links.forEach(function (a) {
+      a.addEventListener('click', function (e) {
+        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        e.preventDefault();
+        show(a.getAttribute('data-view-link'));
+        if (history.replaceState) history.replaceState(history.state, '', a.href);
+      });
+    });
+  }
+
+  /* ── find your nominee ─────────────────────────────────────────────────────
+     Filters the rows already on the page. Searches the All list where there is one (every
+     nominee once, named with their category), else the one category; restores the view the
+     person was on when the box is emptied. Esc empties it. */
+  function fold(t) {
+    t = String(t || '').toLowerCase();
+    try { t = t.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch (e) {}
+    return t;
+  }
+  function finder(root) {
+    var box = $('[data-find]', root), q = box && $('[data-find-q]', box);
+    if (!q) return;
+    box.hidden = false;
+    var panes = $$('[data-view]', root), target = $('[data-view="all"]', root) || panes[0];
+    var none = $('[data-find-none]', root), noneT = none && $('[data-find-none-t]', none), said = $('[data-find-said]', box);
+    var before = null;
+    var rows = $$('.vp-race > li', target).map(function (li) { return { li: li, hay: fold(li.textContent) }; });
+    var run = function () {
+      var v = fold(q.value).trim(), words = v ? v.split(/\s+/) : [];
+      if (!words.length) {
+        rows.forEach(function (r) { r.li.hidden = false; });
+        if (before) { panes.forEach(function (p) { p.hidden = p !== before; }); before = null; }
+        if (none) none.hidden = true;
+        if (said) said.textContent = '';
+        return;
+      }
+      if (!before) before = panes.filter(function (p) { return !p.hidden; })[0] || target;
+      panes.forEach(function (p) { p.hidden = p !== target; });
+      var n = 0;
+      rows.forEach(function (r) {
+        var hit = words.every(function (w) { return r.hay.indexOf(w) > -1; });
+        r.li.hidden = !hit; if (hit) n++;
+      });
+      target.hidden = n === 0;
+      if (none) { none.hidden = n > 0; if (noneT) noneT.textContent = fill(noneT.getAttribute('data-t'), { q: q.value.trim() }); }
+      if (said) said.textContent = n === 1 ? root.getAttribute('data-w-found1') : fill(root.getAttribute('data-w-found'), { n: fmt(n) });
+    };
+    q.addEventListener('input', run);
+    q.addEventListener('keydown', function (e) { if (e.key === 'Escape' && q.value) { e.preventDefault(); q.value = ''; run(); } });
+    var clear = none && $('[data-find-clear]', none);
+    if (clear) clear.addEventListener('click', function () { q.value = ''; run(); q.focus(); });
+  }
+
+  /* ── since your last visit ─────────────────────────────────────────────────
+     A visit is a session of looking: a snapshot older than half an hour becomes "last
+     visit", and the rows that moved against it say so. Reloading inside a visit keeps the
+     same comparison, so the chips do not vanish on a refresh. A first visit draws nothing. */
+  var VISIT = 30 * 60 * 1000;
+  function snapshot(root) {
+    var out = {};
+    $$('[data-race]', root).forEach(function (ol) {
+      var race = {};
+      $$('[data-nominee]', ol).forEach(function (a) {
+        var r = $('[data-rank]', a), v = $('[data-votes]', a);
+        race[a.getAttribute('data-nominee')] = [parseInt(String(r ? r.textContent : '').replace(/\D/g, ''), 10) || 0, parseInt(String(v ? v.textContent : '').replace(/\D/g, ''), 10) || 0];
+      });
+      out[ol.getAttribute('data-race')] = race;
+    });
+    return out;
+  }
+  function movement(root, pid) {
+    var now = Date.now(), seen = {};
+    try { seen = JSON.parse(get('seen:' + pid) || '{}') || {}; } catch (e) { seen = {}; }
+    var cur = snapshot(root);
+    if (!seen.cur || !seen.at || now - seen.at > VISIT) { seen.prev = seen.cur || null; seen.at = now; }
+    seen.cur = cur;
+    put('seen:' + pid, JSON.stringify(seen));
+    if (!seen.prev) return;
+    $$('[data-race]', root).forEach(function (ol) {
+      var was = seen.prev[ol.getAttribute('data-race')] || {};
+      $$('[data-nominee]', ol).forEach(function (a) {
+        var id = a.getAttribute('data-nominee'), then = was[id], now2 = (cur[ol.getAttribute('data-race')] || {})[id];
+        if (!then || !now2) return;
+        var up = then[0] - now2[0], more = now2[1] - then[1], bits = [];
+        if (up > 0) bits.push(fill(root.getAttribute('data-w-up'), { n: up }));
+        if (up < 0) bits.push(fill(root.getAttribute('data-w-down'), { n: -up }));
+        if (more > 0) bits.push(more === 1 ? root.getAttribute('data-w-plus1') : fill(root.getAttribute('data-w-plus'), { n: fmt(more) }));
+        if (!bits.length) return;
+        var chip = document.createElement('span');
+        chip.className = 'vp-row__moved' + (up > 0 ? ' is-up' : (up < 0 ? ' is-down' : ''));
+        // The mark is for a change of PLACE only; "+12 votes" already says its own direction.
+        if (up !== 0) {
+          var mark = document.createElement('span'); mark.setAttribute('aria-hidden', 'true'); mark.className = 'vp-row__moved-m';
+          mark.textContent = up > 0 ? '▲' : '▼';
+          chip.appendChild(mark);
+        }
+        chip.appendChild(document.createTextNode(fill(root.getAttribute('data-w-since'), { what: bits.join(' · ') })));
+        var main = $('.vp-row__main', a), figs = main && $('.vp-row__figs--in', main);
+        if (main) main.insertBefore(chip, figs || null);
+      });
+    });
+  }
+
+  /* ── your pick ─────────────────────────────────────────────────────────────
+     Under the nominee this device backed: how far behind the place above they are, and a
+     button to share their link — navigator.share where the phone has it, a copy where it
+     does not. Kept in step with the live tallies by gapLine(). */
+  // The gap itself is on the row beside it, so this says what to DO about it, not the number again.
+  function gapLine(root, n, r, lead) {
+    return lead ? root.getAttribute('data-w-pick-lead') : fill(root.getAttribute('data-w-pick-behind'), { r: r });
+  }
+  function picks(root, pid) {
+    var b = ballot(pid), open = root.hasAttribute('data-open');
+    Object.keys(b).forEach(function (cid) {
+      var e = b[cid] || {}; if (!e.n) return;
+      $$('[data-nominee="' + e.n + '"]', root).forEach(function (a) {
+        var li = a.parentNode; if (!li || $('.vp-mine', li)) return;
+        li.classList.add('is-mine');
+        var name = $('.vp-row__name', a);
+        if (name) { var tag = document.createElement('span'); tag.className = 'vp-row__pick'; tag.textContent = root.getAttribute('data-w-pick'); name.appendChild(tag); }
+        if (!open) return;
+        var gap = $('[data-gap]', a); if (!gap) return;
+        var box = document.createElement('div'); box.className = 'vp-mine';
+        var t = document.createElement('p'); t.className = 'vp-mine__t'; t.setAttribute('data-mine-t', '');
+        var g = gap.getAttribute('data-gap-n');
+        t.textContent = gapLine(root, parseInt(g, 10) || 0, gap.getAttribute('data-gap-r'), g === '');
+        var btn = document.createElement('button'); btn.type = 'button'; btn.className = 'ag-btn ag-btn--secondary ag-btn--pill vp-mine__go';
+        btn.textContent = root.getAttribute('data-w-share');
+        btn.addEventListener('click', function () {
+          var url = new URL(a.getAttribute('href'), location.href).href;
+          var nm = $('.vp-row__n', a) ? $('.vp-row__n', a).textContent : '';
+          var text = fill(root.getAttribute('data-w-share-text'), { name: nm, award: root.getAttribute('data-award') });
+          var done = function () { var was = root.getAttribute('data-w-share'); btn.textContent = root.getAttribute('data-w-copied'); setTimeout(function () { btn.textContent = was; }, 1800); };
+          if (navigator.share) { navigator.share({ title: text, text: text, url: url }).catch(function () {}); return; }
+          try { navigator.clipboard.writeText(url).then(done, function () {}); } catch (err) {}
+        });
+        box.appendChild(t); box.appendChild(btn);
+        li.appendChild(box);
+      });
+    });
+  }
+
   /* ── an edition's vote page ──────────────────────────────────────────────── */
   function votePage(root) {
     var pid = root.getAttribute('data-programme'), cats = parseInt(root.getAttribute('data-categories'), 10) || 0;
@@ -74,6 +255,10 @@
     $$('[data-cat-link]').forEach(function (a) {
       var t = $('.vp-done', a); if (t) t.hidden = !b[a.getAttribute('data-cat-link')];
     });
+    views(root);
+    finder(root);
+    movement(root, pid);
+    picks(root, pid);
     $$('[data-ballot-fill]').forEach(function (f) { f.style.width = pct + '%'; });
     $$('[data-ballot-ratio]').forEach(function (r) { r.textContent = n + '/' + cats; });
     var bar = $('[data-ballot-bar]'); if (bar) bar.setAttribute('aria-valuenow', String(n));
@@ -106,18 +291,72 @@
         if (document.hidden) return;
         fetch(url, { headers: { Accept: 'application/json' } }).then(function (r) { return r.json(); }).then(function (d) {
           if (!d || !d.ok || !d.categories) return;
-          d.categories.forEach(function (c) {
-            (c.nominees || []).forEach(function (x) {
-              var row = $('[data-nominee="' + x.id + '"]'); if (!row) return;
+          /* A nominee is drawn twice — in All and in their category — with a
+             different rank and bar in each, so each list is patched from its own
+             race and never from the other's. */
+          var patch = function (list, items) {
+            if (!list) return;
+            (items || []).forEach(function (x) {
+              var row = $('[data-nominee="' + x.id + '"]', list); if (!row) return;
               $$('[data-votes]', row).forEach(function (v) { v.textContent = fmt(x.votes); });
               var r = $('[data-rank]', row); if (r) r.textContent = '#' + x.rank;
               var bb = $('[data-bar]', row); if (bb) bb.style.width = x.pct + '%';
+              var lead = x.gap === null || x.gap === undefined;
+              $$('[data-gap]', row).forEach(function (gp) {
+                gp.textContent = lead ? root.getAttribute('data-w-lead') : fill(root.getAttribute('data-w-behind'), { n: fmt(x.gap), r: x.next });
+                gp.classList.toggle('is-lead', lead);
+                gp.setAttribute('data-gap-n', lead ? '' : String(x.gap)); gp.setAttribute('data-gap-r', lead ? '' : String(x.next));
+              });
+              var mt = row.parentNode && $('[data-mine-t]', row.parentNode);
+              if (mt) mt.textContent = gapLine(root, x.gap || 0, x.next, lead);
             });
-          });
+          };
+          d.categories.forEach(function (c) { patch($('[data-race="' + c.category_id + '"]'), c.nominees); });
+          patch($('[data-race="all"]'), d.overall);
+          /* "N to go" against the vote target, in every list a nominee is drawn in. A row
+             the server drew no target for is left alone: the figure is the server's call. */
+          if (d.target && !d.target.settled) {
+            (d.target.nominees || []).forEach(function (x) {
+              $$('[data-nominee="' + x.id + '"] [data-goal-left]', root).forEach(function (g) {
+                g.textContent = x.reached ? root.getAttribute('data-w-reached')
+                  : fill(root.getAttribute(x.to_go === 1 ? 'data-w-goal1' : 'data-w-goal'), { n: fmt(x.to_go) });
+                g.classList.toggle('is-reached', !!x.reached);
+              });
+            });
+          }
         }).catch(function () {});
       };
-      setInterval(poll, 10000);
+      pg.every(poll, 10000);
     }
+  }
+
+  /* ── the vote target on a nominee's page (CommunityReturnPool) ───────────────
+     The server draws the figure; this keeps it counting down from the same cached
+     tallies poll the race uses, every 10s while the tab is visible. Only while voting is
+     open and the pool unsettled (the template omits data-tallies otherwise), and only from
+     the edition the page is about: the poll is the programme's CURRENT edition. Words are
+     the template's (data-w-*); nothing here decides what "reached" means. */
+  function goalBox(box) {
+    var url = box.getAttribute('data-tallies');
+    if (!url || !window.fetch) return;
+    var nid = Number(box.getAttribute('data-nominee')), cy = Number(box.getAttribute('data-cycle'));
+    var left = $('[data-goal-left]', box), bar = $('[data-goal-bar]', box), of = $('[data-goal-of]', box), lab = $('[data-goal-label]', box);
+    var poll = function () {
+      if (document.hidden) return;
+      fetch(url, { headers: { Accept: 'application/json' } }).then(function (r) { return r.json(); }).then(function (d) {
+        var t = d && d.ok && d.target; if (!t || Number(t.cycle_id) !== cy || t.settled) return;
+        var x = (t.nominees || []).filter(function (n) { return Number(n.id) === nid; })[0]; if (!x) return;
+        var words = x.reached ? box.getAttribute('data-w-reached')
+          : fill(box.getAttribute(x.to_go === 1 ? 'data-w-left1' : 'data-w-left'), { n: fmt(x.to_go) });
+        if (left && left.textContent !== words) left.textContent = words;   // a polite live region: speak only on change
+        var ofw = fill(box.getAttribute('data-w-of'), { v: fmt(x.votes), t: fmt(t.target) });
+        if (of) of.textContent = ofw;
+        if (lab) lab.setAttribute('aria-label', ofw);
+        if (bar) bar.style.width = x.pct + '%';
+        box.classList.toggle('is-reached', !!x.reached);
+      }).catch(function () {});
+    };
+    pg.every(poll, 10000);
   }
 
   /* ── the nominee ballot ──────────────────────────────────────────────────── */
@@ -146,12 +385,12 @@
         callback: function (t) { tsToken = t; }, 'expired-callback': function () { tsToken = ''; }, 'error-callback': function () { tsToken = ''; } });
       return true;
     }
-    if (tsKey && !tsBoot()) { var tries = 0, iv = setInterval(function () { if (tsBoot() || ++tries > 150) clearInterval(iv); }, 100); }
+    if (tsKey && !tsBoot()) { var tries = 0, iv = pg.every(function () { if (tsBoot() || ++tries > 150) clearInterval(iv); }, 100); }
     function tsReset() { tsToken = ''; try { if (tsWidget !== null && window.turnstile) window.turnstile.reset(tsWidget); } catch (e) {} }
     function tsWait() {
       return new Promise(function (resolve) {
         if (!tsKey) return resolve('');
-        var i = 0, t = setInterval(function () { if (tsToken || ++i > 80) { clearInterval(t); resolve(tsToken || null); } }, 100);
+        var i = 0, t = pg.every(function () { if (tsToken || ++i > 80) { clearInterval(t); resolve(tsToken || null); } }, 100);
       });
     }
 
@@ -165,49 +404,157 @@
       if (go) go.disabled = false;
       if (agree) agree.addEventListener('change', function () { if (agree.checked) say(err, ''); });
       var val = function (n) { var el = form.elements[n]; return el ? String(el.value || '').trim() : ''; };
-
-      form.addEventListener('submit', function (e) {
-        e.preventDefault();
-        say(err, '');
-        if (!/\S+\s+\S+/.test(val('name'))) { say(err, form.getAttribute('data-e-name') || 'Enter your full name (first and last).'); return; }
-        if (val('phone').replace(/\D/g, '').length < 7) { say(err, 'Enter a valid phone number.'); return; }
-        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(val('email'))) { say(err, 'Enter a valid email address.'); return; }
-        if (agree && !agree.checked) { say(err, form.getAttribute('data-e-agree') || 'Tick the box to confirm you are voting once and accept the rules.'); agree.focus(); return; }
-        busy(go, true);
-        tsWait().then(function (token) {
-          if (token === null) { busy(go, false); say(err, 'The security check has not finished loading. Give it a moment, then try again.'); return; }
-          return api('/api/otp/request', { email: val('email'), nominee_id: +entry.n, award_id: +pid, turnstile_token: token, accept_terms: agree && agree.checked ? 1 : 0 })
-            .then(function (d) {
-              if (d && d.success) {
-                stepForm.hidden = true; stepOtp.hidden = false;
-                var p = $('[data-sent-words]', stepOtp); if (p) p.textContent = fill(p.getAttribute('data-sent-words'), { email: val('email') });
-                var c = form.elements.otp; if (c) c.focus();
-              } else { say(err, (d && d.message) || 'Could not send the code. Please try again.'); }
-            });
-        }).catch(function () { say(err, 'Network error. Please try again.'); })
-          .then(function () { tsReset(); busy(go, false); });
+      var W = function (k, fallback) { return form.getAttribute('data-e-' + k) || fallback; };
+      /* A refusal names its field: the field is marked invalid and takes the focus, so the
+         reader is put where the fix is instead of being told about it at the foot of a form.
+         The mark comes off as soon as they type. */
+      var marked = null;
+      function unmark() { if (marked) { marked.removeAttribute('aria-invalid'); marked = null; } }
+      function refuse(box, msg, name) {
+        say(box, msg);
+        unmark();
+        var el = name && form.elements[name];
+        if (el && el.focus) {
+          el.setAttribute('aria-invalid', 'true'); marked = el;
+          // The sentence is the field's description too, beside its hint, so it is heard
+          // with the field and not only as an alert at the foot of the form.
+          if (box) {
+            if (!box.id) box.id = (el.id || 'vb') + '-err';
+            var by = (el.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
+            if (by.indexOf(box.id) < 0) { by.push(box.id); el.setAttribute('aria-describedby', by.join(' ')); }
+          }
+          el.focus();
+        }
+      }
+      ['name', 'phone', 'email', 'otp'].forEach(function (n) {
+        var el = form.elements[n];
+        if (el) el.addEventListener('input', function () { if (marked === el) { unmark(); say(err, ''); say(errOtp, ''); } });
       });
 
-      var confirm = $('[data-confirm]', form);
-      if (confirm) confirm.addEventListener('click', function () {
+      /* Resend, after a wait the reader can see. The server allows three codes per address
+         per ten minutes, so the wait is what keeps an impatient double-press from spending
+         the allowance on codes that each cancel the last. */
+      var resend = $('[data-resend]', form), waitTimer = null;
+      function cooldown(secs) {
+        if (!resend) return;
+        clearInterval(waitTimer);
+        var label = resend.getAttribute('data-label') || resend.textContent;
+        resend.setAttribute('data-label', label);
+        resend.disabled = true;
+        var tick = function () {
+          if (secs <= 0) { clearInterval(waitTimer); resend.disabled = false; resend.textContent = label; return; }
+          resend.textContent = fill(resend.getAttribute('data-wait'), { n: secs }); secs--;
+        };
+        tick(); waitTimer = pg.every(tick, 1000);
+      }
+
+      function requestCode(btn, box, after) {
+        var sent = false;
+        busy(btn, true);
+        return tsWait().then(function (token) {
+          if (token === null) { say(box, W('ts', 'The security check has not finished loading. Give it a moment, then try again.')); return; }
+          return api('/api/otp/request', { email: val('email'), nominee_id: +entry.n, award_id: +pid, turnstile_token: token, accept_terms: agree && agree.checked ? 1 : 0 })
+            .then(function (d) {
+              if (d && d.success) { sent = true; after(); }
+              else { say(box, (d && d.message) || 'Could not send the code. Please try again.'); }
+            });
+        }).catch(function () { say(box, W('net', 'Network error. Please try again.')); })
+          // The wait starts once the button has its own words back, or they would overwrite it.
+          .then(function () { tsReset(); busy(btn, false); if (sent) cooldown(30); });
+      }
+
+      var confirm = $('[data-confirm]', form), voteKey = '', voteIdentity = '';
+      function attemptKey() {
+        var identity = val('email').trim().toLowerCase() + ':' + entry.n;
+        if (identity !== voteIdentity || !voteKey) {
+          voteIdentity = identity;
+          if (window.crypto && window.crypto.randomUUID) voteKey = window.crypto.randomUUID();
+          else if (window.crypto && window.crypto.getRandomValues) {
+            var bytes = new Uint8Array(16); window.crypto.getRandomValues(bytes);
+            voteKey = Array.prototype.map.call(bytes, function (n) { return ('0' + n.toString(16)).slice(-2); }).join('');
+          } else voteKey = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+        }
+        return voteKey;
+      }
+      function confirmVote() {
         say(errOtp, '');
-        if (!/^\d{6}$/.test(val('otp'))) { say(errOtp, 'Enter the 6-digit code.'); return; }
+        if (!confirm || confirm.getAttribute('aria-busy') === 'true') return;
+        if (!/^\d{6}$/.test(val('otp'))) { refuse(errOtp, W('code', 'Enter the 6-digit code.'), 'otp'); return; }
         busy(confirm, true);
         api('/api/vote', { email: val('email'), otp: val('otp'), nominee_id: +entry.n, award_id: +pid, name: val('name'), phone: val('phone'),
+                           idempotency_key: attemptKey(),
                            message: val('message'), message_show_name: form.elements.message_show_name && form.elements.message_show_name.checked,
                            accept_terms: agree && agree.checked ? 1 : 0 })
           .then(function (d) {
             if (d && d.success) {
               record(pid, cid, entry);
-              // Reload, so the confirmation is drawn by the server from its own record.
-              location.href = location.pathname + '#ballot';
-              location.reload();
-            } else { busy(confirm, false); say(errOtp, (d && d.message) || 'Could not record your vote.'); }
-          }).catch(function () { busy(confirm, false); say(errOtp, 'Network error. Please try again.'); });
+              // Reload, so the confirmation is drawn by the server from its own record — in
+              // place (site-nav), so the moment somebody voted is not a white page.
+              if (window.agNav && window.agNav.reload) window.agNav.reload('#ballot');
+              else { location.href = location.pathname + '#ballot'; location.reload(); }
+            } else { busy(confirm, false); refuse(errOtp, (d && d.message) || 'Could not record your vote.', 'otp'); }
+          }).catch(function () { busy(confirm, false); say(errOtp, W('confirm-net', 'We couldn’t confirm the response. Try again to check whether your vote counted.')); });
+      }
+
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        /* Enter (or Go on a phone keyboard) in the code box submits this same form. It used
+           to run the request path, so a voter who typed their code and pressed Go was sent a
+           NEW code — which cancels the one they had just typed. On the code step a submit
+           is the confirmation. */
+        if (stepOtp && !stepOtp.hidden) { confirmVote(); return; }
+        say(err, '');
+        if (!/\S+\s+\S+/.test(val('name'))) { refuse(err, W('name', 'Enter your full name (first and last).'), 'name'); return; }
+        if (val('phone').replace(/\D/g, '').length < 7) { refuse(err, W('phone', 'Enter a valid phone number.'), 'phone'); return; }
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(val('email'))) { refuse(err, W('email', 'Enter a valid email address.'), 'email'); return; }
+        if (agree && !agree.checked) { say(err, W('agree', 'Tick the box to confirm you are voting once and accept the rules.')); agree.focus(); return; }
+        requestCode(go, err, function () {
+          stepForm.hidden = true; stepOtp.hidden = false;
+          var p = $('[data-sent-words]', stepOtp); if (p) p.textContent = fill(p.getAttribute('data-sent-words'), { email: val('email') });
+          var c = form.elements.otp; if (c) { c.value = ''; c.focus(); }
+          bar(true);
+        });
+      });
+      function bar(otp) {
+        $$('[data-bar-go]').forEach(function (b) {
+          if (b._label == null) b._label = b.textContent;
+          b.textContent = otp ? b.getAttribute('data-otp') : b._label;
+        });
+      }
+
+      if (confirm) confirm.addEventListener('click', confirmVote);
+      /* Six digits is the whole answer, so it confirms itself — typed, pasted, or filled
+         from the email by the phone. Spaces and dashes a mail client adds are dropped. */
+      var code = form.elements.otp;
+      if (code) code.addEventListener('input', function () {
+        var digits = code.value.replace(/\D/g, '').slice(0, 6);
+        if (digits !== code.value) code.value = digits;
+        if (digits.length === 6) confirmVote();
+      });
+      if (resend) resend.addEventListener('click', function () {
+        say(errOtp, '');
+        requestCode(resend, errOtp, function () {
+          say(errOtp, '');
+          var c = form.elements.otp; if (c) { c.value = ''; c.focus(); }
+          var p = $('[data-sent-words]', stepOtp); if (p) p.textContent = resend.getAttribute('data-sent');
+        });
       });
       var back = $('[data-back]', form);
-      if (back) back.addEventListener('click', function () { stepOtp.hidden = true; stepForm.hidden = false; });
+      if (back) back.addEventListener('click', function () {
+        clearInterval(waitTimer); stepOtp.hidden = true; stepForm.hidden = false; bar(false);
+        var e = form.elements.email; if (e) e.focus();
+      });
     }
+
+    // "Bring your people": copy the voter's own link. The field is selectable as a fallback
+    // when the clipboard is refused, so the link is never out of reach.
+    var bCopy = $('[data-bring-copy]', sec), bLink = $('[data-bring-link]', sec);
+    if (bCopy && bLink) bCopy.addEventListener('click', function () {
+      var shown = function () { var was = bCopy.textContent; bCopy.textContent = bCopy.getAttribute('data-done') || was;
+        setTimeout(function () { bCopy.textContent = was; }, 1600); };
+      try { navigator.clipboard.writeText(bLink.value).then(shown, function () { bLink.select(); }); }
+      catch (e) { bLink.select(); }
+    });
 
     // Points.
     var rd = $('[data-redeem]', sec), rdGo = rd && $('[data-redeem-go]', rd);
@@ -253,7 +600,7 @@
       if (ch && get('cheer:' + tok)) ch.setAttribute('aria-pressed', 'true');
       if (rp && get('report:' + tok)) { rp.textContent = rp.getAttribute('data-done'); rp.disabled = true; }
     });
-    document.addEventListener('click', function (e) {
+    pg.on(document, 'click', function (e) {
       var ch = e.target.closest && e.target.closest('[data-vmi-cheer]');
       var rp = e.target.closest && e.target.closest('[data-vmi-report]');
       var li = (ch || rp) && (ch || rp).closest('[data-vmi]'); if (!li) return;
@@ -281,6 +628,7 @@
   function boot() {
     var h = $('[data-vote-hub]'); if (h) hub(h);
     var v = $('[data-vote-page]'); if (v) votePage(v);
+    $$('[data-vote-target]').forEach(goalBox);
     $$('[data-ballot]').forEach(ballotForm);
     // A vote the server just confirmed (the page drew the celebration from the session):
     // record it here too, so a vote cast on another tab of this page is not missed.
@@ -290,7 +638,18 @@
         { n: sec.getAttribute('data-nominee'), name: sec.getAttribute('data-name'), url: sec.getAttribute('data-url'), cat: sec.getAttribute('data-category-title'), at: 0 });
     });
     if ($('[data-vmi]')) messages();
+    barAway();
     $$('[data-fl-share]').forEach(flierShare);
+    // The share kit's "Copy message": the textarea is selectable as the fallback.
+    $$('[data-kit-copy]').forEach(function (b) {
+      var t = $('[data-kit-text]');
+      if (!t) return;
+      b.addEventListener('click', function () {
+        var was = b.textContent;
+        var shown = function () { b.textContent = b.getAttribute('data-done') || was; setTimeout(function () { b.textContent = was; }, 1600); };
+        try { navigator.clipboard.writeText(t.value).then(shown, function () { t.select(); }); } catch (e) { t.select(); }
+      });
+    });
   }
   /* The flier's native share: the real PNG to the OS share sheet. Both checks are needed —
      iOS Safari has share() without canShare(), Android refuses some types — and a button
@@ -316,6 +675,19 @@
         })
         .then(function () { btn.setAttribute('aria-busy', 'false'); btn.disabled = false; });
     });
+  }
+  /* The bar's "Vote for …" is a way TO the ballot. While the ballot itself is on screen it is
+     a second copy of the button somebody is already looking at — over the code boxes on a
+     short phone, and over the footer below — so it steps aside and comes back once the
+     ballot scrolls away. The share button goes with it; the ballot carries its own. */
+  function barAway() {
+    var bar = $('.vn-bar'), card = document.getElementById('ballot');
+    if (!bar || !card || !window.IntersectionObserver || !$('.vn-bar__go[href="#ballot"], button.vn-bar__go', bar)) return;
+    var io = new IntersectionObserver(function (es) {
+      es.forEach(function (e) { bar.classList.toggle('vn-bar--away', e.isIntersecting); });
+    }, { threshold: 0.15 });
+    io.observe(card);
+    pg.leave(function () { io.disconnect(); });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();

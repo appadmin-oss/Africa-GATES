@@ -86,14 +86,15 @@ final class HomePageTest extends TestCase
         $this->assertMatchesRegularExpression('~<a[^>]+aria-current="page"[^>]*>.*?Home~s', $html);
     }
 
-    /** §8.1's order, for the sections that are drawn. */
+    /** Home V7's order (HomePageV7.dc.html and its README), for the sections that are drawn. */
     public function test_the_sections_come_in_the_specified_order(): void
     {
         $id = $this->programme('open', 'Open Awards', ['voting_open' => $this->at(-1), 'voting_close' => $this->at(4)]);
         DB::table('gates_award_categories')->insert(['cycle_id' => $id, 'slug' => 'a', 'title' => 'A']);
         $html = $this->home();
 
-        $order = ['id="hm-h1"', 'class="hm-stats"', 'id="waa-h"', 'id="hm-now"', 'id="hm-host"', 'class="ag-foot"'];
+        $order = ['id="hm-h1"', 'class="hm-ctr"', 'id="hm-honour"', 'id="hm-how"', 'class="hm-topics"',
+                  'id="hm-join-h"', 'id="hm-host"', 'id="waa-h"', 'id="hm-close-h"', 'class="ag-foot"'];
         $last = -1;
         foreach ($order as $hook) {
             $at = strpos($html, $hook);
@@ -101,6 +102,34 @@ final class HomePageTest extends TestCase
             $this->assertGreaterThan($last, $at, "$hook is out of §8.1's order");
             $last = $at;
         }
+    }
+
+    // ══ V7: the honours counter ═════════════════════════
+
+    /**
+     * The counter is a NUMBER only from 1,000 people; below that the DC's own headline
+     * stands in, so a young platform never boasts a small figure. People, not records:
+     * three honours to one person count once.
+     */
+    public function test_the_honours_counter_counts_people_and_shows_a_number_only_from_a_thousand(): void
+    {
+        $html = $this->home();
+        $this->assertStringContainsString('Every honour here is checked, then kept for good', $html);
+        $this->assertStringNotContainsString('data-hm-count=', $html);
+
+        $tpl = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/home.twig');
+        $this->assertStringContainsString('{% if honoured >= 1000 %}', $tpl, 'the line is the DC\'s ctrShow (n >= 1000)');
+
+        $pid = $this->programme('rec', 'Rec Awards', ['status' => 'results']);
+        $prog = (int) DB::table('gates_award_cycles')->where('id', $pid)->value('programme_id');
+        $iss = (int) DB::table('gates_recognition_issuers')->insertGetId(['name' => 'Rec Awards',
+            'issuer_type' => 'award', 'programme_id' => $prog, 'created_at' => date('Y-m-d H:i:s')]);
+        foreach ([['Ada', 7], ['Ada', 7], ['Ada', 7], ['Bola', null]] as $i => [$n, $prof]) {
+            DB::table('gates_recognitions')->insert(['issuer_id' => $iss, 'recipient_name' => $n, 'recipient_profile_id' => $prof,
+                'title' => 'Winner ' . $i, 'reference' => 'R' . $i, 'visibility' => 'public', 'created_at' => date('Y-m-d H:i:s')]);
+        }
+        $this->assertSame(4, \AfricaGates\Services\Recognitions::count());
+        $this->assertSame(2, \AfricaGates\Services\Recognitions::peopleCount(), 'Ada three times is one person');
     }
 
     // ══ the numbers are counts ═══════════════════════════════════════════════
@@ -189,13 +218,15 @@ final class HomePageTest extends TestCase
 
     // ══ the hero's record card is a decided award, or nothing ════════════════
 
-    public function test_with_no_published_result_there_is_no_record_card(): void
+    public function test_with_no_published_result_the_hero_names_nobody(): void
     {
         $html = $this->home();
-        $this->assertStringNotContainsString('class="hm-rec"', $html,
-            'a record card was drawn with no decided award behind it — that is an invented recognition');
-        // GAPS Q8: no stock photograph in its place.
-        $this->assertStringContainsString('africa-silhouette.svg', $html);
+        // LOW-DATA-RULES: no decided award means the bundled default slides — the owner's
+        // honour photographs and a line about the KIND of person, never a name or a win.
+        $this->assertStringNotContainsString('class="hm-rec__chip"', $html,
+            'a "Winner" chip was drawn with no decided award behind it — that is an invented recognition');
+        $this->assertStringContainsString('/assets/img/honour/teacher-', $html);
+        $this->assertStringContainsString('Teachers who changed a classroom', $html);
     }
 
     // ══ the featured campaign ════════════════════════════════════════════════
@@ -212,12 +243,28 @@ final class HomePageTest extends TestCase
         $camp($ok, 'sooner', date('Y-m-d', time() + 5 * 86400));
         $camp($ok, 'closed', date('Y-m-d', time() - 86400));
         $camp($ok, 'draft', date('Y-m-d', time() + 2 * 86400), 'draft');
+        // Past the low-data line: ten gifts and 20% of the target (LOW-DATA-RULES, Giving).
+        $cid = (int) DB::table('gates_org_campaigns')->where('slug', 'sooner')->value('id');
+        for ($i = 0; $i < 10; $i++) {
+            DB::table('gates_donations')->insert(['donor_name' => 'D' . $i, 'donor_email' => "d$i@example.com",
+                'amount_naira' => 20, 'status' => 'confirmed', 'recipient_org_id' => $ok, 'campaign_id' => $cid, 'tier' => 'donation',
+                'payment_ref' => 'AFG-HOME-' . $i]);
+        }
 
         $c = HomeFront::campaign();
         $this->assertNotNull($c);
         $this->assertSame('Appeal sooner', $c['title']);
         $this->assertSame('/giving/ok/sooner', $c['url']);
         $this->assertStringContainsString('href="/giving/ok/sooner"', $this->home());
+    }
+
+    /** A campaign below the line is not featured: 2% raised from three gifts reads as a cause nobody backs. */
+    public function test_a_thin_campaign_is_not_featured(): void
+    {
+        $this->assertFalse(HomeFront::featurable(['pct' => 2, 'count' => 3, 'met' => false], date('Y-m-d', time() + 9 * 86400)));
+        $this->assertFalse(HomeFront::featurable(['pct' => 40, 'count' => 40, 'met' => false], date('Y-m-d')), 'closing within a day');
+        $this->assertFalse(HomeFront::featurable(['pct' => 100, 'count' => 40, 'met' => true], null), 'already funded');
+        $this->assertTrue(HomeFront::featurable(['pct' => 20, 'count' => 10, 'met' => false], date('Y-m-d', time() + 9 * 86400)));
     }
 
     public function test_with_no_open_campaign_the_giving_section_is_not_drawn(): void
@@ -246,5 +293,50 @@ final class HomePageTest extends TestCase
 
         $this->assertDoesNotMatchRegularExpression('~<[a-z][^>]*\son[a-z]+\s*=~i', $html,
             'an inline event handler — use data-ag-do and a delegated listener');
+    }
+
+    /**
+     * A person is keyed the way the recognition page resolves them: the nominee's CURRENT
+     * profile first. Recognised once as a nominee before she registered, and once since by
+     * profile, Ada was two people to the counter.
+     */
+    public function test_one_person_recognised_before_and_after_registering_is_counted_once(): void
+    {
+        $cy = $this->programme('rec2', 'Rec Two', ['status' => 'results']);
+        $prog = (int) DB::table('gates_award_cycles')->where('id', $cy)->value('programme_id');
+        $cat = (int) DB::table('gates_award_categories')->insertGetId(['cycle_id' => $cy, 'slug' => 'r2', 'title' => 'R2', 'sort_order' => 1]);
+        $nom = (int) DB::table('gates_nominees')->insertGetId(['category_id' => $cat, 'name' => 'Ada', 'status' => 'winner', 'profile_id' => 9]);
+        $iss = (int) DB::table('gates_recognition_issuers')->insertGetId(['name' => 'Rec Two',
+            'issuer_type' => 'award', 'programme_id' => $prog, 'created_at' => date('Y-m-d H:i:s')]);
+        DB::table('gates_recognitions')->insert(['issuer_id' => $iss, 'recipient_name' => 'Ada', 'recipient_nominee_id' => $nom,
+            'recipient_profile_id' => null, 'title' => 'Winner', 'reference' => 'RA1', 'visibility' => 'public', 'created_at' => date('Y-m-d H:i:s')]);
+        DB::table('gates_recognitions')->insert(['issuer_id' => $iss, 'recipient_name' => 'Ada', 'recipient_profile_id' => 9,
+            'title' => 'Honoree', 'reference' => 'RA2', 'visibility' => 'public', 'created_at' => date('Y-m-d H:i:s')]);
+        $this->assertSame(1, \AfricaGates\Services\Recognitions::peopleCount());
+    }
+
+    /**
+     * The shop card promises "certificates and frames for the honours on your profile".
+     * Drawn only while the shop sells some — a typed promise linking to a store of caps
+     * and mugs is a broken one.
+     */
+    public function test_the_frame_your_recognition_card_needs_frames_on_sale(): void
+    {
+        DB::table('gates_products')->insert(['name' => 'Logo cap', 'slug' => 'logo-cap', 'category' => 'Caps', 'price_naira' => 5000, 'is_active' => 1]);
+        $this->assertStringNotContainsString('Frame your recognition', $this->home(), 'a shop of caps was offered as frames');
+
+        DB::table('gates_products')->insert(['name' => 'Certificate frame', 'slug' => 'cert-frame', 'category' => 'Frames', 'price_naira' => 9000, 'is_active' => 1]);
+        $this->assertStringContainsString('Frame your recognition', $this->home());
+    }
+
+    /**
+     * "Up to 50% of other support" alone is false for a nominee with none, who may still
+     * hold BonusVoteService::MIN_BONUS_CAP. The page reads the floor from that constant.
+     */
+    public function test_the_integrity_page_states_the_bonus_floor_from_the_code(): void
+    {
+        $html = ChromeRender::html('/integrity');
+        $this->assertStringContainsString('(at least ' . \AfricaGates\Services\BonusVoteService::MIN_BONUS_CAP . ')', $html);
+        $this->assertStringNotContainsString('Has no limit on how many votes can be bought', $html);
     }
 }

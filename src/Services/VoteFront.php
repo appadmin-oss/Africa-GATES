@@ -95,6 +95,9 @@ final class VoteFront
                 // cannot disagree with the phase logic that gates the vote.
                 'left'    => !empty($phase['closing_soon'])
                                  ? self::leftWords($left) : '',
+                // A voting extension, said on the hub too; its reason is on the award's pages.
+                'extended' => ($cycle && ($x = VotingExtension::notice((int) $cycle->id)) !== null)
+                                 ? Translator::t('Voting extended from %f% to %t%', ['%f%' => $x['from'], '%t%' => $x['to']]) : '',
             ];
         }
 
@@ -146,6 +149,12 @@ final class VoteFront
         $event = EventInvites::eventForProgramme((int) $p['id']);
         $judges = self::judgeCount((int) $p['id']);
         $paid = PaidVoteService::enabled();
+        // Paid voting can be the ONLY voting (owner, 1 Nov 2026: "this wording is wrong. It is a
+        // paid vote"). Then every line below that promises a free vote is false, on the page
+        // people decide whether to vote from — so the copy follows the setting, not the default.
+        $paidOnly = PaidVoteService::freeVotingDisabled();
+        $price = number_format(PaidVoteService::pricePerVote());
+        $most = number_format(PaidVoteService::maxQtyForOrder());
         $edition = $cycle ? EditionName::label($cycle) : '';
 
         $sub = trim($edition . ' · ' . match ($key) {
@@ -157,8 +166,10 @@ final class VoteFront
 
         $faq = [
             [Translator::t('Can I vote more than once?'),
-             Translator::t('One free vote per category, confirmed by an email code, and never duplicated.')
-             . ($paid ? ' ' . Translator::t('Where the host allows it, you can add contributed votes or redeem points on a nominee’s page.') : '')],
+             $paidOnly
+                ? Translator::t('Yes. On this award every vote is a contribution of ₦%p% that helps fund the awards, and you can give up to %q% at once from a nominee’s page.', ['%p%' => $price, '%q%' => $most])
+                : Translator::t('One free vote per category, confirmed by an email code, and never duplicated.')
+                  . ($paid ? ' ' . Translator::t('Where the host allows it, you can add contributed votes or redeem points on a nominee’s page.') : '')],
             [Translator::t('Why can I see the totals?'),
              Translator::t('Totals are live so everyone can see the race as it happens. They are one part of the score; the judges decide the rest after voting closes.')],
             [Translator::t('Does extra support guarantee a win?'),
@@ -166,8 +177,20 @@ final class VoteFront
              . ($paid ? ' ' . PaidVoteCopy::sentence((int) $p['id'], $cycle ? (int) $cycle->id : null) : '')],
         ];
         if ($paid) {
+            // The award's own answer where the host has given one (owner, 16 Nov 2026: "update
+            // this too"): the same split the campaign card states, from the same resolver, then
+            // what the rest covers in the host's words, then the promise that it is published.
+            // Without a named beneficiary and share it says only what is true everywhere.
+            $camp = \AfricaGates\Support\AwardCampaign::forProgramme((int) $p['id']);
+            $impact = \AfricaGates\Support\AwardCampaign::impact($camp);
             $faq[] = [Translator::t('Where does the money go?'),
-                      Translator::t('It funds the awards. What every nominee received in contributed votes is published with the result.')];
+                      // Nothing is said about the remainder that the host did not write
+                      // (Support\AwardCampaign: "only the beneficiary's share is stated").
+                      ($impact !== ''
+                          ? $impact . ($camp['remainder_note'] !== '' ? ' ' . $camp['remainder_note'] : '')
+                          : Translator::t('It funds the awards.'))
+                      . ' ' . Translator::t('What every nominee received in contributed votes is published with the result.')
+                      . ($camp['ladder'] !== [] ? ' ' . Translator::t('Giving more also unlocks thank-you benefits for the person who voted; they are listed on this page.') : '')];
         }
 
         $chip = match ($key) {
@@ -201,11 +224,14 @@ final class VoteFront
                 $host ? ['k' => Translator::t('Host'), 'v' => (string) $host['name']] : null,
                 ($p['subtitle'] ?? '') !== '' ? ['k' => Translator::t('Celebrates'), 'v' => (string) $p['subtitle']] : null,
                 ['k' => Translator::t('Editions'), 'v' => self::editionsLine($p)],
-                ['k' => Translator::t('Who can vote'), 'v' => Translator::t('Anyone who confirms their vote with an email code')],
-                ['k' => Translator::t('Support'), 'v' => $paid
-                    ? Translator::t('One free vote per category, plus optional contributed votes from ₦%p% a vote (up to %q% in one order)',
-                        ['%p%' => number_format(PaidVoteService::pricePerVote()), '%q%' => number_format(PaidVoteService::maxQtyForOrder())])
-                    : Translator::t('Free, one vote per category')],
+                ['k' => Translator::t('Who can vote'), 'v' => $paidOnly
+                    ? Translator::t('Anyone who wants to back a nominee, from the nominee’s page')
+                    : Translator::t('Anyone who confirms their vote with an email code')],
+                ['k' => Translator::t('Voting'), 'v' => $paidOnly
+                    ? Translator::t('Each vote is a ₦%p% contribution that helps fund the awards. Give as many as you like, up to %q% at once.', ['%p%' => $price, '%q%' => $most])
+                    : ($paid
+                        ? Translator::t('One free vote per category, plus optional contributed votes from ₦%p% a vote (up to %q% in one order)', ['%p%' => $price, '%q%' => $most])
+                        : Translator::t('Free, one vote per category'))],
                 $judges > 0 ? ['k' => Translator::t('Judges'), 'v' => $judges === 1 ? Translator::t('1 judge') : Translator::t('%n% judges', ['%n%' => $judges])] : null,
             ])),
             'timeline' => $cycle ? self::timeline($cycle, $key) : [],

@@ -26,14 +26,11 @@ class SectionGuardMiddleware
         // section and pass straight through.
         if (Permissions::isUtilityPath($path)) return $handler->handle($req);
 
-        $section = Permissions::sectionForPath($path);
         $role    = (string) ($_SESSION['admin_role'] ?? '');
         // Mapped section → matrix check. An UNMAPPED /admin path fails CLOSED:
         // only superadmin may reach an area we haven't classified, so a newly
         // added (and not-yet-mapped) route can never ship silently ungated.
-        $allowed = $section !== null
-            ? Permissions::canAccess($role, $section)
-            : ($role === 'superadmin');
+        $allowed = Permissions::canOpen($role, $path);
         if ($allowed) return $handler->handle($req);
 
         $isJson = str_contains($req->getHeaderLine('Accept'), 'application/json')

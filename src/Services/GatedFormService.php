@@ -20,7 +20,8 @@ use Illuminate\Support\Carbon;
  */
 class GatedFormService
 {
-    public const PURPOSES = ['nominee', 'judge'];
+    /** `nomination`: a nominee's link sent before approval (NomineeDetails::early), keyed on the nomination. */
+    public const PURPOSES = ['nominee', 'judge', 'nomination'];
 
     /**
      * Issue a fresh single-use token for a subject, invalidating any earlier
@@ -79,6 +80,9 @@ class GatedFormService
         $row = self::resolve($raw);
         $status = self::status($row);
         if ($status !== 'ok') return ['ok' => false, 'status' => $status];
+        // A `nomination` link is spent only by signing in to the nominee's page (NomineeDetails::
+        // bind); posting the old form at it would burn the link and keep nothing.
+        if ($row->purpose === 'nomination') return ['ok' => false, 'status' => 'invalid'];
 
         // Atomic single-use claim: re-assert is_used = 0 in the UPDATE so only the
         // caller that actually flips 0→1 proceeds. A concurrent double-submit (or a
@@ -122,6 +126,7 @@ class GatedFormService
     {
         try {
             if ($purpose === 'nominee') return (string) (DB::table('gates_nominees')->where('id', $id)->value('name') ?? '');
+            if ($purpose === 'nomination') return (string) (DB::table('gates_nominations')->where('id', $id)->value('nominee_name') ?? '');
             if ($purpose === 'judge')   return (string) (DB::table('gates_judges')->where('id', $id)->value('name') ?? '');
         } catch (\Throwable $e) {}
         return '';
@@ -137,6 +142,12 @@ class GatedFormService
                     ->join('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
                     ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
                     ->where('n.id', $id)->value('p.slug');
+                if ($slug) return '/terms/' . $slug;
+            } elseif ($purpose === 'nomination') {
+                $slug = DB::table('gates_nominations as nm')
+                    ->join('gates_award_cycles as cy', 'cy.id', '=', 'nm.cycle_id')
+                    ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
+                    ->where('nm.id', $id)->value('p.slug');
                 if ($slug) return '/terms/' . $slug;
             }
         } catch (\Throwable $e) {}

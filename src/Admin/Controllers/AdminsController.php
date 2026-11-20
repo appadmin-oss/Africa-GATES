@@ -9,6 +9,7 @@ use Slim\Views\Twig;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
 use AfricaGates\Admin\Services\AuditService;
+use AfricaGates\Admin\Services\StaffDirectoryService;
 use AfricaGates\Admin\Support\Permissions;
 
 /**
@@ -21,15 +22,13 @@ class AdminsController
     public function __construct(
         private readonly Twig $view,
         private readonly AuditService $audit,
+        private readonly StaffDirectoryService $directory,
     ) {}
 
     public function index(Request $req, Response $res): Response
     {
-        $rows = DB::table('gates_admins')->orderByDesc('id')->get()->map(fn($r)=>(array)$r)->all();
-        return $this->view->render($res, 'admin/admins/index.twig', [
-            'page_title' => 'Admin Accounts — Admin',
-            'admin_page' => 'admins',
-            'rows'       => $rows,
+        return $this->view->render($res, 'admin/admins/index.twig', $this->directory->directory($req->getQueryParams()) + [
+            'page_title' => 'Admin Accounts — Admin', 'admin_page' => 'admins',
         ]);
     }
 
@@ -79,20 +78,25 @@ class AdminsController
         }
 
         $data = ['email' => $email, 'name' => $name, 'role' => $role, 'is_active' => $active, 'updated_at' => Carbon::now()->toDateTimeString()];
-        if (!empty($b['password'])) {
-            $data['password_hash'] = password_hash((string)$b['password'], PASSWORD_BCRYPT);
+        // The shop-money permission (Admin\Support\ShopMoney): refunds, cancelling a paid
+        // order, the till. Per person, granted here by a superadmin; a superadmin holds it anyway.
+        if (\AfricaGates\Support\SchemaHas::column('gates_admins', 'shop_money')) {
+            $data['shop_money'] = !empty($b['shop_money']) ? 1 : 0;
         }
         if ($id) {
             DB::table('gates_admins')->where('id', $id)->update($data);
             $this->audit->record((int)$_SESSION['admin_id'], 'admin.update', 'admin', $id);
         } else {
-            if (empty($data['password_hash'])) {
-                // Generate a random initial password — the admin should use magic-link to set their own.
-                $data['password_hash'] = password_hash(bin2hex(random_bytes(12)), PASSWORD_BCRYPT);
-            }
+            // The column is NOT NULL and nothing reads it any more: the console has no password
+            // of its own (Account\Roles). A random one nobody holds keeps the row valid.
+            $data['password_hash'] = password_hash(bin2hex(random_bytes(12)), PASSWORD_BCRYPT);
             $data['created_at'] = Carbon::now()->toDateTimeString();
             $id = (int)DB::table('gates_admins')->insertGetId($data);
             $this->audit->record((int)$_SESSION['admin_id'], 'admin.create', 'admin', $id);
+            // The console is GIVEN to this address: whoever signs in to Africa GATES with it,
+            // verified, holds it (Account\Roles). Tell them so, and how — there is no console
+            // password to send and no separate sign-in page to point at.
+            \AfricaGates\Services\Account\Roles::tellGiven('admin', $email, (string) ($_SESSION['admin_name'] ?? ''));
         }
         $_SESSION['flash_ok'] = 'Admin saved.';
         return $res->withHeader('Location', '/admin/admins')->withStatus(302);

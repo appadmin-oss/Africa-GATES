@@ -80,7 +80,8 @@ final class MemberActivityServiceTest extends TestCase
         $this->assertLessThan(100, $c['pct']);
         $this->assertContains('phone', $c['missing']);
 
-        $done = (object) ['name' => 'A Member', 'email' => self::EMAIL, 'phone' => '+2348031234567', 'password_hash' => 'x', 'email_verified' => 1];
-        $this->assertSame(100, MemberActivityService::completeness($done)['pct']);
+        $done = (object) ['name' => 'A Member', 'email' => self::EMAIL, 'phone' => '+2348031234567', 'password_hash' => null, 'email_verified' => 1,
+                          'headline' => 'Teacher', 'based_in' => 'Enugu'];
+        $this->assertSame(100, MemberActivityService::completeness($done)['pct'], 'no password needed: sign-in is by code');
     }
 }

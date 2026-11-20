@@ -26,7 +26,7 @@
 {% set _f = front.filter %}
 {% set _filters = [{k: 'all', l: 'All'}, {k: 'voting', l: 'Voting now'}, {k: 'soon', l: 'Coming up'}] %}
 
-{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/vote.css') }}">{% include 'partials/seo-head.twig' %}{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/vote.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/ad-slot.css') }}">{% endblock %}
 
 {% block content %}
 <div class="vh" data-vote-hub data-open-categories="{{ front.open_categories }}">
@@ -46,7 +46,9 @@
        appeared only after a first vote was missing from every first visit. This device's
        count replaces the zero (vote.js). #}
     <div class="vh-mine" data-ballot-line>
-      <span class="vh-mine__t" data-ballot-words data-of="{{ 'You’ve voted in %n% of %m% open categories'|trans }}">{{ 'You’ve voted in %n% of %m% open categories'|trans({'%n%': 0, '%m%': front.open_categories}) }}</span>
+      {# The count of open categories is the server's, so the singular is chosen here: "0 of 1 open categories" read as a typo. #}
+      {% set _of = front.open_categories == 1 ? 'You’ve voted in %n% of %m% open category' : 'You’ve voted in %n% of %m% open categories' %}
+      <span class="vh-mine__t" data-ballot-words data-of="{{ _of|trans }}">{{ _of|trans({'%n%': 0, '%m%': front.open_categories}) }}</span>
       <span class="vh-mine__bar" aria-hidden="true"><span title="{{ 'Categories voted on this device'|trans }}" data-ballot-fill></span></span>
     </div>
     {% endif %}
@@ -62,18 +64,25 @@
       {% for p in front.rows %}
         <li>
           <a class="vh-row" href="{{ p.href }}">
-            <span class="vh-row__thumb">{% include 'partials/photo.twig' with {kind: 'thing', subject: 'award', src: p.cover, name: p.title} only %}</span>
+            <span class="vh-row__thumb">{% include 'partials/photo.twig' with {identity: p.id|default(null), kind: 'thing', subject: 'award', src: p.cover, name: p.title} only %}</span>
             <span class="vh-row__text">
               <span class="vh-row__top">
-                <span class="vh-row__t">{{ p.title }}</span>
+                <span class="vh-row__t"><span class="ag-sr">{{ p.open ? 'Vote in'|trans : 'See'|trans }} </span>{{ p.title }}</span>
                 {% if p.left %}<span class="vh-row__left">{{ p.left }}</span>{% endif %}
               </span>
               {% if p.meta %}<span class="vh-row__meta">{{ p.meta }}</span>{% endif %}
               <span class="vh-row__status">{{ p.status }}</span>
+              {% if p.extended|default('') %}<span class="vh-row__meta" data-voting-extension>{{ p.extended }}</span>{% endif %}
             </span>
-            <span class="vh-row__count{{ p.open ? '' : ' vh-row__count--off' }}">
-              <b>{{ p.open ? p.votes|number_format : '—' }}</b>
-              <span>{{ p.open ? (p.votes == 1 ? 'vote'|trans : 'votes'|trans) : 'not open'|trans }}</span>
+            {# No count until there is one (LOW-DATA-RULES §3): "0 votes" beside "Be among the
+               first to vote" says the same thing twice, the second time as a verdict. And none
+               for an award that is not open: its status line already says so, and a dash over
+               "not open" said it again as a blank figure. #}
+            <span class="vh-row__count">
+              {% if p.open and p.votes > 0 %}
+              <b>{{ p.votes|number_format }}</b>
+              <span>{{ p.votes == 1 ? 'vote'|trans : 'votes'|trans }}</span>
+              {% endif %}
             </span>
             <span class="vh-row__btn{{ p.open ? ' vh-row__btn--go' }}" aria-hidden="true">{{ p.open ? 'Vote'|trans : 'View'|trans }}</span>
             <svg class="vh-row__chev ag-ico-dir" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
@@ -88,7 +97,11 @@
       </div>
     {% endif %}
 
-    <p class="vh-note">{{ 'Totals update live. Community support is %c% of each result; the judges decide the rest after voting closes.'|trans({'%c%': split.community ~ '%'}) }} <a href="/philosophy">{{ 'How scoring works'|trans }}</a></p>
+    <p class="vh-note">{{ 'Votes are %c% of each result; judges decide the rest.'|trans({'%c%': split.community ~ '%'}) }} <a href="/philosophy">{{ 'How scoring works'|trans }}</a></p>
+
+    {# One ad, under the list and never inside it: this is the only vote page an ad may be on
+       (owner, 27 Oct 2026), and a ballot, a nominee and a result never carry one. #}
+    {% if ad|default(null) %}<div class="ag-ad-slot">{% include 'partials/ad-slot.twig' with {ad: ad, csrf_token: csrf_token, back: request_path|default('/')} only %}</div>{% endif %}
   </div>
 
   <aside class="vh-rail" aria-label="{{ 'Your ballot'|trans }}">
@@ -110,20 +123,34 @@
       </ul>
       <span class="vh-card__lock">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
-        {{ 'Verified by email code · one vote per category'|trans }}
+        {% if paid_only|default(false) %}{{ 'Every vote is a contribution that helps fund the awards'|trans }}{% else %}{{ 'Verified by email code · one vote per category'|trans }}{% endif %}
       </span>
     </div>
+    {# The community pride board (Services\CommunityBoard): each award is its community, ranked
+       by PEOPLE backing their own — never the tally, so one big buyer cannot carry a place up it. #}
+    {% if communities|default([])|length > 1 %}
+    <div class="vh-card">
+      <b class="vh-card__how" id="vh-comm-h">{{ 'Communities celebrating their own'|trans }}</b>
+      <ol class="vh-comm" aria-labelledby="vh-comm-h">
+        {% for c in communities %}
+          <li><a class="vh-comm__a" href="/vote/{{ c.slug }}/spotlight"><span class="vh-comm__r">{{ c.rank }}</span><span class="vh-comm__t">{{ c.label }}</span><span class="vh-comm__n">{{ c.people == 1 ? '1 person'|trans : '%n% people'|trans({'%n%': c.people|number_format}) }}</span></a></li>
+        {% endfor %}
+      </ol>
+      <span class="vh-card__p">{{ 'Ranked by people backing their own, not by votes bought.'|trans }}</span>
+    </div>
+    {% endif %}
     <div class="vh-card">
       <b class="vh-card__how">{{ 'How results are decided'|trans }}</b>
       <div class="vh-split" role="img" aria-label="{{ 'Community %c%, judges %j%'|trans({'%c%': split.community ~ '%', '%j%': split.judge ~ '%'}) }}">
         <span class="vh-split__c" style="flex:{{ split.community }}">{{ 'Votes %n%'|trans({'%n%': split.community ~ '%'}) }}</span>
-        <span class="vh-split__j" style="flex:{{ split.judge }}">{{ 'Jury %n%'|trans({'%n%': split.judge ~ '%'}) }}</span>
+        <span class="vh-split__j" style="flex:{{ split.judge }}">{{ 'Judges %n%'|trans({'%n%': split.judge ~ '%'}) }}</span>
       </div>
-      <span class="vh-card__p">{{ 'The jury scores the nominees after voting closes.'|trans }}</span>
+      <span class="vh-card__p">{{ 'The judges score the nominees after voting closes.'|trans }}</span>
       <a class="vh-card__a" href="/philosophy">{{ 'How scoring works'|trans }} <span class="ag-ico-dir" aria-hidden="true">→</span></a>
     </div>
   </aside>
 </div>
 {% endblock %}
 
-{% block foot_scripts %}<script defer src="{{ asset('/assets/js/vote.js') }}"></script>{% endblock %}
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/vote.js') }}" data-nav="rerun"></script>
+{% if ad|default(null) %}<script defer src="{{ asset('/assets/js/ads.js') }}" data-nav="rerun"></script>{% endif %}{% endblock %}

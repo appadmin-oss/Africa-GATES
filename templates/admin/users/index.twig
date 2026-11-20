@@ -1,0 +1,17 @@
+{% extends 'admin/layout.twig' %}
+{% block topbar_title %}Members{% endblock %}
+{% block topbar_sub %}Member accounts, verification and voting points. Staff access is managed in Team.{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/console/people.css') }}">{% endblock %}
+{% block content %}
+<section class="aw-summary" aria-label="Member directory summary"><div><span class="aw-kicker">Member directory</span><h2>{{ total|number_format }} matching {{ total == 1 ? 'account' : 'accounts' }}</h2><p>Search for a member, then open their account to review details or resolve a points query.</p></div><a class="ad-btn" href="/admin/data/users">Open data explorer</a></section>
+<form class="aw-filters" method="get" action="/admin/users" role="search">
+<div><label for="member-search">Name or email</label><input id="member-search" type="search" name="q" value="{{ q }}" maxlength="160" placeholder="Find a member"></div>
+<div><label for="member-verification">Email verification</label><select id="member-verification" name="verification"><option value="">All accounts</option value="verified"{{ verification == 'verified' ? ' selected' : '' }}>Verified</option><option value="unverified"{{ verification == 'unverified' ? ' selected' : '' }}>Unverified</option></select></div>
+<button class="ad-btn ad-btn--primary" type="submit">Find members</button>{% if q or verification %}<a class="ad-btn" href="/admin/users">Clear filters</a>{% endif %}
+</form>
+<div class="ad-card"><div class="ad-table-wrap"><table class="ad-table"><caption class="aw-caption">Member accounts — page {{ page }} of {{ pages }}</caption><thead><tr><th scope="col">Member</th><th scope="col">Email</th><th scope="col">Verification</th><th scope="col">Points</th><th scope="col">Joined</th><th scope="col">Account</th></tr></thead><tbody>
+{% for member in rows %}<tr><td><strong>{{ member.name }}</strong><small class="aw-muted">#{{ member.id }}</small></td><td>{{ member.email }}</td><td><span class="ad-chip ad-chip--{{ member.email_verified ? 'green' : 'grey' }}">{{ member.email_verified ? 'Verified' : 'Unverified' }}</span></td><td>{{ member.points|number_format }}</td><td>{{ member.created_at ? member.created_at|date('j M Y') : 'Not recorded' }}</td><td><a class="ad-btn ad-btn--sm" href="/admin/data/users/{{ member.id }}">Review<span class="aw-sr"> {{ member.name }}</span></a></td></tr>
+{% else %}<tr><td colspan="6"><div class="aw-empty"><h2>No members match these filters</h2><p>Try a different name or email, or clear the verification filter.</p><a href="/admin/users">Show all members</a></div></td></tr>{% endfor %}
+</tbody></table></div></div>
+{% if pages > 1 %}<nav class="aw-pager" aria-label="Member directory pages">{% if page > 1 %}<a class="ad-btn" href="/admin/users?{{ query }}&page={{ page - 1 }}">Previous</a>{% endif %}<span>Page {{ page }} of {{ pages }}</span>{% if page < pages %}<a class="ad-btn" href="/admin/users?{{ query }}&page={{ page + 1 }}">Next</a>{% endif %}</nav>{% endif %}
+{% endblock %}

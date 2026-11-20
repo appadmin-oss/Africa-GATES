@@ -19,7 +19,7 @@
   // Read at the moment of use: csrf-fresh.js rewrites the meta tag when a page that has been
   // open a while is checked, and a copy taken at load would go on posting the dead token.
   function csrf() { return (document.querySelector('meta[name="csrf-token"]') || {}).content || ''; }
-  var phone = window.matchMedia ? window.matchMedia('(max-width: 768px)') : { matches: false };
+  var phone = window.matchMedia ? window.matchMedia('(max-width: 599px)') : { matches: false };
 
   // ── TOAST (§7): a black pill at the bottom centre, 5.2 s, optional Undo ────────
   var toastMs = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cn-toast-ms'), 10) || 5200;
@@ -43,8 +43,16 @@
     setTimeout(function () { t.remove(); }, toastMs);
   }
   window.agToast = agToast;
-  // A flash from the previous request arrives as a toast already in the markup.
-  if (toasts) toasts.querySelectorAll('.cn-toast').forEach(function (t) { setTimeout(function () { t.remove(); }, toastMs); });
+  // A flash from the previous request arrives as a toast already in the markup — on a
+  // full load, or appended by console-nav.js when a page is swapped in without one.
+  function armToasts() {
+    if (toasts) toasts.querySelectorAll('.cn-toast:not([data-armed])').forEach(function (t) {
+      t.setAttribute('data-armed', '');
+      setTimeout(function () { t.remove(); }, toastMs);
+    });
+  }
+  armToasts();
+  document.addEventListener('cn:load', armToasts);
 
   // ── A VIEWER READS AND CHANGES NOTHING (rule 8) ─────────────────────────────
   //
@@ -79,8 +87,9 @@
   function setOverlay(open) {
     if (open) { body.setAttribute('data-side-open', ''); if (scrim) scrim.hidden = false; }
     else { body.removeAttribute('data-side-open'); if (scrim) scrim.hidden = true; }
-    var t = document.querySelector('[data-ag-do="side-toggle"]');
-    if (t) t.setAttribute('aria-expanded', open ? 'true' : 'false');
+    document.querySelectorAll('[data-ag-do="side-toggle"]').forEach(function (t) {
+      t.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
   }
   document.addEventListener('click', function (e) {
     var t = e.target.closest('[data-ag-do="side-toggle"]');
@@ -101,14 +110,87 @@
       return;
     }
     if (e.target.closest('[data-ag-do="side-close"]')) { setOverlay(false); return; }
-    var more = e.target.closest('[data-ag-do="nav-more"]');
-    if (more) {
-      var g = more.closest('[data-fold]');
+    var fold = e.target.closest('[data-ag-do="nav-fold"]');
+    if (fold) {
+      var g = fold.closest('[data-group]');
       var open = !g.hasAttribute('data-open');
-      if (open) g.setAttribute('data-open', ''); else g.removeAttribute('data-open');
-      more.setAttribute('aria-expanded', open ? 'true' : 'false');
-      more.querySelector('.cn-nav__more-l').textContent = open ? more.getAttribute('data-less') : more.getAttribute('data-more');
+      setGroup(g, open);
+      var c = readCol(); c[g.getAttribute('data-group')] = !open; writeCol(c);
     }
+  });
+
+  // ── THE RAIL'S GROUPS: smart, and then yours (README §10b) ───────────────────
+  //
+  // Every group starts open (the rail opens in full). A person's own open/close is kept
+  // in `ac2.col` as {group: closed} and applied on load, except for the
+  // group holding this page, which is always open: arriving anywhere shows where you are.
+  function readCol() { try { return JSON.parse(localStorage.getItem('ac2.col')) || {}; } catch (e) { return {}; } }
+  function writeCol(c) { try { localStorage.setItem('ac2.col', JSON.stringify(c)); } catch (e) {} }
+  function setGroup(g, open) {
+    if (open) g.setAttribute('data-open', ''); else g.removeAttribute('data-open');
+    var b = g.querySelector('[data-ag-do="nav-fold"]');
+    if (b) b.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  // Re-applied when console-nav.js swaps the rail's tree for the next page's.
+  function applyFolds() {
+    var c = readCol();
+    document.querySelectorAll('.cn-nav [data-group]').forEach(function (g) {
+      var k = g.getAttribute('data-group');
+      if (g.hasAttribute('data-here') || !(k in c)) return;
+      setGroup(g, !c[k]);
+    });
+  }
+  applyFolds();
+  document.addEventListener('cn:load', applyFolds);
+
+  // ── HOME'S AREA TABS: All · Awards · Money · Content ─────────────────────────
+  // Without script every job shows, which is the All tab; this only narrows it.
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest('[data-ag-do="hm-area"]');
+    if (!t) return;
+    var area = t.getAttribute('data-area');
+    t.closest('[data-hm-tabs]').querySelectorAll('[role="tab"]').forEach(function (b) {
+      b.setAttribute('aria-selected', b === t ? 'true' : 'false');
+    });
+    var list = document.querySelector('[data-hm-jobs]');
+    if (!list) return;
+    var shown = 0;
+    list.querySelectorAll('li[data-area]').forEach(function (li) {
+      var on = area === '' || li.getAttribute('data-area') === area;
+      li.hidden = !on; if (on) shown++;
+    });
+    var none = list.querySelector('[data-hm-none]');
+    if (none) none.hidden = shown > 0;
+  });
+
+  // ── THE LIST PAGE'S SEARCH (list.css): filters the rows in place ─────────────
+  // A row carries its searchable words in data-ls-text. "No matches" is its own state,
+  // distinct from a page with no data, and the footer says "N of M shown".
+  function lsFilter(root) {
+    var inp = root.querySelector('[data-ls-q]');
+    var q = inp ? inp.value.trim().toLowerCase() : '';
+    var rows = root.querySelectorAll('[data-ls-row]'), shown = 0;
+    rows.forEach(function (r) {
+      var on = q === '' || (r.getAttribute('data-ls-text') || '').indexOf(q) !== -1;
+      r.hidden = !on; if (on) shown++;
+    });
+    var none = root.querySelector('[data-ls-none]'); if (none) none.hidden = shown > 0;
+    var foot = root.querySelector('[data-ls-foot]');
+    if (foot) {
+      var total = foot.getAttribute('data-total');
+      if (!foot.hasAttribute('data-all')) foot.setAttribute('data-all', foot.textContent);
+      foot.textContent = q === '' ? foot.getAttribute('data-all') : shown + ' of ' + total + ' shown';
+    }
+  }
+  document.addEventListener('input', function (e) {
+    if (e.target.matches && e.target.matches('[data-ls-q]')) lsFilter(e.target.closest('[data-ls]'));
+  });
+  document.addEventListener('click', function (e) {
+    var c = e.target.closest('[data-ag-do="ls-clear"]');
+    if (!c) return;
+    var root = c.closest('[data-ls]'), inp = root.querySelector('[data-ls-q]');
+    if (inp) { inp.value = ''; inp.focus(); }
+    lsFilter(root);
   });
 
   // ── THE ACCOUNT MENU ─────────────────────────────────────────────────────────
@@ -124,6 +206,18 @@
     });
     document.addEventListener('click', function (e) { if (!e.target.closest('.cn-acct')) closeAcct(); });
   }
+
+  // ── THE ROLE SWITCH (a <details>, partials/role-switch.twig): a click outside or Escape closes it, and Escape
+  // hands focus back to the button that opened it.
+  document.addEventListener('click', function (e) {
+    var p = document.querySelector('.rs[open]');
+    if (p && !p.contains(e.target)) p.open = false;
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    var p = document.querySelector('.rs[open]');
+    if (p) { p.open = false; p.querySelector('summary').focus(); }
+  });
 
   // ── PIN / UNPIN WITHOUT A RELOAD, AND UNDO ───────────────────────────────────
   document.addEventListener('submit', function (e) {
@@ -233,14 +327,12 @@
   var drawer = document.getElementById('cnAssist');
   var dScrim = document.querySelector('.cn-drawer-scrim');
   var lastFocus = null;
-  function chat() { return drawer && window.Alpine ? window.Alpine.$data(drawer) : null; }
   function openAssist(q) {
     if (!drawer) { location.href = '/admin/assistant'; return; }
     lastFocus = document.activeElement;
     drawer.hidden = false; if (dScrim) dScrim.hidden = false;
-    var c = chat();
-    if (q && c) { c.draft = q; c.send(); }
-    var inp = document.getElementById('cnAssistIn'); if (inp) inp.focus();
+    // console-assistant.js owns the conversation; this only opens the drawer and hands it a question.
+    if (window.cnAssist) { if (q) window.cnAssist.ask(q); window.cnAssist.focus(); }
   }
   function closeAssist() {
     if (!drawer || drawer.hidden) return;
@@ -266,6 +358,7 @@
   var shown = [], at = 0;
   if (!/Mac|iPhone|iPad/.test(navigator.platform || '')) {
     document.querySelectorAll('[data-cn-kbd]').forEach(function (k) { k.textContent = 'Ctrl K'; });
+    document.querySelectorAll('[data-cn-kbd-j]').forEach(function (k) { k.textContent = 'Ctrl J'; });
   }
   function rows() { return Array.prototype.slice.call(pal.querySelectorAll('.cn-pal__list > li')); }
   function mark() {
@@ -324,6 +417,12 @@
   }
 
   document.addEventListener('keydown', function (e) {
+    // ⌘J / Ctrl+J toggles the Ask pane (README §10b), from anywhere on the page.
+    if ((e.metaKey || e.ctrlKey) && (e.key === 'j' || e.key === 'J') && drawer) {
+      e.preventDefault();
+      if (drawer.hidden) openAssist(); else closeAssist();
+      return;
+    }
     if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
       if (!pal) return;
       e.preventDefault();
@@ -354,78 +453,50 @@
 
   // ══ the page behaviours, carried over (inventory: docs/handoff/inventory/_admin.md) ══
 
+  // ── Everything below that FINDS elements on the page runs again for every page
+  // console-nav.js swaps in (`cn:load`), and marks what it has done so a second pass over
+  // the same element is a no-op. Delegated listeners above never need this.
+
   // File-zone previews
-  document.querySelectorAll('[data-file-zone]').forEach(zone => {
+  const mountFileZones = () => document.querySelectorAll('[data-file-zone]:not([data-mounted])').forEach(zone => {
     const input = zone.querySelector('input[type=file]');
     const preview = zone.parentElement.querySelector('[data-file-preview]');
     if (!input) return;
-    zone.addEventListener('click', () => input.click());
+    zone.setAttribute('data-mounted', '');
+    // The zone is a native label; the visible input also supports keyboard users.
+    let photoUrls = [];
+    const releasePhotos = () => { photoUrls.forEach(url => URL.revokeObjectURL(url)); photoUrls = []; };
+    window.cnPage?.leave(releasePhotos);
     zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.borderColor = 'var(--cn-ink)'; });
     zone.addEventListener('dragleave', () => { zone.style.borderColor = ''; });
     zone.addEventListener('drop', e => {
       e.preventDefault(); zone.style.borderColor = '';
-      input.files = e.dataTransfer.files;
-      renderPreviews();
+      const dropped = new DataTransfer();
+      Array.from(e.dataTransfer.files).slice(0, input.multiple ? undefined : 1).forEach(file => dropped.items.add(file));
+      input.files = dropped.files;
+      input.dispatchEvent(new Event('change', {bubbles: true}));
     });
     input.addEventListener('change', renderPreviews);
     function renderPreviews() {
       if (!preview) return;
+      releasePhotos();
       preview.innerHTML = '';
       Array.from(input.files || []).forEach(f => {
         if (!f.type.startsWith('image/')) return;
         const img = document.createElement('img');
-        img.src = URL.createObjectURL(f);
+        const url = URL.createObjectURL(f); photoUrls.push(url);
+        img.src = url;
         img.alt = f.name;
         preview.appendChild(img);
       });
     }
   });
+  mountFileZones();
+  document.addEventListener('cn:load', mountFileZones);
 
   // NProgress-style top loading bar on form submit
   if (window.NProgress) {
     document.addEventListener('submit', () => window.NProgress.start());
-  }
-
-  // Keyboard access to horizontally scrolling tables (WCAG 2.1.1)
-  //
-  // .ad-table-wrap is `overflow-x:auto`, and 26 admin screens use it. A scroll
-  // container that cannot take focus cannot be scrolled from the keyboard: Firefox
-  // makes them focusable itself, Chrome and Safari do not, so on the wider tables
-  // — registrations, finance, the nominee list — the right-hand columns were simply
-  // unreachable without a mouse.
-  //
-  // Conditional rather than a `tabindex="0"` typed into 26 templates, because whether
-  // a table overflows is a function of viewport width, not of the table: a static
-  // attribute is wrong in one direction on a phone and the other on a wide monitor.
-  // A region that does not scroll gets no tab stop; one that starts scrolling on
-  // resize gains one. The name comes from the table's own caption or the card title
-  // above it, so the announcement is "Judges, region" rather than "region".
-  const scrollers = document.querySelectorAll('.ad-table-wrap');
-  if (scrollers.length) {
-    const sync = (el) => {
-      const scrolls = el.scrollWidth > el.clientWidth + 1;
-      if (scrolls === el.hasAttribute('tabindex')) return;
-      if (scrolls) {
-        el.setAttribute('tabindex', '0');
-        el.setAttribute('role', 'region');
-        if (!el.hasAttribute('aria-label')) {
-          const cap = el.querySelector('caption');
-          const title = el.closest('.ad-card')?.querySelector('.ad-card__title');
-          const name = (cap?.textContent || title?.textContent || '').trim().split('\n')[0];
-          if (name) el.setAttribute('aria-label', name);
-        }
-      } else {
-        el.removeAttribute('tabindex');
-        el.removeAttribute('role');
-      }
-    };
-    scrollers.forEach(sync);
-    if (window.ResizeObserver) {
-      const ro = new ResizeObserver(entries => entries.forEach(e => sync(e.target)));
-      scrollers.forEach(el => ro.observe(el));
-    } else {
-      window.addEventListener('resize', () => scrollers.forEach(sync));
-    }
   }
 
   // ── THE TIER COLOUR DOT ─────────────────────────────────────────────────
@@ -482,7 +553,49 @@
   // keeps a visible submit button, so choosing a cycle works with this file absent.
   document.addEventListener('change', function (e) {
     const el = e.target.closest('[data-ag-do="submit-form"]');
-    if (el && el.form) el.form.submit();
+    // requestSubmit, not submit(): submit() skips the submit event, so the form bypassed
+    // the confirm, the one-press guard and console-nav.js, and reloaded the whole console.
+    if (el && el.form) { if (el.form.requestSubmit) el.form.requestSubmit(); else el.form.submit(); }
+  });
+
+  // ── THE SUGGESTED PRIZES ───────────────────────────────────────────────────
+  //
+  // The Campaign form's "Fill in the suggested prizes": each prize list carries its
+  // suggestion in `data-suggest`, and only a list that is still EMPTY takes it — a host's own
+  // words are never overwritten. Nothing is saved until the form is.
+  document.addEventListener('click', function (e) {
+    const b = e.target.closest('[data-ag-do="fill-suggested"]');
+    if (!b || !b.form) return;
+    let n = 0;
+    b.form.querySelectorAll('textarea[data-suggest]').forEach(function (t) {
+      if (t.value.trim() === '') { t.value = t.getAttribute('data-suggest'); n++; }
+    });
+    b.textContent = n ? 'Filled in. Edit them, then save' : 'Your lists already have prizes';
+  });
+
+  // ── ONE MORE PRIZE PLACE ──────────────────────────────────────────────────
+  //
+  // The edition's Prizes card renders every place up to the most, the spare ones hidden.
+  // "Add a place" opens the next and moves focus into it, so a keyboard or screen-reader
+  // user lands where they are about to type; the button goes once every place is open.
+  //
+  // And clicking into the LAST open place opens the one after it by itself (owner, 31 Oct
+  // 2026), so there is always an empty place waiting and the button is only a fallback.
+  const agPrizeOpen = function (form, focus) {
+    const next = form.querySelector('[data-pz-row][hidden]');
+    if (next) { next.hidden = false; if (focus) { const f = next.querySelector('input'); if (f) f.focus(); } }
+    if (!form.querySelector('[data-pz-row][hidden]')) form.querySelectorAll('[data-ag-do="prize-add"]').forEach(function (b) { b.hidden = true; });
+  };
+  document.addEventListener('click', function (e) {
+    const btn = e.target.closest('[data-ag-do="prize-add"]');
+    if (btn && btn.form) agPrizeOpen(btn.form, true);
+  });
+  document.addEventListener('focusin', function (e) {
+    const row = e.target.closest && e.target.closest('[data-pz-row]');
+    if (!row || !row.form && !row.closest('form')) return;
+    const form = row.closest('form');
+    const open = Array.prototype.filter.call(form.querySelectorAll('[data-pz-row]'), function (r) { return !r.hidden; });
+    if (open[open.length - 1] === row) agPrizeOpen(form, false);
   });
 
   // ── THE CUSTOM SIZE BOXES FOLLOW THE SIZE SELECT ──────────────────────────
@@ -509,6 +622,7 @@
     if (sel) agSizeSync(sel);
   });
   document.querySelectorAll('[data-ag-do="stand-size"]').forEach(agSizeSync);
+  document.addEventListener('cn:load', () => document.querySelectorAll('[data-ag-do="stand-size"]').forEach(agSizeSync));
 
   // ── HEAR ONE NAME IN THE DOOR'S VOICE ─────────────────────────────────────
   //
@@ -705,14 +819,18 @@
   })();
 
   // Tippy.js tooltips
-  if (window.tippy) {
-    window.tippy('[data-tip]', {
+  const mountTips = () => {
+    if (!window.tippy) return;
+    const fresh = Array.prototype.filter.call(document.querySelectorAll('[data-tip]'), el => !el._tippy);
+    if (fresh.length) window.tippy(fresh, {
       content: el => el.getAttribute('data-tip'),
       delay: [400, 80],
       animation: 'shift-away-subtle',
       theme: 'gates',
     });
-  }
+  };
+  mountTips();
+  document.addEventListener('cn:load', mountTips);
 })();
 
 // ── The kit's menus, the feedback dialog and "copy link" (owner's screenshots, 13 Oct) ──
@@ -752,5 +870,13 @@
       var done = function () { var w = c.textContent; c.textContent = 'Copied'; setTimeout(function () { c.textContent = w; }, 1400); };
       if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, function () {});
     }
+  });
+
+  // A read-only field holding something to copy (a webhook's signing secret, an interview
+  // link) selects itself on focus, so one tap and a copy takes all of it. The fields carried
+  // `data-ag-do="select-all"` with no handler anywhere, so the tap selected nothing.
+  document.addEventListener('focusin', function (e) {
+    var f = e.target.closest && e.target.closest('[data-ag-do="select-all"]');
+    if (f && typeof f.select === 'function') f.select();
   });
 })();

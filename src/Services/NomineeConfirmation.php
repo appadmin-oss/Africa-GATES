@@ -119,9 +119,25 @@ final class NomineeConfirmation
         foreach ($plan as $channel) {
             try {
                 if ($channel === 'email' && $mail !== null) {
-                    $mail->sendBranded($email, 'Did ' . $who . ' nominate you?',
-                        self::html($who, $name, $url), $body, 'nomination');
-                    $used[] = 'email';
+                    // The handoff's "You've been nominated", on its confirm path. `quote_by`
+                    // is empty for a private nominator — the same choice `$who` honours above.
+                    $prog = '';
+                    try {
+                        $prog = (string) (DB::table('gates_award_cycles as cy')
+                            ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
+                            ->where('cy.id', (int) ($n->cycle_id ?? 0))->value('p.title') ?? '');
+                    } catch (\Throwable) {}
+                    $r = \AfricaGates\Services\Mail\Emails::send($mail, $email, 'nominated', [
+                        'programme'    => $prog,
+                        'first_name'   => DoorWelcome::firstName($name) ?: $name,
+                        'quote'        => '',
+                        'quote_by'     => $who === 'Somebody' ? '' : $who,
+                        'confirm_url'  => $url,
+                        'confirm_days' => self::TTL_DAYS,
+                        'watch_url'    => '',
+                        'help_url'     => '',
+                    ]);
+                    if ($r['success'] ?? false) $used[] = 'email';
                     continue;
                 }
                 if ($channel !== 'email' && $phone !== null) {
@@ -143,6 +159,25 @@ final class NomineeConfirmation
             ->update(['confirm_sends' => $sent + 1]);
 
         return ['ok' => true, 'code' => 'SENT', 'channels' => $used, 'sends' => $sent + 1];
+    }
+
+    /**
+     * The confirmation link for the messages that already go to a nominee when a
+     * nomination arrives (NominationAftercare): minted or reused, counted as one send, or
+     * '' where there is nothing to ask — confirmed, expired, the send ceiling reached, or
+     * no address or number to reach them at. One message, not a second one beside it.
+     */
+    public static function linkFor(int $nominationId): string
+    {
+        $n = DB::table('gates_nominations')->where('id', $nominationId)->first();
+        if (!$n || !empty($n->nominee_confirmed_at) || self::expired($n)) return '';
+        if (trim((string) ($n->nominee_email ?? '')) === '' && trim((string) ($n->nominee_phone ?? '')) === '') return '';
+        $sent = (int) ($n->confirm_sends ?? 0);
+        if ($sent >= self::MAX_SENDS) return '';
+        $token = (string) ($n->nominee_confirm_token ?? '');
+        if ($token === '') $token = self::mint($nominationId);
+        DB::table('gates_nominations')->where('id', $nominationId)->update(['confirm_sends' => $sent + 1]);
+        return self::url($token);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -270,16 +305,4 @@ final class NomineeConfirmation
         if ($entry > 0) ChallengeService::recount($entry);
     }
 
-    private static function html(string $who, string $name, string $url): string
-    {
-        $e = static fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
-
-        return '<p>Hello ' . $e($name) . ',</p>'
-            . '<p><strong>' . $e($who) . '</strong> has nominated you for an Africa GATES award.</p>'
-            . '<p>Before it can go any further we need to hear from you — that you are a real '
-            . 'person, and that you are happy to have your name put forward.</p>'
-            . '<p><a href="' . $e($url) . '">Answer here</a></p>'
-            . '<p>The link works for ' . self::TTL_DAYS . ' days. If this was not meant for you, '
-            . 'open it and say no — we will take the nomination down.</p>';
-    }
 }

@@ -1,0 +1,22 @@
+{#- Plain-text part for event-team.html.twig. -#}
+{{ place }}
+
+{{ state == 'proposed' ? 'Something to decide, ' ~ first_name : 'Decided, ' ~ first_name }}
+
+{% if state == 'proposed' %}{{ by }} proposed {{ what }}. Nothing gives anybody access until an owner approves it, and you can change its permissions before you do.
+{% elseif state == 'refused' %}{{ by }} refused {{ what }}. Nothing changed at the event.
+{% elseif state == 'changed' %}{{ by }} approved {{ what }}, with different permissions from the ones you proposed. Team & roles shows both.
+{% else %}{{ by }} approved {{ what }}.
+{% endif %}
+Event: {{ place }}
+About: {{ what }}{% if reason %}
+Reason: {{ reason }}{% endif %}
+
+{{ action_label }}: {{ action_url }}
+
+Every decision is recorded with who made it and why.
+
+—
+{{ state == 'proposed' ? 'You own an Africa GATES event, and its lead proposed a change to its team.' : 'You proposed a change to an Africa GATES event’s team.' }}
+{{ postal_address }}
+Help: {{ site_url }}/help · Privacy: {{ site_url }}/privacy

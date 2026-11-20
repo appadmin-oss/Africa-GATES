@@ -125,6 +125,10 @@ final class OrgAuth
      */
     public static function user(): ?object
     {
+        // One login: an organisation is a role given to an email address, opened from the
+        // signed-in account that holds it (Account\Roles::derive), and closed again the moment
+        // the account stops holding it. A payout still asks for this organisation's password.
+        if (!empty($_SESSION['user_id'])) \AfricaGates\Services\Account\Roles::derive('org', '/org');
         $id = self::userId();
         if ($id < 1) return null;
         try {

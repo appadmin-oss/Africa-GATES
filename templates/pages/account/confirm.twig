@@ -1,0 +1,48 @@
+{% extends 'layout/auth.twig' %}
+{% import 'layout/auth.twig' as auth %}
+{#
+  CONFIRM IT'S YOU — /account/confirm (Account\Roles, owner 29 Oct 2026)
+
+  Reached only by a redirect from a POST that already did its sending: switching into the
+  staff console or judging after a sign-in by phone code, or a write in the console's Finance
+  or Configuration, or an organisation payout, from a role opened through the account.
+  This screen draws and sends nothing on GET (a refresh or a scanner must not mail a code).
+
+  · AN ORGANISATION IS CONFIRMED BY ITS OWN PASSWORD, never by email: a reset link in an
+    inbox must never become a payout (OrgAuth). Its throttle and lock apply here too.
+  · Everything else by a code emailed to the account; the window, the life and the cap are
+    stated, and read from Roles — never typed here.
+  · "Send a new code" shares the form by `formaction` + `formnovalidate`, never a nested form.
+#}
+{% block auth_top %}{{ auth.back(back_to, 'Back'|trans) }}{% endblock %}
+{% block auth_body %}
+  <div class="si__head">
+    <h1 class="si__h1">{{ 'Confirm it’s you'|trans }}</h1>
+    {% if for == 'org' %}
+      <p class="si__lede">{{ 'Payouts move the organisation’s money, so they need the organisation’s own password, even from your account. You stay confirmed for %m% minutes.'|trans({'%m%': confirm_minutes}) }}</p>
+    {% elseif for == 'console' %}
+      <p class="si__lede">{{ 'Money and settings in the staff console need a code emailed to %e%. It works for %n% minutes, and you stay confirmed for %m% minutes.'|trans({'%e%': masked, '%n%': otp_minutes, '%m%': confirm_minutes}) }}</p>
+    {% else %}
+      <p class="si__lede">{{ 'Enter the code emailed to %e%. It works for %n% minutes, once.'|trans({'%e%': masked, '%n%': otp_minutes}) }}</p>
+    {% endif %}
+  </div>
+  {{ auth.say(error, note) }}
+  <form class="si__form-step" method="post" action="/account/confirm">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <input type="hidden" name="for" value="{{ for }}">
+    <input type="hidden" name="next" value="{{ next }}">
+    {% if for == 'org' %}
+      <input type="hidden" name="do" value="org">
+      <input class="si__in" id="ac-pw" type="password" name="password" autocomplete="current-password" required
+             aria-label="{{ 'Organisation password'|trans }}" placeholder="{{ 'Organisation password'|trans }}" autofocus>
+      <button class="si__go" type="submit">{{ 'Confirm'|trans }}</button>
+    {% else %}
+      <input type="hidden" name="do" value="code">
+      <input class="si__in" id="ac-code" type="text" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" required
+             aria-label="{{ 'Six-digit code'|trans }}" placeholder="123456" autofocus>
+      <button class="si__go" type="submit">{{ 'Confirm'|trans }}</button>
+      <p class="si__alt"><button class="si__link" type="submit" name="do" value="send" formnovalidate>{{ 'Email me a new code'|trans }}</button></p>
+      <p class="si__fine">{{ 'Five tries per code. A new code cancels the last one.'|trans }}</p>
+    {% endif %}
+  </form>
+{% endblock %}

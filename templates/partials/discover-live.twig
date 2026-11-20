@@ -28,10 +28,13 @@
   Args: s (Discover::state), live (Discover::live), min_query.
 #}
 {% set _full    = s.tab == 'live' %}
+{# The heading names the chip that is pressed: "Everything happening now" over a list of
+   voting updates said one thing and showed another. #}
+{% set _kindl   = s.kind|default('all') != 'all' ? (discover_kinds()[s.kind].label|default('')) : '' %}
 {% set _n       = live.rows|length %}
 <section class="dv-live" id="dvLive" aria-labelledby="dvLiveH" data-dv-live>
   <div class="dv-sec__head">
-    <h2 class="dv-sec__h dv-live__h" id="dvLiveH"><span class="dv-live__dot" style="--dv-dot:var(--ag-live)" aria-hidden="true"></span>{{ (_full ? 'Everything happening now' : 'Happening now')|trans }}</h2>
+    <h2 class="dv-sec__h dv-live__h" id="dvLiveH"><span class="dv-live__dot" style="--dv-dot:var(--ag-live)" aria-hidden="true"></span>{{ not _full ? 'Happening now'|trans : (_kindl ? 'Latest in %k%'|trans({'%k%': _kindl|trans}) : 'Everything happening now'|trans) }}</h2>
     {% if not _full %}<a class="dv-sec__more dv-live__all" href="{{ discover_url(s, {tab: 'live', page: 1}) }}" data-dv-tab="live">{{ 'See everything'|trans }}</a>{% endif %}
   </div>
 
@@ -42,6 +45,8 @@
       {{ 'No recognitions are recorded on Africa GATES yet.'|trans }}
     {%- elseif s.q -%}
       {{ (_n == 1 ? '%n% result for “%q%”' : '%n% results for “%q%”')|trans({'%n%': _n, '%q%': s.q}) }}
+    {%- elseif _n == 0 -%}
+      {{ 'Nothing new yet.'|trans }}
     {%- else -%}
       {{ (_n == 1 ? 'Showing the most recent update' : 'Showing the %n% most recent updates')|trans({'%n%': _n}) }}
     {%- endif -%}
@@ -61,7 +66,7 @@
       </p>
     {% endif %}
     {% if live.asked > 0 and live.sources < live.asked %}
-      <p class="dv-warn">{{ 'Some activity sources are unavailable on this deployment (%n% of %m% responded), so this timeline may be incomplete.'|trans({'%n%': live.sources, '%m%': live.asked}) }}</p>
+      <p class="dv-warn">{{ 'Some activity sources are unavailable on this deployment (%n% of %m% responded).'|trans({'%n%': live.sources, '%m%': live.asked}) }}</p>
     {% endif %}
   </div>
 
@@ -98,7 +103,7 @@
     {% else %}
       <li class="dv-list__empty">
         {%- if live.unsourced -%}
-          {{ 'Nothing on this platform is recorded as a recognition yet, so there is nothing to list under this kind.'|trans }}
+          {{ 'No recognitions are recorded yet.'|trans }}
         {%- elseif s.q -%}
           {{ 'Nothing matches “%q%” yet. Try a nominee’s name, an award category or a country.'|trans({'%q%': s.q}) }}
         {%- else -%}
@@ -114,7 +119,7 @@
          the reader lands where the new rows begin, not back at the top. #}
       <a class="dv-older" href="{{ discover_url(s, {page: live.page + 1}) }}#dv-r{{ _n + 1 }}" data-dv-older-go>{{ 'Show older updates'|trans }}</a>
     {% elseif _full and live.deepest %}
-      <p class="dv-live__end">{{ 'That is as far back as this list goes. Search for a name, an award or a place to find something older.'|trans }}</p>
+      <p class="dv-live__end">{{ 'End of the list. Search to find anything older.'|trans }}</p>
     {% endif %}
   </div>
 </section>

@@ -42,6 +42,7 @@
   }
 
   var head = null;
+  var globals = false;
 
   /* One record per layer: {trigger, panel, items()}. */
   var layers = [];
@@ -142,6 +143,12 @@
     var scrim = head.querySelector('[data-ag-mega-scrim]');
     if (scrim) scrim.addEventListener('click', function () { closeAll(false); });
 
+    /* The page-wide listeners read `head`, `layers` and `openLayer` when they fire, so they
+       are bound ONCE and serve whichever header is on screen — an in-place navigation
+       (site-nav.js) brings a new header, and binding them again would close it twice. */
+    if (globals) return;
+    globals = true;
+
     /* Outside the header, or on the bar itself away from a control, closes everything. */
     document.addEventListener('click', function (e) {
       if (!openLayer) return;
@@ -232,7 +239,7 @@
       if (g && Date.now() - g < 1200) {
         g = 0;
         var to = GO[e.key.toLowerCase()];
-        if (to) { e.preventDefault(); location.href = to; }
+        if (to) { e.preventDefault(); if (window.agNav) window.agNav.go(to); else location.href = to; }
         return;
       }
       if (e.key === 'g' || e.key === 'G') g = Date.now();
@@ -245,6 +252,13 @@
     head = document.querySelector('[data-ag-head]');
     if (head) { bindLayers(); bindToolbar(); }
     bindShortcuts();
+    // A swapped page has a new header: its controls are bound to it, the old ones go with it.
+    document.addEventListener('ag:load', function () {
+      var h = document.querySelector('[data-ag-head]');
+      if (!h || h === head) return;
+      openLayer = null; layers = []; head = h;
+      bindLayers(); bindToolbar();
+    });
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

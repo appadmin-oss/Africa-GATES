@@ -2,7 +2,7 @@
 {% block topbar_title %}{{ programme.title }} · Cycle{% endblock %}
 {% block topbar_actions %}<a class="ad-btn" href="/admin/programmes">← Back</a>{% endblock %}
 
-{% block head_styles %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/console/manage.css') }}">
 <style nonce="{{ csp_nonce }}">
   .ed-list{ display:grid; gap:8px }
   .ed{ display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; min-height:44px;
@@ -22,6 +22,10 @@
     background:#fffaf0; border-radius:0 8px 8px 0; font-size:13px; line-height:1.65;
     color:#7a5605 }
   .ed-new{ margin-top:14px }
+  .pz-row{ display:grid; grid-template-columns:2fr 1fr; gap:10px; margin:0 0 10px; padding:10px 12px; border:1px solid var(--cn-line-card); border-radius:8px }
+  .pz-row[hidden]{ display:none }
+  .pz-row legend{ font-weight:700; font-size:13px; padding:0 4px }
+  @media (max-width:640px){ .pz-row{ grid-template-columns:1fr } }
   .ed-new__f{ display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
     gap:10px; align-items:end }
   .ed-new label{ display:block; font-size:11px; font-weight:700; letter-spacing:.05em;
@@ -33,6 +37,21 @@
 {% endblock %}
 
 {% block content %}
+{% if readiness %}
+{% set todo = readiness|filter(i => i.state == 'todo')|length %}
+<section class="ad-card rd" aria-labelledby="rd-h" style="margin-bottom:14px">
+  <div class="ad-card__head"><div class="ad-card__title" id="rd-h">{{ todo ? todo ~ ' thing' ~ (todo == 1 ? '' : 's') ~ ' to do before this edition is ready' : 'This edition is ready' }}<small>Worked out from the edition itself — it updates as you fix things</small></div></div>
+  <ul class="rd__list">
+    {% for i in readiness %}
+    <li class="rd__i rd__i--{{ i.state }}">
+      <span class="rd__mark" aria-hidden="true">{{ i.state == 'ok' ? '✓' : (i.state == 'todo' ? '!' : 'i') }}</span>
+      <span><strong>{{ i.title }}</strong><span class="sr-only"> — {{ i.state == 'ok' ? 'done' : (i.state == 'todo' ? 'to do' : 'worth a look') }}</span>{% if i.detail %} <span class="rd__d">{{ i.detail }}</span>{% endif %}
+      {% if i.href and i.state != 'ok' %} <a href="{{ i.href }}">Fix this<span class="sr-only">: {{ i.title }}</span></a>{% endif %}</span>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
 <div class="ad-grid-2">
   <div>
     <form method="post" action="/admin/programmes/{{ programme.id }}/cycle" class="ad-form">
@@ -50,11 +69,18 @@
         </div>
         <div class="ad-card__body">
           <p style="margin:0;font-size:14px;color:var(--cn-ink)">{{ phase.detail }}</p>
-          <p style="margin:8px 0 0;font-size:13px;color:var(--cn-grey-500)">
+          <p style="margin:8px 0 0;font-size:13px;color:var(--cn-soft)">
             Votes accepted: <strong>{{ phase.is_voting_open ? 'yes' : 'no' }}</strong> ·
             Nominations accepted: <strong>{{ phase.is_nominations_open ? 'yes' : 'no' }}</strong>
             {% if cycle.next_boundary_at %} · Next change <strong>{{ cycle.next_boundary_at|date('j M Y, H:i') }}</strong>{% endif %}
           </p>
+          {% if window_error|default(null) %}
+          <div class="ad-flash ad-flash--err" role="alert" style="margin:14px 0 0">
+            ⚠ The saved dates are out of order: {{ window_error }} The site follows the dates, so
+            this edition is behaving as the latest date that has passed says. Correct the dates below
+            and save.
+          </div>
+          {% endif %}
           {% if phase.drifted %}
           <div class="ad-flash ad-flash--err" role="alert" style="margin:14px 0 0">
             ⚠ The stored status column says <code>{{ phase.stored_status }}</code> but the dates compute
@@ -62,6 +88,78 @@
             site is behaving correctly — but reports and lists reading the column will be wrong until the
             scheduled task catches up. Saving this form re-syncs it.
           </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      {% if cycle %}
+      {# The formal letter each verified nominee receives once this edition is on the public
+         vote (Services\NomineeVotingNotice). Counted here so nobody has to chase whether it
+         went out: verified, sent, waiting for the next tick, and unreachable.
+         The card is drawn for every edition, with or without its counts: it is the only way
+         to the letter's editor, and it used to vanish whole when the status could not be
+         read (votingLetterStatus() logs and returns null), taking the editor with it. #}
+      {% set _vl = voting_letter|default(null) %}
+      <div class="ad-card" style="margin-bottom:14px">
+        <div class="ad-card__head">
+          <div class="ad-card__title">Nominee voting letter<small>Sent automatically to every approved nominee while voting is open</small></div>
+          {% if _vl %}<span class="ad-chip ad-chip--{{ not _vl.on ? 'grey' : (_vl.voting ? 'green' : 'gold') }}">{{ not _vl.on ? 'Off' : (_vl.voting ? 'Sending' : 'Waits for voting') }}</span>{% endif %}
+        </div>
+        <div class="ad-card__body">
+          {% if not _vl %}
+          <p style="margin:0;font-size:14px;color:var(--cn-ink)">
+            Whether letters have gone out could not be read just now; the reason is in the server's error log under [voting-letter]. The letter itself can still be written and previewed.
+          </p>
+          {% else %}
+          <p style="margin:0;font-size:14px;color:var(--cn-ink)">
+            On the ballot: <strong>{{ _vl.ballot|default(0) }}</strong> ·
+            Verified nominees: <strong>{{ _vl.verified }}</strong> ·
+            Letters sent: <strong>{{ _vl.sent }}</strong>{% if _vl.voting and _vl.on %} ·
+            Due on the next run: <strong>{{ _vl.due }}</strong>{% endif %}
+            {% if _vl.failed %} · Failed: <strong>{{ _vl.failed }}</strong>{% endif %}
+          </p>
+          {% if _vl.audience|default('ballot') == 'verified' and _vl.unverified|default(0) > 0 %}
+          <p style="margin:8px 0 0;font-size:13px;color:var(--cn-ink)">
+            <strong>{{ _vl.unverified }} {{ _vl.unverified == 1 ? 'nominee has' : 'nominees have' }} not verified</strong>, so they receive no letter.
+            To write to every approved nominee, choose “Every approved nominee on the ballot” in <a href="/admin/settings#f-vl_title">Settings</a>.
+          </p>
+          {% endif %}
+          {% if _vl.unreachable %}
+          <p style="margin:8px 0 0;font-size:13px;color:var(--cn-soft)">
+            {{ _vl.unreachable }} verified {{ _vl.unreachable == 1 ? 'nominee has' : 'nominees have' }} no
+            address we can be sure is theirs, so no letter is sent to them.
+          </p>
+          {% endif %}
+          {% endif %}
+          <p style="margin:8px 0 0;font-size:13px">
+            <a href="/admin/programmes/{{ programme.id }}/cycle/letter?cycle={{ cycle.id }}"><strong>Write or change the letter</strong></a>
+            · <a href="/admin/programmes/{{ programme.id }}/cycle/voting-letter?cycle={{ cycle.id }}">See it as a PDF</a>
+            · Signatory, who receives it and on/off are in <a href="/admin/settings#f-vl_title">Settings</a>.
+          </p>
+          {% if _vl and _vl.held|default('') %}
+          <p class="ad-callout ad-callout--warn" style="margin:10px 0 0">{{ _vl.held }}</p>
+          {% endif %}
+          {% if _vl and _vl.correction_due|default(0) > 0 %}
+          {# A letter stated a community-return rule this edition no longer runs
+             (NomineeVotingNotice::correctionPlan()). The correction says so, apologises, states
+             the rule and reissues the letter; it is sent only from here, with a reason. #}
+          <p class="ad-callout ad-callout--warn" style="margin:10px 0 0">
+            <strong>{{ _vl.correction_due }} {{ _vl.correction_due == 1 ? 'nominee was' : 'nominees were' }} sent the letter before this edition’s community-return rule changed</strong>,
+            so {{ _vl.correction_due == 1 ? 'their letter states' : 'their letters state' }} a rule the edition does not run.
+          </p>
+          <p style="margin:10px 0 0">
+            <button class="ad-btn" type="submit" formnovalidate data-confirm="Send the correction to {{ _vl.correction_due }} {{ _vl.correction_due == 1 ? 'nominee' : 'nominees' }}? It says the earlier letter was wrong, states the rule that applies, and attaches a corrected letter."
+                    formaction="/admin/programmes/{{ programme.id }}/cycle/voting-letter/correct?cycle={{ cycle.id }}">Send the correction to {{ _vl.correction_due }} {{ _vl.correction_due == 1 ? 'nominee' : 'nominees' }}</button>
+          </p>
+          {% endif %}
+          {% if _vl and _vl.on and _vl.voting and _vl.due > 0 and not _vl.held|default('') %}
+          {# Inside the cycle form: a nested <form> would be dropped by the parser and this
+             button would save the cycle instead, so it carries its own formaction. #}
+          <p style="margin:10px 0 0">
+            <button class="ad-btn ad-btn--primary" type="submit" formnovalidate
+                    formaction="/admin/programmes/{{ programme.id }}/cycle/voting-letter/send?cycle={{ cycle.id }}">Send the {{ _vl.due }} due {{ _vl.due == 1 ? 'letter' : 'letters' }} now</button>
+          </p>
           {% endif %}
         </div>
       </div>
@@ -265,7 +363,7 @@
               and order, from the most recent edition that has any. Nothing else comes with
               them: no nominees, no votes, no shortlists, no scorecards.</span>
           </label>
-          <p style="margin:10px 0 0;font-size:12px;line-height:1.65;color:var(--cn-grey-500)">
+          <p style="margin:10px 0 0;font-size:12px;line-height:1.65;color:var(--cn-soft)">
             The new edition opens as <strong>upcoming with no dates</strong>. A results date
             inherited from last year is a promise nobody made, arriving already passed
             &mdash; the public site would publish a &ldquo;this award is late&rdquo; notice
@@ -276,13 +374,105 @@
   </div>
 
   <div>
-    <div class="ad-card">
-      <div class="ad-card__head"><div class="ad-card__title">Categories<small>For the current cycle</small></div></div>
+    {# ══ EXTEND VOTING, ON THE RECORD (Services\VotingExtension) ═══════════════
+       Its own form and action, outside the cycle form (a <form> inside another is dropped by
+       the parser). Editing "Voting close" in the cycle form moves the date and records
+       nothing; this records the extension, publishes the reason, captures the standings and,
+       by default, stops paid checkout at the previous close. It also records an extension
+       already made by editing the date: leave "New close" at the current close.
+       Policy: docs/VOTING-EXTENSION-POLICY.md. #}
+    {% if cycle %}
+    <div class="ad-card" id="extend" style="margin-bottom:14px">
+      <div class="ad-card__head"><div class="ad-card__title">Extend voting<small>Applies to every category and every nominee in this edition. The reason is published on the voting pages.</small></div></div>
       <div class="ad-card__body">
-        {% if categories|length == 0 %}<p style="color:var(--cn-grey-500);font-size:13px">No categories yet.</p>{% endif %}
+        {% if not extensions_ready %}
+        <p style="margin:0;font-size:13px;color:var(--cn-ink)">Extensions can be recorded once the <code>2027_06_03_voting_extensions</code> migration has run.</p>
+        {% else %}
+        {% if extensions|length %}
+        <div class="ad-table-wrap" style="margin-bottom:12px">
+          <table class="ad-table">
+            <thead><tr><th scope="col">From</th><th scope="col">To</th><th scope="col">Paid stops</th><th scope="col">Kind</th><th scope="col">Snapshot</th><th scope="col">Recorded</th></tr></thead>
+            <tbody>
+              {% for x in extensions %}
+              <tr>
+                <td>{{ x.previous_close|when_zoned('j M Y, H:i') }}</td>
+                <td>{{ x.new_close|when_zoned('j M Y, H:i') }}</td>
+                <td>{{ x.paid_cutoff_at ? x.paid_cutoff_at|when_zoned('j M Y, H:i') : 'no cutoff' }}</td>
+                <td>{{ x.mode == 'recorded' ? 'recorded (date already moved)' : 'moved the date' }}</td>
+                <td>{% if x.snapshot_ref %}<code style="font-size:11px" title="{{ x.snapshot_ref }}">{{ x.snapshot_ref|slice(0, 12) }}…</code>{% else %}none{% endif %}</td>
+                <td>{{ x.created_at|when_zoned('j M Y, H:i') }}{% if x.admin_id %} · admin {{ x.admin_id }}{% endif %}</td>
+              </tr>
+              <tr><td colspan="6" style="font-size:12px;color:var(--cn-soft)">Reason: {{ x.reason }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+        <form class="ad-form" method="post" action="/admin/programmes/{{ programme.id }}/cycle/extend"
+              data-confirm="Extend voting for every category in this edition? The reason is published.">
+          <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="cycle_id" value="{{ cycle.id }}">
+          <div class="ad-grid-2">
+            <div><label for="xt-prev">Previous close ({{ timezone }})</label><input type="datetime-local" step="1" name="previous_close" id="xt-prev" value="{{ cycle.voting_close|default('')|when_input }}" required></div>
+            <div><label for="xt-new">New close ({{ timezone }})</label><input type="datetime-local" step="1" name="new_close" id="xt-new" value="{{ cycle.voting_close|default('')|when_input }}" required></div>
+          </div>
+          <p class="hint" style="margin:0">To <strong>move</strong> the date, set the new close later than the current one. To <strong>record an extension already made</strong> by editing the date, leave the new close at the current close and set the previous close to the date it was before.</p>
+          <div><label for="xt-reason">Public reason <span class="hint" style="font-weight:400">{{ extension_reason_min }}–{{ extension_reason_max }} characters · shown to everyone</span></label>
+            <textarea name="reason" id="xt-reason" rows="3" minlength="{{ extension_reason_min }}" maxlength="{{ extension_reason_max }}" required placeholder="e.g. Verification codes were not delivered to many voters on 14 Nov because of an email provider outage."></textarea></div>
+          <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px">
+            <input type="checkbox" name="stop_paid" value="1" checked>
+            <span><strong>Stop paid votes at the previous close</strong>. The extra time is free voting only. Orders already started still complete.</span>
+          </label>
+          {% if extensions|length %}
+          <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px">
+            <input type="checkbox" name="further" value="1">
+            <span><strong>This is a further extension</strong>. The policy allows one; a second needs its own documented cause.</span>
+          </label>
+          {% endif %}
+          <p class="hint" style="margin:0">Refused once results are released, or if the new close is at or after the results date. The standings are captured when you press the button.</p>
+          <div><button class="ad-btn ad-btn--primary ad-btn--sm" type="submit">Extend voting</button></div>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+    {# ══ PRIZES, BY PLACE, FOR THIS EDITION (EditionPrizes) ═══════════════════
+       Its own form, outside the cycle form: a <form> inside another is dropped by the parser. #}
+    {% if cycle %}
+    <div class="ad-card" id="prizes" style="margin-bottom:14px">
+      <div class="ad-card__head"><div class="ad-card__title">Prizes<small>What each place wins overall in this edition, across every category. Shown on the award page and in the voting letter.</small></div></div>
+      <div class="ad-card__body">
+        <form class="ad-form" method="post" action="/admin/programmes/{{ programme.id }}/cycle/prizes">
+          <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="cycle_id" value="{{ cycle.id }}">
+          {# Every place up to the most is in the form; the ones past the next empty place start
+             hidden, and "Add a place" opens the next one (admin.js, prize-add). It used to draw
+             two spare rows and need a save for more, which read as "only two places". #}
+          {% set _open = max(prizes|length + 1, 3) %}
+          {% for i in 0..(prizes_max - 1) %}{% set z = prizes[i]|default({award: '', cash_naira: null}) %}
+          <fieldset class="pz-row" data-pz-row{% if i >= _open %} hidden{% endif %}>
+            <legend>{{ i + 1 }}{{ (i + 1) in [11,12,13] ? 'th' : ({1:'st',2:'nd',3:'rd'}[(i + 1) % 10]|default('th')) }} place</legend>
+            <div><label for="pz-a-{{ i }}">What they receive</label><input type="text" id="pz-a-{{ i }}" name="prizes[{{ i }}][award]" value="{{ z.award }}" maxlength="{{ prize_max }}" placeholder="{{ i == 0 ? 'A trophy and a year of mentoring' : '' }}"></div>
+            <div><label for="pz-c-{{ i }}">Cash (₦, optional)</label><input type="text" inputmode="numeric" id="pz-c-{{ i }}" name="prizes[{{ i }}][cash]" value="{{ z.cash_naira }}" placeholder="{{ i == 0 ? '500000' : '' }}"></div>
+          </fieldset>
+          {% endfor %}
+          {% if _open < prizes_max %}<div><button class="ad-btn ad-btn--sm" type="button" data-ag-do="prize-add">+ Add a place</button></div>{% endif %}
+          <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px">
+            <input type="checkbox" name="on_milestone" value="1" {% if prizes_on_milestone %}checked{% endif %}>
+            <span><strong>These prizes depend on the milestone being reached</strong>. The award page and the voting letter say so beside the prizes{% if prize_condition %}: “{{ prize_condition.text }}”{% else %}, once the edition has a milestone (Community return){% endif %}.</span>
+          </label>
+          <p class="hint" style="margin:0">Up to {{ prizes_max }} places. Leave a place blank to remove it; the rest are numbered in order, so there is never a gap.</p>
+          <div><button class="ad-btn ad-btn--primary ad-btn--sm" type="submit">Save prizes</button></div>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+    <div class="ad-card">
+      <div class="ad-card__head"><div class="ad-card__title">Categories<small>In the edition on this screen</small></div></div>
+      <div class="ad-card__body">
+        {% if categories|length == 0 %}<p style="color:var(--cn-soft);font-size:13px">No categories yet.</p>{% endif %}
         {% for c in categories %}
         <details style="border:1px solid var(--cn-line-card);border-radius:8px;padding:12px;margin-bottom:8px">
-          <summary style="font-weight:600;cursor:pointer">{{ c.title }} <span style="color:var(--cn-grey-500);font-weight:500">· {{ c.slug }}</span></summary>
+          <summary style="font-weight:600;cursor:pointer">{{ c.title }} <span style="color:var(--cn-soft);font-weight:500">· {{ c.slug }} · {{ c.nominees }} nominee{{ c.nominees == 1 ? '' : 's' }}</span></summary>
+          <p style="margin:8px 0 0;font-size:13px"><a href="/admin/nominees?category={{ c.id }}">See the nominees in {{ c.title }}</a></p>
           <form class="ad-form" method="post" action="/admin/programmes/{{ programme.id }}/categories" style="margin-top:12px">
             <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="id" value="{{ c.id }}">
             <div class="row">
@@ -294,26 +484,29 @@
               <div><label for="f-sort_order-{{ c.id }}">Sort order</label><input type="number" name="sort_order" id="f-sort_order-{{ c.id }}" min="0" max="255" value="{{ c.sort_order }}"></div>
               <div style="display:flex;gap:8px;align-items:flex-end">
                 <button class="ad-btn ad-btn--primary ad-btn--sm" type="submit">Update</button>
-                {# `formaction`, NOT a nested <form>. This WAS a nested form, and an HTML
-                   parser DISCARDS a <form> start tag inside an open one — so this button
-                   kept its markup, lost its action, and posted to the UPDATE route above
-                   it. Pressing Delete saved the category. `formnovalidate` because the
-                   title and slug fields beside it are `required` and a delete has no
-                   business being blocked by them. The confirm text says `title` because
-                   `c.name` does not exist on a category row, so it used to read
-                   “Delete “” permanently?”. #}
+                {% if c.in_use %}
+                {# Retired, never deleted: votes, nominees and judge criteria all cascade from
+                   a category, so a delete here erased the ballot ledger. The server refuses it
+                   too (categoryInUse); the button is not offered for what it would refuse. #}
+                <span style="font-size:12px;color:var(--cn-ink-3)">Cannot be deleted — {{ c.in_use }}.</span>
+                {% else %}
+                {# `formaction`, NOT a nested <form>: a <form> inside an open one is dropped by
+                   the parser and this button would post to the UPDATE route above it.
+                   `formnovalidate` so the required title and slug do not block a delete. #}
                 <button class="ad-btn ad-btn--danger ad-btn--sm" type="submit"
                         formaction="/admin/categories/{{ c.id }}/delete" formnovalidate
-                        data-confirm="Delete the category “{{ c.title }}” permanently? Anything already nominated or judged in it points at it by id, so this cannot be undone.">Delete</button>
+                        data-confirm="Delete the category “{{ c.title }}”? Nothing has been nominated or voted in it yet.">Delete</button>
+                {% endif %}
               </div>
             </div>
           </form>
         </details>
         {% endfor %}
 
-        <form class="ad-form" method="post" action="/admin/programmes/{{ programme.id }}/categories" style="margin-top:18px;padding:14px;background:var(--cn-fill-panel);border-radius:8px">
+        <form class="ad-form" method="post" action="/admin/programmes/{{ programme.id }}/categories" style="margin-top:18px;padding:14px;background:var(--cn-panel);border-radius:8px">
           <input type="hidden" name="_token" value="{{ csrf_token }}">
-          <strong style="font-size:13px">+ Add category</strong>
+          {% if cycle %}<input type="hidden" name="cycle_id" value="{{ cycle.id }}">{% endif %}
+          <strong style="font-size:13px">+ Add a category to {{ cycle.edition_label|default(cycle.year|default('this edition')) }}</strong>
           <div class="row">
             <div><label for="f-title">Title</label><input type="text" name="title" id="f-title" required></div>
             <div><label for="f-slug">Slug</label><input type="text" name="slug" id="f-slug" required></div>

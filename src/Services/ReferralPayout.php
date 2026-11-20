@@ -49,7 +49,7 @@ final class ReferralPayout
     /**
      * What this member could ask for right now, and why not if they cannot.
      *
-     * @return array{ok:bool, amount:int, credits:list<int>, reason:string}
+     * @return array{ok:bool, amount:int, fee?:int, credits:list<int>, reason:string}
      */
     public static function available(int $userId): array
     {
@@ -88,7 +88,11 @@ final class ReferralPayout
         if ($sum < self::MIN_NAIRA)   return $no('The smallest withdrawal is ₦' . number_format(self::MIN_NAIRA)
                                               . '. You have ₦' . number_format($sum) . ' so far.');
 
-        return ['ok' => true, 'amount' => $sum, 'credits' => $ids, 'reason' => ''];
+        // The wallet's withdrawal fee, from the one schedule every withdrawal uses.
+        $fee = intdiv(WalletFee::forKobo($sum * 100), 100);
+        if ($fee >= $sum) return $no('The service fee would take the whole amount.');
+
+        return ['ok' => true, 'amount' => $sum, 'fee' => $fee, 'credits' => $ids, 'reason' => ''];
     }
 
     /**
@@ -136,7 +140,7 @@ final class ReferralPayout
                 $avail = self::available($userId);
                 if (!$avail['ok']) return ['ok' => false, 'message' => $avail['reason']];
 
-                $id = (int) DB::table('gates_referral_payouts')->insertGetId([
+                $row = [
                     'user_id'        => $userId,
                     'amount_naira'   => $avail['amount'],
                     'credit_ids'     => json_encode($avail['credits']),
@@ -145,18 +149,24 @@ final class ReferralPayout
                     'account_name'   => mb_substr($name, 0, 160),
                     'account_number' => mb_substr($number, 0, 32),
                     'requested_at'   => Carbon::now()->toDateTimeString(),
-                ]);
-                return ['ok' => true, 'id' => $id, 'amount' => $avail['amount']];
+                ];
+                // Frozen on the row where the column exists (2027_03_23_wallet_fee.php).
+                if (\AfricaGates\Support\SchemaHas::column('gates_referral_payouts', 'fee_naira')) {
+                    $row['fee_naira'] = (int) $avail['fee'];
+                }
+                $id = (int) DB::table('gates_referral_payouts')->insertGetId($row);
+                return ['ok' => true, 'id' => $id, 'amount' => $avail['amount'], 'fee' => (int) $avail['fee']];
             });
         } catch (\Throwable $e) {
             return ['ok' => false, 'message' => 'The request could not be saved just now.'];
         }
         if (!$out['ok']) return $out;
-        $id    = (int) $out['id'];
-        $avail = ['amount' => (int) $out['amount']];
+        $id  = (int) $out['id'];
+        $fee = (int) $out['fee'];
 
         return ['ok' => true, 'id' => $id,
-                'message' => 'Requested ₦' . number_format($avail['amount'])
+                'message' => 'Requested ₦' . number_format((int) $out['amount'])
+                           . ($fee > 0 ? ' (₦' . number_format((int) $out['amount'] - $fee) . ' after the ₦' . number_format($fee) . ' fee)' : '')
                            . '. Withdrawals are paid by bank transfer — you will hear from us when it is done.'];
     }
 
@@ -171,12 +181,11 @@ final class ReferralPayout
      */
     public static function bankFor(int $userId): array
     {
-        $empty = ['bank' => '', 'account_name' => '', 'account_number' => ''];
+        $empty = ['bank' => '', 'account_name' => '', 'account_number' => '', 'bank_code' => ''];
         if ($userId < 1) return $empty;
 
         try {
-            $u = DB::table('gates_users')->where('id', $userId)
-                ->first(['payout_bank', 'payout_account_name', 'payout_account_number']);
+            $u = DB::table('gates_users')->where('id', $userId)->first();
         } catch (\Throwable) {
             return $empty;
         }
@@ -186,6 +195,8 @@ final class ReferralPayout
             'bank'           => (string) ($u->payout_bank ?? ''),
             'account_name'   => (string) ($u->payout_account_name ?? ''),
             'account_number' => (string) ($u->payout_account_number ?? ''),
+            // The Paystack bank code, where the details were saved from the bank list.
+            'bank_code'      => (string) ($u->payout_bank_code ?? ''),
         ];
     }
 
@@ -198,7 +209,7 @@ final class ReferralPayout
      *
      * @return array{ok:bool, message:string}
      */
-    public static function saveBank(int $userId, string $bank, string $accountName, string $accountNumber): array
+    public static function saveBank(int $userId, string $bank, string $accountName, string $accountNumber, ?string $bankCode = null): array
     {
         if ($userId < 1) return ['ok' => false, 'message' => 'Sign in first.'];
 
@@ -214,14 +225,36 @@ final class ReferralPayout
         }
 
         try {
-            DB::table('gates_users')->where('id', $userId)->update([
+            $row = [
                 'payout_bank'           => mb_substr($bank, 0, 120),
                 'payout_account_name'   => mb_substr($name, 0, 160),
                 'payout_account_number' => mb_substr($number, 0, 32),
-            ]);
+            ];
+            // When the DESTINATION changes, say when: new bank details followed at once by a
+            // withdrawal is the commonest shape of a taken-over account, and the automatic
+            // payout holds that combination for a person (WalletRisk). A name edit alone is
+            // not a new destination. The code is kept where the details came from the list.
+            //
+            // The FIRST save counts too (review, 20 Oct 2026). Treating it as no change meant
+            // somebody in a member's inbox who added their own account as the first one met
+            // no takeover check at all; a member's first withdrawal now waits for a person,
+            // which is a day's delay once, against the money.
+            if (\AfricaGates\Support\SchemaHas::column('gates_users', 'payout_bank_changed_at')) {
+                $was = DB::table('gates_users')->where('id', $userId)->first(['payout_account_number', 'payout_bank_code']);
+                $code = $bankCode !== null ? mb_substr(trim($bankCode), 0, 12) : (string) ($was->payout_bank_code ?? '');
+                $prev = (string) ($was->payout_account_number ?? '');
+                if ($prev !== $number || ((string) ($was->payout_bank_code ?? '') !== '' && (string) $was->payout_bank_code !== $code)) {
+                    $row['payout_bank_changed_at'] = Carbon::now()->toDateTimeString();
+                }
+                $row['payout_bank_code'] = $code !== '' ? $code : null;
+            }
+            DB::table('gates_users')->where('id', $userId)->update($row);
         } catch (\Throwable $e) {
             return ['ok' => false, 'message' => 'Could not save those details just now.'];
         }
+        // A new destination is told to the member at once, by email and by text: the hold
+        // above only delays a payout, and a delay protects nobody who is never told.
+        if (isset($row['payout_bank_changed_at'])) AccountChangeNotice::payoutBank($userId, $number);
 
         return ['ok' => true, 'message' => 'Saved. Withdrawals will use these details unless you change them.'];
     }
@@ -283,6 +316,8 @@ final class ReferralPayout
                 'row'   => $r,
                 'name'  => (string) ($u->name ?? ('Member #' . $r->user_id)),
                 'email' => (string) ($u->email ?? ''),
+                // What the automatic payout found, if it held this one (WalletAutoPay).
+                'found' => WalletAutoPay::findings($r),
             ];
         }
         return $out;
@@ -302,7 +337,7 @@ final class ReferralPayout
      *
      * @return array{ok:bool, message:string}
      */
-    public static function markPaid(int $id, string $reference, int $adminId = 0): array
+    public static function markPaid(int $id, string $reference, int $adminId = 0, bool $alreadySent = false, ?PaymentService $ps = null): array
     {
         $reference = trim($reference);
         if ($reference === '') {
@@ -312,6 +347,7 @@ final class ReferralPayout
 
         $p = self::find($id);
         if (!$p)                              return ['ok' => false, 'message' => 'No such request.'];
+        if (!$alreadySent && ($busy = WalletAutoPay::busy($p, $ps))) return ['ok' => false, 'message' => $busy];
         if ((string) $p->status !== 'requested') {
             return ['ok' => false, 'message' => 'That request is already ' . $p->status . '.'];
         }
@@ -329,7 +365,9 @@ final class ReferralPayout
         // between request and payment. So the request is refused instead: rejecting it puts
         // the live credits back in the member's balance, and their next request is for
         // exactly what is still owed.
-        if ($ids !== [] && \AfricaGates\Support\SchemaHas::column('gates_referral_credits', 'reversed_at')) {
+        // Not when the gateway has already confirmed the transfer (WalletAutoPay): the money
+        // has gone, and the record must say so — see CommunityReturnWithdrawals::markPaid().
+        if (!$alreadySent && $ids !== [] && \AfricaGates\Support\SchemaHas::column('gates_referral_credits', 'reversed_at')) {
             try {
                 $reversed = (int) DB::table('gates_referral_credits')->whereIn('id', $ids)
                     ->whereNotNull('reversed_at')->count();
@@ -344,21 +382,38 @@ final class ReferralPayout
         }
 
         try {
-            // The credits first. If this succeeds and the status write fails, the request
-            // shows as open against credits already cleared — visible and fixable. The
-            // other order would report a payment whose credits are still owed, which reads
-            // as money that has to be paid twice.
-            if ($ids !== []) {
-                DB::table('gates_referral_credits')->whereIn('id', $ids)
-                    ->whereNull('paid_out_at')->update(['paid_out_at' => $now]);
-            }
-            DB::table('gates_referral_payouts')->where('id', $id)->update([
-                'status' => 'paid', 'payment_ref' => mb_substr($reference, 0, 120),
-                'settled_at' => $now, 'settled_by' => $adminId ?: null,
-            ]);
+            // ONE transaction, and the request is CLAIMED before its credits are touched: only
+            // a row still `requested` (and, by hand, one the automatic sender has not taken)
+            // becomes paid. Both writes used to be plain updates by id, so a person pressing
+            // "Record as paid" while another pressed "Refuse" could end with a refused request
+            // whose credits were stamped paid — "ask again" for money that could never be
+            // asked for again — and two people recording one payment both succeeded.
+            DB::transaction(static function () use ($id, $ids, $now, $reference, $adminId, $alreadySent): void {
+                $q = DB::table('gates_referral_payouts')->where('id', $id)->where('status', 'requested');
+                if (!$alreadySent) {
+                    $q->where(static fn ($x) => $x->whereNull('auto_state')->orWhereIn('auto_state', [WalletAutoPay::A_HELD, WalletAutoPay::A_FAILED]));
+                }
+                $n = $q->update([
+                    'status' => 'paid', 'payment_ref' => mb_substr($reference, 0, 120),
+                    'settled_at' => $now, 'settled_by' => $adminId ?: null,
+                ]);
+                if ($n !== 1) throw new \RuntimeException('That request has just been settled or refused by somebody else. Reload it.');
+                if ($ids !== []) {
+                    DB::table('gates_referral_credits')->whereIn('id', $ids)
+                        ->whereNull('paid_out_at')->update(['paid_out_at' => $now]);
+                }
+            });
         } catch (\Throwable $e) {
             return ['ok' => false, 'message' => 'Could not record it: ' . $e->getMessage()];
         }
+
+        // The request told the member "we will email you when it has been paid", and for its
+        // whole life nothing did. The wallet's one sender, with the receipt link.
+        $fee = (int) ($p->fee_naira ?? 0);
+        MemberWallet::tell((int) $p->user_id, 'Your referral earnings have been paid',
+            'We have paid ₦' . number_format((int) $p->amount_naira - $fee) . ' to ' . $p->account_name
+            . ($fee > 0 ? ' (₦' . number_format((int) $p->amount_naira) . ' less the ₦' . number_format($fee) . ' service fee)' : '')
+            . ".\nTransfer reference: " . $reference . '.', 'rp-' . $id);
 
         return ['ok' => true, 'message' => 'Recorded ₦' . number_format((int) $p->amount_naira)
                                         . ' paid to ' . $p->account_name . ' (' . $reference . ').'];
@@ -372,7 +427,7 @@ final class ReferralPayout
      *
      * @return array{ok:bool, message:string}
      */
-    public static function reject(int $id, string $why, int $adminId = 0): array
+    public static function reject(int $id, string $why, int $adminId = 0, ?PaymentService $ps = null): array
     {
         $why = trim($why);
         if ($why === '') return ['ok' => false, 'message' => 'Say why, so the member can fix it and ask again.'];
@@ -380,15 +435,24 @@ final class ReferralPayout
         $p = self::find($id);
         if (!$p)                                 return ['ok' => false, 'message' => 'No such request.'];
         if ((string) $p->status !== 'requested') return ['ok' => false, 'message' => 'That request is already ' . $p->status . '.'];
+        if ($busy = WalletAutoPay::busy($p, $ps)) return ['ok' => false, 'message' => $busy];
 
         try {
-            DB::table('gates_referral_payouts')->where('id', $id)->update([
-                'status' => 'rejected', 'note' => mb_substr($why, 0, 400),
-                'settled_at' => Carbon::now()->toDateTimeString(), 'settled_by' => $adminId ?: null,
-            ]);
+            // Only a request still open, and not one the automatic sender has taken.
+            $n = DB::table('gates_referral_payouts')->where('id', $id)->where('status', 'requested')
+                ->where(static fn ($x) => $x->whereNull('auto_state')->orWhereIn('auto_state', [WalletAutoPay::A_HELD, WalletAutoPay::A_FAILED]))
+                ->update([
+                    'status' => 'rejected', 'note' => mb_substr($why, 0, 400),
+                    'settled_at' => Carbon::now()->toDateTimeString(), 'settled_by' => $adminId ?: null,
+                ]);
+            if ($n !== 1) return ['ok' => false, 'message' => 'That request has just been settled or refused by somebody else. Reload it.'];
         } catch (\Throwable $e) {
             return ['ok' => false, 'message' => 'Could not record it: ' . $e->getMessage()];
         }
+
+        MemberWallet::tell((int) $p->user_id, 'About your referral withdrawal',
+            "We could not pay your withdrawal request.\n\nReason: " . $why
+            . "\n\nThe money is still yours. Correct this and ask again from your wallet.", 'rp-' . $id);
 
         return ['ok' => true, 'message' => 'Refused, and the balance stays owed.'];
     }

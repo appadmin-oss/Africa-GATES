@@ -197,6 +197,9 @@ final class ResultReleaseTest extends TestCase
             'voting_close' => Carbon::now()->subDays(3)->toDateTimeString(),
             'results_date' => Carbon::now()->subDay()->toDateTimeString(),
         ]);
+        // The scheduled sweep crowns only under automatic release; manual (the default)
+        // waits for an operator, and would leave this run proving nothing.
+        \AfricaGates\Support\ResultReleaseMode::save(\AfricaGates\Support\ResultReleaseMode::AUTO);
         (new CycleMaterialiser(false))->run();
 
         $crowned = DB::table('gates_nominees')->where('category_id', $this->categoryId)

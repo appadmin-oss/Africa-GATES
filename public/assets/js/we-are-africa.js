@@ -36,6 +36,9 @@
 
 (function () {
   'use strict';
+  // Page-wide listeners and timers go through agPage (layout/shell.twig), which site-nav.js
+  // undoes when this page is swapped away; elsewhere they are plain (SiteNavTest).
+  var pg = window.agPage || { on: function (t, y, f, o) { t.addEventListener(y, f, o); }, leave: function () {} };
 
   var AFRICA = new Set(["Algeria","Angola","Benin","Botswana","Burkina Faso","Burundi","Cameroon",
     "Central African Rep.","Chad","Congo","Côte d'Ivoire","Dem. Rep. Congo","Djibouti","Egypt",
@@ -66,19 +69,18 @@
     return 'rgba(' + Math.round(c[0]) + ',' + Math.round(c[1]) + ',' + Math.round(c[2]) + ',' + (alpha == null ? 1 : alpha) + ')';
   }
   function palette() {
+    // A dot-matrix globe on the plain page (owner, 22 Oct 2026: "modern and simple, after
+    // Cloudflare"). Land is dots and nothing else — no borders, no grid, no shading —
+    // Africa's dots in the green, the rest of the world's in a quiet grey, and the one
+    // selected country in the deep green. The sphere is a hairline, so the eye reads the
+    // shape of the land and lands on the markers.
     return {
-      // The DC's sphere runs #1f4a4f → #0f2a2e: the ink, lifted toward the two cool
-      // accents at its lit edge, and the ink itself at the rim.
-      seaLit:  mix([['ink', .8], ['green-light', .1], ['info', .1]]),
-      sea:     mix([['ink', 1]]),
-      grid:    mix([['ground', 1]], .06),
-      // #4f9a86 (Africa) and #24494d (the rest of the world).
-      africa:  mix([['green-light', .5], ['info', .2], ['ink', .3]]),
-      world:   mix([['ink', .7], ['green-light', .15], ['info', .15]]),
-      border:  mix([['ink', 1]]),
-      rim:     mix([['green-light', 1]], .25),
-      pickFill: mix([['green-light', 1]], .35),
-      pickLine: mix([['green-light', 1]])
+      africa:  mix([['green', .5], ['green-edge', .5]]),
+      world:   mix([['ink', .22], ['surface', .78]]),
+      pick:    mix([['green', 1]]),
+      pickLine: mix([['green', 1]], .7),
+      disc:    mix([['surface', 1]]),
+      rim:     mix([['line', 1]])
     };
   }
 
@@ -107,6 +109,43 @@
       });
   }
 
+  /* The land as dots: an even grid on the sphere (rows every 1.5°, the step along a row
+     widened by 1/cos(latitude) so dots stay equally spaced), each kept if it falls inside
+     a country's polygon. Done once, after the geometry loads; a bounding box per country
+     keeps it to the few polygons that could contain a point. */
+  function sample(shapes) {
+    var step = 1.5 * RAD, out = [];
+    var boxes = shapes.map(function (s) {
+      var b = [Infinity, Infinity, -Infinity, -Infinity];
+      s.polys.forEach(function (p) { p[0].forEach(function (pt) {
+        if (pt[0] < b[0]) b[0] = pt[0]; if (pt[1] < b[1]) b[1] = pt[1];
+        if (pt[0] > b[2]) b[2] = pt[0]; if (pt[1] > b[3]) b[3] = pt[1];
+      }); });
+      return b;
+    });
+    function inside(s, lon, lat) {
+      var hit = false;
+      s.polys.forEach(function (p) { p.forEach(function (r) {
+        for (var i = 0, j = r.length - 1; i < r.length; j = i++) {
+          var yi = r[i][1], yj = r[j][1];
+          if ((yi > lat) !== (yj > lat) && lon < (r[j][0] - r[i][0]) * (lat - yi) / (yj - yi) + r[i][0]) hit = !hit;
+        }
+      }); });
+      return hit;
+    }
+    for (var lat = -56 * RAD; lat <= 78 * RAD; lat += step) {
+      var dl = step / Math.max(0.2, Math.cos(lat));
+      for (var lon = -Math.PI; lon < Math.PI; lon += dl) {
+        for (var k = 0; k < shapes.length; k++) {
+          var b = boxes[k];
+          if (lon < b[0] || lon > b[2] || lat < b[1] || lat > b[3]) continue;
+          if (inside(shapes[k], lon, lat)) { out.push([lon, lat, k]); break; }
+        }
+      }
+    }
+    return out;
+  }
+
   /* The centroid of the country's LARGEST outer ring, as the mean of its points on the
      unit sphere — so a marker sits inside its own outline and nothing is typed. */
   function centroid(shape) {
@@ -126,7 +165,7 @@
     var card = band.querySelector('[data-waa-card]');
     if (!canvas || !canvas.getContext) return;
 
-    var S = { lam: 20, phi: 4, w: 0, h: 0, shapes: null, byName: {}, pick: null, opener: null };
+    var S = { lam: 20, phi: 4, w: 0, h: 0, shapes: null, dots: null, byName: {}, pick: null, opener: null };
     var colours = palette();
     var drag = null, raf = 0, anim = 0;
 
@@ -137,8 +176,11 @@
     /* The DC's geometry: a sphere larger than the band, centred below its middle, so the
        continent fills it; on a phone it is smaller and nearer whole. */
     function geom() {
-      var R = phone() ? Math.max(S.w * 0.72, 260) : Math.max(S.w * 0.62, 520);
-      return { R: R, cx: S.w / 2, cy: S.h * 0.5 + R * 0.12 };
+      // A phone shows Africa large with the limb at the sides; wider, the whole sphere
+      // rises into the band, so it reads as a globe and not as a flat map.
+      if (phone()) { var r = Math.max(S.w * 0.72, 260); return { R: r, cx: S.w / 2, cy: S.h * 0.5 + r * 0.12 }; }
+      var R = Math.max(S.h * 0.6, 360);
+      return { R: R, cx: S.w / 2, cy: S.h * 0.56 };
     }
     function proj(lon, lat) {
       var l0 = S.lam * RAD, p0 = S.phi * RAD, cp = Math.cos(lat), dl = lon - l0;
@@ -171,37 +213,38 @@
       g.setTransform(dpr, 0, 0, dpr, 0, 0);
       g.clearRect(0, 0, S.w, S.h);
 
-      var grad = g.createRadialGradient(G.cx - G.R * 0.3, G.cy - G.R * 0.35, G.R * 0.1, G.cx, G.cy, G.R);
-      grad.addColorStop(0, colours.seaLit); grad.addColorStop(1, colours.sea);
-      g.beginPath(); g.arc(G.cx, G.cy, G.R, 0, Math.PI * 2); g.fillStyle = grad; g.fill();
-
-      g.strokeStyle = colours.grid; g.lineWidth = 1;
-      for (var lat = -60; lat <= 60; lat += 30) {
-        g.beginPath(); var on = false;
-        for (var lon = -180; lon <= 180; lon += 4) {
-          var p = proj(lon * RAD, lat * RAD);
-          if (p[2] > 0) { var X = G.cx + p[0] * G.R, Y = G.cy - p[1] * G.R; if (on) g.lineTo(X, Y); else g.moveTo(X, Y); on = true; }
-          else on = false;
-        }
-        g.stroke();
-      }
-
-      if (S.shapes) {
-        S.shapes.forEach(function (s) {
-          tracePath(g, s, G);
-          g.fillStyle = s.af ? colours.africa : colours.world; g.fill('evenodd');
-          g.strokeStyle = colours.border; g.lineWidth = s.af ? 0.9 : 0.6; g.stroke();
-        });
-        var sel = S.pick && S.byName[S.pick.dataset.geo];
-        if (sel) {
-          tracePath(g, sel, G);
-          g.fillStyle = colours.pickFill; g.fill('evenodd');
-          g.strokeStyle = colours.pickLine; g.lineWidth = 1.6; g.stroke();
-        }
-      }
-
+      // The sphere: a white disc and a hairline, nothing more.
       g.beginPath(); g.arc(G.cx, G.cy, G.R, 0, Math.PI * 2);
-      g.strokeStyle = colours.rim; g.lineWidth = 1.5; g.stroke();
+      g.fillStyle = colours.disc; g.fill();
+      g.strokeStyle = colours.rim; g.lineWidth = 1; g.stroke();
+
+      if (S.dots) {
+        var sel = S.pick && S.byName[S.pick.dataset.geo];
+        var selIdx = sel ? S.shapes.indexOf(sel) : -1;
+        var base = Math.max(1.3, G.R / 230);
+        // Batched by colour and by depth, so a frame is a handful of fills however many
+        // dots there are: three depth bands fade the land towards the limb.
+        var bins = {};
+        S.dots.forEach(function (d) {
+          var p = proj(d[0], d[1]);
+          if (p[2] <= 0.02) return;
+          var c = d[2] === selIdx ? 'pick' : (S.shapes[d[2]].af ? 'africa' : 'world');
+          var band = p[2] > 0.55 ? 2 : (p[2] > 0.25 ? 1 : 0);
+          var key = c + band;
+          (bins[key] = bins[key] || { c: c, band: band, pts: [] }).pts.push(G.cx + p[0] * G.R, G.cy - p[1] * G.R);
+        });
+        Object.keys(bins).forEach(function (k) {
+          var bin = bins[k], r = base * (0.7 + bin.band * 0.18), pts = bin.pts;
+          g.globalAlpha = [0.28, 0.5, 0.75][bin.band];
+          g.fillStyle = colours[bin.c];
+          g.beginPath();
+          for (var i = 0; i < pts.length; i += 2) { g.moveTo(pts[i] + r, pts[i + 1]); g.arc(pts[i], pts[i + 1], r, 0, Math.PI * 2); }
+          g.fill();
+        });
+        g.globalAlpha = 1;
+        // The one outline on the globe: the selected country, while its card is open.
+        if (sel) { tracePath(g, sel, G); g.strokeStyle = colours.pickLine; g.lineWidth = 1.2; g.stroke(); }
+      }
 
       place(G);
     }
@@ -321,31 +364,29 @@
       redraw();
     }
     if (window.ResizeObserver) new ResizeObserver(measure).observe(canvas);
-    else window.addEventListener('resize', measure);
+    else pg.on(window, 'resize', measure);
     measure();
 
-    /* The band widens to the edges as it reaches the middle of the scroller — the DC's
-       `p`, set on a frame rather than per scroll event, and not at all under reduced
-       motion (the final, full-bleed state is the CSS default). */
-    var scroller = band.closest('.ag-main');
-    function grow() {
-      if (reduced() || !scroller) { band.style.removeProperty('--waa-p'); return; }
-      var vr = scroller.getBoundingClientRect(), r = band.getBoundingClientRect();
-      var d = Math.abs((r.top - vr.top + r.height / 2) - vr.height / 2) / vr.height;
-      var p = Math.max(0, Math.min(1, 1 - (d - 0.08) * 1.3));
-      band.style.setProperty('--waa-p', p.toFixed(3));
-    }
-    var gq = 0;
-    if (scroller) scroller.addEventListener('scroll', function () {
-      if (!gq) gq = requestAnimationFrame(function () { gq = 0; grow(); });
-    }, { passive: true });
-    grow();
-
+    /* The geometry (37K) and the 15,000-dot sampling wait until the band is near the screen:
+       it sits far down the homepage, and fetching and sampling it on arrival spent a phone's
+       first second on a picture most visitors never scroll to. 800px ahead, so it is drawn
+       before it arrives. */
     var url = band.dataset.topo;
     if (url && window.fetch) {
+      if (window.IntersectionObserver) {
+        var io = new IntersectionObserver(function (es) {
+          if (!es.some(function (e) { return e.isIntersecting; })) return;
+          io.disconnect();
+          load();
+        }, { rootMargin: '800px 0px' });
+        io.observe(band);
+      } else load();
+    }
+    function load() {
       fetch(url, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (topo) {
         S.shapes = decode(topo);
         S.shapes.forEach(function (s) { S.byName[s.name] = s; });
+        S.dots = sample(S.shapes);
         pins.forEach(function (b) {
           var s = S.byName[b.dataset.geo];
           if (!s) return;          // GlobeBandTest pins every name; nothing to place otherwise

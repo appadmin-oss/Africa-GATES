@@ -42,6 +42,16 @@ final class Permissions
         // organisation has taken and ranks its largest donors is a different kind of
         // disclosure. Editors and moderators have no reason to see either.
         'finance'       => ['superadmin', 'admin'],
+        // ── VOLUNTEERS: WHO COORDINATES THEM ────────────────────────────────
+        //
+        // Left superadmin-only when the workspace shipped (28 Oct 2026), "who else
+        // coordinates volunteers is the owner's call". The owner made it on 31 Oct 2026:
+        // admins could not make anybody a team lead, so a coordinator had nobody to read
+        // the team's reports to. Its own section rather than `finance` (the same two roles)
+        // so a role given here is not asked for an emailed code meant for moving money,
+        // and rather than `moderation` because this page holds applicants' dates of
+        // birth and referees' phone numbers, which a viewer has no reason to read.
+        'volunteers'    => ['superadmin', 'admin'],
         // ── HEALTH: IS EVERYTHING THE PLATFORM DEPENDS ON WORKING? ───────────
         //
         // New on 4 Oct 2026, and an ACCESS WIDENING the owner approved by name (GAPS
@@ -136,7 +146,13 @@ final class Permissions
         // back on one answer: these are finance, and finance is superadmin+admin.
         //
         // `payments` covers the triage screen and the gateway ledger under it.
+        // volunteers — see the section's note in MATRIX (owner, 31 Oct 2026)
+        'volunteers' => 'volunteers',
         'finance' => 'finance', 'refunds' => 'finance', 'vote-delivery' => 'finance',
+        // Ads posted from the console (owner, 4 Nov 2026: "allow admin be able to post ads"):
+        // a direct sale records income and the homepage is the platform speaking, so it sits
+        // with the money — superadmin and admin.
+        'ads' => 'finance',
         'payments' => 'finance',
         // configuration (superadmin)
         'admins' => 'configuration', 'settings' => 'configuration', 'webhooks' => 'configuration', 'judges' => 'configuration',
@@ -159,8 +175,18 @@ final class Permissions
         // The signed-in admin's own console preferences — pinned views and whether the
         // sidebar is open. Nothing on the platform changes, so every role may write here.
         'me' => 'overview',
+        // The console's calendar (AdminConsole v2): every dated thing, each entry filtered
+        // by the page it links to, so the page itself shows a role nothing it cannot open.
+        'calendar' => 'overview',
+        // Contacts (AdminConsole v2) totals each person's giving beside their address, which
+        // no `data` page does in one place — so it is held with the money, superadmin and
+        // admin. Widening it is the owner's call (docs/handoff/PHASE-ADMIN.md).
+        'contacts' => 'finance',
         // health — what the platform noticed on its own (Admin\Services\ConsoleAlerts).
         'alerts' => 'health',
+        // Deciding requests (v7 §2.6): finance decides spend, an administrator decides the rest,
+        // so the page is held with the money — superadmin and admin, the only roles that decide.
+        'requests' => 'finance',
     ];
 
     /** Auth-exempt / utility admin paths that carry no section (login, logout, magic, admin-api). */
@@ -200,6 +226,7 @@ final class Permissions
     public static function canOpen(string $role, string $path): bool
     {
         $p = (string) (parse_url($path, PHP_URL_PATH) ?? $path);
+        if ($p === '/admin/users' && !DataRegistry::canRole('users', $role)) return false;
         if (self::isUtilityPath($p)) return $role !== '';
         $section = self::sectionForPath($p);
 

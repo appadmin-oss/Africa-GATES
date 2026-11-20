@@ -251,10 +251,13 @@ final class GuideService
             } catch (\Throwable) { $state['programmes'] = []; }
             try {
                 $state['counts'] = [
-                    'approved_nominees' => (int) DB::table('gates_nominees')->whereIn('status', ['approved', 'winner', 'runner_up'])->count(),
-                    'votes'             => (int) DB::table('gates_votes')->count(),
+                    // Figures the assistant may quote to the public, so they must agree with
+                    // the public pages: tombstoned duplicates are not nominees, and a vote is
+                    // its weight (a 25-vote pack is one row) — StatsService's own definition.
+                    'approved_nominees' => (int) MergeService::notMerged(DB::table('gates_nominees')->whereIn('status', ['approved', 'winner', 'runner_up']))->count(),
+                    'votes'             => (int) (DB::table('gates_votes')->sum('weight') ?? 0),
                     'community_threads' => (int) DB::table('gates_threads')->whereIn('status', ['approved', 'locked'])->count(),
-                    'registry_profiles' => (int) DB::table('gates_profiles')->where('status', 'approved')->count(),
+                    'registry_profiles' => (int) ProfileMergeService::notMerged(DB::table('gates_profiles')->where('status', 'approved'))->count(),
                 ];
             } catch (\Throwable) { $state['counts'] = []; }
             try {
@@ -669,7 +672,9 @@ SYS;
         elseif ($hit(['why is voting paid', 'why paid', 'where does the money go', 'where do the funds go', 'paid vot']))
             $route = "Contributed votes keep recognition community-funded rather than waiting on a sponsor, and they add to a nominee's tally at full weight. The written answer says where the money goes.";
         elseif ($hit(['vote', 'voting']))
-            $route = "Voting is verified — a free vote is confirmed with a one-time code, and where vote packs are offered they add to the tally too. Cast yours at /vote. Curious how votes are weighed? See /integrity.";
+            $route = PaidVoteService::freeVotingDisabled()
+                ? "Every vote is a contribution that helps fund the awards, and every one is recorded. Back a nominee from their page at /vote. Curious how votes are weighed? See /integrity."
+                : "Voting is verified — a free vote is confirmed with a one-time code, and where vote packs are offered they add to the tally too. Cast yours at /vote. Curious how votes are weighed? See /integrity.";
         elseif ($hit(['nominate', 'nomination']))
             $route = "Anyone can nominate, free, in about 90 seconds — it's OTP-verified to keep things fair, and you only need the nominee's email or phone. Start at /nominate.";
         elseif ($hit(['shop', 'buy', 'merch', 'apparel', 'tee', 'hoodie', 'order']))

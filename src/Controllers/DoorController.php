@@ -74,6 +74,8 @@ final class DoorController
      * while it is working, so a queue this long means something other than a busy evening.
      */
     private const SYNC_MAX = 200;
+    /** How long after its link closes a gate may still deliver the scans it took while open (EV-16). */
+    private const SYNC_GRACE_HOURS = 12;
 
     public function __construct(
         private readonly Twig $view,
@@ -477,6 +479,18 @@ final class DoorController
     public function sync(Request $req, Response $res, array $args): Response
     {
         $r = EventScanPass::resolve((string) ($args['token'] ?? ''));
+        // ── A GATE THAT WAS OFFLINE WHEN ITS LINK CLOSED ────────────────────────
+        //
+        // Every flush after the close was a 403, and the phone kept its queue for good, so
+        // the arrivals of the last offline stretch were never recorded (AUDIT-AND-PLAN EV-16).
+        // A closed (never revoked) link may still deliver, for SYNC_GRACE_HOURS, the scans it
+        // took WHILE it was open; anything stamped after the close is refused item by item.
+        $closedAt = null;
+        if (!$r['ok'] && ($r['reason'] ?? '') === 'expired' && isset($r['pass']) && ($r['pass']->revoked_at ?? null) === null
+            && time() <= (int) strtotime((string) $r['pass']->closes_at) + self::SYNC_GRACE_HOURS * 3600) {
+            $closedAt = (string) $r['pass']->closes_at;
+            $r = ['ok' => true, 'pass' => $r['pass']];
+        }
         if (!$r['ok']) {
             return $this->json($res, ['ok' => false, 'reason' => $r['reason'],
                                       'detail' => $r['message']], 403);
@@ -505,12 +519,31 @@ final class DoorController
             if (str_contains($code, '/')) {
                 $code = (string) preg_replace('~^.*/~', '', rtrim(trim($code), '/'));
             }
-            $id = (string) ($item['id'] ?? '');
+            $id = mb_substr(trim((string) ($item['id'] ?? '')), 0, 40);
             if ($code === '') continue;
+
+            // A scan already applied under this id is answered with the verdict it got the
+            // first time, and applied again never. The page promised this ("so a flush that
+            // half-succeeds or is retried after a timeout cannot record the same person
+            // twice") and nothing kept it: on a four-seat ticket a resent flush admitted the
+            // same party again. See 2027_05_20_door_sync_ids.php.
+            if ($closedAt !== null) {
+                $at = trim((string) ($item['at'] ?? ''));
+                if ($at === '' || strtotime($at) === false || strtotime($at) > strtotime($closedAt)) {
+                    $out[] = ['id' => $id, 'code' => $code, 'verdict' => 'refuse', 'title' => 'Scanned after this link closed', 'name' => ''];
+                    continue;
+                }
+            }
+            $seen = self::claimScan((int) $pass->id, $id);
+            if ($seen !== null) {
+                $out[] = ['id' => $id, 'code' => $code] + $seen;
+                continue;
+            }
 
             $v = EventTicketService::checkIn(
                 $code, (int) $pass->event_id, $this->via($pass) . ' (offline)',
                 null, (string) ($item['at'] ?? ''), max(0, (int) ($item['seats'] ?? 0)));
+            self::settleScan((int) $pass->id, $id, $v);
 
             // Every item answered, in the order it was sent, so the page can retire exactly
             // the ones that landed. A flush that reported only a total would leave a gate
@@ -531,6 +564,47 @@ final class DoorController
             'results'  => $out,
             'admitted' => $this->admitted((int) $pass->event_id),
         ]);
+    }
+
+    /**
+     * Claim a queued scan's client id for this pass. Null when this call owns it (apply the
+     * scan); otherwise a duplicate verdict carrying the first application's name. A scan with no id, or a
+     * database without the table, is applied as before — the id is the gate's promise, and
+     * an old gate that sends none loses nothing it had.
+     *
+     * @return array{verdict:string,title:string,name:string}|null
+     */
+    private static function claimScan(int $passId, string $clientId): ?array
+    {
+        if ($clientId === '' || !\AfricaGates\Support\SchemaHas::table('gates_door_sync_ids')) return null;
+        try {
+            DB::table('gates_door_sync_ids')->insert(['pass_id' => $passId, 'client_id' => $clientId, 'created_at' => date('Y-m-d H:i:s')]);
+            return null;
+        } catch (\Throwable) {
+            // The UNIQUE (pass_id, client_id) refused it: this scan was sent before.
+        }
+        $row = DB::table('gates_door_sync_ids')->where('pass_id', $passId)->where('client_id', $clientId)->first();
+        if (!$row) return null;   // the insert failed for another reason; do not lose the scan
+        // Answered as a duplicate whatever the first verdict was: the gate retires the item,
+        // and its strip never shows a second "admit" for an admission that happened once.
+        return [
+            'verdict' => 'duplicate',
+            'title'   => 'Already recorded',
+            'name'    => (string) ($row->name ?? ''),
+        ];
+    }
+
+    private static function settleScan(int $passId, string $clientId, array $v): void
+    {
+        if ($clientId === '' || !\AfricaGates\Support\SchemaHas::table('gates_door_sync_ids')) return;
+        try {
+            DB::table('gates_door_sync_ids')->where('pass_id', $passId)->where('client_id', $clientId)->update([
+                'verdict' => mb_substr((string) $v['verdict'], 0, 20),
+                'title'   => mb_substr((string) $v['title'], 0, 160),
+                'name'    => mb_substr((string) $v['name'], 0, 160),
+            ]);
+        } catch (\Throwable) {
+        }
     }
 
     /**

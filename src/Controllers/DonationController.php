@@ -121,7 +121,7 @@ final class DonationController
                     'fund_goal' => null, 'recurring' => false,
                         'fund_goal' => null, 'recurring' => false,
                         'min_naira' => self::MIN_NAIRA, 'max_naira' => self::MAX_NAIRA,
-                        'processing_fee_pct' => $this->processingFeePct(),
+                        'fee' => self::feeView(),
                         // What we tell a donor their money is for — and NOTHING on a
                         // partner's appeal, where the money settles into their account and
                         // our allocation would be a false statement about it.
@@ -149,7 +149,7 @@ final class DonationController
                         'brand' => null, 'brand_css' => null, 'story_paragraphs' => [],
                         'gates_credit' => \AfricaGates\Services\OrgBrand::GATES_CREDIT,
                     'min_naira' => self::MIN_NAIRA, 'max_naira' => self::MAX_NAIRA,
-                    'processing_fee_pct' => $this->processingFeePct(),
+                    'fee' => self::feeView(),
                         // What we tell a donor their money is for — and NOTHING on a
                         // partner's appeal, where the money settles into their account and
                         // our allocation would be a false statement about it.
@@ -259,6 +259,11 @@ final class DonationController
                 ? \AfricaGates\Services\OrgCampaign::progress((int) $campaign->id) : null,
             'days_left'        => $campaign
                 ? \AfricaGates\Services\OrgCampaign::daysLeft($campaign) : null,
+            // GivingPage V2 (16 Oct 2026): the rail's gift rows and momentum line, the related
+            // appeals and the "Created" line — each behind LOW-DATA-RULES' threshold.
+            'gift_rows'        => $this->giftRows($org, $campaign),
+            'related'          => \AfricaGates\Services\HomeFront::openCampaigns(4, $campaign ? (int) $campaign->id : null),
+            'created_on'       => $campaign && !empty($campaign->created_at) ? (string) $campaign->created_at : '',
             'shortfall_text'   => $campaign
                 ? (\AfricaGates\Services\OrgCampaign::SHORTFALL[$campaign->shortfall_policy] ?? '') : '',
             'appeals'          => $org && !$campaign
@@ -302,7 +307,7 @@ final class DonationController
             'org_totals'       => \AfricaGates\Services\PartnerOrg::platformTotals(),
             'min_naira'        => self::MIN_NAIRA,
             'max_naira'        => self::MAX_NAIRA,
-            'processing_fee_pct' => $this->processingFeePct(),
+            'fee' => self::feeView(),
                         // What we tell a donor their money is for — and NOTHING on a
                         // partner's appeal, where the money settles into their account and
                         // our allocation would be a false statement about it.
@@ -328,29 +333,26 @@ final class DonationController
         return ['raised_naira' => $t['raised'], 'gifts' => $t['count']];
     }
 
+    /** The gift amounts the page offers. One list: the tiles and their fee covers read it. */
+    public const PRESETS = [1000, 2000, 5000, 10000];
+
     /**
-     * The processing-fee cover percentage, from admin settings.
+     * What the page needs to state the processing fee: the gateway's schedule (so giving.js
+     * computes the same cover the server will charge), the exact cover for each preset (so
+     * the first paint is right with no script), and who bears the fee on a partner gift.
      *
-     * ── IT WAS ADMIN-CONFIGURABLE AND SERVER-IGNORED ─────────────────────────
+     * It used to be one percentage — `processing_fee_pct`, which was itself once ignored by
+     * start() and missing from the page. A percentage was the wrong shape as well as the
+     * wrong number: see GatewayFee.
      *
-     * `processing_fee_pct` has a field on the settings screen and was read by nothing. The
-     * template printed it as `{{ processing_fee_pct }}` on a page that never passed it — so
-     * the checkbox read "Add % to cover processing" with the number missing — while start()
-     * hard-coded 1.5% regardless of what an operator had set.
-     *
-     * Both halves are the same defect: a donor was shown one thing and charged another. One
-     * source now feeds the sentence and the arithmetic, so they cannot disagree.
+     * @return array{schedule:array<string,int|float>, covers:array<int,int>, org_bears:bool}
      */
-    private function processingFeePct(): float
+    private static function feeView(): array
     {
-        try {
-            $v = DB::table('gates_settings')->where('key_name', 'processing_fee_pct')->value('value');
-        } catch (\Throwable) {
-            $v = null;
-        }
-        $pct = is_numeric($v) ? (float) $v : 1.5;
-        // Clamped: a mistyped 150 in an admin field must not multiply somebody's gift.
-        return max(0.0, min(10.0, $pct));
+        $covers = [];
+        foreach (self::PRESETS as $a) $covers[$a] = \AfricaGates\Services\GatewayFee::cover($a);
+        return ['schedule' => \AfricaGates\Services\GatewayFee::schedule(), 'covers' => $covers,
+                'org_bears' => \AfricaGates\Services\GatewayFee::organisationBears()];
     }
 
     /**
@@ -498,6 +500,42 @@ final class DonationController
     }
 
     /** "Amara Okonkwo" → "Amara O."; blank/default → "A supporter". */
+    /**
+     * Recent, top and first gift, de-duplicated (LOW-DATA-RULES: one gift that is both the
+     * newest and the largest is shown once, as the top gift), plus this week's count. Scoped
+     * exactly as the page's own total is, so a row can never name a gift the total excludes.
+     *
+     * @return array{rows:list<array{kind:string,name:string,amount:int,when:string}>, week:int}
+     */
+    private function giftRows(?object $org, ?object $campaign): array
+    {
+        $scope = static function () use ($org, $campaign) {
+            $q = $org ? \AfricaGates\Services\PartnerOrg::countableDonations((int) $org->id)
+                      : \AfricaGates\Services\PartnerOrg::countableFundDonations();
+            if ($campaign) $q->where('campaign_id', (int) $campaign->id);
+            return $q;
+        };
+        try {
+            $cols   = ['id', 'donor_name', 'amount_naira', 'created_at'];
+            $recent = $scope()->orderByDesc('created_at')->orderByDesc('id')->first($cols);
+            $top    = $scope()->orderByDesc('amount_naira')->orderBy('id')->first($cols);
+            $first  = $scope()->orderBy('created_at')->orderBy('id')->first($cols);
+            $week   = (int) $scope()->where('created_at', '>=', date('Y-m-d H:i:s', time() - 7 * 86400))->count();
+        } catch (\Throwable) {
+            return ['rows' => [], 'week' => 0];
+        }
+        $rows = []; $seen = [];
+        foreach (['top' => $top, 'recent' => $recent, 'first' => $first] as $kind => $g) {
+            if (!$g || isset($seen[(int) $g->id])) continue;
+            $seen[(int) $g->id] = true;
+            $rows[] = ['kind' => $kind, 'name' => $this->anon((string) ($g->donor_name ?? '')),
+                       'amount' => (int) $g->amount_naira, 'when' => (string) ($g->created_at ?? '')];
+        }
+        // The DC's order: recent, top, first.
+        usort($rows, static fn ($a, $b) => array_search($a['kind'], ['recent', 'top', 'first']) <=> array_search($b['kind'], ['recent', 'top', 'first']));
+        return ['rows' => $rows, 'week' => $week];
+    }
+
     private function anon(string $name): string
     {
         $name = trim($name);
@@ -573,9 +611,9 @@ final class DonationController
             return $bail('rate');
         }
 
-        // Optional processing-fee cover, computed SERVER-SIDE (never trust a client total).
-        $amount = $cover ? (int) ceil($baseAmt * (1 + $this->processingFeePct() / 100)) : $baseAmt;
-        $amount = min(self::MAX_NAIRA, max(self::MIN_NAIRA, $amount));
+        // The gift itself. The fee cover is worked out AFTER the tip, below, because the
+        // gateway charges its fee on the whole transaction (GatewayFee::cover()).
+        $amount = min(self::MAX_NAIRA, max(self::MIN_NAIRA, $baseAmt));
 
         // ── AND A VOLUNTARY GIFT TO THE PLATFORM, ON TOP ─────────────────────
         //
@@ -589,11 +627,18 @@ final class DonationController
         // form ("this does not come out of their gift") is true in the arithmetic and not
         // only in the copy.
         $tip = \AfricaGates\Services\PlatformTip::naira($amount, $b['platform_tip'] ?? 0, $org);
-        $charge = min(self::MAX_NAIRA, $amount + $tip);
+        // ── THE DONOR MAY COVER THE GATEWAY'S FEE, EXACTLY ──────────────────
+        // Opt-in (the box is never pre-ticked: an added charge the donor did not choose is
+        // the pattern consumer law forbids), computed SERVER-SIDE as the amount that leaves
+        // the recipient with the gift to the naira — the fee is charged on the whole
+        // transaction, tip and cover included, so it is a fixed point, not a percentage.
+        $coverN = $cover ? \AfricaGates\Services\GatewayFee::cover($amount, $tip) : 0;
+        $charge = min(self::MAX_NAIRA, $amount + $tip + $coverN);
         // Clamping the total could otherwise silently eat the tip at the ceiling, which
         // would take the donor's money for the organisation and give them nothing for us —
-        // the one outcome worse than not offering it.
-        $tip = max(0, $charge - $amount);
+        // the one outcome worse than not offering it. The cover goes first.
+        $coverN = max(0, min($coverN, $charge - $amount));
+        $tip = max(0, $charge - $amount - $coverN);
 
         $reference = 'AFG-GIVE-' . bin2hex(random_bytes(6));
 
@@ -635,6 +680,11 @@ final class DonationController
             // rather than calling the second one a fee they paid.
             $row['platform_fee_naira'] = (int) floor($amount * $feeBps / 10000) + $tip;
             $row['platform_tip_naira'] = $tip;
+            // The gateway's fee comes out of the organisation's share where they bear it
+            // (the standard; GatewayFee::organisationBears()), so it is recorded beside the
+            // platform's fee and taken off what they are owed — never called OUR fee.
+            $row['gateway_fee_naira']  = \AfricaGates\Services\GatewayFee::organisationBears()
+                ? \AfricaGates\Services\GatewayFee::fee($charge) : 0;
             // NULL means the organisation's general fund. A campaign id means the donor gave
             // for the thing that appeal describes, and the money is restricted to it.
             $row['campaign_id']        = $campaign ? (int) $campaign->id : null;
@@ -647,11 +697,16 @@ final class DonationController
             // and the paid-vote outage that rule was written after.
             DB::table('gates_donations')->insert(
                 \AfricaGates\Support\OptionalColumn::filter(
-                    'gates_donations', $row, ['platform_tip_naira']));
+                    'gates_donations', $row + ['fee_cover_naira' => $coverN],
+                    ['platform_tip_naira', 'fee_cover_naira', 'gateway_fee_naira']));
         } catch (\Throwable $e) {
             $this->log?->error('[donate] could not persist pending donation', ['err' => $e->getMessage()]);
             return $bail('error');
         }
+        // A gift STARTED, credited to the announcement that brought them, if one did
+        // (Mail\MailTraction). Started, not paid: the payment settles later at the gateway,
+        // with no session to credit — the report says "gifts started" for that reason.
+        \AfricaGates\Services\Mail\MailTraction::converted('give', $reference, $charge * 100);
 
         // ── A MONTHLY GIFT IS A PLAN AT THE GATEWAY ──────────────────────────
         //
@@ -669,6 +724,9 @@ final class DonationController
 
         $planCode = '';
         if ($monthly) {
+            // Monthly gifts are only to the fund (no tip), so the plan is the gift with its
+            // cover: each month's charge then leaves the gift whole, as the first one did.
+            $amount += $coverN;
             $plan = \AfricaGates\Services\RecurringGiving::planFor($amount, $this->payments);
             if ($plan['ok']) {
                 $planCode = $plan['code'];
@@ -743,7 +801,7 @@ final class DonationController
         return $this->view->render($res->withStatus($sub ? 200 : 404), 'pages/donate-giving.twig', [
             'page_title' => $sub ? 'Your monthly gift — Africa GATES' : 'Link not valid — Africa GATES',
             'gates_page' => 'donate', 'sub'        => $sub,
-            'token'      => (string) ($args['token'] ?? ''),
+            'stop_url'   => GivingUrl::stop((string) ($args['token'] ?? '')),
             'flash_ok'   => $flash,
             'flash_err'  => $err,
         ])->withHeader('X-Robots-Tag', 'noindex, nofollow');

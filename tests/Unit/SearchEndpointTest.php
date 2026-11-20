@@ -39,26 +39,31 @@ final class SearchEndpointTest extends TestCase
         return (array) json_decode((string) $res->getBody(), true);
     }
 
+    /**
+     * Programme ids are below 256 because `gates_award_programmes.id` is TINYINT UNSIGNED on
+     * MySQL: 9101 was "Out of range" there (CLAUDE.md, the clamped-id trap), so this test
+     * only ever ran on SQLite.
+     */
     private function seed(): void
     {
         $now = Carbon::now();
         DB::table('gates_award_programmes')->insert([
-            ['id' => 9101, 'slug' => 'open-vote', 'title' => 'Zanzibar Choral Awards', 'is_active' => 1, 'sort_order' => 1],
-            ['id' => 9102, 'slug' => 'open-noms', 'title' => 'Lagos Teaching Awards',   'is_active' => 1, 'sort_order' => 2],
-            ['id' => 9103, 'slug' => 'judging',   'title' => 'Accra Design Awards',      'is_active' => 1, 'sort_order' => 3],
-            ['id' => 9104, 'slug' => 'rehearsal', 'title' => 'Rehearsal Awards',         'is_active' => 0, 'sort_order' => 4],
+            ['id' => 241, 'slug' => 'open-vote', 'title' => 'Zanzibar Choral Awards', 'is_active' => 1, 'sort_order' => 1],
+            ['id' => 242, 'slug' => 'open-noms', 'title' => 'Lagos Teaching Awards',   'is_active' => 1, 'sort_order' => 2],
+            ['id' => 243, 'slug' => 'judging',   'title' => 'Accra Design Awards',      'is_active' => 1, 'sort_order' => 3],
+            ['id' => 244, 'slug' => 'rehearsal', 'title' => 'Rehearsal Awards',         'is_active' => 0, 'sort_order' => 4],
         ]);
         $w = static fn (int $d): string => $now->copy()->addDays($d)->toDateTimeString();
         DB::table('gates_award_cycles')->insert([
             // The STORED status says nominations; the windows say voting opened yesterday.
             // The computed phase is the answer (CyclePhase: the column is a cache).
-            ['id' => 9201, 'programme_id' => 9101, 'year' => 2026, 'edition_label' => '3rd Edition', 'status' => 'nominations',
+            ['id' => 9201, 'programme_id' => 241, 'year' => 2026, 'edition_label' => '3rd Edition', 'status' => 'nominations',
              'nominations_open' => $w(-40), 'nominations_close' => $w(-10), 'voting_open' => $w(-1), 'voting_close' => $w(9)],
-            ['id' => 9202, 'programme_id' => 9102, 'year' => 2026, 'edition_label' => '', 'status' => 'nominations',
+            ['id' => 9202, 'programme_id' => 242, 'year' => 2026, 'edition_label' => '', 'status' => 'nominations',
              'nominations_open' => $w(-3), 'nominations_close' => $w(20), 'voting_open' => $w(30), 'voting_close' => $w(60)],
-            ['id' => 9203, 'programme_id' => 9103, 'year' => 2026, 'edition_label' => '', 'status' => 'judging',
+            ['id' => 9203, 'programme_id' => 243, 'year' => 2026, 'edition_label' => '', 'status' => 'judging',
              'nominations_open' => $w(-90), 'nominations_close' => $w(-60), 'voting_open' => $w(-50), 'voting_close' => $w(-5)],
-            ['id' => 9204, 'programme_id' => 9104, 'year' => 2026, 'edition_label' => '', 'status' => 'voting',
+            ['id' => 9204, 'programme_id' => 244, 'year' => 2026, 'edition_label' => '', 'status' => 'voting',
              'nominations_open' => $w(-40), 'nominations_close' => $w(-10), 'voting_open' => $w(-1), 'voting_close' => $w(9)],
         ]);
         DB::table('gates_site_events')->insert([
@@ -122,7 +127,7 @@ final class SearchEndpointTest extends TestCase
                 'status' => 'approved', 'category' => 'Teacher',
             ]);
         }
-        DB::table('gates_award_programmes')->insert(['id' => 9105, 'slug' => 'kofi', 'title' => 'Kofi Awards', 'is_active' => 1]);
+        DB::table('gates_award_programmes')->insert(['id' => 245, 'slug' => 'kofi', 'title' => 'Kofi Awards', 'is_active' => 1]);
 
         $d = $this->json('/search.json?q=kofi&literal=1');
         $this->assertFalse($d['landing']);

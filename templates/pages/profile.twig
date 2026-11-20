@@ -36,10 +36,12 @@
 {% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/profile.css') }}">{% endblock %}
 
 {% block content %}
+{# "Recently viewed" (search.js): this page's name for the search palette, on this device. #}
+<span hidden data-ag-viewed data-t="{{ profile.display_name }}" data-m="{{ profile.category|default('') }}"></span>
 <div class="pp{{ editing ? ' is-editing' }}" data-pp data-name="{{ _name }}"
      data-t-listen="{{ 'Listen'|trans }}" data-t-pause="{{ 'Pause'|trans }}" data-t-resume="{{ 'Resume'|trans }}">
   {% if editing %}
-    <div class="pp-editbar" role="status">{{ 'You’re editing your profile. Your name, country and reviewed evidence are locked, because they’re part of your verified record.'|trans }}</div>
+    <div class="pp-editbar" role="status">{{ 'You’re editing your profile. Name, country and reviewed evidence are locked.'|trans }}</div>
   {% endif %}
 
   <div class="pp-grid">
@@ -53,7 +55,6 @@
             <svg width="12" height="12" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true"><path d="M3 1.5v11l9-5.5z"/></svg><span data-pp-listen-label>{{ 'Listen'|trans }}</span>
           </button>
           {% if _owner %}
-            <button type="button" class="pp-pill" data-ag-share data-ag-copied="{{ 'Link copied'|trans }}">{{ 'Share'|trans }}</button>
             {% if editing %}
               <a class="pp-pill pp-pill--edit is-on" href="/registry/{{ p.slug|url_encode }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>{{ 'Done'|trans }}</a>
             {% else %}
@@ -96,7 +97,7 @@
 
       <div class="pp-player" id="pp-player" hidden data-pp-player>
         <button type="button" class="pp-player__pp" data-pp-toggle aria-label="{{ 'Pause'|trans }}"><svg width="12" height="12" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true"><rect x="2" y="1" width="3.5" height="12" rx="1"/><rect x="8.5" y="1" width="3.5" height="12" rx="1"/></svg></button>
-        <span class="pp-player__body"><span class="pp-player__top"><span>{{ '%name%’s story'|trans({'%name%': _first}) }} · <span data-pp-voice></span></span><span data-pp-progress-n>0%</span></span><span class="pp-player__bar"><span data-pp-progress></span></span></span>
+        <span class="pp-player__body"><span class="pp-player__top"><span>{{ '%name%’s story'|trans({'%name%': _first}) }} · <span data-pp-voice></span></span><span data-pp-progress-n>0%</span></span><span class="pp-player__bar" role="progressbar" aria-label="{{ 'Listening progress'|trans }}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-pp-meter><span data-pp-progress></span></span></span>
         <button type="button" class="pp-player__speed" data-pp-speed aria-label="{{ 'Playback speed'|trans }}">1×</button>
       </div>
 
@@ -119,7 +120,7 @@
             <a class="pp-link" href="/support">{{ 'Changed your name or country? Request re-verification'|trans }}</a>
           </form>
         {% else %}
-          <p class="pp-about" data-pp-read>{{ p.bio ?: (_owner ? 'Nothing here yet. Edit your profile to say who you are and what you do.'|trans : 'No introduction yet.'|trans) }}</p>
+          <p class="pp-about" data-pp-read>{{ p.bio ?: (_owner ? 'Nothing here yet. Edit your profile to introduce yourself.'|trans : 'No introduction yet.'|trans) }}</p>
         {% endif %}
       </section>
 
@@ -136,7 +137,7 @@
             {% endfor %}
           </ul>
         {% else %}
-          <p class="pp-empty">{{ _owner ? 'Recognition appears here when a verified issuer gives it — the platform issues one when an award you were in is announced.'|trans : 'No recognition from a verified issuer yet.'|trans }}</p>
+          <p class="pp-empty">{{ _owner ? 'Recognition from a verified issuer, or from an announced award, appears here.'|trans : 'No recognition from a verified issuer yet.'|trans }}</p>
         {% endif %}
         {% if pg.recognition.withdrawn %}
           <ul class="pp-list pp-list--gone" aria-label="{{ 'Withdrawn recognition'|trans }}">
@@ -194,9 +195,9 @@
           {% if pg.cpi.basis == 'judged' %}
             <p class="pp-cpi__how">{{ 'Scored from verified community votes (%c%%) and an independent judge panel (%j%%).'|trans({'%c%': pg.cpi.weights.community, '%j%': pg.cpi.weights.judge}) }}</p>
           {% elseif pg.cpi.basis == 'pending' %}
-            <p class="pp-cpi__how">{{ 'Nominated, and no panel has finished judging yet. Until one does, this is profile strength: verification, completeness and reach.'|trans }}</p>
+            <p class="pp-cpi__how">{{ 'Nominated, and no panel has finished judging yet. This is profile strength.'|trans }}</p>
           {% else %}
-            <p class="pp-cpi__how">{{ 'Not yet nominated, so no jury has scored this profile. This is profile strength: verification, completeness and reach.'|trans }}</p>
+            <p class="pp-cpi__how">{{ 'Not yet nominated, so no jury has scored this profile. This is profile strength.'|trans }}</p>
           {% endif %}
           <a class="pp-link" href="/leaderboard">{{ 'See the leaderboard'|trans }}</a>
         </section>
@@ -213,4 +214,4 @@
 </div>
 {% endblock %}
 
-{% block foot_scripts %}<script defer src="{{ asset('/assets/js/profile.js') }}"></script>{% endblock %}
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/profile.js') }}" data-nav="rerun"></script>{% endblock %}

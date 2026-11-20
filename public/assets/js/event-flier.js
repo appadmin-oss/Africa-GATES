@@ -30,6 +30,9 @@
    · A FAILURE keeps everything typed: only the screen changes. */
 (function () {
   'use strict';
+  // Page-wide listeners and timers go through agPage (layout/shell.twig), which site-nav.js
+  // undoes when this page is swapped away; elsewhere they are plain (SiteNavTest).
+  var pg = window.agPage || { on: function (t, y, f, o) { t.addEventListener(y, f, o); }, every: function (f, ms) { return setInterval(f, ms); }, leave: function () {} };
 
   var dlg = document.querySelector('[data-flo]');
   var root = document.querySelector('[data-ed]');
@@ -145,7 +148,7 @@
     };
     move(e);
     var up = function () { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
-    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+    pg.on(window, 'pointermove', move); pg.on(window, 'pointerup', up);
   });
   q('[data-flo-y]').addEventListener('input', function (e) { S.fy = e.target.value / 100; if (S.fx === null) S.fx = 0.5; frameImg(); });
 
@@ -171,8 +174,8 @@
     try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
     shut();
   }
-  window.addEventListener('popstate', function () { S.pushed = false; if (!dlg.hidden) shut(); });
-  document.addEventListener('keydown', function (e) {
+  pg.on(window, 'popstate', function () { S.pushed = false; if (!dlg.hidden) shut(); });
+  pg.on(document, 'keydown', function (e) {
     if (dlg.hidden) return;
     if (e.key === 'Escape') { close(); return; }
     if (e.key !== 'Tab') return;
@@ -182,7 +185,7 @@
     if (e.shiftKey && document.activeElement === f[0]) { e.preventDefault(); f[f.length - 1].focus(); }
     else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
   });
-  window.addEventListener('ag:flier-token', function (e) {
+  pg.on(window, 'ag:flier-token', function (e) {
     S.token = (e.detail && e.detail.token) || '';
     if (e.detail && e.detail.name) nameIn.value = e.detail.name;
     q('[data-flo-open-copy]').hidden = !!S.token;
@@ -279,7 +282,7 @@
     catch (e) { if (e && e.name === 'AbortError') return; }
   }
 
-  document.addEventListener('click', function (e) {
+  pg.on(document, 'click', function (e) {
     var b = e.target.closest('[data-ag-do]');
     if (!b) return;
     switch (b.getAttribute('data-ag-do')) {

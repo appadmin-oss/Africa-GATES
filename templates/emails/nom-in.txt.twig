@@ -1,0 +1,20 @@
+{#- Plain-text part for nom-in.html.twig. -#}
+Thank you for nominating {{ nominee_first_name }}
+
+A reviewer reads every nomination in full. You’ll hear from us by {{ decide_by }}.
+
+Nominee: {{ nominee }}
+Category: {{ category }}
+Reference: {{ reference }}
+
+What happens next
+1. We check it — a reviewer reads it in full, looks for duplicates, and checks the supporting files.
+{% if nominee_contacted %}2. {{ nominee_first_name }} hears from us — {{ nominee_first_name }} gets their own email to tell their story in their own words.
+{% endif %}{{ nominee_contacted ? 3 : 2 }}. {{ voting_opens ? 'Voting opens ' ~ voting_opens : 'Voting opens' }} — when it is approved, we email you their page to share.
+
+View your nomination: {{ watch_url }}
+
+—
+You nominated somebody on Africa GATES.
+{{ postal_address }}
+Help: {{ site_url }}/help · Privacy: {{ site_url }}/privacy

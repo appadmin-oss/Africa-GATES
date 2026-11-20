@@ -28,14 +28,15 @@ namespace AfricaGates\Support;
  * ══════════════════════════════════════════════════════════════════════════════
  *
  * Several values here are under a WCAG floor where they are drawn, and every one is
- * accepted by the owner rather than adjusted (Q2). Measured on the ground `#f1efe9`
- * unless said otherwise:
+ * accepted by the owner rather than adjusted (Q2). Measured on the ground (`#f1efe9` when
+ * these were decided; `#fafbf8` since the colour pass) unless said otherwise:
  *
  *   gold `#f3b416`            1.61   honour as a FIELD; drawn as a line it barely shows
  *   line / tint `#e8e5dd`     1.09   hairlines and neutral fills
  *   line-2 `#d6d4cc`          1.48 on white — the outlined chip and input border
  *   line-3, gold-edge, green-edge   1.03–1.32   separators and success/honour borders
- *   mute `#8b9295`            2.75   disabled text and the off-switch track
+ *   mute `#8b9295`            2.75 on the old ground; 3.04 on the new one, so it now clears
+ *                             3:1 as a line and is no longer on this list. Still never a word.
  *   green-light, chevron, grabber   under 2.1   accents on dark, a chevron, a sheet grabber
  *
  * The floors that DO hold are held, by {@see words()}: every token the handoff draws as a
@@ -71,12 +72,17 @@ final class Accent
         'ink-2'       => ['value' => '#3a4a4c', 'use' => 'secondary text'],
         'soft'        => ['value' => '#626a6e', 'use' => 'meta text, captions'],
         'mute'        => ['value' => '#8b9295', 'use' => 'disabled text, off-switch track'],
-        'ground'      => ['value' => '#f1efe9', 'use' => 'page background'],
+        // The colour pass (owner, 21 Oct 2026; design_handoff_account_wallet_home): the page
+        // ground went from the beige #f1efe9 to a near-white green-grey, so white cards sit on
+        // a lighter field and the one accent per block (green wash) carries the colour.
+        'ground'      => ['value' => '#fafbf8', 'use' => 'page background'],
         'surface'     => ['value' => '#ffffff', 'use' => 'cards, inputs'],
         'bar'         => ['value' => '#fbfbfa', 'use' => 'app bars and tab bars when filled'],
         'line'        => ['value' => '#e8e5dd', 'use' => 'hairlines, card borders'],
         'line-2'      => ['value' => '#d6d4cc', 'use' => 'input and outlined-chip borders'],
         'line-3'      => ['value' => '#eeece6', 'use' => 'separators inside a white list'],
+        // The light footer of the colour pass, replacing the ink footer: no dark fields.
+        'footer'      => ['value' => '#f4f6f2', 'use' => 'the site footer and other light bands'],
         'tint'        => ['value' => '#e8e5dd', 'use' => 'neutral fills (icon tiles, segmented track)'],
         'green'       => ['value' => '#237b22', 'use' => 'the primary action, success'],
         'green-deep'  => ['value' => '#1a6118', 'use' => 'success text'],
@@ -99,6 +105,155 @@ final class Accent
         'scrim'       => ['value' => 'rgba(16,41,44,.32)', 'use' => 'behind a sheet or a dialog'],
         'chevron'     => ['value' => '#b3b9ba', 'use' => 'a row\'s disclosure chevron'],
         'grabber'     => ['value' => '#c9c4b8', 'use' => 'a bottom sheet\'s grabber'],
+    ];
+
+    /**
+     * ── THE NIGHT PALETTE: THE SAME NAMES, FOR A READER WHOSE DEVICE IS DARK ──
+     *
+     * Owner, 5 Nov 2026: "improve the colour adaptability of the site … dark mode". The
+     * handoff draws no dark scheme, so these values are this platform's, and every one is
+     * held to the same rule as the day palette: each WORD token is measured on each ground
+     * it is drawn on ({@see WORDS}, the SAME table — a dark scheme does not get a second,
+     * kinder list) and must clear 4.5:1. `AccentNightTest` measures every row every run.
+     *
+     * The NAMES do not change, and that is the design: a stylesheet that says `--ag-ink`
+     * means "the primary text colour", and at night the primary text colour is light. So
+     * the scheme is a second set of VALUES under one set of names, emitted by {@see css()}
+     * behind `prefers-color-scheme: dark` and the reader's own choice, and no page needs a
+     * dark rule of its own. Three consequences, each deliberate:
+     *
+     *   · `surface` is the card. As a WORD it is the label on the green button and on an ink
+     *     band — at night the green is lighter and the label dark, so it still reads (the
+     *     `surface` row of WORDS is measured here too).
+     *   · `gold` stays the gold. Honour is the one colour that reads as itself on either
+     *     ground, and its ink is lifted rather than its fill changed.
+     *   · Mail, GD fliers and tickets keep the day palette: {@see hex()} and {@see mail()}
+     *     are unchanged, because an inbox and a printed ticket are not dark mode.
+     *
+     * @var array<string,string>
+     */
+    private const NIGHT = [
+        'ink'         => '#e7eeec',
+        'ink-2'       => '#c2cccb',
+        'soft'        => '#9ba7a6',
+        'mute'        => '#6c7878',
+        'ground'      => '#0e1819',
+        'surface'     => '#162324',
+        'bar'         => '#131f20',
+        'line'        => '#2a3a3b',
+        'line-2'      => '#3b4d4e',
+        'line-3'      => '#213031',
+        'footer'      => '#111c1d',
+        'tint'        => '#243435',
+        'green'       => '#5fbf5c',
+        'green-deep'  => '#7fd17b',
+        'green-light' => '#7fc87c',
+        'green-wash'  => '#15301b',
+        'green-edge'  => '#2d5a31',
+        'gold'        => '#f3b416',
+        'gold-ink'    => '#f2c75a',
+        'gold-wash'   => '#2d2611',
+        'gold-wash-2' => '#302910',
+        'gold-edge'   => '#5e4c1c',
+        'live'        => '#ff5a86',
+        'live-ink'    => '#ff86a6',
+        'live-wash'   => '#3a1621',
+        'info'        => '#6fb4e4',
+        'info-wash'   => '#12293a',
+        'error'       => '#ff7d70',
+        'stock-low'   => '#ff8f85',
+        'stock-gone'  => '#e3b55e',
+        'scrim'       => 'rgba(0,0,0,.55)',
+        'chevron'     => '#5f6d6e',
+        'grabber'     => '#4c595a',
+    ];
+
+    /**
+     * ── SEPIA: WARM PAPER, FOR A READER WHO FINDS WHITE TOO BRIGHT AND DARK TOO DARK ──
+     *
+     * Owner, 5 Nov 2026 ("add sepia too"). Chosen only by the reader (`ag-sepia` on
+     * <html>) — no device setting asks for it. A light scheme: the same direction as the
+     * day, with the ground and cards moved to paper and every hue warmed and deepened just
+     * enough to keep its row of {@see WORDS} at 4.5:1 on paper. Measured with the day and
+     * the night by `AccentNightTest`, from the same table.
+     *
+     * @var array<string,string>
+     */
+    private const SEPIA = [
+        'ink'         => '#3b2c1e',
+        'ink-2'       => '#56442f',
+        'soft'        => '#6e5a42',
+        'mute'        => '#9c8a70',
+        'ground'      => '#f4ecd8',
+        'surface'     => '#fbf6e9',
+        'bar'         => '#f1e8d2',
+        'line'        => '#e2d5b8',
+        'line-2'      => '#cfbf9c',
+        'line-3'      => '#eadfc6',
+        'footer'      => '#efe5cc',
+        'tint'        => '#e6d9bc',
+        'green'       => '#2f6b22',
+        'green-deep'  => '#285a1c',
+        'green-light' => '#7fb26a',
+        'green-wash'  => '#e7ecd0',
+        'green-edge'  => '#c7d2a6',
+        'gold'        => '#d99a1e',
+        'gold-ink'    => '#6e4a05',
+        'gold-wash'   => '#f3e2b6',
+        'gold-wash-2' => '#f6e8bf',
+        'gold-edge'   => '#e2c88a',
+        'live'        => '#c43c4f',
+        'live-ink'    => '#97283c',
+        'live-wash'   => '#f3dccf',
+        'info'        => '#2f5f80',
+        'info-wash'   => '#e4e3d4',
+        'error'       => '#a3301c',
+        'stock-low'   => '#822719',
+        'stock-gone'  => '#7a5208',
+        'scrim'       => 'rgba(59,44,30,.34)',
+        'chevron'     => '#b3a284',
+        'grabber'     => '#c2b08c',
+    ];
+
+    /**
+     * The cover and seasonal tones whose DAY value is typed (not a palette token), at night.
+     * The tones that name a token already follow the scheme through `var()`; these few are
+     * pale literals, and without a night value an info cover stayed a light tile on a dark
+     * page. A token where one fits, by reference; a hex only for the edges no token names.
+     *
+     * @var array<string,string> custom property (without `--ag-`) => night value
+     */
+    private const NIGHT_TONES = [
+        'cover-gold-line'  => 'var(--ag-gold)',
+        'cover-live-edge'  => '#5a2333',
+        'cover-info-bg'    => 'var(--ag-info-wash)',
+        'cover-info-ink'   => 'var(--ag-info)',
+        'cover-info-edge'  => '#24465e',
+        'hol-green-wash'   => 'var(--ag-green-wash)',
+        'hol-green-edge'   => 'var(--ag-green-edge)',
+        'hol-gold-wash'    => 'var(--ag-gold-wash)',
+        'hol-gold-edge'    => 'var(--ag-gold-edge)',
+        'hol-gold-line'    => 'var(--ag-gold)',
+        'hol-live-wash'    => 'var(--ag-live-wash)',
+        'hol-live-edge'    => '#5a2333',
+        'hol-info-wash'    => 'var(--ag-info-wash)',
+        'hol-info-edge'    => '#24465e',
+        'hol-info-ink'     => 'var(--ag-info)',
+        'hol-stone-wash'   => 'var(--ag-tint)',
+        'hol-stone-edge'   => 'var(--ag-line-2)',
+    ];
+
+    /** The names a scheme preview swatch paints (Display & reading's Appearance control). */
+    private const PREVIEW = ['ground', 'surface', 'ink', 'green', 'line-2'];
+
+    /** Shadows at night: black, and deeper, because a dark card on a dark ground needs more lift. */
+    private const NIGHT_SHADOWS = [
+        'sh-pop'   => '0 24px 48px -20px rgba(0,0,0,.60)',
+        'sh-mega'  => '0 24px 48px -28px rgba(0,0,0,.55)',
+        'sh-sheet' => '0 -12px 40px rgba(0,0,0,.50)',
+        'sh-float' => '0 2px 10px rgba(0,0,0,.45)',
+        'sh-dot'   => '0 3px 10px rgba(0,0,0,.50)',
+        'sh-gee'   => '0 30px 70px -24px rgba(0,0,0,.70)',
     ];
 
     /**
@@ -162,7 +317,6 @@ final class Accent
         'tint'        => ['on' => 'ground',  'why' => 'neutral fills'],
         'gold-edge'   => ['on' => 'surface', 'why' => 'honour borders'],
         'green-edge'  => ['on' => 'surface', 'why' => 'success borders'],
-        'mute'        => ['on' => 'ground',  'why' => 'disabled text — never a word'],
         'green-light' => ['on' => 'ground',  'why' => 'accents on dark only'],
         'chevron'     => ['on' => 'surface', 'why' => 'a decorative disclosure mark beside a labelled row'],
         'grabber'     => ['on' => 'surface', 'why' => 'a decorative sheet handle'],
@@ -277,141 +431,133 @@ final class Accent
     //
     // ── A SECOND SURFACE, AND STILL ONE FILE ─────────────────────────────────
     //
-    // The admin console is not drawn by the public handoff. Its own handoff
-    // (`design_handoff_admin_console`, README §10) is monochrome — near-black ink on
-    // white, a ramp of neutral greys, and four status families — and the owner chose it
-    // (4 Oct 2026, GAPS §8d: option (A), with DM Sans and the house JetBrains Mono in
-    // place of Geist). The teal `--ad-*` set it replaces was typed into `admin.css`, a
-    // second colour file; it was destroyed with that sheet rather than aliased.
+    // The admin console is not drawn by the public handoff. Its own handoff is
+    // `design_handoff_letter_email_admin/admin-console` (AdminConsole v2.dc.html, README
+    // §10b, 19 Oct 2026), which supersedes the monochrome v9 set the console was rebuilt
+    // on in October (README §10: "v2 supersedes §10 visuals"). Rebuilt here on 20 Oct
+    // 2026: the house ink, a warm neutral ground, the house green, and gold and red for
+    // waiting and stuck. Every `--cn-*` read in the console was renamed to these names in
+    // the same change — no old name survives as an alias.
     //
     // The console set lives HERE, beside the public one, so "Accent is the only file a
     // colour literal may be typed in" stays true with two surfaces. It is emitted under
     // its own prefix, `--cn-*`, by `css('console')` into the admin layout's nonced
     // `<style>`, and never into a public page: the two palettes share no name, so a
-    // public stylesheet can never pick up a console grey by accident, and the reverse.
+    // public stylesheet can never pick up a console colour by accident, and the reverse.
     //
-    // ── THE VALUES ARE THE HANDOFF'S, ±0, AND SO ARE ITS FAILURES ─────────────
+    // ── CONSOLE PALETTE — DESIGN TOKENS WITH MEASURED TEXT CONTRAST ──────────
     //
-    // README §10 plus the colours the HTML (which wins on what users see) draws in the
-    // shell, Home and the overlays: `green` (#086411, the ticks and the all-clear dot),
-    // `line-row` (#f2f2f2 row rules), `line-bar` (#f0f0f0 under the top bar),
-    // `link-line` (#c4c4c4 underlines), `danger-edge` (#f0c9c5, the high-alert pill)
-    // and the three scrims. Every word the console draws is measured at 4.5:1 on every
-    // ground it is drawn on (`consoleWords()`); the ones that fail are REPORTED in
-    // `CONSOLE_REPORTED`, never re-valued, exactly as the public palette's are.
+    // Read off the HTML, which wins on what users see. Every word the console draws is
+    // measured at 4.5:1 on every ground it is drawn on (`consoleWords()`); the ones that
+    // fail are REPORTED in `CONSOLE_REPORTED`, never re-valued, exactly as the public
+    // palette's are.
 
     /**
-     * README §10 of the admin handoff, plus the shell's own colours from its HTML.
+     * AdminConsole v2's colours, by role.
      *
      * @var array<string,array{value:string,use:string}>
      */
     private const CONSOLE = [
-        'ink'           => ['value' => '#0a0a0a', 'use' => 'text, primary buttons, the current state, focus'],
-        'grey-800'      => ['value' => '#262626', 'use' => 'body text'],
-        'grey-700'      => ['value' => '#404040', 'use' => 'nav items at rest'],
-        'grey-600'      => ['value' => '#525252', 'use' => 'secondary text'],
-        'grey-500'      => ['value' => '#737373', 'use' => 'muted text, counts, icons at rest'],
-        'grey-450'      => ['value' => '#8f8f8f', 'use' => 'sidebar group labels'],
-        'grey-400'      => ['value' => '#a3a3a3', 'use' => 'dots'],
-        'grey-350'      => ['value' => '#bdbdbd', 'use' => 'disabled fills (the empty send button)'],
-        'grey-300'      => ['value' => '#d4d4d4', 'use' => 'toggles off, dashed outlines'],
-        'line-control'  => ['value' => '#e5e5e5', 'use' => 'input and pill borders'],
-        'line-card'     => ['value' => '#ebebeb', 'use' => 'card borders'],
-        'line-row'      => ['value' => '#f2f2f2', 'use' => 'rules between rows inside a card or a drawer'],
-        'line-bar'      => ['value' => '#f0f0f0', 'use' => 'the rule under the top bar'],
-        'link-line'     => ['value' => '#c4c4c4', 'use' => 'a link\'s underline at rest'],
-        'fill-current'  => ['value' => '#ededed', 'use' => 'the current nav item'],
-        'fill-hover'    => ['value' => '#efefef', 'use' => 'hover on a nav item'],
-        'fill-subtle'   => ['value' => '#f2f2f2', 'use' => 'chips, the round close button'],
-        'fill-selected' => ['value' => '#f5f5f5', 'use' => 'a focused row, a highlighted option'],
-        'fill-panel'    => ['value' => '#fafafa', 'use' => 'the sidebar, table heads, the palette footer'],
-        'surface'       => ['value' => '#ffffff', 'use' => 'the main area, cards, menus'],
-        'green'         => ['value' => '#086411', 'use' => 'ticks and the all-clear dot'],
-        'success'       => ['value' => '#1a6118', 'use' => 'success text'],
-        'success-dot'   => ['value' => '#2f8f2c', 'use' => 'success dot'],
-        'success-tint'  => ['value' => '#eef6ee', 'use' => 'success field'],
-        'warning'       => ['value' => '#8a5a00', 'use' => 'warning text'],
-        'warning-dot'   => ['value' => '#c98a00', 'use' => 'warning dot, a waiting count'],
-        'warning-tint'  => ['value' => '#fdf0d2', 'use' => 'warning field'],
-        'warning-tint-2'=> ['value' => '#fdf6e3', 'use' => 'a softer warning field, the "Proposed" note'],
-        'warning-tint-3'=> ['value' => '#fdf9ee', 'use' => 'the softest warning field (a send-a-real-message card)'],
-        'danger'        => ['value' => '#b3261e', 'use' => 'danger text, a destructive confirm, an urgent count'],
-        'danger-pill'   => ['value' => '#8a2020', 'use' => 'danger text inside a pill'],
-        'danger-dot'    => ['value' => '#d0362c', 'use' => 'danger dot'],
-        'danger-tint'   => ['value' => '#fdf0ef', 'use' => 'danger field, the high-alert pill'],
-        'danger-edge'   => ['value' => '#f0c9c5', 'use' => 'the high-alert pill\'s border'],
-        'info'          => ['value' => '#2a5f9e', 'use' => 'info text, "in progress"'],
-        'info-dot'      => ['value' => '#2a78d6', 'use' => 'info dot'],
-        'proposed-ink'  => ['value' => '#5c4400', 'use' => 'text of a "Proposed" note'],
-        'scrim'         => ['value' => 'rgba(10,10,10,.32)', 'use' => 'behind the confirm dialog'],
-        'scrim-palette' => ['value' => 'rgba(10,10,10,.28)', 'use' => 'behind the command palette'],
-        'scrim-drawer'  => ['value' => 'rgba(10,10,10,.2)',  'use' => 'behind the assistant drawer'],
-        'on-ink-fill'   => ['value' => 'rgba(255,255,255,.14)', 'use' => 'a button on the black toast'],
-
-        // ── THE BRAND, AS AN ACCENT (owner, 13 Oct 2026) ───────────────────────
-        // "Make use of the Africa GATES colours as accent where best", on the console
-        // Home. The console stays monochrome; these six are the house green and gold,
-        // spent on what identifies the platform (the Home's header rule, the chart, the
-        // primary action on a job, a figure's icon). They are the PUBLIC palette's
-        // values by reference rather than typed again, so the console's green is the
-        // site's green by construction and cannot drift into a fifth gold.
-        'brand-green'      => ['value' => self::PALETTE['green']['value'],      'use' => 'the house green: a primary action on Home, chart bars, figure icons'],
-        'brand-green-deep' => ['value' => self::PALETTE['green-deep']['value'], 'use' => 'green words on a green wash'],
-        'brand-green-wash' => ['value' => self::PALETTE['green-wash']['value'], 'use' => 'a figure\'s icon field, the all-clear field'],
-        'brand-gold'       => ['value' => self::PALETTE['gold']['value'],       'use' => 'honour: the Home header rule, a results figure\'s mark'],
-        'brand-gold-ink'   => ['value' => self::PALETTE['gold-ink']['value'],   'use' => 'gold words, on white or the gold wash'],
-        'brand-gold-wash'  => ['value' => self::PALETTE['gold-wash']['value'],  'use' => 'a results figure\'s icon field'],
+        'ink'          => ['value' => '#10292c', 'use' => 'text, the current state, primary words'],
+        'ink-2'        => ['value' => '#3a4a4c', 'use' => 'nav items at rest, secondary body text'],
+        'ink-3'        => ['value' => '#4b5a5c', 'use' => 'neutral pill text, quieter body text'],
+        'ink-deep'     => ['value' => '#26393b', 'use' => 'the toast and tooltip field'],
+        'soft'         => ['value' => '#5e696b', 'use' => 'sub-lines, captions, muted text'],
+        'faint'        => ['value' => '#5e696b', 'use' => 'group labels, table heads, meta'],
+        'faint-2'      => ['value' => '#5e696b', 'use' => 'keycap hints, icons at rest, the grey dot'],
+        'ghost'        => ['value' => '#c3c7c6', 'use' => 'the crumb separator, a disabled fill'],
+        'line-strong'  => ['value' => '#cfd3cc', 'use' => 'a toggle that is off, a dashed outline'],
+        'line'         => ['value' => '#e3e3de', 'use' => 'control and pill borders, the rail rules'],
+        'line-card'    => ['value' => '#e6e6e1', 'use' => 'the work surface and card borders, the current item\'s ring'],
+        'line-row'     => ['value' => '#efefeb', 'use' => 'rules between rows, the rule under the top bar'],
+        'line-soft'    => ['value' => '#f0f0ec', 'use' => 'rules inside a drawer or a panel'],
+        'line-faint'   => ['value' => '#ecece8', 'use' => 'the bar-chart track, quiet separators'],
+        'line-dash'    => ['value' => '#dedfd9', 'use' => 'the dashed outline of an empty state'],
+        'scroll'       => ['value' => '#d9dad4', 'use' => 'scrollbar thumb'],
+        'scroll-hover' => ['value' => '#b9bbb4', 'use' => 'scrollbar thumb on hover'],
+        'ground'       => ['value' => '#f3f3f0', 'use' => 'the rail and the page ground, chips, segmented tracks'],
+        'surface'      => ['value' => '#ffffff', 'use' => 'the work surface, cards, menus'],
+        'panel'        => ['value' => '#fafaf8', 'use' => 'table heads, the brief, a selected row'],
+        'hover'        => ['value' => '#ebebe6', 'use' => 'hover on a rail item or a quiet button'],
+        'green'        => ['value' => '#237b22', 'use' => 'the primary action, live, paid, links, focus'],
+        'green-ink'    => ['value' => '#1a5e1a', 'use' => 'green words on a green wash, link hover'],
+        'green-wash'   => ['value' => '#edf5ea', 'use' => 'a live or paid pill, the bulk bar, the selected tab'],
+        'green-edge'   => ['value' => '#d9e6d5', 'use' => 'a green pill\'s border'],
+        'green-edge-2' => ['value' => '#b9d8b3', 'use' => 'the selected settings group\'s border'],
+        'gold'         => ['value' => '#c8961e', 'use' => 'waiting: dots, the current stage bar, a changed row'],
+        'gold-ink'     => ['value' => '#8a5d0b', 'use' => 'pending, draft and judging words'],
+        'gold-icon'    => ['value' => '#b07a12', 'use' => 'the Ask spark'],
+        'gold-wash'    => ['value' => '#fbf4e4', 'use' => 'a pending pill, the setup strip'],
+        'gold-wash-2'  => ['value' => '#fdfaf2', 'use' => 'the "may affect production" banner, a softer note'],
+        'gold-edge'    => ['value' => '#efdcae', 'use' => 'a pending pill\'s border'],
+        'red'          => ['value' => '#c4321f', 'use' => 'stuck, failed, overdue: dots and words'],
+        'red-ink'      => ['value' => '#a3271a', 'use' => 'red words inside a pill or banner'],
+        'red-wash'     => ['value' => '#fdeeeb', 'use' => 'a failed pill, the production pill and bell'],
+        'red-wash-2'   => ['value' => '#fdf6f4', 'use' => 'the "affecting production" banner'],
+        'red-edge'     => ['value' => '#f3c9c1', 'use' => 'a red pill\'s border'],
+        'slate'        => ['value' => '#47676d', 'use' => 'the Content hub, informational words'],
+        'slate-wash'   => ['value' => '#eaf0f1', 'use' => 'a Content tile\'s field'],
+        // ── v7 (consoles handoff, 28 Oct 2026, README §2.1): the tones the volunteer
+        // workspace and the event lead console draw. Added under the handoff's own meanings,
+        // never by re-valuing the v2 names above, which the v2 pages still read
+        // (CONSOLES-V7-REVIEW C6).
+        'ok-wash'      => ['value' => '#effaf0', 'use' => 'v7: an ok chip, a done step\'s numeral'],
+        'bad-ink'      => ['value' => '#a52a19', 'use' => 'v7: words in a bad chip, a clash'],
+        'info'         => ['value' => '#1f5f8b', 'use' => 'v7: info words and dots, the third chart series'],
+        'info-wash'    => ['value' => '#e6f0f4', 'use' => 'v7: an info chip, an award tile'],
+        'card-edge'    => ['value' => '#e8e5dd', 'use' => 'v7: the edge of a card, a chart, a table'],
+        'table-head'   => ['value' => '#fafbf8', 'use' => 'v7: a table head, a row hover, a table footer note'],
+        'chart-2'      => ['value' => '#9fd09e', 'use' => 'v7: the second chart series'],
+        'chart-4'      => ['value' => '#d9a441', 'use' => 'v7: the fourth chart series'],
+        'scrim'        => ['value' => 'rgba(16,41,44,.32)', 'use' => 'behind the confirm dialog'],
+        'scrim-palette'=> ['value' => 'rgba(16,41,44,.28)', 'use' => 'behind the command palette'],
+        'scrim-drawer' => ['value' => 'rgba(16,41,44,.18)', 'use' => 'behind a drawer or the Ask pane'],
+        'on-ink-fill'  => ['value' => 'rgba(255,255,255,.14)', 'use' => 'a button on the dark toast'],
     ];
 
     /**
-     * README §10's shadows, verbatim, plus the palette's (which the HTML draws at .22).
+     * AdminConsole v2's shadows (README "Design tokens": popovers and drawers), plus the
+     * ring that marks the current rail item and the lift under a control.
      *
      * @var array<string,string>
      */
     private const CONSOLE_SHADOWS = [
-        'sh-menu'    => '0 12px 32px rgba(10,10,10,.12)',
-        'sh-modal'   => '0 20px 48px rgba(10,10,10,.2)',
-        'sh-palette' => '0 20px 48px rgba(10,10,10,.22)',
-        'sh-drawer'  => '-12px 0 32px rgba(10,10,10,.12)',
-        'sh-toast'   => '0 10px 30px rgba(10,10,10,.25)',
-        'sh-hero'    => '0 1px 2px rgba(10,10,10,.04), 0 10px 30px rgba(10,10,10,.05)',
-        'sh-tile'    => '0 1px 2px rgba(10,10,10,.04)',
+        'sh-menu'    => '0 18px 48px rgba(16,41,44,.16)',
+        'sh-modal'   => '0 20px 50px rgba(16,41,44,.18)',
+        'sh-palette' => '0 18px 48px rgba(16,41,44,.16)',
+        'sh-drawer'  => '0 20px 50px rgba(16,41,44,.18)',
+        'sh-toast'   => '0 18px 48px rgba(16,41,44,.16)',
+        'sh-hero'    => '0 1px 2px rgba(16,41,44,.04)',
+        'sh-tile'    => '0 1px 0 rgba(16,41,44,.04)',
+        'sh-current' => '0 0 0 1px #e6e6e1, 0 1px 2px rgba(16,41,44,.06)',
     ];
 
     /**
-     * Every word the console draws, on every ground the handoff draws it on.
-     *
-     * Read off the HTML, not imagined: `grey-500` is the muted line on a white card, the
-     * table head on `fill-panel`, a second line in a focused row (`fill-selected`) and
-     * the count beside the CURRENT nav item (`fill-current`); `warning-dot` is the colour
-     * of a waiting count on a Home card. Failures are listed in CONSOLE_REPORTED.
+     * Every word the console draws, on every ground the design draws it on. Failures are
+     * listed in CONSOLE_REPORTED.
      *
      * @var array<string,list<string>>
      */
     private const CONSOLE_WORDS = [
-        'ink'          => ['surface', 'fill-panel', 'fill-selected', 'fill-current', 'fill-hover', 'fill-subtle',
-                           'success-tint', 'warning-tint', 'warning-tint-2', 'warning-tint-3', 'danger-tint'],
-        'grey-800'     => ['surface', 'fill-panel', 'fill-selected'],
-        'grey-700'     => ['fill-panel', 'fill-hover', 'surface'],
-        'grey-600'     => ['surface', 'fill-panel', 'fill-subtle', 'fill-selected'],
-        'grey-500'     => ['surface', 'fill-panel', 'fill-selected', 'fill-current'],
-        'grey-450'     => ['fill-panel'],
-        'success'      => ['surface', 'success-tint'],
-        'green'        => ['surface'],
-        'warning'      => ['surface', 'warning-tint', 'warning-tint-2', 'warning-tint-3'],
-        'warning-dot'  => ['surface'],
-        'danger'       => ['surface', 'danger-tint'],
-        'danger-pill'  => ['surface', 'danger-tint'],
-        'info'         => ['surface'],
-        'proposed-ink' => ['warning-tint-2'],
-        'surface'      => ['ink', 'danger', 'green', 'brand-green'],
-        'brand-green'      => ['surface', 'fill-panel'],
-        'brand-green-deep' => ['surface', 'brand-green-wash'],
-        'brand-gold-ink'   => ['surface', 'brand-gold-wash'],
+        'ink'       => ['surface', 'ground', 'panel', 'hover', 'green-wash', 'gold-wash', 'gold-wash-2', 'red-wash', 'red-wash-2'],
+        'ink-2'     => ['surface', 'ground', 'panel', 'hover'],
+        'ink-3'     => ['surface', 'panel', 'ground'],
+        'soft'      => ['surface', 'panel', 'ground', 'hover'],
+        'faint'     => ['surface', 'panel', 'ground'],
+        'faint-2'   => ['surface', 'ground'],
+        'green'     => ['surface', 'panel', 'green-wash'],
+        'green-ink' => ['surface', 'green-wash', 'ok-wash'],
+        'gold-ink'  => ['surface', 'gold-wash', 'gold-wash-2'],
+        'red'       => ['surface', 'red-wash'],
+        'red-ink'   => ['surface', 'red-wash', 'red-wash-2'],
+        'slate'     => ['surface', 'slate-wash'],
+        'info'      => ['surface', 'info-wash', 'table-head'],
+        'bad-ink'   => ['surface', 'red-wash'],
+        'surface'   => ['ink', 'ink-deep', 'green', 'red'],
     ];
 
     /**
-     * Words the handoff draws under 4.5:1 — REPORTED to the owner, not re-valued.
+     * Historical console text failures. Cleared after the owner requested accessibility on 31 October 2026.
      *
      * The test holds this list EXACTLY: a pair that starts passing must leave it, and a
      * new failure must be added here with where it is drawn, which is the report.
@@ -419,10 +565,6 @@ final class Accent
      * @var array<string,array{on:string,where:string}>
      */
     private const CONSOLE_REPORTED = [
-        'grey-450@fill-panel'    => ['on' => 'fill-panel',    'where' => 'sidebar group labels, 12.5px (3.10:1)'],
-        'grey-500@fill-selected' => ['on' => 'fill-selected', 'where' => 'the second line of a focused row, 12–12.5px (4.35:1)'],
-        'grey-500@fill-current'  => ['on' => 'fill-current',  'where' => 'the count beside the current nav item, 11.5px (4.04:1)'],
-        'warning-dot@surface'    => ['on' => 'surface',       'where' => 'a waiting count on a Home card, 22px at 500 — not large text (2.95:1)'],
     ];
 
     /**
@@ -431,16 +573,18 @@ final class Accent
      * @var array<string,array{on:string,why:string}>
      */
     private const CONSOLE_ACCEPTED = [
-        'grey-350'     => ['on' => 'surface',    'why' => 'a DISABLED control\'s fill; WCAG 1.4.3 exempts an inactive control'],
-        'grey-300'     => ['on' => 'surface',    'why' => 'a toggle that is off, a dashed outline'],
-        'line-control' => ['on' => 'surface',    'why' => 'input and pill borders, as the handoff draws them'],
-        'line-card'    => ['on' => 'surface',    'why' => 'card borders'],
-        'line-row'     => ['on' => 'surface',    'why' => 'row rules'],
-        'line-bar'     => ['on' => 'surface',    'why' => 'the rule under the top bar'],
-        'link-line'    => ['on' => 'surface',    'why' => 'an underline beside words that carry the contrast'],
-        'fill-panel'   => ['on' => 'surface',    'why' => 'the sidebar field'],
-        'grey-400'     => ['on' => 'surface',    'why' => 'a dot that always sits beside its word'],
-        'brand-gold'   => ['on' => 'surface',    'why' => 'the Home header rule and a mark beside words; gold is never a word'],
+        'ghost'       => ['on' => 'surface', 'why' => 'the crumb separator and a DISABLED fill; WCAG 1.4.3 exempts an inactive control'],
+        'line-strong' => ['on' => 'surface', 'why' => 'a toggle that is off, a dashed outline'],
+        'line'        => ['on' => 'surface', 'why' => 'control and pill borders, as the design draws them'],
+        'line-card'   => ['on' => 'surface', 'why' => 'card borders'],
+        'line-row'    => ['on' => 'surface', 'why' => 'row rules'],
+        'line-soft'   => ['on' => 'surface', 'why' => 'rules inside a drawer'],
+        'line-faint'  => ['on' => 'surface', 'why' => 'the bar-chart track'],
+        'line-dash'   => ['on' => 'surface', 'why' => 'the dashed outline of an empty state'],
+        'scroll'      => ['on' => 'surface', 'why' => 'a scrollbar thumb'],
+        'ground'      => ['on' => 'surface', 'why' => 'the rail field'],
+        'panel'       => ['on' => 'surface', 'why' => 'a table head\'s field'],
+        'gold'        => ['on' => 'surface', 'why' => 'a dot or a bar beside its word; gold is never a word'],
     ];
 
     // ══ the default-graphics tones (DEFAULT-GRAPHICS §4, handoff 5 Oct 2026) ═══════════════
@@ -654,6 +798,47 @@ final class Accent
         return $out;
     }
 
+    /** @return array<string,string> the night values of the typed cover and seasonal tones */
+    public static function nightTones(): array
+    {
+        return self::NIGHT_TONES;
+    }
+
+    /** @return array<string,string> token => sepia value, every palette name */
+    public static function sepiaPalette(): array
+    {
+        return self::SEPIA;
+    }
+
+    /** One token's SEPIA value as a hex, for a derivation measured against paper. */
+    public static function sepia(string $name): string
+    {
+        $v = self::SEPIA[$name] ?? null;
+        if ($v === null || !preg_match('/^#[0-9a-f]{6}$/', $v)) {
+            throw new \InvalidArgumentException(sprintf('No sepia hex "%s"', $name));
+        }
+        return $v;
+    }
+
+    /** @return array<string,string> token => night value, every palette name */
+    public static function nightPalette(): array
+    {
+        return self::NIGHT;
+    }
+
+    /**
+     * One token's NIGHT value as a hex — for a server-side derivation that must be measured
+     * against what a dark-mode reader sees (OrgBrand's accent shades). Throws like {@see hex()}.
+     */
+    public static function night(string $name): string
+    {
+        $v = self::NIGHT[$name] ?? null;
+        if ($v === null || !preg_match('/^#[0-9a-f]{6}$/', $v)) {
+            throw new \InvalidArgumentException(sprintf('No night hex "%s"', $name));
+        }
+        return $v;
+    }
+
     /** @return array<string,list<string>> */
     public static function words(): array
     {
@@ -703,7 +888,40 @@ final class Accent
         }
         $out = array_merge($out, self::coverCss(), self::holidayCss());
 
-        return ':root{' . implode('', $out) . '}';
+        $night = [];
+        foreach (self::NIGHT as $name => $v) $night[] = '--ag-' . $name . ':' . $v . ';';
+        foreach (self::NIGHT_SHADOWS as $name => $v) $night[] = '--ag-' . $name . ':' . $v . ';';
+        foreach (self::NIGHT_TONES as $name => $v) $night[] = '--ag-' . $name . ':' . $v . ';';
+        $night[] = 'color-scheme:dark;';
+        $night = implode('', $night);
+
+        $sepia = [];
+        foreach (self::SEPIA as $name => $v) $sepia[] = '--ag-' . $name . ':' . $v . ';';
+        $sepia[] = 'color-scheme:light;';
+
+        // The day palette, then the night one twice: behind the device's own setting unless
+        // the reader chose Light or Sepia (`ag-light`, `ag-sepia` on <html>), and
+        // unconditionally when they chose Dark (`ag-dark`); then Sepia, only when chosen.
+        // `:where()` keeps every selector at the specificity of `:root`, so the later block
+        // wins by ORDER — and so `html.ag-hc` in shell.css, which remaps these same names for
+        // high contrast, still beats all of them, in every scheme.
+        // And a PREVIEW of each scheme, scoped to an element: the Appearance control draws a
+        // swatch of each in its own colours, whatever scheme the page is in. Four names only
+        // — what a swatch paints — and never a name the day does not declare.
+        $preview = '';
+        foreach (['light' => self::PALETTE, 'dark' => self::NIGHT, 'sepia' => self::SEPIA] as $k => $set) {
+            $preview .= ':where(.ag-pv-' . $k . '){';
+            foreach (self::PREVIEW as $name) {
+                $preview .= '--ag-' . $name . ':' . (is_array($set[$name]) ? $set[$name]['value'] : $set[$name]) . ';';
+            }
+            $preview .= '}';
+        }
+
+        return ':root{' . implode('', $out) . 'color-scheme:light;}'
+             . '@media (prefers-color-scheme:dark){:root:where(:not(.ag-light):not(.ag-sepia)){' . $night . '}}'
+             . ':root:where(.ag-dark){' . $night . '}'
+             . ':root:where(.ag-sepia){' . implode('', $sepia) . '}'
+             . $preview;
     }
 
     // ══ families and meanings ═══════════════════════════════════════════════

@@ -72,6 +72,14 @@ final class ChallengeFlierTest extends TestCase
         }
         DB::table('gates_settings')->whereIn('key_name', ['seed_ran_' . self::SEED, 'seed_last_' . self::SEED])->delete();
         self::assertSame('done', SeedRunner::run(self::SEED)['status']);
+        // The artwork is of an OPEN challenge ending 15 Oct, and the route draws the live
+        // state from the real clock — so from 16 Oct 2026 the flier came out "ended" and
+        // stopped matching it. The same day and month a year on keeps "ends 15 Oct" (the
+        // flier prints no year) and keeps the challenge open whenever this runs.
+        $end = gmdate('Y') . '-10-15 22:59:59';
+        if (strtotime($end . ' UTC') <= time()) $end = (gmdate('Y') + 1) . '-10-15 22:59:59';
+        DB::table('gates_challenges')->where('slug', self::SLUG)->update([
+            'starts_at' => gmdate('Y-m-d H:i:s', time() - 86400), 'ends_at' => $end, 'status' => 'open']);
     }
 
     private function fetch(): \GdImage

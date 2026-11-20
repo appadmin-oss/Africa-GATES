@@ -224,6 +224,8 @@ final class ResultsController
             'meta_robots'     => 'noindex, follow',
             'canonical_url'   => \AfricaGates\Support\SiteUrl::base($req) . $o['url'],
             'e'               => $o,
+            // A voting extension on this edition, beside the close it moved (VotingExtension).
+            'extension'       => \AfricaGates\Services\VotingExtension::notice((int) $o['cycle_id']),
             'switcher'        => self::switcher((int) $o['programme_id'], (int) $o['cycle_id']),
             'host'            => \AfricaGates\Support\ProgrammeHost::forProgramme((int) $o['programme_id']),
             'breadcrumbs'     => [

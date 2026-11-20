@@ -1,0 +1,23 @@
+{#-
+  The frame every body in templates/emails/{key}.html.twig extends (design_handoff_letter_email_admin,
+  email/twig). It draws nothing itself: Services\Mail\Emails reads each block by name with
+  renderBlock() and hands the pieces to OtpService::brandWrap(), the ONE shell — a second
+  layout that drew its own masthead would be two shells that drift.
+
+  Blocks a body sets:
+    subject, preheader      the inbox line and the hidden preview
+    category                the masthead label ("Voting", "Accounts" …)
+    hero                    an illustration's basename in public/assets/img/illustrations, or empty
+    why                     the footer's first line: why this person got this message
+    transactional           "1" for codes, receipts, tickets and nomination states (no Unsubscribe);
+                            "0" for an announcement (Unsubscribe link + List-Unsubscribe header)
+    body                    the card's rows, from emails/_blocks.html.twig
+    text                    the plain-text part, in {key}.txt.twig — not here
+-#}
+{%- block subject %}{% endblock -%}
+{%- block preheader %}{% endblock -%}
+{%- block category %}{% endblock -%}
+{%- block hero %}{% endblock -%}
+{%- block why %}{% endblock -%}
+{%- block transactional %}1{% endblock -%}
+{%- block body %}{% endblock -%}

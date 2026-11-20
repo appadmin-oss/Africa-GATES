@@ -376,13 +376,9 @@ class StandingsAndFlierTest extends TestCase
         $id = $this->nominee('Nominee 48 Surname', 3);
         $svg = (new FlierService())->svg($this->flierFor($id));
 
-        // The monogram is the only 400px text on the card. It was 260 and 28% opaque
-        // under the previous design; the redraw makes it a deliberate slab, because at
-        // thumbnail size a faint one read as a rendering fault.
-        preg_match('~font-size="400"[^>]*>([^<]*)<~', $svg, $m);
-        $this->assertNotEmpty($m, 'a photo-less nominee must get a monogram');
-        $this->assertMatchesRegularExpression('~^\p{L}{1,2}$~u', $m[1],
-            'letters only, got: ' . $m[1]);
+        $mark = (new FlierService())->card($this->flierFor($id))['initials'];
+        $this->assertStringContainsString('>' . $mark . '</text>', $svg, 'a photo-less nominee must get their initials');
+        $this->assertMatchesRegularExpression('~^\p{L}{1,2}$~u', $mark, 'letters only, got: ' . $mark);
     }
 
     public function test_the_flier_states_that_votes_are_not_the_result(): void
@@ -524,34 +520,25 @@ class StandingsAndFlierTest extends TestCase
         $this->assertSame('image/png', $info['mime']);
     }
 
-    public function test_the_png_has_no_seam_where_the_scrim_meets_the_background(): void
+    /**
+     * The photo panel ends in one clean edge, and the ground below it is one flat tone.
+     * The old card faded a scrim into a gradient and a mismatch left a visible step; the
+     * share card's panel edge is straight by design (ShareCardSpec), so what must not
+     * appear is a stray line or a band in the ground under it.
+     */
+    public function test_the_ground_under_the_photo_panel_is_one_clean_tone(): void
     {
-        // A one-pixel bright line at y=820 across the whole card, because
-        // imagefilledrectangle() is INCLUSIVE of both corners while the scrim loop runs
-        // 0..h-1 — so that row was painted with the panel colour and never darkened.
-        // Measured rgb(15,51,41) between two rows of rgb(12,43,35). It reads as a
-        // rendering fault, which on a graphic a nominee posts is the whole impression.
         $id  = $this->nominee('Seam Check', 12);
         $png = (new FlierService())->png($this->flierFor($id));
         $im  = imagecreatefromstring((string) $png);
         $this->assertNotFalse($im);
 
-        $worst = 0; $at = 0;
-        $prev = null;
-        // x=1000 is clear of every text block, so any step is the background itself.
-        for ($y = 780; $y <= 870; $y++) {
-            $c = imagecolorat($im, 1000, $y);
-            $rgb = [($c >> 16) & 255, ($c >> 8) & 255, $c & 255];
-            if ($prev !== null) {
-                $d = abs($rgb[0] - $prev[0]) + abs($rgb[1] - $prev[1]) + abs($rgb[2] - $prev[2]);
-                if ($d > $worst) { $worst = $d; $at = $y; }
-            }
-            $prev = $rgb;
+        $ground = imagecolorat($im, 1060, 820);
+        for ($y = 801; $y <= 870; $y++) {
+            $this->assertSame($ground, imagecolorat($im, 1060, $y), "the ground changes at y={$y}");
         }
+        $this->assertNotSame($ground, imagecolorat($im, 1060, 790), 'the panel is its own tone above the edge');
         imagedestroy($im);
-
-        $this->assertLessThanOrEqual(3, $worst,
-            "a visible tonal step of {$worst} at y={$at} — the scrim and the background must meet seamlessly");
     }
 
     public function test_the_png_and_the_svg_render_the_same_design(): void
@@ -588,5 +575,37 @@ class StandingsAndFlierTest extends TestCase
         foreach (['email', 'phone', 'voter_email_hash', 'REMOTE_ADDR'] as $forbidden) {
             $this->assertStringNotContainsString($forbidden, $code, $forbidden);
         }
+    }
+
+    public function test_the_share_kit_page_offers_every_size_style_and_colour(): void
+    {
+        $id   = $this->nominee('Kit Page', 30);
+        $f    = $this->flierFor($id);
+        $path = (string) parse_url((string) $f['url'], PHP_URL_PATH);
+
+        $html = \Tests\Support\ChromeRender::html($path . '/flier?size=status&style=statement&tone=live&mode=bold');
+        foreach (['size=feed', 'size=status', 'size=square', 'size=link', 'style=portrait', 'style=statement',
+                  'tone=gold', 'tone=green', 'tone=info', 'tone=live', 'tone=stone', 'mode=light', 'mode=bold'] as $q) {
+            $this->assertStringContainsString($q, $html, "the kit links to {$q}");
+        }
+        // The preview and the download are the chosen card, not the default one.
+        $this->assertMatchesRegularExpression('~flier\.png\?size=status&amp;style=statement&amp;tone=live&amp;mode=bold~', $html);
+        $this->assertStringContainsString('width="1080" height="1920"', $html);
+        $this->assertStringContainsString('/video?tone=live', $html, 'the video matches the colour picked');
+
+        $video = \Tests\Support\ChromeRender::html($path . '/video?tone=live');
+        $this->assertStringContainsString('share-video-award.js', $video);
+        $this->assertStringContainsString('&quot;tone&quot;:&quot;live&quot;', $video);
+    }
+
+    public function test_the_png_route_honours_the_chosen_size(): void
+    {
+        $id   = $this->nominee('Route Size', 30);
+        $f    = $this->flierFor($id);
+        $path = (string) parse_url((string) $f['url'], PHP_URL_PATH);
+        $r    = \Tests\Support\ChromeRender::page($path . '/flier.png?size=square&tone=gold');
+        $this->assertSame(200, $r->getStatusCode());
+        $info = getimagesizefromstring((string) $r->getBody());
+        $this->assertSame([1080, 1080], [$info[0], $info[1]]);
     }
 }

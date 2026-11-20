@@ -180,7 +180,18 @@ class PaidVoteService
     public static function checkoutClosesAt(int $categoryId): ?Carbon
     {
         $close = BallotGuard::votingCloseFor($categoryId);
-        return $close?->copy()->subMinutes(self::checkoutCutoffMinutes());
+        $at    = $close?->copy()->subMinutes(self::checkoutCutoffMinutes());
+
+        // ── AN EXTENSION'S PAID CUTOFF ───────────────────────────────────────
+        // When voting is extended with "stop paid votes at the previous close", the extra
+        // time is free voting only, so an extension can never be a way to sell more votes.
+        // Applied HERE, so the ballot, the controller, the wallet and the assistant all agree
+        // (they all ask checkoutOpenFor()). Only NEW checkouts stop: mint() is untouched, so an
+        // order started before the cutoff still mints inside the late-mint grace.
+        $ext = VotingExtension::paidCutoffForCategory($categoryId);
+        if ($ext !== null && ($at === null || $ext->lt($at))) $at = $ext;
+
+        return $at;
     }
 
     /** True when paid checkout is inside its (earlier) window for this category. */
@@ -685,6 +696,10 @@ class PaidVoteService
             } catch (\Throwable $e) {
                 error_log('[paid-vote] supporter not thanked on order ' . (int) $don->id . ': ' . $e->getMessage());
             }
+
+            // The order came through a "bring your people" link: one more person for it.
+            // Best-effort, like the thanks above; it moves no vote.
+            try { VoteRecruit::creditPaid((int) $don->id); } catch (\Throwable) {}
 
             return ['ok' => true, 'minted' => $qty];
         });

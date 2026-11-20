@@ -1,0 +1,19 @@
+{#
+  What the budget should reach (Services\Ads\AdPlanner::forecast): LinkedIn's forecasted
+  results and Meta's estimated daily results, from this site's own measurements. Drawn on
+  load and redrawn by the builder from POST /account/ads/check. It says when the places
+  cannot take the whole budget BEFORE anybody pays, rather than in the refund.
+#}
+{% if fc.paid %}
+  {% if forecast %}
+  <p class="am-fc__h">{% if fc.objective == 'awareness' %}{{ 'About %v% views over %d% days, and %c% visits to your page.'|trans({'%v%': forecast.views|number_format, '%d%': fc.days, '%c%': forecast.visits|number_format}) }}{% else %}{{ 'About %c% visits to your page over %d% days, from %v% views.'|trans({'%v%': forecast.views|number_format, '%d%': fc.days, '%c%': forecast.visits|number_format}) }}{% endif %}</p>
+  <p class="am-note">{{ 'Roughly %n% views a day. An estimate from what these places drew and how often people tapped ads there, not a promise.'|trans({'%n%': forecast.daily_views|number_format}) }}{% if forecast.assumed %} {{ 'Some of them are new, so the site’s average click rate stands in until they have their own.'|trans }}{% endif %}{% if forecast.unknown_supply %} {{ 'Some are too new to know how many readers they have, so it assumes the budget can be spent.'|trans }}{% endif %}</p>
+  {% if fc.short %}
+  <p class="am-note am-fc__short">{{ 'These places can take about %s% of it in %d% days. The rest, %u%, would come back to you with its VAT. Choose more places or more days to use it all.'|trans({'%s%': fc.spend_label, '%d%': fc.days, '%u%': fc.unspent_label}) }}</p>
+  {% endif %}
+  {% elseif fc.places == 0 %}
+  <p class="am-note">{{ 'Choose where it runs to see what the budget should reach.'|trans }}</p>
+  {% else %}
+  <p class="am-note">{{ 'Enter a budget of ₦%m% or more to see what it should reach.'|trans({'%m%': fc.min|number_format}) }}</p>
+  {% endif %}
+{% endif %}

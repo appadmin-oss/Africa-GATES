@@ -116,6 +116,12 @@ final class SupportController
         // lookup a guest is not entitled to, or for nothing — and the button would then
         // have shown a work card for a repair that never ran.
         $check = trim((string) ($b['check'] ?? ''));
+        // A message that IS a reference — somebody pasted it, as the desk asks them to — is
+        // the same request. Sent to the planner instead, it came back as a paragraph about
+        // the reference rather than the repair's own one sentence.
+        if ($check === '' && preg_match('/^AFG-[A-Za-z0-9_\-]{4,116}$/i', trim((string) ($b['message'] ?? '')))) {
+            $check = trim((string) $b['message']);
+        }
         if ($check !== '') {
             if (!preg_match(self::CHECK_REF, $check)) {
                 return $this->json($res, ['ok' => false,
