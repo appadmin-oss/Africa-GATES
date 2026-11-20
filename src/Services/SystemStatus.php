@@ -1019,27 +1019,53 @@ final class SystemStatus
      * The old check asked whether a secret key was SET, which is true of a revoked key, a
      * typo'd key, and a key belonging to somebody else's account. This asks whether recent
      * payments worked — which is the question, and which no environment variable can answer.
+     *
+     * ── AN ABANDONED CHECKOUT IS NOT A FAILED PAYMENT ────────────────────────
+     *
+     * This divided confirmed rows by EVERY row started in six hours. A row is written the
+     * moment somebody presses Pay, before the gateway's page even opens, so everybody who
+     * looked at the price and closed the tab counted as a payment that "did not complete" —
+     * and on a voting night most checkouts end that way. Ordinary drop-off alone put the
+     * public status page at "Payments are failing", in front of the people deciding whether
+     * to pay, about a gateway that was working perfectly.
+     *
+     * So only a VERDICT counts:
+     *   · confirmed — the gateway took the money;
+     *   · failed with no `expired_at` — the gateway declined it, or refused to start the
+     *     checkout at all (an invalid key, a currency it will not take): payment not working.
+     * Left out, because nothing there says payment is broken:
+     *   · pending — still on the gateway's page, or gone;
+     *   · failed WITH `expired_at` — our own write-off of a checkout nobody finished
+     *     ({@see PaymentReconciler}: time decided it, not a gateway).
+     *
+     * A gateway that is truly down still shows: the checkout will not start (failed, no
+     * expiry), or the bank declines (failed) — both verdicts, both counted. A stall where
+     * money is taken and nobody is told is the callbacks alert's job, not this one's.
      */
     private static function payments(): array
     {
         $since = Carbon::now()->subHours(6)->toDateTimeString();
 
         try {
+            $tomb = \AfricaGates\Support\SchemaHas::column('gates_donations', 'expired_at');
             $rows = DB::table('gates_donations')
                 ->where('created_at', '>=', $since)
                 ->selectRaw("COUNT(*) n, "
-                    . "SUM(CASE WHEN status = 'confirmed' THEN 1 ELSE 0 END) ok")
+                    . "SUM(CASE WHEN status = 'confirmed' THEN 1 ELSE 0 END) ok, "
+                    . "SUM(CASE WHEN status = 'failed'" . ($tomb ? ' AND expired_at IS NULL' : '') . " THEN 1 ELSE 0 END) bad")
                 ->first();
         } catch (\Throwable) {
             return self::component('Payments', 'Donations, tickets and paid votes',
                 self::UNKNOWN, 'We could not check recent payments.');
         }
 
-        $n  = (int) ($rows->n ?? 0);
-        $ok = (int) ($rows->ok ?? 0);
+        $started = (int) ($rows->n ?? 0);
+        $ok      = (int) ($rows->ok ?? 0);
+        $bad     = (int) ($rows->bad ?? 0);
+        $n       = $ok + $bad;   // the payments a gateway gave a verdict on
 
-        // No attempts in six hours is not a fault. Most of the day, on most days, nobody is
-        // paying — and reporting that as a problem would train everybody to ignore the page.
+        // No verdicts in six hours is not a fault. Most of the day nobody is paying, and a
+        // checkout opened and closed is somebody deciding not to — neither is the gateway's.
         if ($n === 0) {
             // Quiet is not broken — but a quiet page with NO provider configured is, and
             // those are different sentences. `enabledProviderIds()` is the same list the
@@ -1051,29 +1077,34 @@ final class SystemStatus
 
             return $configured !== []
                 ? self::component('Payments', 'Donations, tickets and paid votes', self::OK,
-                    '', 'no payments in the last six hours')
+                    '', $started > 0 ? $started . ' checkout' . ($started === 1 ? '' : 's') . ' started, none finished yet' : 'no payments in the last six hours')
                 : self::component('Payments', 'Donations, tickets and paid votes', self::DOWN,
                     'No payment provider is set up, so nothing can be paid for right now.');
         }
 
         $pct = (int) round($ok * 100 / max(1, $n));
+        // Two declines are two people's banks, not an outage: judge a rate only on enough of them.
+        if ($n < 5) {
+            return self::component('Payments', 'Donations, tickets and paid votes', self::OK,
+                '', $ok . ' of ' . $n . ' went through');
+        }
 
         if ($pct < 40) {
             return self::component('Payments', 'Donations, tickets and paid votes', self::DOWN,
                 'Payments are failing. If you have been charged and it did not go through, '
                 . 'nothing is lost — write to us and we will return it.',
-                $pct . '% completing');
+                $pct . '% going through');
         }
 
         if ($pct < 75) {
             return self::component('Payments', 'Donations, tickets and paid votes', self::DEGRADED,
                 'Some payments are not completing. If yours fails, do not try repeatedly — '
                 . 'write to us instead.',
-                $pct . '% completing');
+                $pct . '% going through');
         }
 
         return self::component('Payments', 'Donations, tickets and paid votes', self::OK,
-            '', $pct . '% completing');
+            '', $pct . '% going through');
     }
 
     private static function mail(): array

@@ -254,6 +254,37 @@ final class SystemStatusTest extends TestCase
             'somebody whose card was charged needs to be told what happens to the money');
     }
 
+    /**
+     * A checkout somebody opened and closed is not a payment that failed.
+     *
+     * Owner, 13 Nov 2026: "the site sees abandonment as payment not working". Every row is
+     * written when Pay is pressed, so dividing confirmed by rows started read ordinary
+     * drop-off — most checkouts on a voting night — as "Payments are failing" on the public
+     * status page. Only the gateway's verdicts count: confirmed, or declined/refused to start.
+     */
+    public function test_abandoned_checkouts_are_not_payments_failing(): void
+    {
+        DB::table('gates_donations')->truncate();
+        $row = static fn (int $i, string $status, ?string $expired = null) => DB::table('gates_donations')->insert([
+            'donor_name' => 'Supporter ' . $i, 'donor_email' => 'd' . $i . '@example.test', 'amount_naira' => 5000,
+            'status' => $status, 'payment_ref' => 'AFG-ABND-' . $i, 'expired_at' => $expired,
+            'created_at' => date('Y-m-d H:i:s', strtotime('-30 minutes')),
+        ]);
+        $i = 0;
+        for ($k = 0; $k < 6; $k++) $row($i++, 'confirmed');
+        for ($k = 0; $k < 40; $k++) $row($i++, 'pending');                                   // still on the gateway page, or gone
+        for ($k = 0; $k < 30; $k++) $row($i++, 'failed', date('Y-m-d H:i:s'));               // our write-off of a checkout nobody finished
+
+        $c = $this->componentSaying(SystemStatus::report(), 'Payments');
+        $this->assertSame(SystemStatus::OK, $c['status'], '6 of 6 verdicts went through; 70 people simply did not pay');
+        $this->assertStringNotContainsString('failing', strtolower((string) $c['detail']));
+
+        // And a real decline still counts: the gateway saying no IS payment not working.
+        for ($k = 0; $k < 20; $k++) $row($i++, 'failed');
+        $this->assertSame(SystemStatus::DOWN, $this->componentSaying(SystemStatus::report(), 'Payments')['status'],
+            '6 of 26 verdicts went through');
+    }
+
     public function test_healthy_payments_are_reported_as_working(): void
     {
         DB::table('gates_donations')->truncate();

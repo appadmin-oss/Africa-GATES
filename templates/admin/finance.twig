@@ -183,9 +183,9 @@
             <div class="fi-kpi__s">{{ totals.refunded_count|number_format }} reversed · already excluded above</div>
           </div>
           <div class="fi-kpi">
-            <div class="fi-kpi__l">Failed attempts</div>
+            <div class="fi-kpi__l">Declined</div>
             <div class="fi-kpi__v">{{ totals.failed_count|number_format }}</div>
-            <div class="fi-kpi__s">Declined or abandoned at the gateway</div>
+            <div class="fi-kpi__s">The gateway or bank said no{% if totals.left_count|default(0) %} · {{ totals.left_count|number_format }} more left the checkout without paying{% endif %}</div>
           </div>
         </div>
 

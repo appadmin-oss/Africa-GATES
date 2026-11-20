@@ -154,7 +154,7 @@ final class FinanceService
      * event registrations have no such state to be in.
      *
      * @return array{confirmed:int, transactions:int, pending:int, pending_count:int,
-     *               failed_count:int, refunded:int, refunded_count:int, average:int}
+     *               failed_count:int, left_count:int, refunded:int, refunded_count:int, average:int}
      */
     public static function totals(?string $since = null, ?string $until = null): array
     {
@@ -162,15 +162,22 @@ final class FinanceService
         $confirmed = array_sum(array_column($by, 'gross'));
         $count     = array_sum(array_column($by, 'count'));
 
-        $pending = 0; $pendingCount = 0; $failed = 0;
+        $pending = 0; $pendingCount = 0; $failed = 0; $left = 0;
         try {
             $q = DB::table('gates_donations')->where('status', 'pending');
             self::window($q, 'created_at', $since, $until);
             $r = $q->selectRaw('COALESCE(SUM(amount_naira),0) AS gross, COUNT(*) AS n')->first();
             $pending += (int) ($r->gross ?? 0); $pendingCount += (int) ($r->n ?? 0);
 
+            // A DECLINE is the gateway saying no; a checkout nobody finished, which the
+            // reconciler writes off as failed WITH `expired_at`, is somebody deciding not to
+            // pay. Counted apart: lumped together, ordinary drop-off read as payments failing.
             $q = DB::table('gates_donations')->where('status', 'failed');
             self::window($q, 'created_at', $since, $until);
+            if (\AfricaGates\Support\SchemaHas::column('gates_donations', 'expired_at')) {
+                $left += (int) (clone $q)->whereNotNull('expired_at')->count();
+                $q->whereNull('expired_at');
+            }
             $failed += (int) ($q->count());
         } catch (\Throwable) {}
         try {
@@ -198,6 +205,7 @@ final class FinanceService
             'pending'        => $pending,
             'pending_count'  => $pendingCount,
             'failed_count'   => $failed,
+            'left_count'     => $left,
             'refunded'       => $refunded,
             'refunded_count' => $refundedCount,
             'average'        => $count > 0 ? (int) round($confirmed / $count) : 0,

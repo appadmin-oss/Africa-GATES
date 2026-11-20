@@ -234,26 +234,46 @@ final class ConsoleAlerts
             },
 
             // ── money arrives and the gateway has gone quiet ─────────────────────
+            //
+            // This fired on checkouts still PENDING an hour after they started with no gateway
+            // event since — and said that many supporters "have paid". A pending checkout is,
+            // overwhelmingly, somebody who looked at the price and closed the tab; on a quiet
+            // evening nobody else pays, so no event arrives, and the console announced paid
+            // supporters missing their votes about people who never paid (owner, 13 Nov 2026:
+            // "the site sees abandonment as payment not working").
+            //
+            // The evidence that callbacks have stopped is payments CONFIRMING without them:
+            // the return page and the reconciliation sweep both confirm by asking the gateway,
+            // so a confirmed payment the gateway never called back about is proof the webhook
+            // is not arriving. Two of those, settled for a quarter of an hour, with no event
+            // since, is the alert. Pending rows are then shown as the people it may affect.
             'callbacks' => static function (): ?array {
-                $hour = Carbon::now()->subHour()->toDateTimeString();
-                $stuck = DB::table('gates_donations')->where('status', 'pending')
-                    ->where('created_at', '<', $hour)
-                    ->where('created_at', '>=', Carbon::now()->subDays(2)->toDateTimeString());
-                $n = (int) (clone $stuck)->count();
-                if ($n === 0) return null;
-                $oldest = (string) (clone $stuck)->min('created_at');
                 $h = \AfricaGates\Services\GatewayEventLog::health();
                 $last = (string) ($h['last_at'] ?? '');
-                if ($last !== '' && strtotime($last) >= strtotime($oldest)) return null;
+                $settled = Carbon::now()->subMinutes(15)->toDateTimeString();
+                $after = $last !== '' ? Carbon::parse($last)->addMinutes(15)->toDateTimeString() : '1970-01-01 00:00:00';
+                $silent = DB::table('gates_donations')->where('status', 'confirmed')
+                    ->whereNotNull('confirmed_at')
+                    ->where('confirmed_at', '>=', Carbon::now()->subDays(2)->toDateTimeString())
+                    ->where('confirmed_at', '<', $settled)
+                    ->where('confirmed_at', '>', $after);
+                $n = (int) (clone $silent)->count();
+                if ($n < 2) return null;
+                $oldest = (string) (clone $silent)->min('confirmed_at');
+                $pending = (int) DB::table('gates_donations')->where('status', 'pending')
+                    ->where('created_at', '<', Carbon::now()->subHour()->toDateTimeString())
+                    ->where('created_at', '>=', $oldest)->count();
                 return self::alert('callbacks', self::MEDIUM, 'Payment callbacks have gone quiet', 'Payments',
-                    'Payments are still pending here an hour after they started and the gateway has not called '
-                    . 'back since before the oldest of them. The money may be at the gateway; asking it settles each one.',
-                    [['Pending over an hour', (string) $n], ['Last gateway event', $last !== '' ? $last : 'never']],
+                    'Payments are confirming — the return page and the sweep asked the gateway — but the gateway itself '
+                    . 'has not called back about them. Its webhook is probably not reaching us, so a supporter who closes '
+                    . 'the page before it returns waits for the sweep instead of seeing their votes at once.',
+                    [['Confirmed with no callback', (string) $n], ['Last gateway event', $last !== '' ? $last : 'never'],
+                     ['Checkouts pending over an hour', (string) $pending]],
                     '/admin/payments', 'Ask the gateway', $oldest,
-                    'affects', $n . ' supporter' . ($n === 1 ? ' has' : 's have') . ' paid and may not yet see their votes or receipt.',
-                    ['Open Payments and press Ask the gateway on the pending rows.',
-                     'If the gateway confirms them, the votes are minted and receipts sent.',
-                     'If callbacks stay quiet, check the webhook URL in the gateway\'s dashboard.']);
+                    'may', 'Supporters who paid and left before the return page may wait for the next sweep to see their votes.',
+                    ['Check the webhook URL and secret in the gateway\'s dashboard.',
+                     'Open Payments and press Ask the gateway on any pending rows somebody is asking about.',
+                     'The alert resolves once the gateway calls back again.']);
             },
 
             // ── messages the platform tried to send and could not ───────────────
