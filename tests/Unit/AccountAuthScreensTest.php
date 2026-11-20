@@ -122,7 +122,7 @@ final class AccountAuthScreensTest extends TestCase
                 if ($variant === $path) return true;
                 if (!str_contains($variant, '{')) continue;
                 $rx = '';
-                foreach (preg_split('~(\{[^}]*\})~', $variant, -1, PREG_SPLIT_DELIM_CAPTURE) ?: [] as $bit) {
+                foreach (self::tokens($variant) as $bit) {
                     if (!str_starts_with($bit, '{')) { $rx .= preg_quote($bit, '~'); continue; }
                     $body  = substr($bit, 1, -1);
                     $colon = strpos($body, ':');
@@ -146,13 +146,14 @@ final class AccountAuthScreensTest extends TestCase
      */
     private static function expand(string $pattern): array
     {
-        if (!str_contains((string) preg_replace('~\{[^}]*\}~', '', $pattern), '[')) return [$pattern];
-
         $holes = [];
-        $masked = (string) preg_replace_callback('~\{[^}]*\}~', static function (array $m) use (&$holes): string {
-            $holes[] = $m[0];
-            return "\0" . (count($holes) - 1) . "\0";
-        }, $pattern);
+        $masked = '';
+        foreach (self::tokens($pattern) as $bit) {
+            if (!str_starts_with($bit, '{')) { $masked .= $bit; continue; }
+            $holes[] = $bit;
+            $masked .= "\0" . (count($holes) - 1) . "\0";
+        }
+        if (!str_contains($masked, '[')) return [$pattern];
 
         $forms = [$masked];
         // Innermost first, so a nested `[/a[/b]]` resolves without leftovers.
@@ -176,6 +177,33 @@ final class AccountAuthScreensTest extends TestCase
         }, $forms);
     }
 
+    /**
+     * A route pattern → its literal runs and its `{…}` placeholders, in order.
+     *
+     * Brace-BALANCED, because a constraint carries its own: `{token:[a-f0-9]{32}}`. Splitting
+     * on the first `}` cut that placeholder in half, the regex built from the halves failed to
+     * compile, and preg_match()'s `false` read as "does not serve" — so every ticket, alert
+     * and mail-hook route was silently left out of this sweep, the only sign a PHP warning.
+     *
+     * @return list<string>
+     */
+    private static function tokens(string $pattern): array
+    {
+        $out = []; $buf = ''; $depth = 0;
+        foreach (str_split($pattern) as $ch) {
+            if ($ch === '{') {
+                if ($depth === 0 && $buf !== '') { $out[] = $buf; $buf = ''; }
+                $depth++;
+            } elseif ($ch === '}' && $depth > 0) {
+                $depth--;
+                if ($depth === 0) { $out[] = $buf . '}'; $buf = ''; continue; }
+            }
+            $buf .= $ch;
+        }
+        if ($buf !== '') $out[] = $buf;
+        return $out;
+    }
+
     /** Strip Twig comments — a `{# … #}` reaches no reader, so it is not a link. */
     private static function stripComments(string $s): string
     {
@@ -193,6 +221,8 @@ final class AccountAuthScreensTest extends TestCase
         // segment reports the most-visited route on the site as a dead link.
         $this->assertTrue(self::serves('GET',  '/'), 'the homepage');
         $this->assertTrue(self::serves('GET',  '/admin/shop/codes'), 'a literal beside {id:[0-9]+}');
+        $this->assertTrue(self::serves('GET', '/events/ticket/AGT-ABCD1234/ticket.pdf'),
+            'a constraint with its own braces, {ref:[A-Za-z0-9\\-]{8,60}}');
         $this->assertTrue(self::serves('POST', '/account/login/otp'));
         // And it must say NO to something plausible that does not exist, or every
         // "the link resolves" assertion below is worthless.

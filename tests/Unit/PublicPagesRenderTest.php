@@ -138,6 +138,10 @@ final class PublicPagesRenderTest extends TestCase
         if (in_array($seg[1], ['results', 'edition', 'editions', 'cycle'], true)) array_unshift($tables, 'gates_award_cycles');
         foreach ($tables as $t) {
             try {
+                // Asked first, not caught: SQLite reads a double-quoted name it cannot resolve
+                // as a string literal, so a table with no such column answers rows WITHOUT the
+                // field and pluck() warns — the warning, not a test, is what failed the run.
+                if (!DB::schema()->hasColumn($t, $col)) continue;
                 $v = DB::table($t)->orderBy('id')->limit(2)->pluck($col)->filter()->all();
                 if ($v !== []) {
                     return array_map(static fn ($x) => (string) preg_replace('/\{[^{}]+(?:\{[^{}]*\}[^{}]*)*\}/', rawurlencode((string) $x), $p, 1), $v);
