@@ -293,12 +293,23 @@ final class CommunityReturnTarget
      */
     public static function art(string $subject, int $seed = 0, ?string $style = null): string
     {
-        $style ??= self::ART_STYLES[(self::minute() + abs($seed)) % 2];
-        static $dir = null;
-        $dir ??= dirname(__DIR__, 2) . '/public/assets/img/spark/';
-        foreach (['webp', 'png', 'jpg'] as $ext) {
-            if (is_file($dir . "$subject-$style.$ext")) return "/assets/img/spark/$subject-$style.$ext";
-        }
+        $dir = dirname(__DIR__, 2) . '/public/assets/img/spark/';
+        $supplied = static function (string $st) use ($dir, $subject): ?string {
+            foreach (['webp', 'png', 'jpg'] as $ext) {
+                if (is_file($dir . "$subject-$st.$ext")) return "/assets/img/spark/$subject-$st.$ext";
+            }
+            return null;
+        };
+        if ($style !== null) return $supplied($style) ?? "/assets/img/spark/$subject-$style.svg";
+
+        // A SUPPLIED PICTURE ALWAYS WINS (owner, 20 Nov 2026: "the assets I sent you are not
+        // seen"). The two styles used to alternate every minute whatever was on disk, so the
+        // owner's rocket gave way to the drawn one half the time. Now the drawings are only the
+        // fallback: where the owner supplied a picture for this subject in either style, that
+        // is what shows — alternating only between supplied pictures when both styles exist.
+        $have = array_values(array_filter(array_map($supplied, self::ART_STYLES)));
+        if ($have !== []) return $have[(self::minute() + abs($seed)) % count($have)];
+        $style = self::ART_STYLES[(self::minute() + abs($seed)) % 2];
         return "/assets/img/spark/$subject-$style.svg";
     }
 

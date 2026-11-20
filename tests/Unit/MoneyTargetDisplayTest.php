@@ -272,6 +272,16 @@ final class MoneyTargetDisplayTest extends TestCase
         $this->paid(7101, 6000);
         $this->assertStringContainsString('/spark/target-', Target::editionIn(Target::forPublic(71))['art'], 'past halfway is the target');
 
+        // A supplied picture always wins over a drawing: with only rocket-house supplied, the
+        // rocket is the owner's every minute, never alternating to the drawn rocket-bold.
+        $base = Carbon::now();
+        for ($m = 0; $m < 4; $m++) {
+            Carbon::setTestNow($base->copy()->addMinutes($m));
+            $this->assertSame('/assets/img/spark/rocket-house.webp', Target::art('rocket', $m), 'a drawing shown over the owner\'s picture');
+        }
+        Carbon::setTestNow();
+        $this->assertFileExists($dir . 'rocket-house.webp', 'the fixture this asserts against');
+
         // An AI-generated replacement, saved under the same name, is used in its place.
         $png = $dir . 'gift-bold.png';
         $this->assertFileDoesNotExist($png, 'a real generated file would be overwritten by this test');
