@@ -417,7 +417,22 @@
           </div>
           <p class="hint" style="margin:0">To <strong>move</strong> the date, set the new close later than the current one. To <strong>record an extension already made</strong> by editing the date, leave the new close at the current close and set the previous close to the date it was before.</p>
           <div><label for="xt-reason">Public reason <span class="hint" style="font-weight:400">{{ extension_reason_min }}–{{ extension_reason_max }} characters · shown to everyone</span></label>
-            <textarea name="reason" id="xt-reason" rows="3" minlength="{{ extension_reason_min }}" maxlength="{{ extension_reason_max }}" required placeholder="e.g. Verification codes were not delivered to many voters on 14 Nov because of an email provider outage."></textarea></div>
+            <textarea name="reason" id="xt-reason" rows="3" minlength="{{ extension_reason_min }}" maxlength="{{ extension_reason_max }}" required placeholder="e.g. Verification codes were not delivered to many voters on 14 Nov because of an email provider outage."></textarea>
+            <p class="hint" style="margin:4px 0 0">Say why. The card already says that votes cast stand, that rules and prices are unchanged and that the date is the same for every nominee — unless your reason says it first.</p></div>
+          {% if extension_companions|default([])|length %}
+          {#- The same extension, for other awards' live editions (VotingExtension::companions):
+              each becomes its own recorded extension with its own public notice. One already
+              moved to the new close by editing the date is RECORDED, with the previous close above. -#}
+          <fieldset style="border:0;padding:0;margin:0">
+            <legend style="font-weight:600;margin-bottom:4px">Also extend these editions <span class="hint" style="font-weight:400">same new close, same reason, each with its own public notice</span></legend>
+            {% for o in extension_companions %}
+            <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px">
+              <input type="checkbox" name="also[]" value="{{ o.id }}">
+              <span><strong>{{ o.programme }}</strong> · {{ o.label }} · closes {{ o.voting_close|when_zoned }}{% if o.extended %} · <em>already extended once</em>{% endif %}</span>
+            </label>
+            {% endfor %}
+          </fieldset>
+          {% endif %}
           <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px">
             <input type="checkbox" name="stop_paid" value="1" checked>
             <span><strong>Stop paid votes at the previous close</strong>. The extra time is free voting only. Orders already started still complete.</span>

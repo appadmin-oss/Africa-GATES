@@ -208,8 +208,6 @@ class VoteController {
             'champion'         => $spotlight['champion'] ?? null,
             'vote_price'       => $price,
             'paid_only'        => PaidVoteService::freeVotingDisabled(),
-            // A voting extension on this edition (VotingExtension), stated beside the close.
-            'extension'        => \AfricaGates\Services\VotingExtension::notice($cycleId),
             'page_title'       => $p['title'] . ' — Vote — Africa GATES',
             'meta_description' => 'Vote in ' . $p['title'] . ' — browse the nominees by category and back the African excellence you believe deserves continental recognition.',
             'gates_page'       => 'awards',
@@ -1030,9 +1028,8 @@ class VoteController {
             'phase'            => $phase,
             'voting_open'      => (bool) ($phase['is_voting_open'] ?? false),
             'paid_notice'      => $paidNotice,
-            // A voting extension on this edition (VotingExtension): the public notice, and —
-            // once its paid cutoff has passed — the sentence that replaces the paid option.
-            'extension'        => \AfricaGates\Services\VotingExtension::notice((int) $nom->cycle_id),
+            // Once a voting extension's paid cutoff has passed, the sentence that replaces the
+            // paid option. The extension itself is a row of the notice strip (VotingExtension::rows).
             'paid_ext_closed'  => \AfricaGates\Services\VotingExtension::paidClosedSentence((int) $nom->cycle_id),
             // Repopulates the buy-votes form after a bounce. Empty on a normal visit.
             'paid_retry'       => $retry,

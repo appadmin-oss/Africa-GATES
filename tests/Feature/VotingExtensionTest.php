@@ -365,7 +365,11 @@ final class VotingExtensionTest extends TestCase
 
     // ══ 5. the public notice ════════════════════════════════════════════════
 
-    public function test_the_vote_page_states_the_extension_and_escapes_the_reason(): void
+    /**
+     * The extension is ONE ROW OF THE NOTICE STRIP, not a card inside the page (owner, 20 Nov
+     * 2026: "use the announce feature, dismissable, and not crowd the whole interface").
+     */
+    public function test_the_extension_is_a_slim_dismissable_row_not_a_card_in_the_page(): void
     {
         DB::table('gates_settings')->insert(['key_name' => 'paid_voting_enabled', 'value' => '1']);
         $cycle = $this->seedCycle(['voting_close' => self::at('-1 hour')]);
@@ -376,26 +380,72 @@ final class VotingExtensionTest extends TestCase
         ], 1);
         $this->assertTrue($r['ok'], $r['error'] ?? '');
 
+        $_SESSION = [];
+        $rows = array_values(array_filter(\AfricaGates\Services\SiteNotice::forPage('/privacy'), fn ($n) => $n['kind'] === 'extension'));
+        $this->assertCount(1, $rows, 'the extension is a row of the strip on every page');
+        $this->assertSame(['Extension Award'], $rows[0]['awards']);
+        $this->assertSame('Extension Award', $rows[0]['which']);
+        $this->assertStringStartsWith('until ', $rows[0]['short']);
+        $this->assertTrue($rows[0]['dismiss']);
+        $this->assertCount(1, $rows[0]['paid']);
+        $this->assertStringStartsWith('Paid voting closed at ', $rows[0]['paid'][0]);
+
+        $html = \Tests\Support\ChromeRender::html('/privacy');
+        $this->assertStringContainsString('class="ag-notice ag-notice--extension"', $html);
+        $this->assertStringContainsString('Voting extended', $html);
+        $this->assertStringContainsString('&lt;script&gt;alert(1)&lt;/script&gt;', $html, 'the reason is escaped');
+        $this->assertStringNotContainsString('<script>alert(1)</script>', $html);
+        $this->assertStringContainsString('aria-label="Hide the voting extension notice"', $html);
+        // A marquee, to WCAG 2.2.2: its own pause control (no script needed), the moving copies
+        // hidden from screen readers, and the sentence once as text for them.
+        $this->assertStringContainsString('class="ag-tick"', $html);
+        $this->assertStringContainsString('aria-label="Pause the voting extension notice"', $html);
+        $this->assertMatchesRegularExpression('~<div class="ag-tick__track" aria-hidden="true"~', $html);
+        $this->assertMatchesRegularExpression('~<p class="ag-sr">Voting extended\. Voting now closes at [^<]*Extension Award\.~', $html);
+        $this->assertStringNotContainsString('ag-tick__more', $html, 'the expanding panel is back');
+
+        // Hidden once, gone from every page; and the vote page itself carries no card.
+        \AfricaGates\Services\SiteNotice::hide($rows[0]['id']);
+        $this->assertSame([], array_filter(\AfricaGates\Services\SiteNotice::forPage('/privacy'), fn ($n) => $n['kind'] === 'extension'));
         $builder = new \DI\ContainerBuilder();
         $builder->addDefinitions(require dirname(__DIR__, 2) . '/config/container.php');
         $vc = $builder->build()->get(\AfricaGates\Controllers\VoteController::class);
-        $req = (new ServerRequestFactory())->createServerRequest('GET', '/vote/extension-award');
-        $res = $vc->program($req, new Response(), ['program' => 'extension-award']);
-        $this->assertSame(200, $res->getStatusCode());
-        $html = (string) $res->getBody();
+        $page = (string) $vc->program((new ServerRequestFactory())->createServerRequest('GET', '/vote/extension-award'),
+            new Response(), ['program' => 'extension-award'])->getBody();
+        $this->assertStringNotContainsString('ag-xt', $page, 'the card that crowded the page is back');
+        $this->assertStringNotContainsString($reason, $page);
+    }
 
-        $from = DisplayTime::showZoned((string) $cycle->voting_close);
-        $this->assertStringContainsString('data-voting-extension', $html);
-        // The compact card (owner, 17 Nov 2026): the new close first, the old one beside it,
-        // then what did not change as three ticks.
-        $this->assertStringContainsString('Voting extended to ', $html);
-        $this->assertStringContainsString('(was ' . $from . ')', $html);
-        foreach (['Votes already cast stand', 'Rules and prices unchanged', 'Same date for every nominee'] as $tick) {
-            $this->assertStringContainsString($tick, $html, 'the card no longer says what did not change');
-        }
-        $this->assertStringContainsString('Paid voting closed at ' . $from . '; free voting stays open.', $html);
-        $this->assertStringContainsString('&lt;script&gt;alert(1)&lt;/script&gt;', $html, 'the reason is escaped');
-        $this->assertStringNotContainsString('<script>alert(1)</script>', $html);
+    public function test_awards_extended_together_share_one_row_and_a_finished_one_has_none(): void
+    {
+        $cycle = $this->seedCycle();
+        $prev = (string) $cycle->voting_close;
+        DB::table('gates_award_programmes')->insertOrIgnore(['id' => 232, 'slug' => 'second-award', 'title' => 'Second Award', 'is_active' => 1, 'sort_order' => 2]);
+        DB::table('gates_award_cycles')->insert(['id' => 232, 'programme_id' => 232, 'year' => (int) date('Y'), 'status' => 'voting',
+            'voting_open' => self::at('-30 days'), 'voting_close' => $prev]);
+        $this->post($prev, self::at('+9 days'), ['also' => ['232']]);
+
+        $rows = VotingExtension::rows();
+        $this->assertCount(1, $rows, 'one extension over two awards stacked two banners');
+        $this->assertSame(['Extension Award', 'Second Award'], $rows[0]['awards']);
+        $this->assertSame('2 awards', $rows[0]['which'], 'the closed row names a count, the names are inside');
+
+        // A third award recorded later, with a different paid cutoff, joins the same row
+        // rather than starting a banner of its own; its cutoff is stated by name.
+        DB::table('gates_settings')->insert(['key_name' => 'paid_voting_enabled', 'value' => '1']);
+        DB::table('gates_award_programmes')->insertOrIgnore(['id' => 233, 'slug' => 'third-award', 'title' => 'Third Award', 'is_active' => 1, 'sort_order' => 3]);
+        DB::table('gates_award_cycles')->insert(['id' => 233, 'programme_id' => 233, 'year' => (int) date('Y'), 'status' => 'voting',
+            'voting_open' => self::at('-30 days'), 'voting_close' => self::at('+9 days')]);
+        $third = DB::table('gates_award_cycles')->where('id', 233)->first();
+        $this->assertTrue(VotingExtension::extend($third, ['previous_close' => DisplayTime::forInput(self::at('-2 hours')),
+            'new_close' => DisplayTime::forInput((string) $third->voting_close), 'reason' => self::REASON, 'stop_paid' => true], 1)['ok']);
+        $rows = VotingExtension::rows();
+        $this->assertCount(1, $rows, 'a different paid cutoff split one announcement into two banners');
+        $this->assertCount(3, $rows[0]['awards']);
+        $this->assertStringContainsString('Third Award: Paid voting', implode(' ', $rows[0]['paid']));
+
+        // Once the extended voting is over, there is nothing left to announce.
+        $this->assertSame([], VotingExtension::rows(\Illuminate\Support\Carbon::now()->addDays(10)));
     }
 
     public function test_an_edition_without_an_extension_has_no_notice(): void
@@ -403,5 +453,100 @@ final class VotingExtensionTest extends TestCase
         $this->seedCycle();
         $this->assertNull(VotingExtension::notice(self::CYCLE));
         $this->assertNull(VotingExtension::paidCutoffForCategory(self::CAT));
+    }
+
+    // ══ 5. the announcement says what it means, once, on every award it applies to ═══════
+
+    /** A close at 00:00 is the end of the day before, and the card says so (owner, 20 Nov 2026). */
+    public function test_a_midnight_close_reads_as_the_end_of_the_day_before(): void
+    {
+        $zone = new \DateTimeZone(DisplayTime::zone());
+        $mid = static fn (string $d): string => (new \DateTimeImmutable($d . ' 00:00:00', $zone))
+            ->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:s');
+        $prev = $mid(date('Y-m-d', strtotime('+1 day')));
+        $new  = $mid(date('Y-m-d', strtotime('+10 days')));
+        $this->seedCycle(['voting_close' => $prev]);
+        $this->post($prev, $new);
+
+        $n = VotingExtension::notice(self::CYCLE);
+        $dayBefore = (new \DateTimeImmutable(date('Y-m-d', strtotime('+9 days')), $zone))->format('D j M Y');
+        $this->assertSame('the end of ' . $dayBefore . ' (midnight ' . DisplayTime::abbr() . ')', $n['to'],
+            'a midnight close named the next day, promising a day of voting that does not exist');
+        $this->assertStringStartsWith('the end of ', $n['from']);
+        $this->assertStringNotContainsString('00:00', $n['to'] . $n['from']);
+        // Any other time is written as before.
+        $this->assertSame(DisplayTime::showZoned(self::at('+1 day 14:30')), DisplayTime::showClose(self::at('+1 day 14:30')));
+    }
+
+    public function test_the_card_does_not_repeat_what_the_reason_already_says(): void
+    {
+        $this->assertSame([], VotingExtension::ticks('Several nominees heard late. Voting is extended for every nominee '
+            . 'in every category equally. Every vote already cast stands, and the rules and prices are unchanged.'),
+            'every tick restated the operator\'s own words directly beneath them');
+        $this->assertSame(['Prices unchanged'], VotingExtension::ticks('Every vote already cast stands, the rules are unchanged, every nominee equally.'),
+            'rules said, prices not: the prices still have to be said');
+        $this->assertSame(['Votes already cast stand', 'Rules and prices unchanged', 'Same date for every nominee'],
+            VotingExtension::ticks(self::REASON), 'a reason that says none of it gets all three');
+    }
+
+    /** Moving the close later on the edition form once voting has opened is refused (ABA and ACA, live). */
+    public function test_the_edition_form_cannot_extend_voting_silently(): void
+    {
+        $cycle = $this->seedCycle();
+        $save = function (string $closeStored) use ($cycle) {
+            $builder = new \DI\ContainerBuilder();
+            $builder->addDefinitions(require dirname(__DIR__, 2) . '/config/container.php');
+            $c = $builder->build()->get(\AfricaGates\Admin\Controllers\ProgrammesController::class);
+            $body = ['_token' => 'tok', 'cycle_id' => self::CYCLE, 'year' => $cycle->year, 'status' => 'voting',
+                     'voting_open' => DisplayTime::forInput((string) $cycle->voting_open), 'voting_close' => DisplayTime::forInput($closeStored)];
+            $req = (new ServerRequestFactory())->createServerRequest('POST', '/admin/programmes/' . self::PROG . '/cycle')->withParsedBody($body);
+            unset($_SESSION['flash_error'], $_SESSION['flash_ok']);
+            return $c->cycleSave($req, new Response(), ['id' => (string) self::PROG]);
+        };
+        $before = $this->close();
+        $res = $save(self::at('+9 days'));
+        $this->assertSame($before, $this->close(), 'the close moved later with no extension on record');
+        $this->assertStringContainsString('Extend voting', (string) ($_SESSION['flash_error'] ?? ''));
+        $this->assertStringContainsString('#extend', $res->getHeaderLine('Location'));
+        $this->assertSame([], $this->rows());
+
+        // An earlier close is not an extension, and stays the operator's to set.
+        $save(self::at('+12 hours'));
+        $this->assertNotSame($before, $this->close());
+        $this->assertArrayNotHasKey('flash_error', $_SESSION);
+    }
+
+    /** One extension, applied to other awards' editions — moved, or recorded where already moved. */
+    public function test_one_extension_can_cover_other_awards_and_each_gets_its_notice(): void
+    {
+        $cycle = $this->seedCycle();
+        $prev = (string) $cycle->voting_close;
+        $new  = self::at('+9 days');
+        // Two other awards, live: one still on the old close, one already moved by editing the date.
+        foreach ([[232, 'second-award', $prev], [233, 'third-award', $new]] as [$id, $slug, $close]) {
+            DB::table('gates_award_programmes')->insertOrIgnore(['id' => $id, 'slug' => $slug, 'title' => ucfirst($slug), 'is_active' => 1, 'sort_order' => 2]);
+            DB::table('gates_award_cycles')->insert(['id' => $id, 'programme_id' => $id, 'year' => (int) date('Y'), 'status' => 'voting',
+                'voting_open' => self::at('-30 days'), 'voting_close' => $close]);
+        }
+        $ids = array_column(VotingExtension::companions(self::CYCLE), 'id');
+        sort($ids);
+        $this->assertSame([232, 233], $ids, 'a live edition of another award was not offered');
+
+        $this->post($prev, $new, ['also' => ['232', '233', '999']]);
+
+        foreach ([self::CYCLE, 232, 233] as $id) {
+            $this->assertNotNull(VotingExtension::notice($id), "edition $id has no public notice");
+            $this->assertSame(
+                \Illuminate\Support\Carbon::parse($new)->toDateTimeString(),
+                \Illuminate\Support\Carbon::parse((string) DB::table('gates_award_cycles')->where('id', $id)->value('voting_close'))->toDateTimeString());
+        }
+        $this->assertSame(VotingExtension::MODE_MOVED, VotingExtension::latest(232)->mode);
+        $this->assertSame(VotingExtension::MODE_RECORDED, VotingExtension::latest(233)->mode, 'the one already moved is recorded, not moved again');
+        $this->assertSame(\Illuminate\Support\Carbon::parse($prev)->toDateTimeString(),
+            \Illuminate\Support\Carbon::parse((string) VotingExtension::latest(233)->previous_close)->toDateTimeString(),
+            'the recorded one takes the previous close typed on the form');
+        $this->assertSame(self::REASON, VotingExtension::latest(232)->reason);
+        $this->assertStringContainsString('Also:', (string) ($_SESSION['flash_ok'] ?? ''));
+        $this->assertNull(VotingExtension::latest(999), 'an id that is not a live edition was acted on');
     }
 }

@@ -149,7 +149,10 @@ final class HolidayThemeTest extends TestCase
 
     public function test_the_account_frame_draws_it_with_a_dismiss_that_posts(): void
     {
-        $this->window('womens-day', date('Y-m-d'), date('Y-m-d'));
+        // Today in the DISPLAY zone, as HolidayTheme reads it. date() is the process zone (UTC),
+        // so from 23:00 UTC this built yesterday's window and the test failed every night.
+        $today = \Illuminate\Support\Carbon::now()->setTimezone(\AfricaGates\Support\DisplayTime::zone())->toDateString();
+        $this->window('womens-day', $today, $today);
         $_SESSION['user_id'] = $_SESSION['member_id'] = $_SESSION['account_id'] = $this->uid;
         $b = new \DI\ContainerBuilder();
         $b->addDefinitions(dirname(__DIR__, 2) . '/config/container.php');

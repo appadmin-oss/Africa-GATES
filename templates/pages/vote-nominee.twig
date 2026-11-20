@@ -94,7 +94,6 @@
 
   <div class="vb__body">
   {% if ctx.paid_notice %}<p class="vb-alert" role="alert">{{ ctx.paid_notice }}</p>{% endif %}
-  {% include 'partials/voting-extension.twig' with {x: ctx.extension, cls: 'vb-points vb-points--note'} only %}
 
   {% if not ctx.open %}
     {# A phase-specific closed state, with a way back, and no form at all. #}
@@ -337,7 +336,7 @@
    paid: _paid, paid_sentence: paid_sentence, vote_price: vote_price, max_qty: max_qty, vote_tiers: vote_tiers, tiers: tier_prices,
    retry: paid_retry, member: member, providers: pay_providers, wallet: wallet_sources|default([]), msg_max: msg_max, terms: terms, free: _free, confirmed: vote_confirmed, offer_url: offer_url, recruit: recruit, cheer: cheer, follow: follow_msg,
    ts: _ts, ts_key: turnstile_site_key, url: '/vote/' ~ n.programme_slug ~ '/' ~ n.id,
-   extension: extension|default(null), paid_ext_closed: _paid_ext_closed ? paid_ext_closed : null} %}
+   paid_ext_closed: _paid_ext_closed ? paid_ext_closed : null} %}
 
 {% block content %}
 {# "Recently viewed" (search.js): this page's name for the search palette, on this device. #}

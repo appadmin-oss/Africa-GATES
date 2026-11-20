@@ -145,15 +145,150 @@ final class VotingExtension
         $last  = $all[count($all) - 1];
         $cut   = self::at($last->paid_cutoff_at ?? null);
 
+        $reasons = array_values(array_map(static fn (object $r): string => (string) $r->reason, $all));
         return [
-            'from'               => DisplayTime::showZoned((string) $first->previous_close),
-            'to'                 => DisplayTime::showZoned((string) $last->new_close),
-            'reasons'            => array_values(array_map(static fn (object $r): string => (string) $r->reason, $all)),
+            // Closing times, so a midnight close reads as the end of the day before rather than
+            // as a day of voting nobody has (DisplayTime::showClose).
+            'from'               => DisplayTime::showClose((string) $first->previous_close, false),
+            'to'                 => DisplayTime::showClose((string) $last->new_close),
+            'reasons'            => $reasons,
+            'ticks'              => self::ticks(implode(' ', $reasons)),
             'count'              => count($all),
-            'paid_cutoff'        => $cut ? DisplayTime::showZoned($cut->toDateTimeString()) : null,
+            'paid_cutoff'        => $cut ? DisplayTime::showClose($cut->toDateTimeString()) : null,
             'paid_cutoff_passed' => $cut !== null && ($now ?? Carbon::now())->gte($cut),
             'paid_on'            => PaidVoteService::enabled(),
         ];
+    }
+
+    /**
+     * The extension as ROWS FOR THE ANNOUNCEMENT STRIP (SiteNotice) — owner, 20 Nov 2026: "the
+     * extension should use the announce feature, dismissable, and not crowd the whole
+     * interface". It was a card inside every voting page, the results page and the award page.
+     *
+     * One row per announcement: editions extended to the same close for the same reason (one
+     * extension applied to several awards) share a row naming the awards, so three awards do
+     * not stack three banners. Only while the extended voting is still running, and only for
+     * active programmes (the sandbox's is inactive). The id is the content, so a further
+     * extension shows again to somebody who hid the first.
+     *
+     * @return list<array{kind:string,id:string,dismiss:bool,to:string,short:string,which:string,awards:list<string>,reasons:list<string>,ticks:list<string>,paid:list<string>}>
+     */
+    public static function rows(?Carbon $now = null): array
+    {
+        if (!self::available()) return [];
+        $now = $now ?? Carbon::now();
+        try {
+            $cycles = DB::table('gates_award_cycles as c')->join('gates_award_programmes as p', 'p.id', '=', 'c.programme_id')
+                ->where('p.is_active', 1)->whereNotNull('c.voting_close')
+                ->whereIn('c.id', DB::table(self::TABLE)->select('cycle_id'))
+                ->orderBy('p.title')->get(['c.id', 'c.voting_close', 'p.title']);
+        } catch (\Throwable) {
+            return [];
+        }
+        $groups = [];
+        foreach ($cycles as $c) {
+            $close = self::at($c->voting_close);
+            if ($close === null || $now->gte($close)) continue;           // over: nothing left to announce
+            $n = self::notice((int) $c->id, $now);
+            if ($n === null) continue;
+            // Grouped on what the public reads first, the new close and the reason. A paid cutoff
+            // a few minutes apart (one award extended before the old close, another recorded
+            // after it) must not split one announcement into two banners; it is stated per
+            // award inside the row instead.
+            $key = $n['to'] . '|' . implode('|', $n['reasons']);
+            $groups[$key] ??= ['n' => $n, 'awards' => [], 'paid' => [], 'close' => (string) $c->voting_close];
+            $groups[$key]['awards'][] = (string) $c->title;
+            if ($n['paid_cutoff'] && $n['paid_on']) {
+                $groups[$key]['paid'][(string) $c->title] = $n['paid_cutoff_passed']
+                    ? Translator::t('Paid voting closed at %c%; free voting stays open.', ['%c%' => $n['paid_cutoff']])
+                    : Translator::t('Paid voting closes at %c%; free voting stays open until %t%.', ['%c%' => $n['paid_cutoff'], '%t%' => $n['to']]);
+            }
+        }
+        $out = [];
+        foreach ($groups as $key => $g) {
+            $n = $g['n'];
+            // One sentence when every award says the same; otherwise each award its own.
+            $distinct = array_values(array_unique($g['paid']));
+            $paid = count($distinct) <= 1 ? $distinct
+                : array_values(array_map(static fn (string $award, string $line): string => $award . ': ' . $line,
+                                         array_keys($g['paid']), $g['paid']));
+            // The closed row has to fit a phone in two lines, so it carries the short form (no
+            // year, no zone) and a count of awards; the exact time and the names are inside.
+            $close = self::at($g['close']);
+            $short = $close === null ? $n['to'] : (DisplayTime::show($g['close'], 'H:i:s') === '00:00:00'
+                ? Translator::t('until the end of %d%', ['%d%' => DisplayTime::show($close->copy()->subDay()->toDateTimeString(), 'D j M')])
+                : Translator::t('until %d%', ['%d%' => DisplayTime::show($g['close'], 'D j M, H:i')]));
+            $count = count($g['awards']);
+            $out[] = ['kind' => 'extension', 'dismiss' => true, 'id' => 'x' . substr(sha1($key . '|' . implode(',', $g['awards'])), 0, 12),
+                      'to' => $n['to'], 'short' => $short,
+                      'which' => $count === 1 ? $g['awards'][0] : Translator::t('%n% awards', ['%n%' => $count]),
+                      'awards' => $g['awards'], 'reasons' => $n['reasons'], 'ticks' => $n['ticks'], 'paid' => $paid];
+        }
+        return $out;
+    }
+
+    /**
+     * The card's "what did not change" ticks, LESS what the reason already says.
+     *
+     * The ticks were drawn under every reason, and an operator's reason naturally says the
+     * same things ("every vote already cast stands, and the rules are unchanged … for every
+     * nominee equally"), so the card stated them twice, one under the other. A tick is shown
+     * only when the reason does not already make its point; together they always say all
+     * three. Phrase checks, not understanding: a reason that says it some other way gets the
+     * tick as well, which is repetition, never an omission.
+     *
+     * @return list<string> the tick sentences to draw, untranslated (the template passes |trans)
+     */
+    public static function ticks(string $reason): array
+    {
+        $r = mb_strtolower($reason);
+        $out = [];
+        if (!preg_match('/already cast|cast so far|votes? (?:cast )?(?:still )?stands?|stand(?:s)? as cast/u', $r)) {
+            $out[] = 'Votes already cast stand';
+        }
+        $rules  = (bool) preg_match('/rules?\b[^.]{0,40}\b(?:unchanged|the same|stay)|(?:unchanged|same)\b[^.]{0,20}\brules?\b/u', $r);
+        $prices = (bool) preg_match('/prices?\b[^.]{0,40}\b(?:unchanged|the same|stay)|(?:unchanged|same)\b[^.]{0,20}\bprices?\b/u', $r);
+        if (!$rules && !$prices) $out[] = 'Rules and prices unchanged';
+        elseif ($rules && !$prices) $out[] = 'Prices unchanged';
+        elseif (!$rules && $prices) $out[] = 'Rules unchanged';
+        if (!preg_match('/every nominee|all nominees|each nominee|equally|every category|all categories/u', $r)) {
+            $out[] = 'Same date for every nominee';
+        }
+        return $out;
+    }
+
+    /**
+     * The other editions one extension can be applied to at the same time, from any award:
+     * those whose voting has opened, whose results are not released, and which have a close
+     * date. An extension is per edition by construction ({@see extend()}), so an announcement
+     * meant for "every nominee in every category" across several awards used to need the form
+     * once per award — and the editions an operator moved by editing the date instead were
+     * left with a later close and no notice at all (ABA and ACA, live, 20 Nov 2026).
+     *
+     * @return list<object{id:int,programme:string,label:string,voting_close:string}>
+     */
+    public static function companions(int $cycleId, ?Carbon $now = null): array
+    {
+        $now = $now ?? Carbon::now();
+        try {
+            $rows = DB::table('gates_award_cycles as c')->join('gates_award_programmes as p', 'p.id', '=', 'c.programme_id')
+                ->where('c.id', '!=', $cycleId)->whereNotNull('c.voting_close')->whereNotNull('c.voting_open')
+                ->where('p.is_active', 1)
+                ->orderBy('p.title')->get(['c.*', 'p.title as programme_title']);
+        } catch (\Throwable) {
+            return [];
+        }
+        $out = [];
+        foreach ($rows as $c) {
+            $open = self::at($c->voting_open);
+            if ($open === null || $now->lt($open)) continue;
+            $phase = CyclePolicy::phaseFor($c, $now);
+            if (in_array($phase, [CyclePhase::Results, CyclePhase::Archived], true)) continue;
+            $out[] = (object) ['id' => (int) $c->id, 'programme' => (string) $c->programme_title,
+                               'label' => trim((string) ($c->edition_label ?? '')) ?: (string) $c->year,
+                               'voting_close' => (string) $c->voting_close, 'extended' => self::latest((int) $c->id) !== null];
+        }
+        return $out;
     }
 
     /**

@@ -521,6 +521,8 @@ class ProgrammesController
             'extensions_ready' => \AfricaGates\Services\VotingExtension::available(),
             'extension_reason_min' => \AfricaGates\Services\VotingExtension::REASON_MIN,
             'extension_reason_max' => \AfricaGates\Services\VotingExtension::REASON_MAX,
+            // Other live editions the same extension can be applied to, from any award.
+            'extension_companions' => $cycle ? \AfricaGates\Services\VotingExtension::companions((int) $cycle->id) : [],
             // Is this edition ready for its next phase? Computed from its own rows; not shown
             // once the edition is finished, where every item is history rather than a task.
             'readiness'  => $cycle && !($phase['is_finished'] ?? false) ? \AfricaGates\Services\EditionReadiness::for($cycle) : [],
@@ -606,26 +608,64 @@ class ProgrammesController
             $_SESSION['flash_error'] = $r['error'];
             return $res->withHeader('Location', $back)->withStatus(303);
         }
+        $this->auditExtension($adminId, (int) $cycle->id, $r);
 
-        $this->audit->record($adminId > 0 ? $adminId : null, 'cycle.voting_extended', 'cycle', (int) $cycle->id, [
-            'extension_id' => $r['id'],
-            'mode'         => $r['mode'],
-            'before'       => $r['before'],
-            'after'        => $r['after'],
-            'previous_close' => $r['row']['previous_close'],
-            'new_close'    => $r['row']['new_close'],
-            'paid_cutoff_at' => $r['row']['paid_cutoff_at'],
-            'snapshot_ref' => $r['snapshot_ref'],
-            'reason'       => $r['row']['reason'],
-        ]);
+        // ── THE SAME EXTENSION, FOR THE OTHER EDITIONS TICKED ─────────────────
+        //
+        // Each is its own extension, through the same extend() — its own row, snapshot, paid
+        // cutoff and public notice — with the same new close and the same reason. Its previous
+        // close is its own current close; where that already equals the new close (moved by
+        // editing the date, as ABA and ACA were) it is RECORDED with the previous close typed
+        // above. One edition refusing never undoes another: each says what happened to it.
+        $also = [];
+        $allowed = array_column(\AfricaGates\Services\VotingExtension::companions((int) $cycle->id), null, 'id');
+        $newStored = \AfricaGates\Support\DisplayTime::toStored((string) ($b['new_close'] ?? ''));
+        foreach (array_unique(array_map('intval', (array) ($b['also'] ?? []))) as $oid) {
+            if (!isset($allowed[$oid])) continue;
+            $other = DB::table('gates_award_cycles')->where('id', $oid)->first();
+            if (!$other) continue;
+            $name = $allowed[$oid]->programme;
+            $same = $newStored !== null && \Illuminate\Support\Carbon::parse((string) $other->voting_close)->eq(\Illuminate\Support\Carbon::parse($newStored));
+            $o = \AfricaGates\Services\VotingExtension::extend($other, [
+                'previous_close' => $same ? (string) ($b['previous_close'] ?? '') : \AfricaGates\Support\DisplayTime::forInput((string) $other->voting_close),
+                'new_close'      => (string) ($b['new_close'] ?? ''),
+                'reason'         => (string) ($b['reason'] ?? ''),
+                'stop_paid'      => !empty($b['stop_paid']),
+                'further'        => !empty($b['further']),
+            ], $adminId > 0 ? $adminId : null);
+            if ($o['ok']) {
+                $this->auditExtension($adminId, $oid, $o);
+                $also[] = $name . ': ' . ($o['mode'] === \AfricaGates\Services\VotingExtension::MODE_RECORDED ? 'recorded' : 'extended') . '.';
+            } else {
+                $also[] = $name . ': not changed. ' . $o['error'];
+            }
+        }
+
         $this->bustAwardsCache();
 
         $_SESSION['flash_ok'] = ($r['mode'] === \AfricaGates\Services\VotingExtension::MODE_RECORDED
                 ? 'Extension recorded. The voting close was already ' . \AfricaGates\Support\DisplayTime::showZoned($r['after']['voting_close']) . ' and has not changed.'
                 : 'Voting extended to ' . \AfricaGates\Support\DisplayTime::showZoned($r['after']['voting_close']) . ' for every category in this edition.')
             . ' The notice is on the public voting pages.'
-            . ($r['warnings'] ? ' ' . implode(' ', $r['warnings']) : '');
+            . ($r['warnings'] ? ' ' . implode(' ', $r['warnings']) : '')
+            . ($also ? ' Also: ' . implode(' ', $also) : '');
         return $res->withHeader('Location', $back)->withStatus(303);
+    }
+
+    /** One audit row per extension recorded, whichever edition it belongs to. */
+    private function auditExtension(int $adminId, int $cycleId, array $r): void
+    {
+        $this->audit->record($adminId > 0 ? $adminId : null, 'cycle.voting_extended', 'cycle', $cycleId, [
+            'extension_id'   => $r['id'],
+            'mode'           => $r['mode'],
+            'before'         => $r['before'],
+            'after'          => $r['after'],
+            'previous_close' => $r['row']['previous_close'],
+            'new_close'      => $r['row']['new_close'],
+            'paid_cutoff_at' => $r['row']['paid_cutoff_at'],
+            'snapshot_ref'   => $r['snapshot_ref'],
+            'reason'         => $r['row']['reason'],
+        ]);
     }
 
     public function cycleSave(Request $req, Response $res, array $args): Response
@@ -670,6 +710,22 @@ class ProgrammesController
         if (($err = \AfricaGates\Services\CycleService::windowError($b)) !== null) {
             $_SESSION['flash_error'] = $err;
             return $res->withHeader('Location', "/admin/programmes/$programmeId/cycle")->withStatus(302);
+        }
+        // ── A LATER CLOSE ONCE VOTING HAS OPENED IS AN EXTENSION ─────────────
+        //
+        // Moving voting_close later here, once voting has opened, extended voting with no
+        // record, no snapshot, no paid cutoff and NO PUBLIC NOTICE — the supporters of two
+        // awards saw their closing date move nine days with nothing saying so (ABA and ACA,
+        // live, 20 Nov 2026), while the one extended through "Extend voting" carried the
+        // card. So it is refused here and sent to the form that does all of that. Earlier,
+        // or before voting opens, the dates are the operator's to set freely.
+        if ($cycle && $cycle->voting_close && $b['voting_close']
+            && ($was = Carbon::parse((string) $cycle->voting_close)) && Carbon::parse((string) $b['voting_close'])->gt($was)
+            && $cycle->voting_open && Carbon::now()->gte(Carbon::parse((string) $cycle->voting_open))) {
+            $_SESSION['flash_error'] = 'Voting has already opened, so a later close is an extension. Use "Extend voting" '
+                . 'on this page: it moves the date, records it, and puts the reason on every public voting page. '
+                . 'Nothing was saved.';
+            return $res->withHeader('Location', "/admin/programmes/$programmeId/cycle?cycle=" . (int) $cycle->id . '#extend')->withStatus(302);
         }
         $data = [
             'programme_id'      => $programmeId,

@@ -22,8 +22,33 @@
 <div class="ag-notices">
   {% for n in _rows %}
     {% set _ann = n.kind == 'announce' %}
-    <section class="ag-notice ag-notice--{{ n.kind }}{{ not _ann and n.started ? ' is-live' : '' }}" aria-label="{{ _ann ? 'Announcement'|trans : 'Planned work'|trans }}">
-      {% if _ann %}
+    {% set _ext = n.kind == 'extension' %}
+    <section class="ag-notice ag-notice--{{ n.kind }}{{ not _ann and not _ext and n.started ? ' is-live' : '' }}" aria-label="{{ _ext ? 'Voting extended'|trans : (_ann ? 'Announcement'|trans : 'Planned work'|trans) }}"{% if _ext %} data-voting-extension{% endif %}>
+      {% if _ext %}
+        {#- A VOTING EXTENSION, AS A TICKER (VotingExtension::rows): one thin line at every width,
+            however long the reason — the owner asked for a marquee, and for it to be clean
+            (20 Nov 2026). WCAG 2.2.2: it pauses on hover, on focus and by its own control (a
+            checkbox, so no script is needed); under reduced motion it stands still and the
+            line scrolls sideways under a finger instead of expanding. Screen readers get the
+            whole sentence once, as text; the moving copies are aria-hidden. -#}
+        {% set _line = n.short|slice(0, 1)|upper ~ n.short|slice(1) ~ ' · ' ~ n.awards|join(', ') ~ (n.reasons|length ? ' · ' ~ n.reasons|join(' ') : '')
+            ~ (n.paid|length ? ' · ' ~ n.paid|join(' ') : '') %}
+        <div class="ag-tick">
+          <b class="ag-tick__k">{{ 'Voting extended'|trans }}</b>
+          <div class="ag-tick__vp">
+            <p class="ag-sr">{{ 'Voting extended. Voting now closes at %t%.'|trans({'%t%': n.to}) }} {{ n.awards|join(', ') }}. {{ n.reasons|join(' ') }}{% if n.ticks|length %} {{ n.ticks|map(t => t|trans)|join('. ') }}.{% endif %} {{ n.paid|join(' ') }}</p>
+            <div class="ag-tick__track" aria-hidden="true" style="--ag-tick-dur:{{ max(18, (_line|length / 6)|round) }}s">
+              <span class="ag-tick__item">{{ _line }}</span>
+              <span class="ag-tick__item">{{ _line }}</span>
+            </div>
+          </div>
+          <label class="ag-tick__pause" title="{{ 'Pause'|trans }}">
+            <input type="checkbox" aria-label="{{ 'Pause the voting extension notice'|trans }}">
+            <svg class="ag-tick__i-pause" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+            <svg class="ag-tick__i-play" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>
+          </label>
+        </div>
+      {% elseif _ann %}
         <div class="ag-notice__row">
           <span class="ag-notice__mark" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg></span>
           <p class="ag-notice__t">{{ n.text }}</p>
@@ -54,7 +79,7 @@
           <input type="hidden" name="_token" value="{{ csrf_token|default('') }}">
           <input type="hidden" name="id" value="{{ n.id }}">
           <input type="hidden" name="back" value="{{ request_path|default('/') }}">
-          <button type="submit" class="ag-notice__b" aria-label="{{ _ann ? 'Hide the announcement'|trans : 'Hide the planned-work notice'|trans }}" title="{{ 'Hide'|trans }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+          <button type="submit" class="ag-notice__b" aria-label="{{ _ext ? 'Hide the voting extension notice'|trans : (_ann ? 'Hide the announcement'|trans : 'Hide the planned-work notice'|trans) }}" title="{{ 'Hide'|trans }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
         </form>
       {% endif %}
     </section>

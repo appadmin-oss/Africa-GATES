@@ -20,6 +20,42 @@ main:has(> .ag-doc) > .ag-notices{ background:var(--ag-surface) }
   border:1px solid var(--ag-line); border-radius:var(--ag-r-14);
 }
 .ag-notice--announce{ background:var(--ag-green-wash); border-color:var(--ag-green-edge) }
+.ag-notice--extension{ background:var(--ag-green-wash); border-color:transparent; align-items:center; border-radius:var(--ag-r-10) }
+.ag-notice--extension .ag-notice__b{ width:32px; height:32px }
+
+/* ── The voting extension as a ticker ────────────────────────────────────────
+   One thin line, one size of type, no badge. The track holds the line twice and moves by half
+   its width, so the loop has no seam; the edges fade so words slide in rather than appear.
+   Paused on hover, on focus and by its own control. Under reduced motion it stands still and
+   scrolls sideways under a finger: never a second line. */
+@keyframes ag-tick{ from{ transform:translateX(0) } to{ transform:translateX(-50%) } }
+.ag-tick{ flex:1; min-width:0; display:flex; align-items:center; gap:10px; min-height:36px; padding-inline-start:12px;
+  font-size:var(--ag-fs-14); line-height:1.3 }
+.ag-tick__k{ flex:none; font-weight:700; color:var(--ag-green-deep); white-space:nowrap }
+.ag-tick__vp{ flex:1; min-width:0; overflow:hidden;
+  -webkit-mask-image:linear-gradient(90deg, transparent, var(--ag-ink) 14px, var(--ag-ink) calc(100% - 20px), transparent);
+          mask-image:linear-gradient(90deg, transparent, var(--ag-ink) 14px, var(--ag-ink) calc(100% - 20px), transparent) }
+.ag-tick__track{ display:inline-flex; white-space:nowrap; animation:ag-tick var(--ag-tick-dur, 30s) linear infinite; will-change:transform }
+.ag-tick__item{ padding-inline-end:56px; color:var(--ag-ink) }
+.ag-tick:hover .ag-tick__track, .ag-tick:focus-within .ag-tick__track,
+.ag-tick:has(.ag-tick__pause input:checked) .ag-tick__track{ animation-play-state:paused }
+.ag-tick__pause{ flex:none; position:relative; display:inline-flex; align-items:center; justify-content:center;
+  width:32px; height:32px; border-radius:var(--ag-r-pill); color:var(--ag-ink-2); cursor:pointer }
+.ag-tick__pause input{ position:absolute; inset:0; margin:0; opacity:0; cursor:pointer }
+.ag-tick__pause:has(input:focus-visible){ outline:3px solid var(--ag-green); outline-offset:2px }
+.ag-tick__i-play{ display:none }
+.ag-tick__pause:has(input:checked) .ag-tick__i-pause{ display:none }
+.ag-tick__pause:has(input:checked) .ag-tick__i-play{ display:block }
+@media (prefers-reduced-motion:reduce){
+  .ag-tick__track{ animation:none }
+  .ag-tick__vp{ overflow-x:auto; scrollbar-width:none; -webkit-mask-image:none; mask-image:none }
+  .ag-tick__item + .ag-tick__item, .ag-tick__pause{ display:none }
+}
+html.ag-rm .ag-tick__track{ animation:none }
+html.ag-rm .ag-tick__vp{ overflow-x:auto; scrollbar-width:none; -webkit-mask-image:none; mask-image:none }
+html.ag-rm .ag-tick__item + .ag-tick__item, html.ag-rm .ag-tick__pause{ display:none }
+/* A finger needs the 44px every other control in the strip has; a mouse does not. */
+@media (pointer:coarse){ .ag-notice--extension .ag-notice__b, .ag-tick__pause{ width:44px; height:44px } }
 .ag-notice--closed{ background:var(--ag-live-wash); border-color:var(--ag-live) }
 
 .ag-notice__row{ flex:1; min-width:0; display:flex; align-items:center; gap:10px; min-height:44px; padding:4px 4px 4px 12px; box-sizing:border-box }
@@ -40,6 +76,7 @@ summary.ag-notice__row:focus-visible, .ag-notice__cta:focus-visible, .ag-notice_
 .ag-notice--announce .ag-notice__t{ font-weight:600 }
 .ag-notice__k{ font-weight:700; color:var(--ag-info) }
 .ag-notice.is-live .ag-notice__k, .ag-notice--closed .ag-notice__k{ color:var(--ag-live-ink) }
+.ag-notice--extension .ag-notice__k{ color:var(--ag-green-deep) }   /* measured: green-deep on green-wash, both schemes */
 .ag-notice.is-live .ag-notice__k::before, .ag-notice--closed .ag-notice__k::before{
   content:""; display:inline-block; width:7px; height:7px; margin:0 6px 1px 0; border-radius:var(--ag-r-pill);
   background:currentColor; animation:ag-notice-breathe 1.8s var(--ag-ease) infinite;
@@ -129,20 +166,5 @@ html.ag-rm .ag-notice__k::before{ animation:none }
 @media (prefers-reduced-motion:reduce){ .ag-annc, .ag-annc__art{ animation:none } }
 html.ag-rm .ag-annc, html.ag-rm .ag-annc__art{ animation:none }
 
-/* ── A voting extension (partials/voting-extension.twig) ──────────────────────
-   One compact card: mark, the new close in bold with the old one beside it, the reason,
-   then what did not change as ticks. Sized by its content: no min-height, no empty foot. */
-.ag-xt{ display:flex; gap:12px; align-items:flex-start; margin:0 0 16px; padding:14px 16px;
-  background:var(--ag-green-wash); color:var(--ag-ink); border:1px solid var(--ag-green-edge);
-  border-radius:var(--ag-r-14); min-height:0 }
-.ag-xt__mark{ flex:none; display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px;
-  border-radius:var(--ag-r-pill); background:var(--ag-green); color:var(--ag-surface) }
-.ag-xt__body{ flex:1; min-width:0 }
-.ag-xt__t{ margin:0 0 4px; line-height:1.4 }
-.ag-xt__was{ color:var(--ag-ink-2); font-size:var(--ag-fs-14-5); white-space:nowrap }
-.ag-xt__r{ margin:0 0 8px; line-height:1.55; color:var(--ag-ink-2); max-width:72ch }
-.ag-xt__ok{ display:flex; flex-wrap:wrap; gap:4px 16px; margin:0; padding:0; list-style:none; font-size:var(--ag-fs-14-5); font-weight:600 }
-.ag-xt__ok li{ display:inline-flex; align-items:center; gap:6px }
-.ag-xt__ok li::before{ content:""; width:14px; height:14px; flex:none; border-radius:50%;
-  background:var(--ag-green) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4 8-9'/%3E%3C/svg%3E") center/10px no-repeat }
-.ag-xt__paid{ margin:8px 0 0; font-size:var(--ag-fs-14-5); font-weight:600 }
+/* A voting extension is a row of the strip above (`.ag-notice--extension`, the planned-work
+   row's shape with a different word); the card it replaced crowded every voting page. */

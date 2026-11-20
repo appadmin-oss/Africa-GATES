@@ -94,6 +94,30 @@ this edition closed on {cutoff} when voting was extended; free voting stays open
 9. **Check** the public vote page for the notice, and the extension table on the cycle screen.
 10. **Do not** use the cycle form's "Voting close" field to extend voting. It records nothing.
     If it was used by mistake, record the extension straight away using step 4.
+    Since 20 Nov 2026 the cycle form **refuses** a later close once voting has opened and
+    points to "Extend voting" instead: two awards were moved that way and their public pages
+    showed a new closing date with no notice.
+11. **Several awards at once:** tick them under "Also extend these editions". Each gets its own
+    row, snapshot, paid cutoff, audit entry and public notice, with the same new close and
+    reason. An edition already moved to the new close by editing the date is *recorded*, using
+    the previous close typed on the form.
+
+### How the public sees it
+
+Since 20 Nov 2026 the extension is **a thin ticker in the notice strip** at the top of every
+public page (the same strip as Settings → Announcement): "**Voting extended** · Until the end
+of Sun 29 Nov · the awards · the reason", scrolling on one line, with pause and ✕. It used to be
+a card inside every voting, award and results page. It pauses on hover, on keyboard focus and
+by its own button (WCAG 2.2.2), stands still for readers who turned motion off (the line then
+swipes sideways), and screen readers hear the full sentence once. Awards extended to the same
+close for the same reason share one ticker. It goes by itself when the extended voting ends,
+and comes back for somebody who hid it if a further extension is recorded.
+
+- A close at **00:00** is written as *the end of* the day before ("the end of Sun 29 Nov 2026
+  (midnight WAT)"), because "Mon 30 Nov, 00:00" reads as a whole Monday of voting.
+- The three reassurances (votes cast stand · rules and prices unchanged · same date for every
+  nominee) are shown **only where the reason does not already say them**, so they are never
+  said twice.
 
 ## Review
 

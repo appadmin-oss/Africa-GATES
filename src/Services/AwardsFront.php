@@ -293,8 +293,6 @@ final class AwardsFront
             'opens_in'   => $o ? max(0, Carbon::parse($o)->getTimestamp() - Carbon::now()->getTimestamp()) : 0,
             'waiting'    => AwardAlert::waiting($pid),
             'delay'      => ($phaseK === 'late' && $cycle) ? PublicResults::delayFor((int) $cycle->id) : null,
-            // A voting extension on this edition, stated in public (VotingExtension).
-            'extension'  => $cycle ? VotingExtension::notice((int) $cycle->id) : null,
         ];
     }
 

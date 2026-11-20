@@ -81,6 +81,29 @@ final class DisplayTime
     }
 
     /**
+     * A CLOSING time, said so nobody can misread it.
+     *
+     * A close at 00:00 is the end of the day before — "Mon 30 Nov 2026, 00:00 WAT" is the last
+     * moment of Sunday — and most readers take "Mon 30 Nov" to mean they have all of Monday.
+     * The voting-extension card said exactly that (owner, 20 Nov 2026: "fix the issues with
+     * the voting extension announcement"), promising a day of voting that did not exist. So a
+     * midnight close is written as "the end of Sun 29 Nov 2026 (midnight WAT)"; any other time
+     * is {@see showZoned()} unchanged. Only for a moment something ENDS: an opening at 00:00
+     * really is the start of its own day.
+     */
+    public static function showClose(string|\DateTimeInterface|null $stored, bool $zone = true): string
+    {
+        $dt = self::parse($stored);
+        if ($dt === null) return '';
+        $local = $dt->setTimezone(new \DateTimeZone(self::zone()));
+        if ($local->format('H:i:s') !== '00:00:00') {
+            return $zone ? self::showZoned($stored) : self::show($stored);
+        }
+        $day = $local->modify('-1 day')->format('D j M Y');
+        return $zone ? 'the end of ' . $day . ' (midnight ' . self::abbr() . ')' : 'the end of ' . $day;
+    }
+
+    /**
      * Admin input, typed in the display zone, converted to a UTC storage string.
      *
      * This is the half that is easy to forget and expensive to get wrong: an operator

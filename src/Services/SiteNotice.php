@@ -79,6 +79,11 @@ final class SiteNotice
         }
 
         if (!$flow) {
+            // A voting extension, as a row of its own (VotingExtension::rows), before the
+            // operator's announcement: it is the platform's own news about a deadline.
+            foreach (VotingExtension::rows() as $x) {
+                if (!in_array($x['id'], $hidden, true)) $out[] = $x;
+            }
             $a = self::announcement($settings);
             if ($a !== null && !in_array($a['id'], $hidden, true)) $out[] = $a;
             // The pop-up card, once per visitor per message. Its own id, so closing the card
@@ -277,7 +282,7 @@ final class SiteNotice
     /** Remember that this visitor hid a notice. Kept short: an id is twelve characters. */
     public static function hide(string $id): void
     {
-        if (!preg_match('/^[apm][a-f0-9]{12}$/', $id) || session_status() === PHP_SESSION_DISABLED) return;
+        if (!preg_match('/^[apmx][a-f0-9]{12}$/', $id) || session_status() === PHP_SESSION_DISABLED) return;
         $list = self::hidden();
         if (!in_array($id, $list, true)) $list[] = $id;
         $_SESSION[self::SESSION] = array_slice($list, -20);
