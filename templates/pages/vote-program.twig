@@ -67,7 +67,8 @@
            patched by the tallies poll. Words for the script are on [data-vote-page]. #}
         {% set _g = n.to_target|default(null) %}
         {% if _g %}<span class="vp-row__goal{{ _g.reached ? ' is-reached' }}" data-goal-left>
-          {%- if _g.reached %}{{ 'Target reached'|trans }}
+          {%- if _g.kind|default('pool') != 'pool' %}{{ _g.left }}
+          {%- elseif _g.reached %}{{ 'Target reached'|trans }}
           {%- elseif _g.settled %}{{ (_g.to_go == 1 ? 'Finished 1 vote short' : 'Finished %n% votes short')|trans({'%n%': _g.to_go|number_format}) }}
           {%- else %}{{ (_g.to_go == 1 ? '1 to go' : '%n% to go')|trans({'%n%': _g.to_go|number_format}) }}{% endif -%}
         </span>{% endif %}
@@ -258,6 +259,21 @@
       {# The vote target (CommunityReturnPool): what each row's "N to go" counts, said once. #}
       <p class="vp-note vp-goal-note">{{ (vote_target.settled ? 'Vote target, settled: %t% votes for every nominee.' : 'Vote target: %t% votes for every nominee. Those who reach it share the edition’s pool by their votes.')|trans({'%t%': vote_target.target|number_format}) }}
         {{ '“To go” counts the votes that count towards the target, which can differ from the total.'|trans }}</p>
+      {% endif %}
+      {% if money_target and categories|length %}
+      {# Any other rule's money target (CommunityReturnTarget). An edition-wide one is drawn
+         here once, counting down from the tallies poll; a per-nominee ladder names what each
+         row's figure is, and the rows carry their own. Words are the server's. #}
+      {% set _e = money_target.edition %}
+      {% if _e %}
+      <div class="vp-note vp-goal-note vp-goal-ed{{ _e.reached ? ' is-reached' }}" data-goal-edition>
+        <b>{{ _e.head }}</b> · <span data-goal-left>{{ _e.left }}</span>
+        <span class="vp-goal-ed__bar" role="img" aria-label="{{ _e.of }}" data-goal-label><span aria-hidden="true" style="width:{{ _e.pct }}%" data-goal-bar></span></span>
+        <span data-goal-of>{{ _e.of }}</span>. {{ _e.note }}
+      </div>
+      {% else %}
+      <p class="vp-note vp-goal-note">{{ 'Community return: each nominee’s share rises as their supporters raise more in paid votes. Each row says how much more lifts it to the next step.'|trans }}</p>
+      {% endif %}
       {% endif %}
       {% if categories|length %}
       {% if _many %}

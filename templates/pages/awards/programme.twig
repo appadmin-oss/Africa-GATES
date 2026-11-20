@@ -266,6 +266,22 @@
         ? (_won > 0 ? '%r% of %n% nominees reached it and shared the pool by votes.'|trans({'%r%': _won, '%n%': a.pool.nominees}) : 'Nobody reached it, so nothing was shared.'|trans)
         : '%r% of %n% nominees have reached it. They share the pool by votes when voting closes.'|trans({'%r%': _won, '%n%': a.pool.nominees}) }}</p>
     </div>
+    {% elseif a.money %}
+    {# Every other rule's money target (CommunityReturnTarget): the edition's milestone or
+       ladder step in the server's words, or — on a ladder measured per nominee — how many
+       have reached the top share. #}
+    <div class="aw-pool">
+      <p class="aw-pool__h">{{ 'Community return'|trans }}</p>
+      {% if a.money.per_nominee|default(false) %}
+        <p class="aw-pool__n">{{ 'Each nominee’s share rises with what their supporters raise'|trans }}</p>
+        <span class="aw-pool__bar" role="img" aria-label="{{ '%r% of %n% nominees are on the top share'|trans({'%r%': a.money.reached, '%n%': a.money.nominees}) }}"><span style="width:{{ a.money.pct }}%"></span></span>
+        <p class="aw-pool__s">{{ '%r% of %n% nominees are on the top share. Each nominee’s vote page shows how much more lifts theirs.'|trans({'%r%': a.money.reached, '%n%': a.money.nominees}) }}</p>
+      {% else %}
+        <p class="aw-pool__n">{{ a.money.head }} · {{ a.money.left }}</p>
+        <span class="aw-pool__bar" role="img" aria-label="{{ a.money.of }}"><span style="width:{{ a.money.pct }}%"></span></span>
+        <p class="aw-pool__s">{{ a.money.of }}. {{ a.money.note }}</p>
+      {% endif %}
+    </div>
     {% endif %}
     {% include 'partials/voting-extension.twig' with {x: a.extension|default(null), cls: 'aw-late'} only %}
     {% if a.delay %}

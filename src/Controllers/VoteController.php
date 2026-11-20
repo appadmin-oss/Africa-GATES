@@ -116,9 +116,10 @@ class VoteController {
         // The vote target, where the edition has one: asked ONCE for the edition and read per
         // row in memory (standingIn), never per nominee — sixty rows, one progress().
         $cycleId = (int) (($p['cycle']['id'] ?? null) ?: ($p['cycle_id'] ?? 0));
-        $target  = \AfricaGates\Services\CommunityReturnPool::forPublic($cycleId);
+        // Every rule with a money target, not only the pool (CommunityReturnTarget).
+        $target  = \AfricaGates\Services\CommunityReturnTarget::forPublic($cycleId);
         foreach ($noms as &$tn) {
-            $tn['to_target'] = $target !== null ? \AfricaGates\Services\CommunityReturnPool::standingIn($target, (int) $tn['id']) : null;
+            $tn['to_target'] = $target !== null ? \AfricaGates\Services\CommunityReturnTarget::standingIn($target, (int) $tn['id']) : null;
         }
         unset($tn);
         $byCat = [];
@@ -218,7 +219,12 @@ class VoteController {
             'cat_view'         => $catView,
             // The edition's vote target, for the one line above the lists saying what the
             // rows' "N to go" counts (each row carries its own figure as `to_target`).
-            'vote_target'      => $target !== null ? ['target' => (int) $target['target'], 'settled' => !empty($target['settled'])] : null,
+            'vote_target'      => $target !== null && $target['kind'] === \AfricaGates\Services\CommunityReturnTarget::KIND_POOL
+                                      ? ['target' => (int) $target['pool']['target'], 'settled' => !empty($target['pool']['settled'])] : null,
+            // A money target that is not the pool's: the edition's one figure (a milestone, an
+            // edition-measured ladder), or the line naming what each row's figure counts.
+            'money_target'     => $target !== null && $target['kind'] !== \AfricaGates\Services\CommunityReturnTarget::KIND_POOL
+                                      ? ['kind' => $target['kind'], 'scope' => $target['scope'], 'edition' => \AfricaGates\Services\CommunityReturnTarget::editionIn($target)] : null,
             'front'            => \AfricaGates\Services\VoteFront::programme($p, $cats, $catId),
             'tab'              => $tab,
             'breadcrumbs'      => [
@@ -557,7 +563,7 @@ class VoteController {
             // The vote target's countdown rides the same cached poll: the nominee's own page
             // and the list both read it, so one request every ten seconds keeps the race and
             // "N votes to go" in step, and a rally costs the database nothing more.
-            $target = \AfricaGates\Services\CommunityReturnPool::pollPayload((int) ($p['cycle']['id'] ?? 0));
+            $target = \AfricaGates\Services\CommunityReturnTarget::pollPayload((int) ($p['cycle']['id'] ?? 0));
             return ['ok' => true, 'at' => date('c'), 'categories' => $out, 'overall' => $overall, 'target' => $target];
         });
 
@@ -974,6 +980,11 @@ class VoteController {
             // arithmetic). `tallies` is the poll that keeps it counting down.
             'vote_target'      => ($tp = \AfricaGates\Services\CommunityReturnPool::forPublic((int) $nom->cycle_id)) !== null
                                       ? \AfricaGates\Services\CommunityReturnPool::standingIn($tp, (int) $nom->id) : null,
+            // Any other rule's money target (CommunityReturnTarget): this nominee's next ladder
+            // step, or the edition's milestone — drawn in words the server wrote.
+            'money_target'     => ($tp === null && ($tm = \AfricaGates\Services\CommunityReturnTarget::forPublic((int) $nom->cycle_id)) !== null)
+                                      ? (\AfricaGates\Services\CommunityReturnTarget::standingIn($tm, (int) $nom->id)
+                                         ?? \AfricaGates\Services\CommunityReturnTarget::editionIn($tm)) : null,
             'tallies_url'      => '/vote/' . rawurlencode((string) $nom->programme_slug) . '/tallies',
             'standing_headline'=> \AfricaGates\Services\StandingsService::headline($standing),
             'standing_cta'     => \AfricaGates\Services\StandingsService::callToAction($standing),

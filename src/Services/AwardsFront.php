@@ -238,6 +238,10 @@ final class AwardsFront
             'pool'       => $cycle && ($pool = CommunityReturnPool::forPublic((int) $cycle->id)) !== null
                             ? array_intersect_key($pool, array_flip(['target', 'nominees', 'combined_target', 'combined_votes', 'gap', 'pct', 'reached', 'settled']))
                             : null,
+            // Every other rule's money target, for the same box (CommunityReturnTarget): the
+            // edition's milestone or ladder step, or — measured per nominee — how many have
+            // reached their top share. Null for the pool (drawn above) and rules without one.
+            'money'      => $cycle ? self::moneyTarget((int) $cycle->id) : null,
             // What each place wins in THIS edition (EditionPrizes).
             // The edition's community return, in the same rows the voting letter prints
             // (NomineeVotingNotice::communityReturn()), so the award page and the letter cannot
@@ -371,5 +375,17 @@ final class AwardsFront
         $at = $c->nominations_open ?? $c->voting_open ?? null;
         if (!$at) return null;
         return Carbon::parse((string) $at)->isFuture() ? (string) $at : null;
+    }
+
+    /** @return array<string,mixed>|null the award page's money-target box */
+    private static function moneyTarget(int $cycleId): ?array
+    {
+        $t = CommunityReturnTarget::forPublic($cycleId);
+        if ($t === null || $t['kind'] === CommunityReturnTarget::KIND_POOL) return null;
+        if ($t['scope'] === 'edition') return CommunityReturnTarget::editionIn($t);
+        $rows = $t['rows'];
+        $top = count(array_filter($rows, static fn ($r) => !empty($r['reached'])));
+        return ['kind' => $t['kind'], 'per_nominee' => true, 'nominees' => count($rows), 'reached' => $top,
+                'pct' => $rows === [] ? 0 : (int) floor(100 * $top / count($rows))];
     }
 }

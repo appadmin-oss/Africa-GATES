@@ -318,16 +318,31 @@
           if (d.target && !d.target.settled) {
             (d.target.nominees || []).forEach(function (x) {
               $$('[data-nominee="' + x.id + '"] [data-goal-left]', root).forEach(function (g) {
-                g.textContent = x.reached ? root.getAttribute('data-w-reached')
+                /* A money target (CommunityReturnTarget) arrives in the server's own words. */
+                g.textContent = typeof x.left === 'string' ? x.left : x.reached ? root.getAttribute('data-w-reached')
                   : fill(root.getAttribute(x.to_go === 1 ? 'data-w-goal1' : 'data-w-goal'), { n: fmt(x.to_go) });
                 g.classList.toggle('is-reached', !!x.reached);
               });
             });
           }
+          /* An edition-wide money target (a milestone, an edition ladder): one line above the lists. */
+          var ed = d.target && !d.target.settled && d.target.edition, eb = ed && $('[data-goal-edition]', root);
+          if (eb) goalPatch(eb, ed);
         }).catch(function () {});
       };
       pg.every(poll, 10000);
     }
+  }
+
+  /* Write a money target's server-made words and bar into a box: text only on change, so a
+     polite live region speaks when the figure moves and not every ten seconds. */
+  function goalPatch(box, x) {
+    var left = $('[data-goal-left]', box), bar = $('[data-goal-bar]', box), of = $('[data-goal-of]', box), lab = $('[data-goal-label]', box);
+    if (left && left.textContent !== x.left) left.textContent = x.left;
+    if (of && of.textContent !== x.of) of.textContent = x.of;
+    if (lab) lab.setAttribute('aria-label', x.of);
+    if (bar) bar.style.width = x.pct + '%';
+    box.classList.toggle('is-reached', !!x.reached);
   }
 
   /* ── the vote target on a nominee's page (CommunityReturnPool) ───────────────
@@ -345,6 +360,11 @@
       if (document.hidden) return;
       fetch(url, { headers: { Accept: 'application/json' } }).then(function (r) { return r.json(); }).then(function (d) {
         var t = d && d.ok && d.target; if (!t || Number(t.cycle_id) !== cy || t.settled) return;
+        if (box.hasAttribute('data-goal-kind')) {   /* a money target: the nominee's row, or the edition's */
+          var m = t.edition || (t.nominees || []).filter(function (n) { return Number(n.id) === nid; })[0];
+          if (m && typeof m.left === 'string') goalPatch(box, m);
+          return;
+        }
         var x = (t.nominees || []).filter(function (n) { return Number(n.id) === nid; })[0]; if (!x) return;
         var words = x.reached ? box.getAttribute('data-w-reached')
           : fill(box.getAttribute(x.to_go === 1 ? 'data-w-left1' : 'data-w-left'), { n: fmt(x.to_go) });

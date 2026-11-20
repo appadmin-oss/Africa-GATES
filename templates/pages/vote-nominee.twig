@@ -529,6 +529,25 @@
     </section>
     {% endif %}
 
+    {% if money_target and not vote_target %}
+    {#- ANY OTHER MONEY TARGET (CommunityReturnTarget): this nominee's next ladder step, or the
+        edition's milestone. In the box the pool uses, in words the server wrote — so a
+        milestone, which is the whole edition's, is never said to be this nominee's to reach.
+        Counts down from the same tallies poll while voting is open. -#}
+    {% set _m = money_target %}
+    {% set _live = voting_open and not _m.confirmed|default(false) %}
+    <section class="vn-goal{{ _m.reached ? ' is-reached' }}" aria-labelledby="vn-goal-h" data-vote-target
+             data-nominee="{{ n.id }}" data-cycle="{{ n.cycle_id }}" data-goal-kind="{{ _m.kind }}"{% if _live %} data-tallies="{{ tallies_url }}"{% endif %}>
+      <h2 class="vn-goal__h" id="vn-goal-h">{{ _m.head }}</h2>
+      <p class="vn-goal__left" aria-live="polite" data-goal-left>{{ _m.left }}</p>
+      <span class="vn-goal__bar" role="img" aria-label="{{ _m.of }}" data-goal-label>
+        <span aria-hidden="true" style="width:{{ _m.pct }}%" data-goal-bar></span>
+      </span>
+      <p class="vn-goal__row"><span data-goal-of>{{ _m.of }}</span></p>
+      <p class="vn-goal__note">{{ _m.note }}</p>
+    </section>
+    {% endif %}
+
     {% set _case = n.story|default('') ?: (profile.bio|default('') ?: n.tagline) %}
     {% if _case %}
     <section class="vn-sec" aria-labelledby="vn-why">
