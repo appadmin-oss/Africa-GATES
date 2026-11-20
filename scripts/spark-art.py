@@ -164,16 +164,62 @@ UNLOCK = (
     '<circle cx="186" cy="112" r="13" fill="#f3b416"/><circle cx="58" cy="116" r="10" fill="#f3b416"/>')
 
 GIFT = (
-    '<rect x="72" y="70" width="96" height="66" rx="10" fill="url(#gr)"/>'
-    '<rect x="66" y="56" width="108" height="22" rx="8" fill="url(#gr)"/>'
-    '<rect x="112" y="56" width="16" height="80" fill="url(#go)"/>'
-    '<path d="M120 56 Q96 26 82 40 Q74 54 120 56Z" fill="url(#go)"/><path d="M120 56 Q144 26 158 40 Q166 54 120 56Z" fill="url(#go)"/>'
-    '<path d="M80 80 Q82 108 90 128" stroke="url(#gl)" stroke-width="6" fill="none" stroke-linecap="round"/>'
-    '<circle cx="62" cy="40" r="10" fill="url(#go)"/><circle cx="182" cy="34" r="8" fill="url(#go)"/><circle cx="196" cy="70" r="6" fill="url(#lv)"/>',
-    '<rect x="74" y="70" width="92" height="64" rx="8" fill="#237b22"/>'
-    '<rect x="68" y="56" width="104" height="20" rx="6" fill="#2e8f2c"/>'
-    '<rect x="112" y="56" width="16" height="78" fill="#f3b416"/>'
-    '<path d="M120 56 Q98 30 84 42 Q78 54 120 56Z" fill="#f3b416"/><path d="M120 56 Q142 30 156 42 Q162 54 120 56Z" fill="#e5a50f"/>')
+    # bold: a gift box in three-quarter view, the box and lid lit from the top left, one clean
+    # gold ribbon crossing every face, a full bow with two loops and two tails. Redrawn 20 Nov
+    # 2026 (owner: "improve the gift box") — no patterned ribbon, nothing that blurs when small.
+    '<defs>'
+    '<linearGradient id="gF" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3fae3c"/><stop offset="1" stop-color="#1f7a1d"/></linearGradient>'
+    '<linearGradient id="gS" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1f7a1d"/><stop offset="1" stop-color="#14520f"/></linearGradient>'
+    '<linearGradient id="gT" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7ad877"/><stop offset="1" stop-color="#36a333"/></linearGradient>'
+    '<linearGradient id="rF" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#ffe27a"/><stop offset=".5" stop-color="#f3b416"/><stop offset="1" stop-color="#d99a06"/></linearGradient>'
+    '<linearGradient id="rS" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#d99a06"/><stop offset="1" stop-color="#b07a00"/></linearGradient>'
+    '<linearGradient id="bw" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe9a0"/><stop offset=".55" stop-color="#f3b416"/><stop offset="1" stop-color="#c98a00"/></linearGradient>'
+    '</defs>'
+    # body: front and side faces
+    '<path d="M76 74 L142 83 L142 136 L76 127Z" fill="url(#gF)"/>'
+    '<path d="M142 83 L172 72 L172 124 L142 136Z" fill="url(#gS)"/>'
+    # ribbon down the body
+    '<path d="M103 78 L115 79.6 L115 132.4 L103 130.8Z" fill="url(#rF)"/>'
+    '<path d="M153 79 L161 76 L161 128 L153 131.6Z" fill="url(#rS)"/>'
+    # lid: top, front band, side band
+    '<path d="M70 62 L146 72 L178 60 L102 50Z" fill="url(#gT)"/>'
+    '<path d="M70 62 L146 72 L146 85 L70 75Z" fill="url(#gF)"/>'
+    '<path d="M146 72 L178 60 L178 73 L146 85Z" fill="url(#gS)"/>'
+    # ribbon over the lid: on its front band, its side band and across the top both ways
+    '<path d="M101 66 L115 67.9 L115 80.9 L101 79Z" fill="url(#rF)"/>'
+    '<path d="M154 69 L163 65.6 L163 78.6 L154 82Z" fill="url(#rS)"/>'
+    '<path d="M101 66 L115 67.9 L148 55.5 L134 53.7Z" fill="#f7c63a"/>'
+    '<path d="M83 56.5 L91 53.6 L167 63.6 L159 66.5Z" fill="#f7c63a"/>'
+    # light: a soft gloss on the front and the lid's front edge
+    '<path d="M82 82 Q84 104 90 122" stroke="#fff" stroke-opacity=".28" stroke-width="5" fill="none" stroke-linecap="round"/>'
+    '<path d="M76 66 L140 74.5" stroke="#fff" stroke-opacity=".45" stroke-width="2" stroke-linecap="round"/>'
+    # the bow: two loops, two tails, a knot
+    '<path d="M124 58 C104 52 88 30 102 26 C114 22 122 42 124 58Z" fill="url(#bw)"/>'
+    '<path d="M124 58 C144 50 160 30 148 24 C136 18 126 40 124 58Z" fill="url(#bw)"/>'
+    '<path d="M110 30 C114 36 118 46 122 54" stroke="#c98a00" stroke-opacity=".55" stroke-width="2" fill="none" stroke-linecap="round"/>'
+    '<path d="M144 29 C138 36 132 46 126 54" stroke="#c98a00" stroke-opacity=".55" stroke-width="2" fill="none" stroke-linecap="round"/>'
+    '<path d="M121 60 L110 78 L116 77 L119 83Z" fill="url(#bw)"/>'
+    '<path d="M127 60 L140 76 L134 76 L132 82Z" fill="url(#bw)"/>'
+    '<ellipse cx="124" cy="58" rx="7" ry="6" fill="url(#bw)"/>'
+    '<ellipse cx="122" cy="56" rx="2.5" ry="1.8" fill="#fff" opacity=".7"/>'
+    '<path d="M104 30 C108 28 112 32 114 36" stroke="#fff" stroke-opacity=".7" stroke-width="2" fill="none" stroke-linecap="round"/>'
+    # a few coins and sparks bursting out
+    '<circle cx="64" cy="44" r="8" fill="url(#go)"/><circle cx="64" cy="44" r="5" fill="none" stroke="#c98a00" stroke-width="1.2"/>'
+    '<circle cx="186" cy="40" r="6" fill="url(#go)"/><circle cx="194" cy="86" r="4" fill="url(#lv)"/>',
+    # house: the same gift, flat — two-tone faces, a solid ribbon, the bow as two shapes
+    '<path d="M78 76 L142 84 L142 134 L78 126Z" fill="#237b22"/>'
+    '<path d="M142 84 L170 74 L170 122 L142 134Z" fill="#1a6118"/>'
+    '<path d="M104 79 L116 80.5 L116 130.5 L104 129Z" fill="#f3b416"/>'
+    '<path d="M152 80 L160 77 L160 126 L152 129.3Z" fill="#e5a50f"/>'
+    '<path d="M72 64 L146 73 L176 62 L102 53Z" fill="#2e8f2c"/>'
+    '<path d="M72 64 L146 73 L146 85 L72 76Z" fill="#237b22"/>'
+    '<path d="M146 73 L176 62 L176 74 L146 85Z" fill="#1a6118"/>'
+    '<path d="M102 68 L116 69.7 L116 81.7 L102 80Z" fill="#f3b416"/>'
+    '<path d="M102 68 L116 69.7 L148 58 L134 56.4Z" fill="#f3b416"/>'
+    '<path d="M85 59 L93 56.2 L165 65 L157 67.8Z" fill="#f3b416"/>'
+    '<path d="M124 60 C106 54 92 34 104 30 C114 27 122 44 124 60Z" fill="#f3b416"/>'
+    '<path d="M124 60 C142 52 156 34 146 28 C136 24 126 42 124 60Z" fill="#e5a50f"/>'
+    '<circle cx="124" cy="60" r="6" fill="#e5a50f"/>')
 
 COINS = (
     ''.join(f'<ellipse cx="100" cy="{124 - i*12}" rx="30" ry="9" fill="#c98a00"/><ellipse cx="100" cy="{120 - i*12}" rx="30" ry="9" fill="url(#go)"/>' for i in range(5))
@@ -198,6 +244,58 @@ BALLOT = (
     '<path d="M120 58 C110 50 108 42 114 40 Q118 39 120 44 Q122 39 126 40 C132 42 130 50 120 58Z" fill="#e0245e"/></g>'
     '<path d="M130 110 l7 7 l14 -16" stroke="#f3b416" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>')
 
+# ── the Christmas set (owner, 20 Nov 2026: "add them now, it's 10 days till December") ──
+# Pop-up pictures for the season, app style only. Saved as xmas-{name}.svg; a generated file of
+# the same name (xmas-santa.webp, …) replaces the drawing, and Santa exists only as a file.
+XRED = ('<linearGradient id="xr" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f05a5a"/>'
+        '<stop offset="1" stop-color="#a3101c"/></linearGradient>')
+
+def holly(x, y, s=1.0):
+    return (f'<g transform="translate({x} {y}) scale({s})">'
+            '<path d="M0 0 C-8 -10 -22 -8 -30 -16 C-26 -6 -28 2 -20 6 C-14 2 -8 4 0 0Z" fill="url(#gr)"/>'
+            '<path d="M0 0 C6 -12 20 -14 26 -24 C26 -12 30 -6 24 0 C16 -2 10 2 0 0Z" fill="url(#gr)"/>'
+            '<circle cx="-2" cy="2" r="5" fill="url(#xr)"/><circle cx="7" cy="4" r="5" fill="url(#xr)"/>'
+            '<circle cx="2" cy="-5" r="5" fill="url(#xr)"/><circle cx="0.5" cy="0.5" r="1.4" fill="#fff" opacity=".7"/></g>')
+
+XMAS = {
+    'mic': (
+        '<rect x="98" y="16" width="44" height="64" rx="22" fill="url(#go)"/>'
+        + ''.join(f'<rect x="104" y="{26 + i*9}" width="32" height="4.5" rx="2.2" fill="#1a6118"/>' for i in range(6))
+        + '<path d="M104 24 Q100 50 106 72" stroke="url(#gl)" stroke-width="4" fill="none" stroke-linecap="round"/>'
+        '<path d="M92 54 Q92 90 120 90 Q148 90 148 54" stroke="url(#go)" stroke-width="6" fill="none" stroke-linecap="round"/>'
+        '<rect x="116" y="90" width="8" height="30" fill="url(#go)"/>'
+        '<ellipse cx="120" cy="126" rx="34" ry="9" fill="url(#gr)"/><ellipse cx="120" cy="122" rx="30" ry="6" fill="url(#go)"/>'
+        + holly(146, 112, .9)),
+    'tree': (
+        '<rect x="104" y="112" width="12" height="16" fill="#8a5a1c"/>'
+        '<path d="M110 22 L138 64 L126 64 L146 96 L132 96 L150 120 L70 120 L88 96 L74 96 L94 64 L82 64Z" fill="url(#gr)"/>'
+        '<path d="M110 22 L96 52" stroke="url(#gl)" stroke-width="4" stroke-linecap="round"/>'
+        '<path d="M110 14 L113 21 L121 21 L115 26 L117 34 L110 29 L103 34 L105 26 L99 21 L107 21Z" fill="url(#go)"/>'
+        '<circle cx="104" cy="70" r="5" fill="url(#go)"/><circle cx="122" cy="88" r="5" fill="url(#go)"/><circle cx="96" cy="104" r="5" fill="url(#go)"/>'
+        # the present, front right
+        '<rect x="136" y="98" width="46" height="36" rx="5" fill="url(#xr)"/><rect x="132" y="90" width="54" height="12" rx="4" fill="url(#xr)"/>'
+        '<rect x="155" y="90" width="8" height="44" fill="url(#go)"/>'
+        '<path d="M159 90 C146 74 138 84 146 90Z" fill="url(#go)"/><path d="M159 90 C172 74 180 84 172 90Z" fill="url(#go)"/>'
+        # the bell, front left, with a red bow
+        '<path d="M58 132 C58 108 64 96 76 94 C88 96 94 108 94 132Z" fill="url(#go)"/>'
+        '<ellipse cx="76" cy="133" rx="20" ry="5" fill="#c98a00"/><circle cx="76" cy="138" r="5" fill="url(#go)"/>'
+        '<path d="M76 92 C62 80 52 92 64 98Z" fill="url(#xr)"/><path d="M76 92 C90 80 100 92 88 98Z" fill="url(#xr)"/>'
+        '<circle cx="76" cy="93" r="4" fill="url(#xr)"/>'
+        '<path d="M66 108 Q64 118 66 126" stroke="#fff" stroke-opacity=".6" stroke-width="3" fill="none" stroke-linecap="round"/>'),
+    'trophy': (
+        '<path d="M86 34 Q60 36 66 62 Q72 80 96 80" stroke="url(#go)" stroke-width="9" fill="none"/>'
+        '<path d="M154 34 Q180 36 174 62 Q168 80 144 80" stroke="url(#go)" stroke-width="9" fill="none"/>'
+        '<path d="M84 22 L156 22 L152 62 Q148 90 120 94 Q92 90 88 62Z" fill="url(#go)"/>'
+        '<ellipse cx="120" cy="24" rx="36" ry="5" fill="#c98a00" opacity=".5"/>'
+        '<path d="M94 30 Q96 64 108 84" stroke="url(#gl)" stroke-width="7" fill="none" stroke-linecap="round"/>'
+        '<rect x="112" y="92" width="16" height="14" fill="#c98a00"/>'
+        '<path d="M120 98 C104 86 90 96 102 104 C108 108 116 104 120 100Z" fill="url(#xr)"/>'
+        '<path d="M120 98 C136 86 150 96 138 104 C132 108 124 104 120 100Z" fill="url(#xr)"/>'
+        '<path d="M117 101 L108 118 L114 116 L116 122Z" fill="url(#xr)"/><path d="M123 101 L132 118 L126 116 L124 122Z" fill="url(#xr)"/>'
+        '<circle cx="120" cy="100" r="5" fill="url(#xr)"/>'
+        '<rect x="94" y="112" width="52" height="22" rx="6" fill="url(#gr)"/><rect x="90" y="130" width="60" height="8" rx="4" fill="url(#go)"/>'),
+}
+
 SUBJECTS = {'rocket': ROCKET, 'megaphone': MEGAPHONE, 'target': TARGET, 'trophy': TROPHY,
             'unlock': UNLOCK, 'gift': GIFT, 'coins': COINS, 'ballot': BALLOT}
 
@@ -207,4 +305,8 @@ if __name__ == '__main__':
         for style, svg in (('bold', bold_frame(bold)), ('house', house_frame(house))):
             with open(os.path.join(OUT, f'{name}-{style}.svg'), 'w', encoding='utf-8') as f:
                 f.write(svg + '\n')
-    print(f'{len(SUBJECTS) * 2} files in {os.path.normpath(OUT)}')
+    for name, body in XMAS.items():
+        svg = bold_frame(body).replace('</defs>', XRED + '</defs>', 1)
+        with open(os.path.join(OUT, f'xmas-{name}.svg'), 'w', encoding='utf-8') as f:
+            f.write(svg + '\n')
+    print(f'{len(SUBJECTS) * 2 + len(XMAS)} files in {os.path.normpath(OUT)}')

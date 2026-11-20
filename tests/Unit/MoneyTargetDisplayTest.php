@@ -293,7 +293,29 @@ final class MoneyTargetDisplayTest extends TestCase
         $this->assertSame('/assets/img/spark/megaphone-bold.svg', \AfricaGates\Services\SiteNotice::popup($base + ['announce_art' => '../../etc'])['art'],
             'an unknown choice reached an img src');
         $this->assertNull(\AfricaGates\Services\SiteNotice::popup($base + ['announce_image' => '/assets/img/a.gif'])['art'], 'an uploaded image is replaced');
-        $this->assertCount(16, \AfricaGates\Services\SiteNotice::artChoices());
+        $choices = \AfricaGates\Services\SiteNotice::artChoices();
+        $this->assertCount(19, $choices, 'sixteen sparks and the three drawn Christmas pictures');
+        $this->assertArrayNotHasKey('xmas-santa', $choices, 'Santa offered before his picture exists');
+        // A supplied picture appears in the picker the moment its file does.
+        $png = dirname(__DIR__, 2) . '/public/assets/img/spark/thumbs-up.png';
+        $this->assertFileDoesNotExist($png, 'a real supplied file would be removed by this test');
+        file_put_contents($png, 'x');
+        try {
+            $this->assertArrayHasKey('thumbs-up', \AfricaGates\Services\SiteNotice::artChoices());
+            $this->assertSame('/assets/img/spark/thumbs-up.png', \AfricaGates\Services\SiteNotice::popup($base + ['announce_art' => 'thumbs-up'])['art']);
+        } finally {
+            unlink($png);
+        }
+        $this->assertSame('/assets/img/spark/xmas-mic.svg', \AfricaGates\Services\SiteNotice::popup($base + ['announce_art' => 'xmas-mic'])['art']);
+
+        // The season: unchosen means the tree in December, the megaphone in November; a choice
+        // is always honoured.
+        Carbon::setTestNow('2026-12-10 12:00:00');
+        $this->assertSame('/assets/img/spark/xmas-tree.svg', \AfricaGates\Services\SiteNotice::popup($base)['art']);
+        $this->assertSame('/assets/img/spark/trophy-house.svg', \AfricaGates\Services\SiteNotice::popup($base + ['announce_art' => 'trophy-house'])['art']);
+        Carbon::setTestNow('2027-01-07 12:00:00');
+        $this->assertSame('/assets/img/spark/megaphone-bold.svg', \AfricaGates\Services\SiteNotice::popup($base)['art'], 'Christmas outstayed the season');
+        Carbon::setTestNow();
     }
 
     // ── nothing to draw ──────────────────────────────────────────────────────

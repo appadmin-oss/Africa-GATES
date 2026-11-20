@@ -210,13 +210,50 @@ final class SiteNotice
             $out[$sub . '-bold']  = ($names[$sub] ?? ucfirst($sub)) . ' (app style)';
             $out[$sub . '-house'] = ($names[$sub] ?? ucfirst($sub)) . ' (Africa GATES style)';
         }
+        // The season's pictures, offered only when the file is there: Santa exists only as an
+        // owner-supplied image, so the picker never lists a picture that would draw broken.
+        foreach (self::XMAS as $key => $label) {
+            if (self::xmasUrl($key) !== null) $out[$key] = $label . ' (Christmas)';
+        }
+        foreach (self::EXTRA as $key => $label) {
+            if (self::xmasUrl($key) !== null) $out[$key] = $label;
+        }
         return $out;
+    }
+
+    /** The Christmas set (owner, 20 Nov 2026). Drawn by scripts/spark-art.py, or a file of the same name. */
+    public const XMAS = ['xmas-tree' => 'Tree, bell and present', 'xmas-mic' => 'Microphone with holly',
+                         'xmas-trophy' => 'Trophy with a red bow', 'xmas-santa' => 'Santa'];
+
+    /** Owner-supplied pictures with no drawn version, listed once their file is in spark/. */
+    public const EXTRA = ['thumbs-up' => 'Thumbs up', 'calendar' => 'Calendar and clock (deadlines, extensions)'];
+
+    /** A Christmas (or extra) picture's URL: a supplied image first, then the drawing; null when neither exists. */
+    private static function xmasUrl(string $key): ?string
+    {
+        $dir = dirname(__DIR__, 2) . '/public/assets/img/spark/';
+        foreach (['webp', 'png', 'jpg', 'svg'] as $ext) {
+            if (is_file($dir . "$key.$ext")) return "/assets/img/spark/$key.$ext";
+        }
+        return null;
+    }
+
+    /**
+     * Between 1 December and 6 January a pop-up nobody chose a picture for gets the Christmas
+     * tree rather than the megaphone. A picture an operator DID choose is always honoured.
+     */
+    private static function festive(): bool
+    {
+        $d = \Illuminate\Support\Carbon::now();
+        return $d->month === 12 || ($d->month === 1 && $d->day <= 6);
     }
 
     /** The chosen illustration's URL; an unknown or empty choice is the megaphone, never nothing. */
     private static function artUrl(string $key): string
     {
+        if ($key === '' && self::festive() && self::xmasUrl('xmas-tree') !== null) $key = 'xmas-tree';
         if (!isset(self::artChoices()[$key])) $key = 'megaphone-bold';
+        if (isset(self::XMAS[$key]) || isset(self::EXTRA[$key])) return (string) self::xmasUrl($key);
         [$sub, $style] = explode('-', $key, 2);
         return CommunityReturnTarget::art($sub, 0, $style);
     }
